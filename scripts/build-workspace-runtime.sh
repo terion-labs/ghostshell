@@ -99,11 +99,13 @@ binary_dir="$(xcrun swift build --package-path "${package_dir}" --scratch-path "
 diff -u "${staging_dir}/legal/SOURCE-MANIFEST.sha256" <(source_manifest)
 install -m 755 "${binary_dir}/workspace-runtime" "${staging_dir}/workspace-runtime"
 # Swift compatibility libraries are not necessarily present on the deployment OS.
-# Resolve them from the linked toolchain paths, then remove those host-only paths.
+# The selected toolchain knows its versioned compatibility-library directories,
+# even when the linker did not emit an absolute toolchain search path.
+xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "${staging_dir}/workspace-runtime" \
+    --destination "${staging_dir}" --sign -
+# Remove host-only search paths after copying the required library closure.
 while IFS= read -r runtime_path; do
     [[ "${runtime_path}" == /* && "${runtime_path}" != /usr/lib/* ]] || continue
-    xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "${staging_dir}/workspace-runtime" \
-        --source-libraries "${runtime_path}" --destination "${staging_dir}" --sign -
     install_name_tool -delete_rpath "${runtime_path}" "${staging_dir}/workspace-runtime"
 done < <(otool -l "${staging_dir}/workspace-runtime" | awk '/cmd LC_RPATH/{getline; getline; print $2}')
 # The Swift signing tool leaves an unsigned backup beside each copied library.

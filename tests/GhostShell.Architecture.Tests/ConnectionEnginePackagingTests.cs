@@ -29,6 +29,18 @@ public sealed class ConnectionEnginePackagingTests
     }
 
     [Fact]
+    public void WorkspaceRuntimeCopiesSwiftLibrariesWithoutAbsoluteSearchPaths()
+    {
+        var script = Read("scripts", "build-workspace-runtime.sh");
+        var copy = script.IndexOf("\nxcrun swift-stdlib-tool --copy", StringComparison.Ordinal);
+        var stripPaths = script.IndexOf("\nwhile IFS= read -r runtime_path; do", StringComparison.Ordinal);
+        Assert.True(copy >= 0 && stripPaths > copy);
+        Assert.Contains("--destination \"${staging_dir}\" --sign -", script[copy..stripPaths], StringComparison.Ordinal);
+        Assert.DoesNotContain("--source-libraries", script, StringComparison.Ordinal);
+        Assert.Contains("Missing bundled Swift library", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OpenVpnBuildIntermediatesStayOutsideTheShippingRidDirectory()
     {
         var build = Read("scripts", "build-openvpn-engine.sh");
