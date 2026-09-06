@@ -159,7 +159,7 @@
           UnbindKeybindingRequested="OnUnbindKeybindingClick"
           UndoDeletedSavedScreenRequested="OnUndoDeletedSavedScreenClick"
           WorkspaceSettingsRequested="OnWorkspaceSettingsClick"
-          WorkspaceIsolationChangedRequested="OnWorkspaceIsolationChanged" />
+          NetworkingSettingsRequested="OnNetworkingSettingsClick" />
     </DataTemplate>
 
     <DataTemplate x:Key="CommandPaletteOverlayTemplate" x:DataType="vm:MainWindowViewModel">
@@ -479,7 +479,10 @@
         ShowSettingsRequested="OnShowSettingsClick"
         SubmitAgentQuestionRequested="OnSubmitAgentQuestionClick"
         ToggleAgentRequested="OnToggleAgentClick"
-        ToggleAgentPinRequested="OnToggleAgentPinClick" />
+        ToggleAgentPinRequested="OnToggleAgentPinClick"
+        WorkspaceNetworkConnectionSelected="OnWorkspaceNetworkConnectionSelected"
+        WorkspaceNetworkToggleRequested="OnWorkspaceNetworkToggleRequested"
+        NetworkingSettingsRequested="OnNetworkingSettingsClick" />
 
     <!-- The host is cheap. Its template is built once, on first navigation. -->
     <ContentControl

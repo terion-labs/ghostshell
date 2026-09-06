@@ -129,6 +129,56 @@ public sealed class WorkspaceIsolationContractsTests
     }
 
     [Fact]
+    public void Network_binding_canonicalizes_a_valid_ipv4_subnet()
+    {
+        var packetSocket = HostPath("network.sock");
+        var network = new WorkspaceIsolationNetworkBinding(
+            "ghostshell-workspace-network",
+            "192.168.128.1",
+            "192.168.128.17/24",
+            packetSocket,
+            "/run/ghostshell/network.sock",
+            "/opt/ghostshell/bin/workspace-gateway");
+
+        Assert.Equal("192.168.128.1", network.Ipv4Gateway);
+        Assert.Equal("192.168.128.0/24", network.Ipv4Subnet);
+        Assert.Equal(packetSocket, network.PacketSocketPath);
+        Assert.Equal("/run/ghostshell/network.sock", network.GuestSocketPath);
+        Assert.Equal("/opt/ghostshell/bin/workspace-gateway", network.GuestHelperPath);
+    }
+
+    [Fact]
+    public void Network_binding_rejects_partial_or_relative_packet_transport_metadata()
+    {
+        _ = Assert.Throws<ArgumentException>(() =>
+            new WorkspaceIsolationNetworkBinding(
+                "workspace-network",
+                "192.168.128.1",
+                "192.168.128.0/24",
+                HostPath("network.sock")));
+        _ = Assert.Throws<ArgumentException>(() =>
+            new WorkspaceIsolationNetworkBinding(
+                "workspace-network",
+                "192.168.128.1",
+                "192.168.128.0/24",
+                "relative.sock",
+                "/run/ghostshell/network.sock",
+                "/opt/ghostshell/bin/workspace-gateway"));
+    }
+
+    [Theory]
+    [InlineData("not-an-address", "192.168.128.0/24")]
+    [InlineData("2001:db8::1", "2001:db8::/64")]
+    [InlineData("192.168.64.1", "192.168.128.0/24")]
+    public void Network_binding_rejects_invalid_ipv4_gateway_metadata(
+        string gateway,
+        string subnet)
+    {
+        _ = Assert.Throws<ArgumentException>(() =>
+            new WorkspaceIsolationNetworkBinding("workspace-network", gateway, subnet));
+    }
+
+    [Fact]
     public void Process_launch_snapshots_structured_values_and_rejects_null_environment_values()
     {
         var arguments = new List<string> { "first" };

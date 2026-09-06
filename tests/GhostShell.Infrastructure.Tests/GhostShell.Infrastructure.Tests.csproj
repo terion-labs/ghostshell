@@ -30,6 +30,13 @@
       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)../../native/artifacts/linux-arm64/workspace-gateway')">
+    <Content
+      Include="$(MSBuildThisFileDirectory)../../native/artifacts/linux-arm64/workspace-gateway"
+      Link="runtimes/linux-arm64/guest/workspace-gateway"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target
     Name="AddSqlLanguageTestWorkerPath"
     BeforeTargets="GetAssemblyAttributes"

@@ -20,6 +20,7 @@ public sealed class ShellNavigationViewModelTests
 
     [Theory]
     [InlineData(SettingsPage.Appearance)]
+    [InlineData(SettingsPage.Networking)]
     [InlineData(SettingsPage.Files)]
     [InlineData(SettingsPage.Mcp)]
     public void Settings_navigation_dismisses_an_overlay_and_projects_one_subroute(
@@ -107,6 +108,7 @@ public sealed class ShellNavigationViewModelTests
         {
             navigation.IsAppearanceSettingsVisible,
             navigation.IsWorkspaceSettingsVisible,
+            navigation.IsNetworkingSettingsVisible,
             navigation.IsKeybindingSettingsVisible,
             navigation.IsFilesSettingsVisible,
             navigation.IsBrowserSettingsVisible,

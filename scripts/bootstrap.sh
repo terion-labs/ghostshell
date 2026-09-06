@@ -33,6 +33,7 @@ if [[ "${GHOSTSHELL_SKIP_NATIVE-0}" != "1" ]]; then
     case "${host_os}:${host_arch}" in
         Darwin:arm64)
             native_rid="osx-arm64"
+            build_workspace_network_gateway=true
             ;;
         Darwin:x86_64)
             native_rid="osx-x64"
@@ -50,4 +51,10 @@ if [[ "${GHOSTSHELL_SKIP_NATIVE-0}" != "1" ]]; then
     esac
 
     "${script_dir}/build-libghostty-vt.sh" --rid "${native_rid}"
+    if [[ "${build_workspace_network_gateway:-false}" == true ]]; then
+        "${script_dir}/build-workspace-network-gateway.sh" --rid osx-arm64
+        "${script_dir}/build-workspace-runtime.sh"
+        "${script_dir}/build-openvpn-engine.sh"
+        "${script_dir}/build-macos-connection-engines.sh"
+    fi
 fi

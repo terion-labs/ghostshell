@@ -43,6 +43,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
     private readonly IDefinitionRepository<DatabaseConnectionProfile> _databaseConnections;
     private readonly IDefinitionRepository<QuickTerminalSettings> _quickTerminalSettings;
     private readonly IDefinitionRepository<BrowserProfileDefinition> _browserProfiles;
+    private readonly IDefinitionRepository<NetworkConnectionProfile> _networkConnections;
+    private readonly IDefinitionRepository<ApplicationNetworkSettings> _applicationNetworkSettings;
     private readonly ILayoutGraphStore? _layoutGraph;
     private readonly ThemePreference _defaultTheme;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
@@ -64,7 +66,9 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
         ILayoutGraphStore? layoutGraph = null,
         IDefinitionRepository<DatabaseConnectionProfile>? databaseConnections = null,
         ThemePreference? defaultTheme = null,
-        IDefinitionRepository<BrowserProfileDefinition>? browserProfiles = null)
+        IDefinitionRepository<BrowserProfileDefinition>? browserProfiles = null,
+        IDefinitionRepository<NetworkConnectionProfile>? networkConnections = null,
+        IDefinitionRepository<ApplicationNetworkSettings>? applicationNetworkSettings = null)
     {
         _layoutGraph = layoutGraph;
         _connections = connections ?? throw new ArgumentNullException(nameof(connections));
@@ -87,6 +91,10 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
             ?? new EphemeralRepository<DatabaseConnectionProfile>();
         _browserProfiles = browserProfiles
             ?? new EphemeralRepository<BrowserProfileDefinition>();
+        _networkConnections = networkConnections
+            ?? new EphemeralRepository<NetworkConnectionProfile>();
+        _applicationNetworkSettings = applicationNetworkSettings
+            ?? new EphemeralRepository<ApplicationNetworkSettings>();
         _defaultTheme = defaultTheme ?? ThemePreference.Default;
     }
 
@@ -631,6 +639,30 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
             ValidateDatabaseConnection,
             cancellationToken);
 
+    public ValueTask<DefinitionStoreResult<StoredDefinition<NetworkConnectionProfile>>>
+        SaveNetworkConnectionAsync(
+            NetworkConnectionProfile definition,
+            long? expectedRevision,
+            CancellationToken cancellationToken) =>
+        SaveValidatedAsync(
+            definition,
+            expectedRevision,
+            _networkConnections,
+            ValidateNetworkConnection,
+            cancellationToken);
+
+    public ValueTask<DefinitionStoreResult<StoredDefinition<ApplicationNetworkSettings>>>
+        SaveApplicationNetworkSettingsAsync(
+            ApplicationNetworkSettings definition,
+            long? expectedRevision,
+            CancellationToken cancellationToken) =>
+        SaveValidatedAsync(
+            definition,
+            expectedRevision,
+            _applicationNetworkSettings,
+            ValidateApplicationNetworkSettings,
+            cancellationToken);
+
     public async ValueTask<DefinitionStoreResult<Unit>> DeleteAsync(
         DefinitionKey key,
         long expectedRevision,
@@ -658,6 +690,15 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
                     new DefinitionStoreError(
                         DefinitionStoreErrorCode.DependencyConflict,
                         $"The {WorkspaceDefinition.DefaultWorkspaceName} workspace always exists and cannot be deleted."));
+            }
+
+            if (key.Kind == NetworkConnectionProfile.Kind
+                && IsNetworkPolicyDependency(key.Value))
+            {
+                return DefinitionStoreResult<Unit>.Failure(
+                    new DefinitionStoreError(
+                        DefinitionStoreErrorCode.DependencyConflict,
+                        "This network connection is referenced by application or workspace network settings."));
             }
 
             var result = key.Kind switch
@@ -697,6 +738,20 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
                         .ConfigureAwait(false),
                 var kind when kind == DatabaseConnectionProfile.Kind =>
                     await _databaseConnections.DeleteAsync(key, expectedRevision, cancellationToken)
+                        .ConfigureAwait(false),
+                var kind when kind == NetworkConnectionProfile.Kind =>
+                    await _networkConnections.DeleteAsync(key, expectedRevision, cancellationToken)
+                        .ConfigureAwait(false),
+                var kind when kind == ApplicationNetworkSettings.Kind
+                    && string.Equals(
+                        key.Value,
+                        ApplicationNetworkSettings.DefaultId.Value,
+                        StringComparison.Ordinal) =>
+                    DefinitionStoreResult<Unit>.Failure(new DefinitionStoreError(
+                        DefinitionStoreErrorCode.DependencyConflict,
+                        "Application network settings always exist and cannot be deleted.")),
+                var kind when kind == ApplicationNetworkSettings.Kind =>
+                    await _applicationNetworkSettings.DeleteAsync(key, expectedRevision, cancellationToken)
                         .ConfigureAwait(false),
                 var kind when kind == BrowserProfileDefinition.Kind
                     && string.Equals(
@@ -877,6 +932,13 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
         if (policyDependency is not null)
         {
             return policyDependency;
+        }
+
+        var networkPolicyDependency = ValidateNetworkPolicyDependencies(
+            definition.NetworkOverride);
+        if (networkPolicyDependency is not null)
+        {
+            return networkPolicyDependency;
         }
 
         var connectionIds = Snapshot.Connections.Select(item => item.Value.Id).ToHashSet();
@@ -1104,6 +1166,45 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
             : null;
     }
 
+    private DefinitionStoreError? ValidateNetworkConnection(NetworkConnectionProfile definition) =>
+        ValidateName(Snapshot.NetworkConnections, definition);
+
+    private DefinitionStoreError? ValidateApplicationNetworkSettings(
+        ApplicationNetworkSettings definition)
+    {
+        if (definition.Id != ApplicationNetworkSettings.DefaultId)
+        {
+            return Invalid("Application network settings must use the built-in identity.");
+        }
+
+        return ValidateNetworkPolicyDependencies(definition.Policy);
+    }
+
+    private DefinitionStoreError? ValidateNetworkPolicyDependencies(NetworkPolicy? policy)
+    {
+        if (policy is null)
+        {
+            return null;
+        }
+
+        var knownIds = Snapshot.NetworkConnections
+            .Select(item => item.Value.Id)
+            .ToHashSet();
+        return policy.Connections.Any(id => !knownIds.Contains(id))
+            ? new DefinitionStoreError(
+                DefinitionStoreErrorCode.DependencyConflict,
+                "The network policy references a network connection that does not exist.")
+            : null;
+    }
+
+    private bool IsNetworkPolicyDependency(string connectionId) =>
+        Snapshot.ApplicationNetworkSettings.Any(item =>
+            item.Value.Policy.Connections.Any(id =>
+                string.Equals(id.Value, connectionId, StringComparison.Ordinal)))
+        || Snapshot.Workspaces.Any(item =>
+            item.Value.NetworkOverride?.Connections.Any(id =>
+                string.Equals(id.Value, connectionId, StringComparison.Ordinal)) == true);
+
     private static DefinitionStoreError? ValidateName<TDefinition>(
         IReadOnlyList<StoredDefinition<TDefinition>> definitions,
         TDefinition candidate)
@@ -1130,6 +1231,10 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
         var quickTerminalTask = _quickTerminalSettings.ListAsync(cancellationToken).AsTask();
         var databaseConnectionsTask = _databaseConnections.ListAsync(cancellationToken).AsTask();
         var browserProfilesTask = _browserProfiles.ListAsync(cancellationToken).AsTask();
+        var networkConnectionsTask = _networkConnections.ListAsync(cancellationToken).AsTask();
+        var applicationNetworkSettingsTask = _applicationNetworkSettings
+            .ListAsync(cancellationToken)
+            .AsTask();
         await Task.WhenAll(
                 connectionsTask,
                 layoutsTask,
@@ -1143,7 +1248,9 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
                 mcpServersTask,
                 quickTerminalTask,
                 databaseConnectionsTask,
-                browserProfilesTask)
+                browserProfilesTask,
+                networkConnectionsTask,
+                applicationNetworkSettingsTask)
             .ConfigureAwait(false);
 
         var connections = await connectionsTask.ConfigureAwait(false);
@@ -1159,6 +1266,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
         var quickTerminal = await quickTerminalTask.ConfigureAwait(false);
         var databaseConnections = await databaseConnectionsTask.ConfigureAwait(false);
         var browserProfiles = await browserProfilesTask.ConfigureAwait(false);
+        var networkConnections = await networkConnectionsTask.ConfigureAwait(false);
+        var applicationNetworkSettings = await applicationNetworkSettingsTask.ConfigureAwait(false);
 
         var errors = new DefinitionStoreError?[]
         {
@@ -1175,6 +1284,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
             quickTerminal.Error,
             databaseConnections.Error,
             browserProfiles.Error,
+            networkConnections.Error,
+            applicationNetworkSettings.Error,
         };
         var error = errors.FirstOrDefault(item => item is not null);
         if (error is not null)
@@ -1197,6 +1308,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
             McpServerProfiles = mcpServers.Value!,
             DatabaseConnections = databaseConnections.Value!,
             BrowserProfiles = browserProfiles.Value!,
+            NetworkConnections = networkConnections.Value!,
+            ApplicationNetworkSettings = applicationNetworkSettings.Value!,
         };
         Volatile.Write(ref _snapshot, snapshot);
         return DefinitionStoreResult<DefinitionCatalogSnapshot>.Success(snapshot);
@@ -1205,6 +1318,20 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
     private async ValueTask<DefinitionStoreResult<Unit>> SeedDefaultsAsync(
         CancellationToken cancellationToken)
     {
+        if (Snapshot.ApplicationNetworkSettings.All(item =>
+                item.Value.Id != ApplicationNetworkSettings.DefaultId))
+        {
+            var saved = await _applicationNetworkSettings.SaveAsync(
+                    ApplicationNetworkSettings.Default,
+                    null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (!saved.IsSuccess)
+            {
+                return DefinitionStoreResult<Unit>.Failure(saved.Error!);
+            }
+        }
+
         if (Snapshot.BrowserProfiles.All(item =>
                 item.Value.Id != BuiltInBrowserProfiles.Default.Id))
         {
@@ -1453,7 +1580,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
                     workspace.IsIsolated,
                     workspace.IsolationMounts,
                     workspace.IsolationImageReference,
-                    workspace.RunAgentInIsolation),
+                    workspace.RunAgentInIsolation,
+                    workspace.NetworkOverride),
                 stored.Revision,
                 cancellationToken)
             .ConfigureAwait(false);

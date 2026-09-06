@@ -40,6 +40,8 @@ internal sealed class RecordingEmbeddedBrowserView : IEmbeddedBrowserView
 
     public bool ThrowOnNavigate { get; set; }
 
+    public bool ThrowOnReload { get; set; }
+
     public bool ThrowOnSnapshot { get; set; }
 
     public bool ThrowOnClick { get; set; }
@@ -246,6 +248,12 @@ internal sealed class RecordingEmbeddedBrowserView : IEmbeddedBrowserView
 
     public bool Reload()
     {
+        if (ThrowOnReload)
+        {
+            throw new InvalidOperationException(
+                "vendor reload details must stay inside the engine");
+        }
+
         ReloadCount++;
         if (AcceptReload)
         {

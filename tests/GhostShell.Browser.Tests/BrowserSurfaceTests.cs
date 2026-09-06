@@ -2241,6 +2241,47 @@ public sealed class BrowserSurfaceTests
     }
 
     [Fact]
+    public async Task VendorExceptionReplacesTheFailedNativeViewOnTheNextUiTurn()
+    {
+        var nativeView = new RecordingEmbeddedBrowserView
+        {
+            ThrowOnReload = true,
+        };
+        var replacement = new RecordingEmbeddedBrowserView
+        {
+            AcceptReload = true,
+        };
+        var dispatcher = new QueuedBrowserUiDispatcher();
+        var surface = new BrowserSurface(
+            nativeView,
+            BrowserTestDestinationPolicy.Public,
+            dispatcher,
+            () => replacement);
+        BrowserProductEvent? observed = null;
+        surface.ProductEvent += (_, productEvent) => observed = productEvent;
+
+        var failed = await surface.ReloadAsync(CancellationToken.None);
+
+        Assert.False(failed.IsSuccess);
+        Assert.Equal(BrowserErrorCode.EngineFailed, failed.Error?.Code);
+        Assert.Equal(BrowserLoadState.Failed, surface.State.LoadState);
+        Assert.False(nativeView.IsDisposed);
+        await dispatcher.WaitForWorkAsync();
+
+        dispatcher.Drain();
+
+        Assert.True(nativeView.IsDisposed);
+        Assert.Same(replacement.View, surface.Content);
+        Assert.Equal(BrowserLoadState.Ready, surface.State.LoadState);
+        Assert.IsType<BrowserProductEvent.RendererRecovered>(observed);
+
+        var retried = await surface.ReloadAsync(CancellationToken.None);
+
+        Assert.True(retried.IsSuccess);
+        Assert.Equal(1, replacement.ReloadCount);
+    }
+
+    [Fact]
     public async Task CancellationDoesNotReachTheNativeRenderer()
     {
         var nativeView = new RecordingEmbeddedBrowserView();
@@ -3088,6 +3129,33 @@ public sealed class BrowserSurfaceTests
         replacement.RaiseProductEvent(
             new BrowserProductEvent.DownloadCancelled(2));
         Assert.IsType<BrowserProductEvent.DownloadCancelled>(observed);
+    }
+
+    [Fact]
+    public async Task RendererProcessFailureWaitsUntilTheNativeCallbackReturns()
+    {
+        var nativeView = new RecordingEmbeddedBrowserView();
+        var replacement = new RecordingEmbeddedBrowserView();
+        var dispatcher = new QueuedBrowserUiDispatcher();
+        var surface = new BrowserSurface(
+            nativeView,
+            BrowserTestDestinationPolicy.Public,
+            dispatcher,
+            () => replacement);
+        BrowserProductEvent? observed = null;
+        surface.ProductEvent += (_, productEvent) => observed = productEvent;
+
+        nativeView.RaiseRenderProcessFailed();
+
+        Assert.False(nativeView.IsDisposed);
+        Assert.Null(observed);
+        await dispatcher.WaitForWorkAsync();
+
+        dispatcher.Drain();
+
+        Assert.True(nativeView.IsDisposed);
+        Assert.Same(replacement.View, surface.Content);
+        Assert.IsType<BrowserProductEvent.RendererRecovered>(observed);
     }
 
     [Fact]

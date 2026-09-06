@@ -172,6 +172,7 @@ public interface IDockerPanelSessionFactory
     CapabilitySet Capabilities { get; }
 
     ValueTask<IDockerPanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
         SessionId sessionId,
         DockerSessionTarget target,
         CancellationToken cancellationToken);

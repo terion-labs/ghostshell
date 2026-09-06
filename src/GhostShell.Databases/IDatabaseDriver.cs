@@ -15,6 +15,13 @@ public interface IDatabaseDriver
     DbConnection CreateConnection(string connectionString);
 
     /// <summary>
+    /// Opens a relayed transport while retaining the original server identity
+    /// for protocol authentication. Drivers with TLS overrides apply them here.
+    /// </summary>
+    DbConnection CreateRoutedConnection(string connectionString, string host, int port) =>
+        CreateConnection(RewriteEndpoint(connectionString, host, port));
+
+    /// <summary>
     /// Maps friendly input onto the provider's syntax before anything parses
     /// it — file engines accept a bare path here. The default keeps the input.
     /// </summary>

@@ -309,6 +309,25 @@
               Description="Keep the shell running when the panel is dismissed.">
             <ToggleSwitch HorizontalAlignment="Right" IsChecked="True" />
           </controls:SettingRow>
+          <controls:SettingRow
+              Label="Allowed hosts"
+              Description="A list is a setting too. Stacked, it takes the row's whole width under its name."
+              IsStacked="True">
+            <controls:SurfaceCard Tone="Sunken" Padding="{DynamicResource ShellCardPaddingCompact}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                <controls:ListItem Title="bastion.example.com" Detail="Read only">
+                  <controls:ListItem.Trailing>
+                    <controls:StatusChip Shape="Rounded" Tone="Default" Content="SSH" />
+                  </controls:ListItem.Trailing>
+                </controls:ListItem>
+                <controls:ListItem Title="cache.internal" Detail="Read &amp; write">
+                  <controls:ListItem.Trailing>
+                    <controls:StatusChip Shape="Rounded" Tone="Default" Content="Redis" />
+                  </controls:ListItem.Trailing>
+                </controls:ListItem>
+              </StackPanel>
+            </controls:SurfaceCard>
+          </controls:SettingRow>
         </controls:SettingsGroup>
       </StackPanel>
 

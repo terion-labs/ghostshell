@@ -16,6 +16,8 @@ public static class BrowserEngineRuntime
     private const string ExpectedShimVersion = "0.8.0-ghostshell.6";
     internal const string DisabledChromiumFeatures =
         "OptimizationGuideOnDeviceModel,LogOnDeviceMetricsOnStartup";
+    internal const string DisableChromeLoginPromptSwitch =
+        "disable-chrome-login-prompt";
     private static readonly object StateGate = new();
     private static bool _initialized;
     private static bool _shutdown;
@@ -81,6 +83,11 @@ public static class BrowserEngineRuntime
             Cef.AddCommandLineSwitch(
                 "disable-features",
                 DisabledChromiumFeatures);
+            // Chrome runtime otherwise owns HTTP authentication and shows its
+            // login dialog instead of invoking CEF's GetAuthCredentials hook.
+            // GhostSHELL answers that hook only for an authenticated workspace
+            // proxy at the exact configured loopback endpoint.
+            Cef.AddCommandLineSwitch(DisableChromeLoginPromptSwitch);
             if (GetMacOsSafeStorageSwitch(
                     OperatingSystem.IsMacOS()) is { } safeStorageSwitch)
             {

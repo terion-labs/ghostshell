@@ -3518,6 +3518,19 @@ public sealed partial class BrowserSurface :
             return;
         }
 
+        // CEF can deliver this event while its process-exit callback is still
+        // on the stack. Creating a replacement browser from that callback can
+        // fail even though the same request succeeds one UI turn later.
+        _dispatcher.Post(() => RecoverRenderProcess(sender));
+    }
+
+    private void RecoverRenderProcess(object? failedView)
+    {
+        if (_disposed || !ReferenceEquals(failedView, _nativeView))
+        {
+            return;
+        }
+
         var lostAddress = State.Address;
         if (TryReplaceQuarantinedNativeView())
         {
@@ -3638,8 +3651,17 @@ public sealed partial class BrowserSurface :
 
     private BrowserResult<BrowserSessionState> FailEngine()
     {
+        var failedView = _nativeView;
         var error = EngineFailure();
         PublishFailure(State.Address, error);
+        if (_nativeViewReplacementFactory is not null)
+        {
+            // A native operation may fail while CEF is unwinding renderer
+            // state. Defer replacement for the same reason as the explicit
+            // render-process failure callback.
+            _dispatcher.Post(() => RecoverRenderProcess(failedView));
+        }
+
         return BrowserResult<BrowserSessionState>.Failure(error);
     }
 

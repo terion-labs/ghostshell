@@ -39,6 +39,16 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     internal const string LegacyAlpineImageReference =
         "docker.io/library/alpine@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce";
 
+    internal const string PacketGatewayLinuxArtifactName =
+        "ghostshell-workspace-gateway-linux-arm64";
+
+    internal const string GuestPacketGatewayDirectory = "/opt/ghostshell/bin";
+
+    internal const string GuestPacketGatewayExecutable =
+        GuestPacketGatewayDirectory + "/workspace-gateway";
+
+    internal const string GuestPacketGatewaySocket = "/var/lib/ghostshell/network.sock";
+
     private const int MaximumCapturedCharacters = 64 * 1024;
     private const int MaximumDiagnosticCharacters = 512;
     private const int WorkspaceCpuCount = 1;
@@ -48,7 +58,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private const string DefaultGuestWorkingDirectory = "/home/ghostshell";
     private const string DefaultImageContainerfileResourceName =
         "GhostShell.Infrastructure.WorkspaceImages.Ubuntu2404.Containerfile";
-    private const string InteractiveShellBootstrapScript =
+    internal const string InteractiveShellBootstrapScript =
         "if command -v bash >/dev/null 2>&1; then exec bash -l; "
         + "elif command -v zsh >/dev/null 2>&1; then exec zsh -l; "
         + "elif command -v fish >/dev/null 2>&1; then exec fish -l; "
@@ -68,7 +78,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         + "--exclude=./var/host-services/ssh-auth.sock "
         + "-cpf \"$archive\" -C / . || status=$?; "
         + "if [ \"$status\" -le 1 ] && [ -s \"$archive\" ]; then exit 0; fi; exit \"$status\"";
-    private const string SshBootstrapScript =
+    internal const string SshBootstrapScript =
         "ssh=$1; known_hosts=$2; known_hosts_data=$3; shift 3; "
         + "if [ -n \"$known_hosts\" ]; then umask 077; mkdir -p \"${known_hosts%/*}\" || exit $?; "
         + "if [ -n \"$known_hosts_data\" ]; then printf %s \"$known_hosts_data\" | base64 -d > \"$known_hosts\" || exit $?; "
@@ -77,7 +87,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         + "if command -v apt-get >/dev/null 2>&1; then sudo -n apt-get update && sudo -n apt-get install -y --no-install-recommends openssh-client && sudo -n rm -rf /var/lib/apt/lists/*; "
         + "elif command -v apk >/dev/null 2>&1; then sudo -n apk add --no-cache openssh-client; "
         + "else echo 'The selected isolate image cannot install OpenSSH.' >&2; exit 127; fi || exit $?; fi; exec \"$ssh\" \"$@\"";
-    private const string GuestProvisioningScript =
+    internal const string GuestProvisioningScript =
         "set -eu; user_name=$1; uid=$2; gid=$3; user_home=$4; "
         + "pid_one=$(cat /proc/1/comm); test \"$pid_one\" != .cz-init; test \"$pid_one\" != sleep; "
         + "test -x /sbin/init; "
@@ -108,7 +118,8 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private const string OwnershipLabel = "io.ghostshell.workspace";
     private const string SchemaLabel = "io.ghostshell.isolation-schema";
     private const string BaseImageLabel = "io.ghostshell.base-image";
-    private const string SchemaVersion = "2";
+    private const string NatSchemaVersion = "2";
+    private const string HostOnlyNetworkSchemaVersion = "3";
     private const string SnapshotContainerfile = """
         FROM scratch
         ADD rootfs.tar /
@@ -135,6 +146,10 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private readonly uint _guestUserId;
     private readonly uint _guestGroupId;
     private readonly bool _buildDefaultImage;
+    private readonly bool _useHostOnlyNetwork;
+    private readonly string _packetGatewayStateRoot;
+    private readonly string _guestPacketGatewayHelperDirectory;
+    private readonly bool _requirePacketGatewayPayload;
     private readonly ConcurrentDictionary<string, ResourceLeaseState> _resources =
         new(StringComparer.Ordinal);
 
@@ -142,7 +157,8 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         string imageReference = DefaultImageReference,
         string guestShellExecutable = "/bin/sh",
         string guestSshExecutable = "/usr/bin/ssh",
-        string containerExecutable = DefaultContainerExecutablePath)
+        string containerExecutable = DefaultContainerExecutablePath,
+        bool useHostOnlyNetwork = false)
         : this(
             RunCommandAsync,
             imageReference,
@@ -152,7 +168,11 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             containerExecutable,
             CurrentUserId(),
             CurrentGroupId(),
-            buildDefaultImage: true)
+            buildDefaultImage: true,
+            useHostOnlyNetwork,
+            packetGatewayStateRoot: null,
+            guestPacketGatewayHelperDirectory: null,
+            requirePacketGatewayPayload: true)
     {
     }
 
@@ -165,7 +185,11 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         string containerExecutable,
         uint guestUserId = 1000,
         uint guestGroupId = 1000,
-        bool buildDefaultImage = false)
+        bool buildDefaultImage = false,
+        bool useHostOnlyNetwork = false,
+        string? packetGatewayStateRoot = null,
+        string? guestPacketGatewayHelperDirectory = null,
+        bool requirePacketGatewayPayload = false)
     {
         _commandRunner = commandRunner ?? throw new ArgumentNullException(nameof(commandRunner));
         _imageReference = ValidateText(imageReference, nameof(imageReference));
@@ -175,6 +199,14 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         _guestUserId = guestUserId;
         _guestGroupId = guestGroupId;
         _buildDefaultImage = buildDefaultImage;
+        _useHostOnlyNetwork = useHostOnlyNetwork;
+        _packetGatewayStateRoot = ValidateAbsolutePath(
+            packetGatewayStateRoot ?? DefaultPacketGatewayStateRoot(),
+            nameof(packetGatewayStateRoot));
+        _guestPacketGatewayHelperDirectory = ValidateAbsolutePath(
+            guestPacketGatewayHelperDirectory ?? DefaultGuestPacketGatewayHelperDirectory(),
+            nameof(guestPacketGatewayHelperDirectory));
+        _requirePacketGatewayPayload = requirePacketGatewayPayload;
         ArgumentNullException.ThrowIfNull(guestShellArguments);
         _guestShellArguments = Array.AsReadOnly(guestShellArguments
             .Select(argument => ValidateArgument(argument, nameof(guestShellArguments)))
@@ -250,6 +282,12 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
 
             if (resource.ActiveLeases.Count > 0)
             {
+                if (_useHostOnlyNetwork && resource.Network is null)
+                {
+                    return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Fail(
+                        WorkspaceIsolationErrorCode.PersistentEnvironmentResetRequired);
+                }
+
                 var activeInspect = await RunAsync(
                         ["inspect", resourceName],
                         ProbeTimeout,
@@ -364,6 +402,22 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                     startSystemFailure);
             }
 
+            if (_useHostOnlyNetwork)
+            {
+                progress?.Report(new WorkspaceIsolationProgress(
+                    "Preparing the workspace host-only network…"));
+                var networkResult = await EnsureNetworkAsync(resourceName, cancellationToken)
+                    .ConfigureAwait(false);
+                if (networkResult is WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Failure networkFailure)
+                {
+                    return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Fail(
+                        networkFailure.Error.Code);
+                }
+
+                resource.Network =
+                    ((WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Success)networkResult).Value;
+            }
+
             var inspect = await RunAsync(
                 ["inspect", resourceName],
                 ProbeTimeout,
@@ -383,6 +437,13 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
 
                 progress?.Report(new WorkspaceIsolationProgress(
                     "Creating the persistent workspace isolate…"));
+                if (_useHostOnlyNetwork
+                    && !TryPreparePacketTransport(resource.Network!))
+                {
+                    return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Fail(
+                        WorkspaceIsolationErrorCode.PrepareFailed);
+                }
+
                 var create = await RunAsync(
                     CreateArguments(request, resourceName),
                     CreateTimeout,
@@ -395,6 +456,11 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                     .ConfigureAwait(false);
                 if (!inspect.IsSuccess)
                 {
+                    if (_useHostOnlyNetwork)
+                    {
+                        _ = TryRemovePacketSocket(resource.Network!.PacketSocketPath!);
+                    }
+
                     var failure = create.IsSuccess
                         || inspect.Outcome is AppleContainerCommandOutcome.Cancelled
                             or AppleContainerCommandOutcome.TimedOut
@@ -438,6 +504,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                 var recreated = await RecreateContainerForImageAsync(
                         request,
                         resourceName,
+                        resource.Network,
                         progress,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -459,6 +526,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                         resourceName,
                         configuredMounts,
                         configuredBaseImage ?? InferBaseImage(configuredImage, resourceName),
+                        resource.Network,
                         progress,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -614,9 +682,28 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                     LifecycleTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
+            if (_useHostOnlyNetwork)
+            {
+                var removeNetwork = await RemoveOwnedNetworkAsync(resourceName, cancellationToken)
+                    .ConfigureAwait(false);
+                if (removeNetwork is WorkspaceIsolationResult<Unit>.Failure)
+                {
+                    return removeNetwork;
+                }
+
+                var packetSocketPath = resource.Network?.PacketSocketPath
+                    ?? PacketSocketPath(resourceName);
+                if (!TryRemovePacketSocket(packetSocketPath))
+                {
+                    return WorkspaceIsolationResult<Unit>.Fail(
+                        WorkspaceIsolationErrorCode.PrepareFailed);
+                }
+            }
+
             resource.Mounts = null;
             resource.ImageReference = null;
             resource.RuntimeImageReference = null;
+            resource.Network = null;
             return cancellationToken.IsCancellationRequested
                 ? WorkspaceIsolationResult<Unit>.Fail(
                     WorkspaceIsolationErrorCode.Cancelled)
@@ -911,7 +998,8 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             request.Mounts,
             leaseId,
             request.ImageReference,
-            resource.RuntimeImageReference ?? ImageReferenceFor(request));
+            resource.RuntimeImageReference ?? ImageReferenceFor(request),
+            resource.Network);
     }
 
     internal static string ResourceName(WorkspaceId workspaceId)
@@ -923,6 +1011,126 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(workspaceId.Value));
         return $"ghostshell-{Convert.ToHexString(hash.AsSpan(0, 12)).ToLowerInvariant()}";
+    }
+
+    internal static string NetworkResourceName(WorkspaceId workspaceId) =>
+        $"{ResourceName(workspaceId)}-network";
+
+    internal string PacketSocketPath(WorkspaceId workspaceId) =>
+        PacketSocketPath(ResourceName(workspaceId));
+
+    private string IsolationSchemaVersion =>
+        _useHostOnlyNetwork ? HostOnlyNetworkSchemaVersion : NatSchemaVersion;
+
+    private static string DefaultPacketGatewayStateRoot() =>
+        Path.Combine(
+            "/tmp",
+            $"ghostshell-{CurrentUserId().ToString(CultureInfo.InvariantCulture)}",
+            "network-gateways");
+
+    private static string DefaultGuestPacketGatewayHelperDirectory() =>
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "runtimes",
+            "linux-arm64",
+            "guest");
+
+    private string PacketSocketPath(string resourceName) =>
+        Path.Combine(_packetGatewayStateRoot, resourceName, "guest.sock");
+
+    private bool TryPreparePacketTransport(
+        WorkspaceIsolationNetworkBinding network)
+    {
+        if (!_useHostOnlyNetwork)
+        {
+            return true;
+        }
+
+        if (!_requirePacketGatewayPayload)
+        {
+            return true;
+        }
+
+        try
+        {
+            var helperDirectory = new DirectoryInfo(_guestPacketGatewayHelperDirectory);
+            var helper = new FileInfo(Path.Combine(
+                helperDirectory.FullName,
+                Path.GetFileName(GuestPacketGatewayExecutable)));
+            if (_requirePacketGatewayPayload
+                && (!helperDirectory.Exists
+                    || helperDirectory.LinkTarget is not null
+                    || !helper.Exists
+                    || helper.LinkTarget is not null))
+            {
+                return false;
+            }
+
+            var stateRoot = Directory.CreateDirectory(_packetGatewayStateRoot);
+            if (stateRoot.LinkTarget is not null)
+            {
+                return false;
+            }
+
+            var socketDirectory = Directory.CreateDirectory(
+                Path.GetDirectoryName(network.PacketSocketPath!)!);
+            if (socketDirectory.LinkTarget is not null)
+            {
+                return false;
+            }
+
+            if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+            {
+                File.SetUnixFileMode(
+                    stateRoot.FullName,
+                    UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute);
+                File.SetUnixFileMode(
+                    socketDirectory.FullName,
+                    UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute);
+            }
+
+            return TryRemovePacketSocket(network.PacketSocketPath!);
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryRemovePacketSocket(string socketPath)
+    {
+        try
+        {
+            if (Directory.Exists(socketPath))
+            {
+                return false;
+            }
+
+            var socket = new FileInfo(socketPath);
+            if (socket.LinkTarget is not null)
+            {
+                return false;
+            }
+
+            if (socket.Exists)
+            {
+                socket.Delete();
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static bool CanEncodeMount(WorkspaceIsolationMount mount) =>
@@ -939,7 +1147,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private static bool IsGuestIdentityEnvironment(string name) =>
         name is "HOME" or "USER" or "LOGNAME" or "SHELL";
 
-    private static bool TryPrepareSshTrust(
+    internal static bool TryPrepareSshTrust(
         IReadOnlyList<string> arguments,
         out IReadOnlyList<string> guestArguments,
         out string guestKnownHostsPath,
@@ -1079,7 +1287,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         return false;
     }
 
-    private static bool TryMapWorkingDirectory(
+    internal static bool TryMapWorkingDirectory(
         IReadOnlyList<WorkspaceIsolationMount> mounts,
         string? hostWorkingDirectory,
         out string? guestWorkingDirectory)
@@ -1154,7 +1362,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             "--label",
             $"{OwnershipLabel}={resourceName}",
             "--label",
-            $"{SchemaLabel}={SchemaVersion}",
+            $"{SchemaLabel}={IsolationSchemaVersion}",
             "--label",
             $"{BaseImageLabel}={baseImageReference ?? ImageReferenceFor(request)}",
             "--cpus",
@@ -1171,6 +1379,27 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             "container=apple-container",
             "--ssh",
         };
+        if (_useHostOnlyNetwork)
+        {
+            if (!_resources.TryGetValue(resourceName, out var resource)
+                || resource.Network is null)
+            {
+                throw new InvalidOperationException(
+                    "The workspace host-only network must be prepared before its container.");
+            }
+
+            arguments.Add("--network");
+            arguments.Add(NetworkResourceName(request.WorkspaceId));
+            arguments.Add("--no-dns");
+            arguments.Add("--publish-socket");
+            arguments.Add(
+                $"{resource.Network.PacketSocketPath}:{resource.Network.GuestSocketPath}");
+            arguments.Add("--mount");
+            arguments.Add(
+                $"type=bind,source={_guestPacketGatewayHelperDirectory},"
+                + $"target={GuestPacketGatewayDirectory},readonly");
+        }
+
         foreach (var mount in request.Mounts.OrderBy(
                      candidate => candidate.GuestDestination,
                      StringComparer.Ordinal))
@@ -1180,8 +1409,20 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         }
 
         arguments.Add("--entrypoint");
-        arguments.Add("/sbin/init");
+        arguments.Add(_useHostOnlyNetwork
+            ? GuestPacketGatewayExecutable
+            : "/sbin/init");
         arguments.Add(imageReference ?? RuntimeImageReferenceFor(request));
+        if (_useHostOnlyNetwork)
+        {
+            var network = _resources[resourceName].Network!;
+            arguments.Add("init");
+            arguments.Add("--gateway");
+            arguments.Add(network.Ipv4Gateway);
+            arguments.Add("--");
+            arguments.Add("/sbin/init");
+        }
+
         return arguments;
     }
 
@@ -1190,6 +1431,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         string resourceName,
         IReadOnlyList<WorkspaceIsolationMount> configuredMounts,
         string configuredBaseImage,
+        WorkspaceIsolationNetworkBinding? network,
         IProgress<WorkspaceIsolationProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -1328,6 +1570,12 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                 return delete;
             }
 
+            if (_useHostOnlyNetwork
+                && (network is null || !TryPreparePacketTransport(network)))
+            {
+                return AppleContainerCommandResult.ExecutionFailed;
+            }
+
             var create = await RunAsync(
                     CreateArguments(
                         request,
@@ -1344,6 +1592,12 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
 
             // The snapshot image contains the complete writable filesystem. Restore the
             // previous mount configuration if applying the new configuration fails.
+            if (_useHostOnlyNetwork
+                && (network is null || !TryPreparePacketTransport(network)))
+            {
+                return create;
+            }
+
             _ = await RunAsync(
                     CreateArguments(
                         new WorkspaceIsolationPrepareRequest(
@@ -1515,6 +1769,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private async ValueTask<AppleContainerCommandResult> RecreateContainerForImageAsync(
         WorkspaceIsolationPrepareRequest request,
         string resourceName,
+        WorkspaceIsolationNetworkBinding? network,
         IProgress<WorkspaceIsolationProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -1561,6 +1816,12 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             return delete;
         }
 
+        if (_useHostOnlyNetwork
+            && (network is null || !TryPreparePacketTransport(network)))
+        {
+            return AppleContainerCommandResult.ExecutionFailed;
+        }
+
         return await RunAsync(
                 CreateArguments(request, resourceName),
                 CreateTimeout,
@@ -1571,6 +1832,111 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
     private static string MountArgument(WorkspaceIsolationMount mount) =>
         $"type=bind,source={mount.HostSource},target={mount.GuestDestination}"
         + (mount.IsReadOnly ? ",readonly" : string.Empty);
+
+    private async ValueTask<WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>>
+        EnsureNetworkAsync(
+            string containerResourceName,
+            CancellationToken cancellationToken)
+    {
+        var networkName = $"{containerResourceName}-network";
+        var inspect = await RunAsync(
+                ["network", "inspect", networkName],
+                ProbeTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (inspect.IsSuccess)
+        {
+            return TryReadOwnedNetwork(inspect.StandardOutput, containerResourceName, out var network)
+                ? WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Succeed(network)
+                : WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Fail(
+                    WorkspaceIsolationErrorCode.PrepareFailed);
+        }
+
+        if (inspect.Outcome is not AppleContainerCommandOutcome.Exited)
+        {
+            return WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Fail(
+                MapLifecycleFailure(inspect, WorkspaceIsolationErrorCode.PrepareFailed));
+        }
+
+        var create = await RunAsync(
+                [
+                    "network",
+                    "create",
+                    "--internal",
+                    "--label",
+                    $"{OwnershipLabel}={containerResourceName}",
+                    "--label",
+                    $"{SchemaLabel}={HostOnlyNetworkSchemaVersion}",
+                    networkName,
+                ],
+                LifecycleTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var createdInspect = await RunAsync(
+                ["network", "inspect", networkName],
+                ProbeTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (createdInspect.IsSuccess
+            && TryReadOwnedNetwork(
+                createdInspect.StandardOutput,
+                containerResourceName,
+                out var createdNetwork))
+        {
+            return WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Succeed(
+                createdNetwork);
+        }
+
+        var failure = create.IsSuccess ? createdInspect : create;
+        return WorkspaceIsolationResult<WorkspaceIsolationNetworkBinding>.Fail(
+            MapLifecycleFailure(failure, WorkspaceIsolationErrorCode.PrepareFailed));
+    }
+
+    private async ValueTask<WorkspaceIsolationResult<Unit>> RemoveOwnedNetworkAsync(
+        string containerResourceName,
+        CancellationToken cancellationToken)
+    {
+        var networkName = $"{containerResourceName}-network";
+        var inspect = await RunAsync(
+                ["network", "inspect", networkName],
+                ProbeTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!inspect.IsSuccess)
+        {
+            if (inspect.Outcome is not AppleContainerCommandOutcome.Exited)
+            {
+                return WorkspaceIsolationResult<Unit>.Fail(
+                    MapLifecycleFailure(inspect, WorkspaceIsolationErrorCode.PrepareFailed));
+            }
+
+            var list = await RunAsync(
+                    ["network", "list", "--format", "json"],
+                    ProbeTimeout,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return list.IsSuccess && ConfirmsNetworkAbsent(list.StandardOutput, networkName)
+                ? WorkspaceIsolationResult<Unit>.Succeed(Unit.Value)
+                : WorkspaceIsolationResult<Unit>.Fail(
+                    MapLifecycleFailure(inspect, WorkspaceIsolationErrorCode.PrepareFailed));
+        }
+
+        if (!TryReadOwnedNetwork(inspect.StandardOutput, containerResourceName, out _))
+        {
+            return WorkspaceIsolationResult<Unit>.Fail(
+                WorkspaceIsolationErrorCode.PrepareFailed);
+        }
+
+        var delete = await RunAsync(
+                ["network", "delete", networkName],
+                LifecycleTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return delete.IsSuccess
+            ? WorkspaceIsolationResult<Unit>.Succeed(Unit.Value)
+            : WorkspaceIsolationResult<Unit>.Fail(
+                MapLifecycleFailure(delete, WorkspaceIsolationErrorCode.PrepareFailed));
+    }
 
     private async ValueTask<AppleContainerCommandResult> RunAsync(
         IReadOnlyList<string> arguments,
@@ -1741,7 +2107,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             out _,
             out _);
 
-    private static bool TryReadExpectedContainerConfiguration(
+    private bool TryReadExpectedContainerConfiguration(
         string json,
         string resourceName,
         out IReadOnlyList<WorkspaceIsolationMount> configuredMounts,
@@ -1769,7 +2135,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                 || !string.Equals(id.GetString(), resourceName, StringComparison.Ordinal)
                 || !configuration.TryGetProperty("labels", out var labels)
                 || !HasLabel(labels, OwnershipLabel, resourceName)
-                || !HasLabel(labels, SchemaLabel, SchemaVersion)
+                || !HasLabel(labels, SchemaLabel, IsolationSchemaVersion)
                 || !configuration.TryGetProperty("image", out var image)
                 || !image.TryGetProperty("reference", out var imageReference)
                 || imageReference.ValueKind != JsonValueKind.String
@@ -1782,6 +2148,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                 || memoryBytes != WorkspaceMemoryBytes
                 || !configuration.TryGetProperty("ssh", out var ssh)
                 || ssh.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+                || !HasExpectedNetworkConfiguration(configuration, resourceName)
                 || !configuration.TryGetProperty("useInit", out var useInit)
                 || useInit.ValueKind is not JsonValueKind.False
                 || !configuration.TryGetProperty("initProcess", out var initProcess)
@@ -1789,8 +2156,12 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                 || initExecutable.ValueKind != JsonValueKind.String
                 || !string.Equals(
                     initExecutable.GetString(),
-                    "/sbin/init",
+                    _useHostOnlyNetwork
+                        ? GuestPacketGatewayExecutable
+                        : "/sbin/init",
                     StringComparison.Ordinal)
+                || !HasExpectedInitArguments(initProcess, resourceName)
+                || !HasExpectedPacketTransportConfiguration(configuration, resourceName)
                 || !configuration.TryGetProperty("mounts", out var mounts)
                 || mounts.ValueKind != JsonValueKind.Array)
             {
@@ -1806,6 +2177,7 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
             }
 
             var mountsFromRuntime = new List<WorkspaceIsolationMount>();
+            var internalHelperMounts = 0;
             foreach (var mount in mounts.EnumerateArray())
             {
                 if (!TryReadMount(mount, out var configured))
@@ -1813,10 +2185,30 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
                     return false;
                 }
 
+                if (_useHostOnlyNetwork
+                    && string.Equals(
+                        configured.HostSource,
+                        _guestPacketGatewayHelperDirectory,
+                        StringComparison.Ordinal)
+                    && string.Equals(
+                        configured.GuestDestination,
+                        GuestPacketGatewayDirectory,
+                        StringComparison.Ordinal)
+                    && configured.IsReadOnly)
+                {
+                    internalHelperMounts++;
+                    continue;
+                }
+
                 mountsFromRuntime.Add(new WorkspaceIsolationMount(
                     configured.HostSource,
                     configured.GuestDestination,
                     configured.IsReadOnly));
+            }
+
+            if (_useHostOnlyNetwork && internalHelperMounts != 1)
+            {
+                return false;
             }
 
             configuredMounts = mountsFromRuntime.AsReadOnly();
@@ -1826,6 +2218,118 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         {
             return false;
         }
+    }
+
+    private bool HasExpectedInitArguments(JsonElement initProcess, string resourceName)
+    {
+        if (!_useHostOnlyNetwork)
+        {
+            return true;
+        }
+
+        if (!_resources.TryGetValue(resourceName, out var resource)
+            || resource.Network is null
+            || !initProcess.TryGetProperty("arguments", out var arguments)
+            || arguments.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        string[] expected =
+        [
+            "init",
+            "--gateway",
+            resource.Network.Ipv4Gateway,
+            "--",
+            "/sbin/init",
+        ];
+        if (arguments.GetArrayLength() != expected.Length)
+        {
+            return false;
+        }
+
+        var index = 0;
+        foreach (var argument in arguments.EnumerateArray())
+        {
+            if (argument.ValueKind != JsonValueKind.String
+                || !string.Equals(argument.GetString(), expected[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        return true;
+    }
+
+    private bool HasExpectedPacketTransportConfiguration(
+        JsonElement configuration,
+        string resourceName)
+    {
+        if (!_useHostOnlyNetwork)
+        {
+            return true;
+        }
+
+        if (!_resources.TryGetValue(resourceName, out var resource)
+            || resource.Network is null
+            || !configuration.TryGetProperty("publishedSockets", out var sockets)
+            || sockets.ValueKind != JsonValueKind.Array
+            || sockets.GetArrayLength() != 1)
+        {
+            return false;
+        }
+
+        var socket = sockets[0];
+        return socket.TryGetProperty("hostPath", out var hostPath)
+               && hostPath.ValueKind == JsonValueKind.String
+               && string.Equals(
+                   hostPath.GetString(),
+                   resource.Network.PacketSocketPath,
+                   StringComparison.Ordinal)
+               && socket.TryGetProperty("containerPath", out var guestPath)
+               && guestPath.ValueKind == JsonValueKind.String
+               && string.Equals(
+                   guestPath.GetString(),
+                   resource.Network.GuestSocketPath,
+                   StringComparison.Ordinal)
+               && HasNoConfiguredDns(configuration);
+    }
+
+    private static bool HasNoConfiguredDns(JsonElement configuration)
+    {
+        // Apple container 1.3 omits the dns object when --no-dns is used. Older
+        // releases represented the same configuration as an empty nameserver list.
+        if (!configuration.TryGetProperty("dns", out var dns))
+        {
+            return true;
+        }
+
+        return dns.ValueKind == JsonValueKind.Object
+            && dns.TryGetProperty("nameservers", out var nameservers)
+            && nameservers.ValueKind == JsonValueKind.Array
+            && nameservers.GetArrayLength() == 0;
+    }
+
+    private bool HasExpectedNetworkConfiguration(
+        JsonElement configuration,
+        string resourceName)
+    {
+        if (!_useHostOnlyNetwork)
+        {
+            return true;
+        }
+
+        return configuration.TryGetProperty("networks", out var networks)
+               && networks.ValueKind == JsonValueKind.Array
+               && networks.GetArrayLength() == 1
+               && networks[0].TryGetProperty("network", out var network)
+               && network.ValueKind == JsonValueKind.String
+               && string.Equals(
+                   network.GetString(),
+                   $"{resourceName}-network",
+                   StringComparison.Ordinal);
     }
 
     private bool ImageConfigurationMatches(
@@ -1944,6 +2448,96 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         }
     }
 
+    private bool TryReadOwnedNetwork(
+        string json,
+        string containerResourceName,
+        out WorkspaceIsolationNetworkBinding network)
+    {
+        network = null!;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array
+                || document.RootElement.GetArrayLength() != 1)
+            {
+                return false;
+            }
+
+            var expectedName = $"{containerResourceName}-network";
+            var snapshot = document.RootElement[0];
+            if (!snapshot.TryGetProperty("id", out var id)
+                || id.ValueKind != JsonValueKind.String
+                || !string.Equals(id.GetString(), expectedName, StringComparison.Ordinal)
+                || !snapshot.TryGetProperty("configuration", out var configuration)
+                || !configuration.TryGetProperty("name", out var name)
+                || name.ValueKind != JsonValueKind.String
+                || !string.Equals(name.GetString(), expectedName, StringComparison.Ordinal)
+                || !configuration.TryGetProperty("mode", out var mode)
+                || mode.ValueKind != JsonValueKind.String
+                || !string.Equals(mode.GetString(), "hostOnly", StringComparison.Ordinal)
+                || !configuration.TryGetProperty("labels", out var labels)
+                || !HasLabel(labels, OwnershipLabel, containerResourceName)
+                || !HasLabel(labels, SchemaLabel, HostOnlyNetworkSchemaVersion)
+                || !snapshot.TryGetProperty("status", out var status)
+                || !status.TryGetProperty("ipv4Gateway", out var gateway)
+                || gateway.ValueKind != JsonValueKind.String
+                || gateway.GetString() is not { } gatewayValue
+                || !status.TryGetProperty("ipv4Subnet", out var subnet)
+                || subnet.ValueKind != JsonValueKind.String
+                || subnet.GetString() is not { } subnetValue)
+            {
+                return false;
+            }
+
+            network = new WorkspaceIsolationNetworkBinding(
+                expectedName,
+                gatewayValue,
+                subnetValue,
+                PacketSocketPath(containerResourceName),
+                GuestPacketGatewaySocket,
+                GuestPacketGatewayExecutable);
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ConfirmsNetworkAbsent(string json, string expectedName)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            foreach (var network in document.RootElement.EnumerateArray())
+            {
+                if (network.ValueKind != JsonValueKind.Object
+                    || !network.TryGetProperty("id", out var id)
+                    || id.ValueKind != JsonValueKind.String
+                    || id.GetString() is not { } resourceName)
+                {
+                    return false;
+                }
+
+                if (string.Equals(resourceName, expectedName, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     private static bool IsOwnedContainer(string json, string resourceName)
     {
         try
@@ -2034,6 +2628,19 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         }
 
         return value;
+    }
+
+    private static string ValidateAbsolutePath(string value, string parameterName)
+    {
+        var path = ValidateText(value, parameterName);
+        if (!Path.IsPathFullyQualified(path))
+        {
+            throw new ArgumentException(
+                "Workspace isolation paths must be absolute.",
+                parameterName);
+        }
+
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
     }
 
     private static string BoundedDiagnostic(string value)
@@ -2439,6 +3046,8 @@ public sealed partial class AppleContainerWorkspaceIsolationProvider : IWorkspac
         public string? ImageReference { get; set; }
 
         public string? RuntimeImageReference { get; set; }
+
+        public WorkspaceIsolationNetworkBinding? Network { get; set; }
     }
 
     private readonly record struct InspectedMount(

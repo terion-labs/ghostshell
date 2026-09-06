@@ -23,12 +23,13 @@ public sealed class ConnectionSecurityRuntime : IConnectionSecurityRuntime
         IConnectionRuntime connectionRuntime,
         ISecretVault secretVault,
         SshKnownHostStore knownHosts,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IWorkspaceNetworkConnector? networkConnector = null)
         : this(
             connectionRuntime,
             knownHosts,
-            new SshNetHostKeyScanner(),
-            new SshNetAuthenticationProbe(secretVault, knownHosts),
+            new SshNetHostKeyScanner(networkConnector),
+            new SshNetAuthenticationProbe(secretVault, knownHosts, networkConnector),
             timeProvider,
             OpenSshKnownHostTrustSource.CreateDefault())
     {

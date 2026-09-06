@@ -77,7 +77,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         AcquireLocal(BrowserProfileBinding.Legacy(profile));
 
     public CefBrowserProfileLease AcquireLocal(BrowserProfileBinding profile) =>
-        Acquire(profile, LocalRoute, socksProxyPort: null);
+        Acquire(profile, LocalRoute, proxyEndpoint: null, proxyAuthenticationResolver: null);
 
     public CefBrowserProfileLease AcquireRouted(
         BrowserProfileKey profile,
@@ -95,7 +95,34 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(routeIdentity);
-        return Acquire(profile, RoutedRouteKey(routeIdentity), socksProxyPort);
+        return Acquire(
+            profile,
+            RoutedRouteKey(routeIdentity),
+            new Uri($"socks5://127.0.0.1:{socksProxyPort}", UriKind.Absolute),
+            proxyAuthenticationResolver: null);
+    }
+
+    public CefBrowserProfileLease AcquireRouted(
+        BrowserProfileBinding profile,
+        string routeIdentity,
+        IWorkspaceNetworkConnector networkConnector)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentException.ThrowIfNullOrWhiteSpace(routeIdentity);
+        ArgumentNullException.ThrowIfNull(networkConnector);
+        var resolver = networkConnector.LocalProxyCredentials is { } credentials
+            ? new WorkspaceProxyAuthenticationResolver(
+                networkConnector.BrowserProxyEndpoint,
+                credentials)
+            : null;
+        return Acquire(
+            profile,
+            RoutedRouteKey(routeIdentity),
+            networkConnector.BrowserProxyEndpoint,
+            resolver,
+            networkConnector.BrowserProfileRouteIdentity is { } persistentRoute
+                ? RoutedRouteKey(persistentRoute)
+                : null);
     }
 
     public BrowserProfileDataState ReadState(
@@ -402,7 +429,9 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
     private CefBrowserProfileLease Acquire(
         BrowserProfileBinding profile,
         string routeIdentity,
-        int? socksProxyPort)
+        Uri? proxyEndpoint,
+        IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver,
+        string? persistentRouteIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var key = new ContextKey(
@@ -419,16 +448,16 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
             if (_contexts.TryGetValue(key, out var existing))
             {
-                if (existing.SocksProxyPort != socksProxyPort)
+                if (existing.ProxyEndpoint != proxyEndpoint)
                 {
-                    if (existing.ActiveLeases > 0 || socksProxyPort is null)
+                    if (existing.ActiveLeases > 0 || proxyEndpoint is null)
                     {
                         throw new InvalidOperationException(
                             "The browser profile route is already active through a different proxy endpoint.");
                     }
 
-                    ConfigureProxy(existing.Context, socksProxyPort.Value);
-                    existing.SocksProxyPort = socksProxyPort;
+                    ConfigureProxy(existing.Context, proxyEndpoint);
+                    existing.ProxyEndpoint = proxyEndpoint;
                 }
 
                 existing.Acquire(profile.Revision);
@@ -438,7 +467,8 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     existing.Context,
                     profile,
                     _authenticationResolver,
-                    existing.SocksProxyPort is null
+                    proxyAuthenticationResolver,
+                    existing.ProxyEndpoint is null
                         ? BrowserNetworkRouteKind.Local
                         : BrowserNetworkRouteKind.SshRouted);
             }
@@ -469,7 +499,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
                 stateKey = new BrowserProfileStateKey(
                     profile.Selection,
-                    RouteKey(routeIdentity));
+                    RouteKey(persistentRouteIdentity ?? routeIdentity));
                 entryDirectory = CreateRuntimeEntry(stateKey.Value);
                 cacheDirectory = Path.Combine(entryDirectory, "cache");
                 _stateStore!.Restore(stateKey.Value, cacheDirectory);
@@ -479,9 +509,9 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             try
             {
                 context = _createContext(cacheDirectory);
-                if (socksProxyPort is { } port)
+                if (proxyEndpoint is { } endpoint)
                 {
-                    ConfigureProxy(context, port);
+                    ConfigureProxy(context, endpoint);
                 }
 
                 if (entryDirectory is not null)
@@ -493,7 +523,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     key,
                     new ContextEntry(
                         context,
-                        socksProxyPort,
+                        proxyEndpoint,
                         stateKey,
                         entryDirectory,
                         cacheDirectory,
@@ -505,7 +535,8 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     context,
                     profile,
                     _authenticationResolver,
-                    socksProxyPort is null
+                    proxyAuthenticationResolver,
+                    proxyEndpoint is null
                         ? BrowserNetworkRouteKind.Local
                         : BrowserNetworkRouteKind.SshRouted);
             }
@@ -534,7 +565,8 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         foreach (var stateKey in _stateStore.ListKeys(selection))
         {
             var contextKey = new ContextKey(selection, stateKey.Route);
-            if (_contexts.ContainsKey(contextKey))
+            if (_contexts.ContainsKey(contextKey)
+                || _contexts.Values.Any(entry => entry.IsDurable && entry.StateKey == stateKey))
             {
                 continue;
             }
@@ -551,7 +583,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     contextKey,
                     new ContextEntry(
                         context,
-                        socksProxyPort: null,
+                        proxyEndpoint: null,
                         stateKey,
                         entryDirectory,
                         cacheDirectory,
@@ -732,10 +764,10 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
     private static void ConfigureProxy(
         ICefBrowserRequestContext context,
-        int socksProxyPort)
+        Uri proxyEndpoint)
     {
         foreach (var preference in
-                 CefBrowserNetworkContext.RequiredPreferences(socksProxyPort))
+                 CefBrowserNetworkContext.RequiredPreferences(proxyEndpoint))
         {
             if (!context.SetPreference(preference.Key, preference.Value))
             {
@@ -880,7 +912,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
     private sealed class ContextEntry(
         ICefBrowserRequestContext context,
-        int? socksProxyPort,
+        Uri? proxyEndpoint,
         BrowserProfileStateKey? stateKey,
         string? entryDirectory,
         string? cacheDirectory,
@@ -894,7 +926,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
         public ICefBrowserRequestContext Context { get; } = context;
 
-        public int? SocksProxyPort { get; set; } = socksProxyPort;
+        public Uri? ProxyEndpoint { get; set; } = proxyEndpoint;
 
         public BrowserProfileStateKey StateKey { get; } = stateKey
             ?? default;
@@ -949,6 +981,7 @@ public sealed class CefBrowserProfileLease : IDisposable
     private readonly ICefBrowserRequestContext _context;
     private readonly BrowserProfileBinding _profile;
     private readonly IBrowserProfileAuthenticationResolver? _authenticationResolver;
+    private readonly IWorkspaceProxyAuthenticationResolver? _proxyAuthenticationResolver;
 
     internal CefBrowserProfileLease(
         CefBrowserProfileStore owner,
@@ -956,6 +989,7 @@ public sealed class CefBrowserProfileLease : IDisposable
         ICefBrowserRequestContext context,
         BrowserProfileBinding profile,
         IBrowserProfileAuthenticationResolver? authenticationResolver,
+        IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver,
         BrowserNetworkRouteKind routeKind)
     {
         _owner = owner;
@@ -963,6 +997,7 @@ public sealed class CefBrowserProfileLease : IDisposable
         _context = context;
         _profile = profile;
         _authenticationResolver = authenticationResolver;
+        _proxyAuthenticationResolver = proxyAuthenticationResolver;
         RouteKind = routeKind;
     }
 
@@ -970,7 +1005,8 @@ public sealed class CefBrowserProfileLease : IDisposable
 
     internal CefBrowserView CreateView() => _context.CreateView(
         _profile,
-        _authenticationResolver);
+        _authenticationResolver,
+        _proxyAuthenticationResolver);
 
     public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Release(
         _key,
@@ -995,7 +1031,8 @@ internal interface ICefBrowserRequestContext : IDisposable
 
     CefBrowserView CreateView(
         BrowserProfileBinding profile,
-        IBrowserProfileAuthenticationResolver? authenticationResolver);
+        IBrowserProfileAuthenticationResolver? authenticationResolver,
+        IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver);
 }
 
 internal sealed class CefBrowserRequestContext(
@@ -1025,11 +1062,13 @@ internal sealed class CefBrowserRequestContext(
 
     public CefBrowserView CreateView(
         BrowserProfileBinding profile,
-        IBrowserProfileAuthenticationResolver? authenticationResolver) => new(
+        IBrowserProfileAuthenticationResolver? authenticationResolver,
+        IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver) => new(
         _context,
         CefBrowserContentPolicy.Ordinary,
         profile,
-        authenticationResolver);
+        authenticationResolver,
+        proxyAuthenticationResolver);
 
     public void Dispose() => _context.Dispose();
 }

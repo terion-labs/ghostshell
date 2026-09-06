@@ -75,6 +75,106 @@ public sealed class DefinitionBundleTests
     }
 
     [Fact]
+    public async Task NetworkDefinitionsImportWithCredentialsDetachedAndPoliciesDisabled()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var originalSecret = new SecretRef("vault.network.password");
+        var connection = new NetworkConnectionProfile(
+            new NetworkConnectionId("network.proxy"),
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Office proxy",
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Https,
+                "proxy.example.com",
+                8443,
+                "operator",
+                originalSecret));
+        var policy = new NetworkPolicy([connection.Id], connection.Id, true, true);
+        var settings = new ApplicationNetworkSettings(
+            ApplicationNetworkSettings.DefaultId,
+            ApplicationNetworkSettings.CurrentSchemaVersion,
+            "Application networking",
+            policy);
+        var workspace = new WorkspaceDefinition(
+            new WorkspaceId("networked-workspace"),
+            WorkspaceDefinition.CurrentSchemaVersion,
+            "Networked workspace",
+            description: null,
+            accent: null,
+            entries: [],
+            networkOverride: policy);
+        await SaveAsync(temporary, connection);
+        await SaveAsync(temporary, settings);
+        await SaveAsync(temporary, workspace);
+        var exported = await CreateBundleStore(temporary).ExportAsync(CancellationToken.None);
+        Assert.True(exported.IsSuccess, exported.Error?.Message);
+
+        await using var importedTemporary = TemporaryDatabase.Create();
+        var importedBundles = CreateBundleStore(importedTemporary);
+        var preflight = await importedBundles.PreflightImportAsync(
+            exported.Value!,
+            DefinitionImportMode.ReplaceExisting,
+            CancellationToken.None);
+
+        Assert.True(preflight.IsSuccess, preflight.Error?.Message);
+        Assert.True(preflight.Value!.CanCommit);
+        Assert.Contains(
+            preflight.Value.Issues,
+            issue => issue.Code == DefinitionImportIssueCode.ImportedNetworkCredentialsDetached);
+        Assert.Equal(
+            2,
+            preflight.Value.Issues.Count(issue =>
+                issue.Code == DefinitionImportIssueCode.ImportedNetworkPolicyDisabled));
+        var committed = await importedBundles.CommitImportAsync(
+            preflight.Value,
+            CancellationToken.None);
+        Assert.True(committed.IsSuccess, committed.Error?.Message);
+
+        var importedConnection = await LoadAsync(importedTemporary, connection);
+        var importedProxy = Assert.IsType<NetworkConnectionConfiguration.Proxy>(
+            importedConnection.Configuration);
+        Assert.NotNull(importedProxy.PasswordSecret);
+        Assert.NotEqual(originalSecret, importedProxy.PasswordSecret);
+        var importedSettings = await LoadAsync(importedTemporary, settings);
+        Assert.False(importedSettings.Policy.IsEnabled);
+        Assert.True(importedSettings.Policy.KillSwitchEnabled);
+        Assert.Equal(connection.Id, importedSettings.Policy.SelectedConnectionId);
+        var importedWorkspace = await LoadAsync(importedTemporary, workspace);
+        Assert.NotNull(importedWorkspace.NetworkOverride);
+        Assert.False(importedWorkspace.NetworkOverride.IsEnabled);
+        Assert.True(importedWorkspace.NetworkOverride.KillSwitchEnabled);
+    }
+
+    [Fact]
+    public async Task NetworkProxyProtocolRejectsIntegerEnumPayloads()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var connection = new NetworkConnectionProfile(
+            new NetworkConnectionId("network.proxy"),
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Office proxy",
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Https,
+                "proxy.example.com",
+                8443));
+        var document = DurableDefinitionFixtures.Document(connection);
+        var payload = JsonNode.Parse(document.PayloadJson)!.AsObject();
+        payload["configuration"]!["protocol"] = 1;
+        document = document with { PayloadJson = payload.ToJsonString() };
+
+        var preflight = await CreateBundleStore(temporary).PreflightImportAsync(
+            Bundle(document),
+            DefinitionImportMode.ReplaceExisting,
+            CancellationToken.None);
+
+        Assert.True(preflight.IsSuccess, preflight.Error?.Message);
+        Assert.False(preflight.Value!.CanCommit);
+        Assert.Contains(
+            preflight.Value.Issues,
+            issue => issue.Code == DefinitionImportIssueCode.InvalidPayload);
+    }
+
+    [Fact]
     public async Task BrowserProfileBundleExcludesCredentialBindingsAndImportsDisabled()
     {
         await using var temporary = TemporaryDatabase.Create();
@@ -866,6 +966,31 @@ public sealed class DefinitionBundleTests
 
     private static SqliteDefinitionBundleStore CreateBundleStore(TemporaryDatabase temporary) =>
         new(temporary.Database, TimeProvider.System);
+
+    private static async Task SaveAsync<TDefinition>(
+        TemporaryDatabase temporary,
+        TDefinition definition)
+        where TDefinition : IDurableDefinition
+    {
+        var result = await new SqliteDefinitionRepository<TDefinition>(
+                temporary.Database,
+                TimeProvider.System)
+            .SaveAsync(definition, expectedRevision: null, CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error?.Message);
+    }
+
+    private static async Task<TDefinition> LoadAsync<TDefinition>(
+        TemporaryDatabase temporary,
+        TDefinition expected)
+        where TDefinition : IDurableDefinition
+    {
+        var result = await new SqliteDefinitionRepository<TDefinition>(
+                temporary.Database,
+                TimeProvider.System)
+            .GetAsync(expected.Key, CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        return result.Value!.Value;
+    }
 
     private static PortableDefinitionBundle Bundle(
         params PortableDefinitionDocument[] documents) =>

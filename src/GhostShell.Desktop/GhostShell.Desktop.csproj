@@ -82,6 +82,18 @@
     <GhostShellSqlLanguageArtifactDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(GhostShellEffectiveRuntimeIdentifier)</GhostShellSqlLanguageArtifactDirectory>
     <GhostShellSqlLanguageWorkerPath>$(GhostShellSqlLanguageArtifactDirectory)/$(GhostShellSqlLanguageWorkerName)</GhostShellSqlLanguageWorkerPath>
     <GhostShellSqlLanguagePayloadAvailable Condition="'$(GhostShellSqlLanguageSupported)' == 'true' and Exists('$(GhostShellSqlLanguageWorkerPath)') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/runtime-dependencies.txt') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/build-receipt.json')">true</GhostShellSqlLanguagePayloadAvailable>
+    <GhostShellWorkspaceGatewaySupported Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64'">true</GhostShellWorkspaceGatewaySupported>
+    <GhostShellWorkspaceGatewayRequired Condition="'$(GhostShellWorkspaceGatewayRequired)' == ''">false</GhostShellWorkspaceGatewayRequired>
+    <GhostShellWorkspaceGatewayHostDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64</GhostShellWorkspaceGatewayHostDirectory>
+    <GhostShellWorkspaceGatewayHostName>ghostshell-workspace-gateway-darwin-arm64</GhostShellWorkspaceGatewayHostName>
+    <GhostShellWorkspaceGatewayPayloadAvailable Condition="'$(GhostShellWorkspaceGatewaySupported)' == 'true' and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt')">true</GhostShellWorkspaceGatewayPayloadAvailable>
+    <GhostShellConnectionEnginesSupported Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64'">true</GhostShellConnectionEnginesSupported>
+    <GhostShellConnectionEnginesRequired Condition="'$(GhostShellConnectionEnginesRequired)' == ''">false</GhostShellConnectionEnginesRequired>
+    <GhostShellConnectionEnginesDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/connection-engines</GhostShellConnectionEnginesDirectory>
+    <GhostShellWorkspaceRuntimeDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/workspace-runtime</GhostShellWorkspaceRuntimeDirectory>
+    <GhostShellWorkspaceRuntimeRequired Condition="'$(GhostShellWorkspaceRuntimeRequired)' == ''">false</GhostShellWorkspaceRuntimeRequired>
+    <GhostShellWorkspaceRuntimePayloadAvailable Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' and Exists('$(GhostShellWorkspaceRuntimeDirectory)/workspace-runtime') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/kernel.bin') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/initfs.ext4') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256')">true</GhostShellWorkspaceRuntimePayloadAvailable>
+    <GhostShellConnectionEnginesPayloadAvailable Condition="'$(GhostShellConnectionEnginesSupported)' == 'true' and Exists('$(GhostShellConnectionEnginesDirectory)/ghostshell-openvpn-engine') and Exists('$(GhostShellConnectionEnginesDirectory)/openconnect') and Exists('$(GhostShellConnectionEnginesDirectory)/libopenconnect.5.dylib') and Exists('$(GhostShellConnectionEnginesDirectory)/tailscale') and Exists('$(GhostShellConnectionEnginesDirectory)/tailscaled') and Exists('$(GhostShellConnectionEnginesDirectory)/MANIFEST.sha256') and Exists('$(GhostShellConnectionEnginesDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellConnectionEnginesDirectory)/OPENCONNECT-SOURCE-AND-RELINKING.md') and Exists('$(GhostShellConnectionEnginesDirectory)/OPENVPN-VERSIONS.txt') and Exists('$(GhostShellConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz')">true</GhostShellConnectionEnginesPayloadAvailable>
     <GhostShellCefRuntimeArtifactDirectory Condition="'$(GhostShellCefRuntimeArtifactDirectory)' == ''">$(GhostShellNativeTerminalArtifactDirectory)/cef</GhostShellCefRuntimeArtifactDirectory>
     <GhostShellCefMacRuntime Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-x64'">true</GhostShellCefMacRuntime>
     <GhostShellCefFlatRuntime Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'linux-arm64' or '$(GhostShellEffectiveRuntimeIdentifier)' == 'linux-x64' or '$(GhostShellEffectiveRuntimeIdentifier)' == 'win-x64'">true</GhostShellCefFlatRuntime>
@@ -133,6 +145,57 @@
     <GhostShellSqlLanguageRequiredFile Include="$(GhostShellSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md" />
     <GhostShellSqlLanguageRequiredFile Include="$(GhostShellSqlLanguageArtifactDirectory)/runtime-dependencies.txt" />
     <GhostShellSqlLanguageRequiredFile Include="$(GhostShellSqlLanguageArtifactDirectory)/build-receipt.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellWorkspaceGatewayPayloadAvailable)' == 'true'">
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)" Link="runtimes/osx-arm64/native/$(GhostShellWorkspaceGatewayHostName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" Link="runtimes/osx-arm64/native/workspace-network-gateway-MANIFEST.sha256" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" Link="runtimes/osx-arm64/native/workspace-network-gateway-THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" Link="runtimes/osx-arm64/native/workspace-network-gateway-GO-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellWorkspaceGatewayRequired)' == 'true' and '$(GhostShellWorkspaceGatewaySupported)' == 'true'">
+    <GhostShellWorkspaceGatewayRequiredFile Include="$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)" />
+    <GhostShellWorkspaceGatewayRequiredFile Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" />
+    <GhostShellWorkspaceGatewayRequiredFile Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" />
+    <GhostShellWorkspaceGatewayRequiredFile Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellConnectionEnginesPayloadAvailable)' == 'true'">
+    <Content Include="$(GhostShellConnectionEnginesDirectory)/ghostshell-openvpn-engine;$(GhostShellConnectionEnginesDirectory)/openconnect;$(GhostShellConnectionEnginesDirectory)/libopenconnect.5.dylib;$(GhostShellConnectionEnginesDirectory)/tailscale;$(GhostShellConnectionEnginesDirectory)/tailscaled" Link="runtimes/osx-arm64/connection-engines/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellConnectionEnginesDirectory)/*.txt;$(GhostShellConnectionEnginesDirectory)/*.md;$(GhostShellConnectionEnginesDirectory)/*.sha256" Link="connection-engine-legal/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz" Link="connection-engine-legal/sources/openconnect-9.21.tar.gz" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellWorkspaceRuntimePayloadAvailable)' == 'true'">
+    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/**/*" Exclude="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*" Link="runtimes/osx-arm64/workspace-runtime/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*" Link="workspace-runtime-legal/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellWorkspaceRuntimeRequired)' == 'true'">
+    <GhostShellWorkspaceRuntimeRequiredFile Include="$(GhostShellWorkspaceRuntimeDirectory)/legal/SOURCE-MANIFEST.sha256;$(GhostShellWorkspaceRuntimeDirectory)/legal/SWIFT-LICENSE.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/MUSL-COPYRIGHT.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/WorkspaceRuntime.entitlements" />
+    <GhostShellWorkspaceRuntimeRequiredFile Include="$(GhostShellWorkspaceRuntimeDirectory)/workspace-runtime;$(GhostShellWorkspaceRuntimeDirectory)/kernel.bin;$(GhostShellWorkspaceRuntimeDirectory)/initfs.ext4;$(GhostShellWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256;$(GhostShellWorkspaceRuntimeDirectory)/legal/Package.resolved;$(GhostShellWorkspaceRuntimeDirectory)/legal/THIRD-PARTY-NOTICES.md;$(GhostShellWorkspaceRuntimeDirectory)/legal/SOURCE-AND-BUILD.md;$(GhostShellWorkspaceRuntimeDirectory)/legal/kernel.config;$(GhostShellWorkspaceRuntimeDirectory)/legal/LINUX-GPL-2.0.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/sources/linux-6.18.35.tar.xz;$(GhostShellWorkspaceRuntimeDirectory)/legal/sources/kata-containers-3.32.0.tar.gz" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(GhostShellConnectionEnginesRequired)' == 'true' and '$(GhostShellConnectionEnginesSupported)' == 'true'">
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/ghostshell-openvpn-engine" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/openconnect" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/libopenconnect.5.dylib" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/tailscale" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/tailscaled" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/MANIFEST.sha256" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/THIRD-PARTY-NOTICES.md" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/GO-LICENSE.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENCONNECT-LGPL-2.1.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENCONNECT-SOURCE-AND-RELINKING.md" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENSSL-LICENSE.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENVPN-MPL-2.0.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENVPN-LICENSE.md" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/ASIO-LICENSE.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/LZ4-LICENSE.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENVPN-VERSIONS.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/OPENVPN-THIRD-PARTY-NOTICES.txt" />
+    <GhostShellConnectionEnginesRequiredFile Include="$(GhostShellConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GhostShellNativeTerminalRequired)' == 'true'">
@@ -210,6 +273,35 @@
     <Error
         Condition="'$(GhostShellSqlLanguageSupported)' == 'true' and !Exists('%(GhostShellSqlLanguageRequiredFile.Identity)')"
         Text="The required SQL language payload for $(GhostShellEffectiveRuntimeIdentifier) is incomplete; missing %(GhostShellSqlLanguageRequiredFile.Identity). Run ./scripts/build-sql-language-worker.sh --rid $(GhostShellEffectiveRuntimeIdentifier)." />
+  </Target>
+
+  <Target
+      Name="ValidateWorkspaceGatewayPayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(GhostShellWorkspaceGatewayRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="'$(GhostShellWorkspaceGatewaySupported)' != 'true'"
+        Text="The workspace network gateway is supported only by the osx-arm64 application." />
+    <Error
+        Condition="'$(GhostShellWorkspaceGatewaySupported)' == 'true' and !Exists('%(GhostShellWorkspaceGatewayRequiredFile.Identity)')"
+        Text="The required workspace network gateway payload is incomplete; missing %(GhostShellWorkspaceGatewayRequiredFile.Identity). Run ./scripts/build-workspace-network-gateway.sh --rid osx-arm64." />
+  </Target>
+
+  <Target
+      Name="ValidateConnectionEnginesPayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(GhostShellConnectionEnginesRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="'$(GhostShellConnectionEnginesSupported)' != 'true'"
+        Text="The bundled connection engine payload is supported only by the osx-arm64 application." />
+    <Error
+        Condition="'$(GhostShellConnectionEnginesSupported)' == 'true' and !Exists('%(GhostShellConnectionEnginesRequiredFile.Identity)')"
+        Text="The bundled connection engine payload is incomplete; missing %(GhostShellConnectionEnginesRequiredFile.Identity). Run ./scripts/build-macos-connection-engines.sh." />
+  </Target>
+
+  <Target Name="ValidateWorkspaceRuntimePayload" BeforeTargets="PrepareForBuild;Publish" Condition="'$(GhostShellWorkspaceRuntimeRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(GhostShellEffectiveRuntimeIdentifier)' != 'osx-arm64'" Text="The SDK workspace runtime is supported only by the osx-arm64 application." />
+    <Error Condition="!Exists('%(GhostShellWorkspaceRuntimeRequiredFile.Identity)')" Text="The bundled workspace runtime is incomplete; missing %(GhostShellWorkspaceRuntimeRequiredFile.Identity). Run ./scripts/build-workspace-runtime.sh." />
   </Target>
 
   <Target

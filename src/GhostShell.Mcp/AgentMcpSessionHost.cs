@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using GhostShell.Application;
@@ -41,6 +42,7 @@ public sealed class AgentMcpSessionHost :
     private readonly IAgentMcpRunAuthorityVerifier _mcpRunAuthorityVerifier;
     private readonly IAgentApprovalPrincipal _approvalPrincipal;
     private readonly IMcpServerDiagnosticStore? _diagnosticStore;
+    private readonly IWorkspaceNetworkRouteResolver? _workspaceNetworkRoutes;
     private readonly AgentMcpToolCallActionComposer _composer;
     private readonly TimeProvider _timeProvider;
     private readonly McpSessionOptions _clientOptions;
@@ -149,7 +151,8 @@ public sealed class AgentMcpSessionHost :
         AgentMcpToolCallActionComposer composer,
         TimeProvider timeProvider,
         IAgentApprovalPrincipal approvalPrincipal,
-        IMcpServerDiagnosticStore diagnosticStore)
+        IMcpServerDiagnosticStore diagnosticStore,
+        IWorkspaceNetworkRouteResolver workspaceNetworkRoutes)
         : this(
             catalog,
             secretVault,
@@ -161,7 +164,8 @@ public sealed class AgentMcpSessionHost :
             approvalPrincipal,
             CreateDefaultOptions(),
             streamableHttpHandlerFactory: null,
-            diagnosticStore: diagnosticStore)
+            diagnosticStore: diagnosticStore,
+            workspaceNetworkRoutes: workspaceNetworkRoutes)
     {
     }
 
@@ -176,7 +180,8 @@ public sealed class AgentMcpSessionHost :
         IAgentApprovalPrincipal approvalPrincipal,
         McpSessionOptions clientOptions,
         Func<Uri, HttpMessageHandler?>? streamableHttpHandlerFactory = null,
-        IMcpServerDiagnosticStore? diagnosticStore = null)
+        IMcpServerDiagnosticStore? diagnosticStore = null,
+        IWorkspaceNetworkRouteResolver? workspaceNetworkRoutes = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _secretVault =
@@ -191,6 +196,7 @@ public sealed class AgentMcpSessionHost :
         _approvalPrincipal = approvalPrincipal
             ?? throw new ArgumentNullException(nameof(approvalPrincipal));
         _diagnosticStore = diagnosticStore;
+        _workspaceNetworkRoutes = workspaceNetworkRoutes;
         if (_approvalPrincipal.Actor.Kind != ActorKind.Human
             || _approvalPrincipal.Actor.ClientId is not { } principalClient
             || !string.Equals(
@@ -295,6 +301,7 @@ public sealed class AgentMcpSessionHost :
             {
                 if (existing.Agent != request.Actor
                     || existing.Agent != lease.Agent
+                    || existing.WorkspaceId != request.WorkspaceId
                     || existing.PolicyGeneration
                         != lease.PolicyGeneration
                     || existing.AuthorityRevocationToken
@@ -759,7 +766,8 @@ public sealed class AgentMcpSessionHost :
             var session = await OpenProfileAsync(
                     stored,
                     diagnostic,
-                    timeout.Token)
+                    workspaceId: null,
+                    cancellationToken: timeout.Token)
                 .ConfigureAwait(false);
             McpServerTestResult result;
             await using (session)
@@ -1208,6 +1216,7 @@ public sealed class AgentMcpSessionHost :
                 sessions.Add(await OpenProfileAsync(
                         profile,
                         diagnostic,
+                        request.WorkspaceId,
                         cancellationToken)
                     .ConfigureAwait(false));
                 if (sessions.Sum(session => session.DiscoveredToolCount)
@@ -1244,6 +1253,7 @@ public sealed class AgentMcpSessionHost :
             return new RunSession(
                 runManifest,
                 lease.Agent,
+                request.WorkspaceId,
                 lease.PolicyGeneration,
                 lease.RevocationToken,
                 sessions);
@@ -1267,13 +1277,144 @@ public sealed class AgentMcpSessionHost :
         }
     }
 
+    private async Task<McpStdioServerLaunch> CreateStdioLaunchAsync(
+        WorkspaceInstanceId? workspaceId,
+        McpServerTransport.Stdio transport,
+        IReadOnlyDictionary<string, string> environment,
+        CancellationToken cancellationToken)
+    {
+        if (workspaceId is null || _workspaceNetworkRoutes is null)
+        {
+            return new McpStdioServerLaunch(
+                transport.Executable,
+                transport.Arguments,
+                transport.WorkingDirectory,
+                environment);
+        }
+
+        var connector = RequireWorkspaceConnector(workspaceId.Value);
+        if (_workspaceNetworkRoutes.IsolatedCommandRuntimeFor(workspaceId.Value)
+            is not { } commandRuntime)
+        {
+            return new McpStdioServerLaunch(
+                transport.Executable,
+                transport.Arguments,
+                transport.WorkingDirectory,
+                AddProxyEnvironment(environment, connector));
+        }
+
+        var startupEnvironment = environment
+            .Select(pair => new ConnectionEnvironmentVariable(
+                pair.Key,
+                new ConnectionEnvironmentValue.PlainText(pair.Value)))
+            .ToArray();
+        var connection = new ConnectionProfile(
+            ConnectionId.New(),
+            ConnectionProfile.CurrentSchemaVersion,
+            "MCP workspace process",
+            new ConnectionEndpoint.Local(),
+            new ConnectionAuthentication.None(),
+            new ConnectionStartup(
+                transport.WorkingDirectory,
+                startupEnvironment),
+            ConnectionKeepAlive.Disabled,
+            SshHostKeyPolicy.NotApplicable);
+        var planned = await commandRuntime.PlanDuplexCommandAsync(
+                connection,
+                transport.Executable,
+                transport.Arguments,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (planned is not ConnectionRuntimeResult<TerminalLaunchRequest>.Success success
+            || success.Value.Executable is not { } executable)
+        {
+            throw new McpHostFailureException(
+                "mcp_workspace_route_unavailable",
+                "The MCP server could not start in the workspace environment.");
+        }
+
+        return new McpStdioServerLaunch(
+            executable,
+            success.Value.Arguments,
+            success.Value.WorkingDirectory,
+            success.Value.Environment);
+    }
+
+    private HttpMessageHandler? CreateStreamableHttpHandler(
+        WorkspaceInstanceId? workspaceId,
+        Uri endpoint)
+    {
+        var injected = _streamableHttpHandlerFactory(endpoint);
+        if (injected is not null || workspaceId is null)
+        {
+            return injected;
+        }
+
+        if (_workspaceNetworkRoutes is null)
+        {
+            return null;
+        }
+
+        var connector = RequireWorkspaceConnector(workspaceId.Value);
+        var proxy = new WebProxy(connector.LocalProxyEndpoint);
+        if (connector.LocalProxyCredentials is { } credentials)
+        {
+            proxy.Credentials = new NetworkCredential(
+                credentials.Username,
+                credentials.Password);
+        }
+
+        return new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.None,
+            ConnectTimeout = _clientOptions.InitializationTimeout,
+            MaxConnectionsPerServer = 4,
+            MaxResponseHeadersLength = 32,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            Proxy = proxy,
+            UseCookies = false,
+            UseProxy = true,
+        };
+    }
+
+    private IWorkspaceNetworkConnector RequireWorkspaceConnector(
+        WorkspaceInstanceId workspaceId)
+    {
+        var connector = _workspaceNetworkRoutes?.ConnectorFor(workspaceId)
+            ?? throw new McpHostFailureException(
+                "mcp_workspace_route_unavailable",
+                "The workspace network route is unavailable.");
+        if (connector.Egress == WorkspaceNetworkEgress.Blocked)
+        {
+            throw new McpHostFailureException(
+                "workspace_network_kill_switch_blocked",
+                "The workspace network kill switch is blocking traffic.");
+        }
+
+        return connector;
+    }
+
+    private static IReadOnlyDictionary<string, string> AddProxyEnvironment(
+        IReadOnlyDictionary<string, string> environment,
+        IWorkspaceNetworkConnector connector) =>
+        WorkspaceProxyEnvironment.Create(
+            environment, connector.LocalProxyEndpoint, connector.LocalProxyCredentials,
+            connector.BrowserProxyEndpoint);
+
     private async Task<ProfileSession> OpenProfileAsync(
         StoredDefinition<McpServerProfile> stored,
         McpDiagnosticSession diagnostic,
+        WorkspaceInstanceId? workspaceId,
         CancellationToken cancellationToken)
     {
         var profile = stored.Value;
         ValidateLaunch(profile);
+        if (workspaceId is not null && _workspaceNetworkRoutes is not null)
+        {
+            _ = RequireWorkspaceConnector(workspaceId.Value);
+        }
+
         var secrets = await ResolveTransportSecretsAsync(
                 profile,
                 cancellationToken)
@@ -1298,11 +1439,12 @@ public sealed class AgentMcpSessionHost :
             switch (profile.Transport)
             {
                 case McpServerTransport.Stdio stdio:
-                    var launch = new McpStdioServerLaunch(
-                        stdio.Executable,
-                        stdio.Arguments,
-                        stdio.WorkingDirectory,
-                        secrets.Values);
+                    var launch = await CreateStdioLaunchAsync(
+                            workspaceId,
+                            stdio,
+                            secrets.Values,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     connected = await McpClientSession.ConnectStdioAsync(
                             launch,
                             new McpClientInfo("ghostshell", "1.0.0"),
@@ -1318,7 +1460,9 @@ public sealed class AgentMcpSessionHost :
                             secrets.Values,
                             new McpClientInfo("ghostshell", "1.0.0"),
                             _clientOptions,
-                            _streamableHttpHandlerFactory(http.Endpoint),
+                            CreateStreamableHttpHandler(
+                                workspaceId,
+                                http.Endpoint),
                             cancellationToken)
                         .ConfigureAwait(false);
                     transportTarget = http.Endpoint.AbsoluteUri;
@@ -2528,12 +2672,14 @@ public sealed class AgentMcpSessionHost :
         public RunSession(
             AgentMcpRunManifest manifest,
             ActorDescriptor agent,
+            WorkspaceInstanceId workspaceId,
             long policyGeneration,
             CancellationToken authorityRevocationToken,
             IReadOnlyList<ProfileSession> profiles)
         {
             Manifest = manifest;
             Agent = agent;
+            WorkspaceId = workspaceId;
             PolicyGeneration = policyGeneration;
             AuthorityRevocationToken = authorityRevocationToken;
             _profiles = new ReadOnlyCollection<ProfileSession>(
@@ -2552,6 +2698,8 @@ public sealed class AgentMcpSessionHost :
         public AgentMcpRunManifest Manifest { get; }
 
         public ActorDescriptor Agent { get; }
+
+        public WorkspaceInstanceId WorkspaceId { get; }
 
         public long PolicyGeneration { get; }
 

@@ -45,6 +45,7 @@ internal static class DefinitionReferenceExtractor
                     new DefinitionKey(DefinitionKind.Connection, hostId.Value),
                     "host-connection"),
             ],
+            ApplicationNetworkSettings settings => ExtractNetworkPolicy(settings.Policy),
             // Vault references are not durable definitions and deliberately do
             // not create rows in the definition dependency graph.
             McpServerProfile => [],
@@ -86,6 +87,7 @@ internal static class DefinitionReferenceExtractor
     private static IReadOnlyList<DefinitionReference> ExtractWorkspace(WorkspaceDefinition workspace)
     {
         var references = new List<DefinitionReference>();
+        references.AddRange(ExtractNetworkPolicy(workspace.NetworkOverride));
         if (workspace.AgentPolicyOverride is { } policy)
         {
             references.Add(new DefinitionReference(
@@ -135,4 +137,12 @@ internal static class DefinitionReferenceExtractor
 
         return references;
     }
+
+    private static IReadOnlyList<DefinitionReference> ExtractNetworkPolicy(NetworkPolicy? policy) =>
+        policy?.Connections
+            .Select(connectionId => new DefinitionReference(
+                new DefinitionKey(DefinitionKind.NetworkConnection, connectionId.Value),
+                "network-connection"))
+            .ToArray()
+        ?? [];
 }

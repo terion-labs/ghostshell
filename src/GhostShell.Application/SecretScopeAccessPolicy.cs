@@ -55,6 +55,7 @@ public sealed class SecretScopeAccessPolicy : ISecretAccessPolicy
         SecretUseKind.BrowserProfileAuthentication => SecretScopeKind.BrowserProfile,
         SecretUseKind.FileProviderAuthentication => SecretScopeKind.FileProvider,
         SecretUseKind.DatabaseConnectionAuthentication => SecretScopeKind.DatabaseConnection,
+        SecretUseKind.NetworkConnectionAuthentication => SecretScopeKind.NetworkConnection,
         _ => null,
     };
 }

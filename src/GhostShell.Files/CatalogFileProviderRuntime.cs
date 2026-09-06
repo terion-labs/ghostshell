@@ -34,14 +34,16 @@ public sealed class CatalogFileProviderRuntime :
         ISshHostKeyTrustStore knownHosts,
         IConnectionSecurityRuntime? connectionSecurityRuntime = null,
         IConnectionRuntime? connectionRuntime = null,
-        PreviewContentCache? contentCache = null)
+        PreviewContentCache? contentCache = null,
+        IWorkspaceNetworkConnector? networkConnector = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _contentCache = contentCache;
         _factory = new FileProviderAdapterFactory(
             secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
             knownHosts ?? throw new ArgumentNullException(nameof(knownHosts)),
-            connectionRuntime);
+            connectionRuntime,
+            networkConnector);
         _connectionSecurityRuntime = connectionSecurityRuntime;
         _active = CreateBuiltInGeneration();
         Attach(_active);

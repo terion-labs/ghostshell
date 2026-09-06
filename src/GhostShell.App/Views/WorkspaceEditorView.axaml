@@ -70,7 +70,7 @@
     </Border>
 
     <Grid Grid.Column="1" RowDefinitions="*,Auto">
-      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <ScrollViewer x:Name="DetailScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="{controls:Inset Xl}" Spacing="{DynamicResource ShellSpaceXl}">
           <!-- The header is the workspace: its mark at full size, and its name
                as the one thing you can type into without opening anything. -->
@@ -158,9 +158,8 @@
               ControlWidth="470">
             <controls:SettingRow
                 Label="Isolate workspace"
-                Description="Use one persistent Linux environment as this workspace's execution and network boundary. All workspace panels, connections, and local terminals use it. Installed packages and guest files remain between sessions, and only the host folders below are visible inside.">
+                Description="One persistent Linux environment becomes this workspace's execution and network boundary. All workspace panels, connections, and local terminals use it, and what you install there stays between sessions.">
               <ToggleSwitch
-                  HorizontalAlignment="Right"
                   IsChecked="{Binding IsIsolated, Mode=TwoWay}"
                   IsEnabled="{Binding CanToggleIsolation}"
                   AutomationProperties.Name="Isolate workspace" />
@@ -182,13 +181,14 @@
                 Description="{Binding IsolationImageDescription}"
                 IsVisible="{Binding IsIsolated}">
               <TextBox
-                  Width="470"
+                  HorizontalAlignment="Stretch"
+                  FontFamily="{DynamicResource ShellDataFontFamily}"
                   Text="{Binding IsolationImageReference, Mode=TwoWay}"
                   AutomationProperties.Name="Workspace isolation OCI image" />
             </controls:SettingRow>
             <controls:SettingRow
                 Label="Recreate environment"
-                Description="Remove this workspace's current environment and start a new one from the image above. Host-mounted files are not removed."
+                Description="Start again from the image above. Installed packages and guest-only files are removed; host folders are not."
                 IsVisible="{Binding IsIsolated}">
               <Button
                   HorizontalAlignment="Right"
@@ -198,76 +198,199 @@
                   IsEnabled="{Binding CanRecreateIsolationEnvironment}"
                   AutomationProperties.Name="Recreate workspace environment" />
             </controls:SettingRow>
+            <!-- A list of editable rows is not a control that fits beside its
+                 label. Stacked, each mount gets one line: where it comes from,
+                 where it lands, and what the environment may do to it. -->
             <controls:SettingRow
                 Label="Host mounts"
-                Description="Choose which host directories the isolated workspace can access and where they appear in its filesystem. Saving mount changes restarts an open workspace after confirmation."
+                Description="Only these host folders are visible inside the environment, each at the path you give it. Saving mount changes restarts an open workspace after confirmation."
+                IsStacked="True"
                 IsVisible="{Binding IsIsolated}">
-              <StackPanel Width="470" Spacing="{DynamicResource ShellSpaceSm}">
-                <ItemsControl ItemsSource="{Binding IsolationMounts}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:WorkspaceIsolationMountEditorViewModel">
-                      <Border
-                          Margin="{controls:Inset Bottom=Sm}"
-                          Padding="{DynamicResource ShellCardPaddingCompact}"
-                          Background="{DynamicResource ShellSurfaceRaisedBrush}"
-                          BorderBrush="{DynamicResource ShellBorderBrush}"
-                          BorderThickness="1"
-                          CornerRadius="{DynamicResource ShellInnerCornerRadius}">
-                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}" RowSpacing="{DynamicResource ShellSpaceXs}">
-                          <controls:LabeledField Label="Host path">
-                            <TextBox
-                                Text="{Binding HostPath, Mode=TwoWay}"
-                                PlaceholderText="/Users/me/projects"
-                                AutomationProperties.Name="Host mount source directory" />
-                          </controls:LabeledField>
-                          <controls:LabeledField Grid.Column="1" Label="Guest path">
-                            <TextBox
-                                Text="{Binding GuestPath, Mode=TwoWay}"
-                                PlaceholderText="/workspace"
-                                AutomationProperties.Name="Host mount guest path" />
-                          </controls:LabeledField>
+              <controls:SurfaceCard Tone="Sunken" Padding="{DynamicResource ShellCardPaddingCompact}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                  <ItemsControl ItemsSource="{Binding IsolationMounts}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="{DynamicResource ShellSpaceSm}" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WorkspaceIsolationMountEditorViewModel">
+                        <Grid ColumnDefinitions="*,Auto,Auto,*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                          <TextBox
+                              Text="{Binding HostPath, Mode=TwoWay}"
+                              PlaceholderText="Host folder, e.g. /Users/me/projects"
+                              AutomationProperties.Name="Host mount source directory" />
                           <Button
+                              Grid.Column="1"
+                              Classes="IconButton"
+                              Click="OnBrowseIsolationMountHostPathClick"
+                              ToolTip.Tip="Choose a host folder"
+                              AutomationProperties.Name="Choose a host folder">
+                            <icons:SymbolIcon Symbol="FolderOpen" FontSize="13" />
+                          </Button>
+                          <icons:SymbolIcon
                               Grid.Column="2"
-                              VerticalAlignment="Bottom"
+                              VerticalAlignment="Center"
+                              Symbol="ArrowRight"
+                              FontSize="12"
+                              Foreground="{DynamicResource ShellMutedBrush}" />
+                          <TextBox
+                              Grid.Column="3"
+                              Text="{Binding GuestPath, Mode=TwoWay}"
+                              PlaceholderText="Path inside the environment, e.g. /workspace"
+                              AutomationProperties.Name="Host mount guest path" />
+                          <Border Grid.Column="4" VerticalAlignment="Center" Classes="Segmented">
+                            <Grid ColumnDefinitions="Auto,Auto">
+                              <RadioButton
+                                  Classes="Segment"
+                                  Content="Read only"
+                                  IsChecked="{Binding IsReadOnly, Mode=TwoWay}"
+                                  AutomationProperties.Name="Mount host path read only" />
+                              <RadioButton
+                                  Grid.Column="1"
+                                  Classes="Segment"
+                                  Content="Read &amp; write"
+                                  IsChecked="{Binding IsReadWrite, Mode=TwoWay}"
+                                  AutomationProperties.Name="Mount host path read and write" />
+                            </Grid>
+                          </Border>
+                          <Button
+                              Grid.Column="5"
                               Classes="IconButton Danger"
                               Click="OnRemoveIsolationMountClick"
+                              ToolTip.Tip="Remove this host mount"
                               AutomationProperties.Name="{Binding RemoveAccessibleName}">
-                            <icons:SymbolIcon Symbol="Delete" FontSize="11" />
+                            <icons:SymbolIcon Symbol="Delete" FontSize="13" />
                           </Button>
-                          <CheckBox
-                              Grid.Row="1"
-                              Grid.ColumnSpan="2"
-                              Content="Read only"
-                              IsChecked="{Binding IsReadOnly, Mode=TwoWay}"
-                              AutomationProperties.Name="Mount host path read only" />
                         </Grid>
-                      </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock
+                      Classes="Muted"
+                      FontSize="{DynamicResource ShellFontSize10}"
+                      Text="No host folders are mounted. The environment uses guest-only storage until you add one."
+                      TextWrapping="Wrap"
+                      IsVisible="{Binding HasNoIsolationMounts}" />
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                    <Button
+                        Classes="TextButton Accent"
+                        Click="OnAddIsolationMountClick"
+                        Content="Add host folder"
+                        IsEnabled="{Binding CanAddIsolationMount}"
+                        AutomationProperties.Name="Add host mount" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Classes="Muted"
+                        FontSize="{DynamicResource ShellFontSize9}"
+                        Text="Read &amp; write lets processes in the environment change those host files."
+                        TextWrapping="Wrap" />
+                  </Grid>
+                </StackPanel>
+              </controls:SurfaceCard>
+            </controls:SettingRow>
+          </controls:SettingsGroup>
+
+          <controls:SettingsGroup
+              Heading="Networking"
+              Description="Which proxy or VPN route this workspace's panels, connections, and terminals use."
+              ControlWidth="470">
+            <controls:SettingRow
+                Label="Network policy"
+                Description="{Binding NetworkModeSummary}">
+              <Border HorizontalAlignment="Right" VerticalAlignment="Center" Classes="Segmented">
+                <Grid ColumnDefinitions="Auto,Auto">
+                  <RadioButton
+                      Classes="Segment"
+                      Content="Follow application default"
+                      IsChecked="{Binding FollowsApplicationNetwork, Mode=TwoWay}"
+                      AutomationProperties.Name="Follow application networking" />
+                  <RadioButton
+                      Grid.Column="1"
+                      Classes="Segment"
+                      Content="Custom for this workspace"
+                      IsChecked="{Binding OverridesNetworkSettings, Mode=TwoWay}"
+                      AutomationProperties.Name="Override application networking for this workspace" />
+                </Grid>
+              </Border>
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Use a network connection"
+                Description="Off connects this workspace directly and keeps the chosen connection for later."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ToggleSwitch
+                  IsChecked="{Binding NetworkPolicy.IsEnabled, Mode=TwoWay}"
+                  IsEnabled="{Binding NetworkPolicy.CanEnable}"
+                  AutomationProperties.Name="Use a workspace network connection" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Active connection"
+                Description="The route every panel and connection in this workspace opens through. The workspace's title bar switches between offered connections without editing it here."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ComboBox
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding NetworkPolicy.AvailableConnections}"
+                  SelectedItem="{Binding NetworkPolicy.SelectedConnection, Mode=TwoWay}"
+                  IsEnabled="{Binding NetworkPolicy.HasAvailableConnections}"
+                  AutomationProperties.Name="Workspace network connection">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NetworkPolicyConnectionOptionViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" Classes="Eyebrow" Text="{Binding KindLabel}" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Kill switch"
+                Description="Block routed traffic if the connection fails instead of falling back to a direct route. Isolation enforces this for every guest process; host programs can ignore proxy settings."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ToggleSwitch
+                  IsChecked="{Binding NetworkPolicy.KillSwitchEnabled, Mode=TwoWay}"
+                  AutomationProperties.Name="Workspace network kill switch" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Offered connections"
+                Description="The connections this workspace can switch between. Create and edit them in Settings › Networking."
+                IsStacked="True"
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                <ItemsControl ItemsSource="{Binding NetworkPolicy.Connections}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Spacing="{DynamicResource ShellSpaceSm}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NetworkPolicyConnectionOptionViewModel">
+                      <controls:SurfaceCard Tone="Raised" Padding="{DynamicResource ShellCardPaddingCompact}">
+                        <controls:ListItem Title="{Binding Name}" Detail="{Binding Summary}">
+                          <controls:ListItem.Leading>
+                            <CheckBox
+                                IsChecked="{Binding IsAvailable, Mode=TwoWay}"
+                                AutomationProperties.Name="{Binding Name, StringFormat=Offer {0} in this workspace}" />
+                          </controls:ListItem.Leading>
+                          <controls:ListItem.Trailing>
+                            <controls:StatusChip Shape="Rounded" Tone="Default" Content="{Binding KindLabel}" />
+                          </controls:ListItem.Trailing>
+                        </controls:ListItem>
+                      </controls:SurfaceCard>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock
-                    Classes="Muted"
-                    FontSize="{DynamicResource ShellFontSize9}"
-                    Text="No host directories are mounted. The isolate uses guest-only storage until you add one."
-                    TextWrapping="Wrap"
-                    IsVisible="{Binding HasNoIsolationMounts}" />
-                <TextBlock
-                    Classes="Muted"
-                    FontSize="{DynamicResource ShellFontSize9}"
-                    Text="Read-write mounts let processes in the isolate change files in those host directories."
-                    TextWrapping="Wrap" />
-                <TextBlock
-                    Classes="Muted"
-                    FontSize="{DynamicResource ShellFontSize9}"
-                    Text="Saving mount changes restarts the workspace and applies the new mount list. Installed packages and guest-only files remain available."
-                    TextWrapping="Wrap" />
-                <Button
-                    HorizontalAlignment="Left"
-                    Classes="TextButton Accent"
-                    Click="OnAddIsolationMountClick"
-                    Content="+ Host mount"
-                    IsEnabled="{Binding CanAddIsolationMount}"
-                    AutomationProperties.Name="Add host mount" />
+                <controls:Callout
+                    Tone="Notice"
+                    ShowsGlyph="False"
+                    Text="No network connections are saved. Create one in Settings › Networking."
+                    IsVisible="{Binding NetworkPolicy.HasNoConnections}" />
+                <controls:Callout
+                    Classes="Warning"
+                    Text="Untick the missing connections before saving this workspace."
+                    IsVisible="{Binding NetworkPolicy.HasMissingConnections}" />
               </StackPanel>
             </controls:SettingRow>
           </controls:SettingsGroup>
@@ -572,15 +695,13 @@
               Heading="AI configuration"
               Description="Use app defaults or choose a provider, model, and tool permissions for this workspace.">
             <StackPanel Margin="{controls:Inset Lg}" Spacing="{DynamicResource ShellSpaceMd}">
-              <controls:SettingRow
-                  Label="Run AI agent in workspace environment"
-                  Description="Off uses the host network for the AI provider. On routes the AI provider connection through this workspace's environment; providers available only on the host cannot be selected."
-                  IsVisible="{Binding IsIsolated}">
-                <ToggleSwitch
-                    HorizontalAlignment="Right"
-                    IsChecked="{Binding RunAgentInIsolation, Mode=TwoWay}"
-                    AutomationProperties.Name="Run AI agent in workspace environment" />
-              </controls:SettingRow>
+              <controls:ToggleField
+                  Label="Run the AI agent in the workspace environment"
+                  OnLabel="The provider is reached through this workspace's route; providers available only on the host cannot be selected."
+                  OffLabel="The provider is reached over the host network."
+                  IsChecked="{CompiledBinding RunAgentInIsolation, Mode=TwoWay}"
+                  IsVisible="{Binding IsIsolated}"
+                  AutomationProperties.Name="Run AI agent in workspace environment" />
               <controls:ToggleField
                   Label="Override AI configuration for this workspace"
                   IsChecked="{CompiledBinding AgentPolicy.IsEnabled, Mode=TwoWay}"

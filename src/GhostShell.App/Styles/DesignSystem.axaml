@@ -825,6 +825,21 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ShellDangerBorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource ShellDangerBrush}" />
       </Style>
+      <Style Selector="^.Success">
+        <Setter Property="Background" Value="{DynamicResource ShellSuccessSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ShellSuccessBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ShellSuccessBrush}" />
+      </Style>
+      <Style Selector="^.Neutral">
+        <Setter Property="Background" Value="{DynamicResource ShellSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ShellBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+      </Style>
+      <Style Selector="^.Notice">
+        <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ShellNoticeBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+      </Style>
 
       <Style Selector="^:tone-default">
         <Setter Property="Background" Value="{DynamicResource ShellSurfaceRaisedBrush}" />
@@ -1008,6 +1023,46 @@
 
       <Style Selector="^:last /template/ Border#PART_Separator">
         <Setter Property="IsVisible" Value="False" />
+      </Style>
+
+      <!-- Stacked, the control takes the row's whole width under the label.
+           The group still pushes a column width to the row; a stacked row has
+           no column for it to land in, which is the point. -->
+      <Style Selector="^:stacked">
+        <Setter Property="Template">
+          <ControlTemplate>
+            <StackPanel>
+              <StackPanel
+                  Margin="{TemplateBinding Padding}"
+                  Spacing="{DynamicResource ShellSpaceMd}">
+                <StackPanel
+                    Margin="{controls:Inset Horizontal=Xs}"
+                    Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock
+                      FontWeight="SemiBold"
+                      LineHeight="{DynamicResource ShellLineHeight12}"
+                      Text="{TemplateBinding Label}"
+                      TextWrapping="Wrap" />
+                  <TextBlock
+                      Foreground="{DynamicResource ShellMutedBrush}"
+                      FontSize="{DynamicResource ShellFontSize10}"
+                      LineHeight="{DynamicResource ShellLineHeight10}"
+                      Text="{TemplateBinding Description}"
+                      TextWrapping="Wrap"
+                      IsVisible="{TemplateBinding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ContentPresenter
+                    Content="{TemplateBinding Content}"
+                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                    HorizontalContentAlignment="Stretch" />
+              </StackPanel>
+              <Border
+                  Name="PART_Separator"
+                  Height="1"
+                  Background="{DynamicResource ShellBorderBrush}" />
+            </StackPanel>
+          </ControlTemplate>
+        </Setter>
       </Style>
     </ControlTheme>
 
@@ -1284,6 +1339,25 @@
           </controls:SurfaceCard>
         </ControlTemplate>
       </Setter>
+
+      <!--
+        Tone as a class as well as a property, for the callouts whose tone is
+        a binding — a test result that is a warning until it succeeds. A class
+        carries the glyph that tone speaks with, so the view names the state
+        and not the picture.
+      -->
+      <Style Selector="^.Warning">
+        <Setter Property="Tone" Value="Warning" />
+        <Setter Property="Glyph" Value="Warning" />
+      </Style>
+      <Style Selector="^.Danger">
+        <Setter Property="Tone" Value="Danger" />
+        <Setter Property="Glyph" Value="ErrorCircle" />
+      </Style>
+      <Style Selector="^.Success">
+        <Setter Property="Tone" Value="Success" />
+        <Setter Property="Glyph" Value="CheckmarkCircle" />
+      </Style>
 
       <Style Selector="^:tone-warning /template/ icons|SymbolIcon#PART_Glyph">
         <Setter Property="Foreground" Value="{DynamicResource ShellWarningBrush}" />

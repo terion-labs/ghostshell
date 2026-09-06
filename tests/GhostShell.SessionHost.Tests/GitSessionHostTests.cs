@@ -37,6 +37,7 @@ public sealed class GitSessionHostTests
 
         Assert.Equal(first, replay);
         Assert.Equal(1, factory.CreateCount);
+        Assert.Equal(WorkspaceId, factory.LastWorkspaceId);
         Assert.Equal(PanelKind.Git, first.Descriptor.Kind);
         Assert.Equal(Request().Target.Identity, first.Descriptor.GitMetadata?.RepositoryIdentity);
         Assert.DoesNotContain("/repo", first.Descriptor.StatusDetail, StringComparison.Ordinal);
@@ -160,15 +161,19 @@ public sealed class GitSessionHostTests
 
         public int CreateCount { get; private set; }
 
+        public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
         public FakeGitPanelSession? Session { get; private set; }
 
         public ValueTask<IGitPanelSession> CreateAsync(
+            WorkspaceInstanceId workspaceId,
             SessionId sessionId,
             GitSessionTarget target,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CreateCount++;
+            LastWorkspaceId = workspaceId;
             Session = new FakeGitPanelSession(sessionId, target.Binding, Capabilities);
             return ValueTask.FromResult<IGitPanelSession>(Session);
         }

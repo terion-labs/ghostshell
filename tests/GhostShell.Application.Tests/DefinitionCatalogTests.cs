@@ -63,6 +63,98 @@ public sealed class DefinitionCatalogTests
         var browserProfile = Assert.Single(snapshot.BrowserProfiles);
         Assert.Equal(BuiltInBrowserProfiles.Default, browserProfile.Value);
         Assert.True(browserProfile.Value.IsEnabled);
+        Assert.Equal(
+            ApplicationNetworkSettings.Default,
+            Assert.Single(snapshot.ApplicationNetworkSettings).Value);
+        Assert.Empty(snapshot.NetworkConnections);
+    }
+
+    [Fact]
+    public async Task NetworkPoliciesRequireStoredConnectionsAndProtectThemFromDeletion()
+    {
+        var fixture = new CatalogFixture();
+        Assert.True((await fixture.Catalog.InitializeAsync(CancellationToken.None)).IsSuccess);
+        var missingId = new NetworkConnectionId("network.missing");
+        var missingPolicy = new NetworkPolicy([missingId], missingId, true, true);
+        var settingsSaveAttempts = fixture.ApplicationNetworkSettings.SaveAttempts;
+
+        var rejectedSettings = await fixture.Catalog.SaveApplicationNetworkSettingsAsync(
+            new ApplicationNetworkSettings(
+                ApplicationNetworkSettings.DefaultId,
+                ApplicationNetworkSettings.CurrentSchemaVersion,
+                "Application networking",
+                missingPolicy),
+            Assert.Single(fixture.Catalog.Snapshot.ApplicationNetworkSettings).Revision,
+            CancellationToken.None);
+
+        Assert.False(rejectedSettings.IsSuccess);
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, rejectedSettings.Error!.Code);
+        Assert.Equal(settingsSaveAttempts, fixture.ApplicationNetworkSettings.SaveAttempts);
+
+        var profile = new NetworkConnectionProfile(
+            new NetworkConnectionId("network.proxy"),
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Office proxy",
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Socks5,
+                "proxy.example.com",
+                1080));
+        var storedProfile = await fixture.Catalog.SaveNetworkConnectionAsync(
+            profile,
+            expectedRevision: null,
+            CancellationToken.None);
+        Assert.True(storedProfile.IsSuccess, storedProfile.Error?.Message);
+
+        var policy = new NetworkPolicy([profile.Id], profile.Id, true, true);
+        var currentSettings = Assert.Single(fixture.Catalog.Snapshot.ApplicationNetworkSettings);
+        var storedSettings = await fixture.Catalog.SaveApplicationNetworkSettingsAsync(
+            new ApplicationNetworkSettings(
+                currentSettings.Value.Id,
+                currentSettings.Value.SchemaVersion,
+                currentSettings.Value.Name,
+                policy),
+            currentSettings.Revision,
+            CancellationToken.None);
+
+        Assert.True(storedSettings.IsSuccess, storedSettings.Error?.Message);
+        Assert.Equal(policy, Assert.Single(fixture.Catalog.Snapshot.ApplicationNetworkSettings).Value.Policy);
+
+        var deleted = await fixture.Catalog.DeleteAsync(
+            profile.Key,
+            storedProfile.Value!.Revision,
+            CancellationToken.None);
+
+        Assert.False(deleted.IsSuccess);
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, deleted.Error!.Code);
+        Assert.Equal(0, fixture.NetworkConnections.DeleteAttempts);
+    }
+
+    [Fact]
+    public async Task WorkspaceNetworkOverrideRequiresAStoredNetworkConnection()
+    {
+        var fixture = new CatalogFixture();
+        Assert.True((await fixture.Catalog.InitializeAsync(CancellationToken.None)).IsSuccess);
+        var missingId = new NetworkConnectionId("network.missing");
+        var policy = new NetworkPolicy([missingId], missingId, true, false);
+        var workspace = new WorkspaceDefinition(
+            new WorkspaceId("networked-workspace"),
+            WorkspaceDefinition.CurrentSchemaVersion,
+            "Networked workspace",
+            description: null,
+            accent: null,
+            entries: [],
+            networkOverride: policy);
+
+        var result = await fixture.Catalog.SaveWorkspaceAsync(
+            workspace,
+            expectedRevision: null,
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, result.Error!.Code);
+        Assert.DoesNotContain(
+            fixture.Catalog.Snapshot.Workspaces,
+            item => item.Value.Id == workspace.Id);
     }
 
     [Fact]
@@ -1341,7 +1433,9 @@ public sealed class DefinitionCatalogTests
                 AiProviderProfiles,
                 McpServerProfiles,
                 QuickTerminalSettings,
-                defaultTheme: defaultTheme);
+                defaultTheme: defaultTheme,
+                networkConnections: NetworkConnections,
+                applicationNetworkSettings: ApplicationNetworkSettings);
 
         public InMemoryDefinitionRepository<ConnectionProfile> Connections { get; } = new();
 
@@ -1365,6 +1459,10 @@ public sealed class DefinitionCatalogTests
 
         public InMemoryDefinitionRepository<QuickTerminalSettings> QuickTerminalSettings { get; } = new();
 
+        public InMemoryDefinitionRepository<NetworkConnectionProfile> NetworkConnections { get; } = new();
+
+        public InMemoryDefinitionRepository<ApplicationNetworkSettings> ApplicationNetworkSettings { get; } = new();
+
         public DefinitionCatalog Catalog { get; }
 
         public int TotalSaveAttempts =>
@@ -1378,7 +1476,9 @@ public sealed class DefinitionCatalogTests
             + FileProviderProfiles.SaveAttempts
             + AiProviderProfiles.SaveAttempts
             + McpServerProfiles.SaveAttempts
-            + QuickTerminalSettings.SaveAttempts;
+            + QuickTerminalSettings.SaveAttempts
+            + NetworkConnections.SaveAttempts
+            + ApplicationNetworkSettings.SaveAttempts;
 
         public int TotalDeleteAttempts =>
             Connections.DeleteAttempts
@@ -1391,7 +1491,9 @@ public sealed class DefinitionCatalogTests
             + FileProviderProfiles.DeleteAttempts
             + AiProviderProfiles.DeleteAttempts
             + McpServerProfiles.DeleteAttempts
-            + QuickTerminalSettings.DeleteAttempts;
+            + QuickTerminalSettings.DeleteAttempts
+            + NetworkConnections.DeleteAttempts
+            + ApplicationNetworkSettings.DeleteAttempts;
     }
 
     private sealed class PausingConnectionRepository

@@ -23,6 +23,140 @@ namespace GhostShell.App.Tests;
 public sealed class MainWindowRuntimeGraphIntegrationTests
 {
     [Fact]
+    public async Task Workspace_network_session_uses_the_effective_policy_and_closes_with_workspace()
+    {
+        var applicationConnection = NetworkProfile("application-network", "Application proxy");
+        var workspaceConnection = NetworkProfile("workspace-network", "Workspace VPN");
+        var applicationPolicy = new NetworkPolicy(
+            [applicationConnection.Id],
+            applicationConnection.Id,
+            isEnabled: false,
+            killSwitchEnabled: false);
+        var workspacePolicy = new NetworkPolicy(
+            [workspaceConnection.Id, applicationConnection.Id],
+            workspaceConnection.Id,
+            isEnabled: true,
+            killSwitchEnabled: true);
+        var snapshot = WithWorkspaceNetwork(CreateCatalogSnapshot(), WorkspaceId, workspacePolicy) with
+        {
+            NetworkConnections = [Store(applicationConnection), Store(workspaceConnection)],
+            ApplicationNetworkSettings =
+            [
+                Store(new ApplicationNetworkSettings(
+                    ApplicationNetworkSettings.DefaultId,
+                    ApplicationNetworkSettings.CurrentSchemaVersion,
+                    "Application networking",
+                    applicationPolicy)),
+            ],
+        };
+        var networkRuntime = new RecordingWorkspaceNetworkRuntime();
+        var runtimeServices = new RecordingWorkspaceRuntimeServicesFactory();
+        var (client, _) = CreateSessionClient();
+        using var viewModel = CreateViewModel(
+            client,
+            snapshot,
+            workspaceRuntimeServicesFactory: runtimeServices,
+            workspaceNetworkRuntime: networkRuntime);
+
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+
+        var request = Assert.Single(networkRuntime.Requests);
+        Assert.Same(workspacePolicy, request.InitialPolicy.Policy);
+        Assert.IsType<WorkspaceNetworkPlacement.HostPlacement>(request.Placement);
+        Assert.Equal("Workspace VPN · Connected", viewModel.WorkspaceNetwork.CompactStatus);
+        Assert.Equal(
+            WorkspaceNetworkEgress.Attached,
+            Assert.Single(runtimeServices.Services).NetworkEgress);
+
+        var running = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        viewModel.RemoveRuntimeWorkspace(running.Id);
+        await WaitForAsync(() => Assert.Single(networkRuntime.Sessions).DisposeCount == 1);
+    }
+
+    [Fact]
+    public async Task Inherited_workspace_network_control_includes_every_global_connection()
+    {
+        var first = NetworkProfile("first-global-network", "First proxy");
+        var second = NetworkProfile("second-global-network", "Second proxy");
+        var snapshot = CreateCatalogSnapshot() with
+        {
+            NetworkConnections = [Store(first), Store(second)],
+            ApplicationNetworkSettings =
+            [
+                Store(new ApplicationNetworkSettings(
+                    ApplicationNetworkSettings.DefaultId,
+                    ApplicationNetworkSettings.CurrentSchemaVersion,
+                    "Application networking",
+                    new NetworkPolicy([first.Id], first.Id, false, true))),
+            ],
+        };
+        var networkRuntime = new RecordingWorkspaceNetworkRuntime();
+        var (client, _) = CreateSessionClient();
+        using var viewModel = CreateViewModel(
+            client,
+            snapshot,
+            workspaceNetworkRuntime: networkRuntime);
+
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+
+        var request = Assert.Single(networkRuntime.Requests);
+        Assert.Equal([first.Id, second.Id], request.InitialPolicy.Policy.Connections);
+        Assert.Equal([first, second], request.InitialPolicy.Connections);
+        Assert.Equal(2, viewModel.WorkspaceNetwork.Connections.Count);
+    }
+
+    [Fact]
+    public async Task Catalog_refresh_keeps_the_manually_selected_host_network_attached()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var uiSession = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        var completed = await uiSession.Dispatch(async () =>
+        {
+            var connection = NetworkProfile("host-network", "Host VPN");
+            var catalog = DispatchProxy.Create<IDefinitionCatalog, MutableWorkspaceCatalogProxy>();
+            var catalogProxy = (MutableWorkspaceCatalogProxy)(object)catalog;
+            catalogProxy.Snapshot = CreateCatalogSnapshot() with
+            {
+                NetworkConnections = [Store(connection)],
+                ApplicationNetworkSettings =
+                [
+                    Store(new ApplicationNetworkSettings(
+                        ApplicationNetworkSettings.DefaultId,
+                        ApplicationNetworkSettings.CurrentSchemaVersion,
+                        "Application networking",
+                        new NetworkPolicy([connection.Id], connection.Id, false, true))),
+                ],
+            };
+            var networkRuntime = new RecordingWorkspaceNetworkRuntime();
+            var runtimeServices = new RecordingWorkspaceRuntimeServicesFactory();
+            var (client, _) = CreateSessionClient();
+            using var viewModel = CreateViewModel(
+                client,
+                catalog,
+                workspaceRuntimeServicesFactory: runtimeServices,
+                workspaceNetworkRuntime: networkRuntime);
+            Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+            await viewModel.WorkspaceNetwork.SelectAsync(connection.Id, CancellationToken.None);
+
+            var stored = catalogProxy.Snapshot.Workspaces.Single(item => item.Value.Id == WorkspaceId);
+            var workspace = stored.Value;
+            var renamed = new WorkspaceDefinition(
+                workspace.Id, workspace.SchemaVersion, "Renamed workspace",
+                workspace.Description, workspace.Accent, workspace.Entries);
+            var saved = await catalog.SaveWorkspaceAsync(renamed, stored.Revision, CancellationToken.None);
+            Assert.True(saved.IsSuccess);
+            await WaitForAsync(() => viewModel.Workspaces.Any(item => item.Name == renamed.Name));
+
+            Assert.IsType<WorkspaceNetworkPlacement.HostPlacement>(Assert.Single(networkRuntime.Requests).Placement);
+            Assert.Equal("Host VPN · Connected", viewModel.WorkspaceNetwork.CompactStatus);
+            Assert.Equal(WorkspaceNetworkState.Connected, Assert.Single(networkRuntime.Sessions).Snapshot.State);
+            Assert.Equal(WorkspaceNetworkEgress.Attached, Assert.Single(runtimeServices.Services).NetworkEgress);
+            return true;
+        }, timeout.Token);
+        Assert.True(completed);
+    }
+
+    [Fact]
     public async Task ClosingConnectingPanelCancelsStalledHostStartupBeforeReturning()
     {
         var snapshot = CreateCatalogSnapshot();
@@ -5453,6 +5587,58 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
     }
 
     [Fact]
+    public async Task Isolated_workspace_file_shortcut_selects_the_requested_remote_provider()
+    {
+        var s3Id = new FileProviderProfileId("files.isolated-production-s3");
+        var s3 = new FileProviderProfile(
+            s3Id,
+            FileProviderProfile.CurrentSchemaVersion,
+            "Isolated production objects",
+            new FileProviderConfiguration.S3("isolated-production-objects"));
+        var snapshot = WithWorkspaceIsolation(
+            CreateCatalogSnapshot() with
+            {
+                FileProviderProfiles = [Store(s3)],
+            },
+            WorkspaceId);
+        var files = new EmptyFileClients(
+        [
+            FileProfile(
+                BuiltInFileProviders.HomeId,
+                "Workspace files",
+                FileProviderFamily.Posix,
+                "workspace"),
+            FileProfile(
+                s3Id,
+                s3.Name,
+                FileProviderFamily.S3,
+                "isolated-production-objects"),
+        ]);
+        var runtimeServices = new RecordingWorkspaceRuntimeServicesFactory();
+        var (client, _) = CreateSessionClient();
+        using var viewModel = CreateViewModel(
+            client,
+            snapshot,
+            filePanelClient: files,
+            fileTransferQueueClient: files,
+            workspaceIsolationProvider: new RecordingWorkspaceIsolationProvider(),
+            workspaceRuntimeServicesFactory: runtimeServices);
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        var shortcut = Assert.Single(
+            viewModel.SavedConnectionShortcuts,
+            candidate => candidate.Target
+                is PanelConnectionOptionViewModel.Target.FileProvider target
+                && target.Id == s3Id);
+
+        Assert.True(await viewModel.AddSavedConnectionTabAsync(shortcut.DefaultLaunch));
+
+        var panel = Assert.IsType<FileRuntimePanelViewModel>(
+            viewModel.RuntimeWorkspace!.ActiveTab!.ActivePanel);
+        Assert.True(panel.UsesProfile(s3Id));
+        Assert.Equal(s3.Name, viewModel.RuntimeWorkspace.ActiveTab.Title);
+    }
+
+    [Fact]
     public async Task Queued_saved_screen_launch_revalidates_the_definition_under_the_graph_gate()
     {
         var (client, recorder) = CreateSessionClient();
@@ -7580,6 +7766,7 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         {
             viewModel.IsAppearanceSettingsVisible,
             viewModel.IsWorkspaceSettingsVisible,
+            viewModel.IsNetworkingSettingsVisible,
             viewModel.IsKeybindingSettingsVisible,
             viewModel.IsFilesSettingsVisible,
             viewModel.IsBrowserSettingsVisible,
@@ -7625,7 +7812,8 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         IConnectionSecurityRuntime? connectionSecurityRuntime = null,
         WorkspaceDefinitionOccupancy? workspaceDefinitionOccupancy = null,
         TerminalMultiplexerCoordinator? terminalMultiplexerCoordinator = null,
-        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null) =>
+        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null,
+        IWorkspaceNetworkRuntime? workspaceNetworkRuntime = null) =>
         CreateViewModel(
             sessionClient,
             CreateFixedCatalog(snapshot),
@@ -7651,7 +7839,8 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             connectionSecurityRuntime,
             workspaceDefinitionOccupancy,
             terminalMultiplexerCoordinator,
-            workspaceRuntimeServicesFactory);
+            workspaceRuntimeServicesFactory,
+            workspaceNetworkRuntime);
 
     private static MainWindowViewModel CreateViewModel(
         ISessionHostClient sessionClient,
@@ -7678,7 +7867,8 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         IConnectionSecurityRuntime? connectionSecurityRuntime = null,
         WorkspaceDefinitionOccupancy? workspaceDefinitionOccupancy = null,
         TerminalMultiplexerCoordinator? terminalMultiplexerCoordinator = null,
-        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null)
+        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null,
+        IWorkspaceNetworkRuntime? workspaceNetworkRuntime = null)
     {
         var files = new EmptyFileClients();
         agentPolicyCoordinator ??= CreateConfiguredPolicyCoordinator(aiProfiles);
@@ -7708,7 +7898,8 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             connectionSecurityRuntime: connectionSecurityRuntime,
             workspaceDefinitionOccupancy: workspaceDefinitionOccupancy,
             terminalMultiplexerCoordinator: terminalMultiplexerCoordinator,
-            workspaceRuntimeServicesFactory: workspaceRuntimeServicesFactory);
+            workspaceRuntimeServicesFactory: workspaceRuntimeServicesFactory,
+            workspaceNetworkRuntime: workspaceNetworkRuntime);
     }
 
     private sealed class MemoryTerminalMultiplexerStore :
@@ -8152,6 +8343,56 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         }).ToArray();
         return snapshot with { Workspaces = workspaces };
     }
+
+    private static DefinitionCatalogSnapshot WithWorkspaceNetwork(
+        DefinitionCatalogSnapshot snapshot,
+        WorkspaceId workspaceId,
+        NetworkPolicy policy)
+    {
+        var workspaces = snapshot.Workspaces.Select(stored =>
+        {
+            if (stored.Value.Id != workspaceId)
+            {
+                return stored;
+            }
+
+            var workspace = stored.Value;
+            return new StoredDefinition<WorkspaceDefinition>(
+                new WorkspaceDefinition(
+                    workspace.Id,
+                    workspace.SchemaVersion,
+                    workspace.Name,
+                    workspace.Description,
+                    workspace.Accent,
+                    workspace.Entries,
+                    workspace.AgentPolicyOverride,
+                    workspace.Icon,
+                    workspace.AutoSave,
+                    workspace.Color,
+                    workspace.AgentPanelPinned,
+                    workspace.TerminalMultiplexingOverride,
+                    workspace.BrowserProfileOverride,
+                    workspace.HasExplicitAccent,
+                    workspace.IsIsolated,
+                    workspace.IsolationMounts,
+                    workspace.IsolationImageReference,
+                    workspace.RunAgentInIsolation,
+                    policy),
+                stored.Revision,
+                stored.CreatedAt,
+                stored.UpdatedAt);
+        }).ToArray();
+        return snapshot with { Workspaces = workspaces };
+    }
+
+    private static NetworkConnectionProfile NetworkProfile(string id, string name) => new(
+        new NetworkConnectionId(id),
+        NetworkConnectionProfile.CurrentSchemaVersion,
+        name,
+        new NetworkConnectionConfiguration.Proxy(
+            NetworkProxyProtocol.Socks5,
+            $"{id}.example.test",
+            1080));
 
     private static DefinitionCatalogSnapshot CreateTabAppendCatalogSnapshot()
     {
@@ -10692,6 +10933,69 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             throw new NotSupportedException();
     }
 
+    private sealed class RecordingWorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
+    {
+        public List<WorkspaceNetworkOpenRequest> Requests { get; } = [];
+
+        public List<RecordingWorkspaceNetworkSession> Sessions { get; } = [];
+
+        public ValueTask<IWorkspaceNetworkSession> OpenAsync(
+            WorkspaceNetworkOpenRequest request,
+            IProgress<NetworkConnectionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            _ = progress;
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            var session = new RecordingWorkspaceNetworkSession(request.InitialPolicy);
+            Sessions.Add(session);
+            return ValueTask.FromResult<IWorkspaceNetworkSession>(session);
+        }
+    }
+
+    private sealed class RecordingWorkspaceNetworkSession : IWorkspaceNetworkSession
+    {
+        public RecordingWorkspaceNetworkSession(WorkspaceNetworkPolicyUpdate initialPolicy)
+        {
+            Snapshot = initialPolicy.Policy.IsEnabled
+                ? new WorkspaceNetworkSnapshot(
+                    WorkspaceNetworkState.Connected,
+                    WorkspaceNetworkEgress.Attached,
+                    initialPolicy.Policy.SelectedConnectionId)
+                : WorkspaceNetworkSnapshot.Direct;
+        }
+
+        public WorkspaceNetworkSnapshot Snapshot { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public event EventHandler<WorkspaceNetworkSnapshot>? Changed;
+
+        public ValueTask<NetworkConnectionResult<WorkspaceNetworkSnapshot>> ApplyAsync(
+            WorkspaceNetworkPolicyUpdate update,
+            IProgress<NetworkConnectionProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            _ = progress;
+            cancellationToken.ThrowIfCancellationRequested();
+            Snapshot = update.Policy.IsEnabled
+                ? new WorkspaceNetworkSnapshot(
+                    WorkspaceNetworkState.Connected,
+                    WorkspaceNetworkEgress.Attached,
+                    update.Policy.SelectedConnectionId)
+                : WorkspaceNetworkSnapshot.Direct;
+            Changed?.Invoke(this, Snapshot);
+            return ValueTask.FromResult(
+                NetworkConnectionResult<WorkspaceNetworkSnapshot>.Succeed(Snapshot));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class RecordingWorkspaceRuntimeServicesFactory
         : IWorkspaceRuntimeServicesFactory
     {
@@ -10699,23 +11003,33 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
 
         public List<WorkspaceRuntimeServicesRequest> Requests { get; } = [];
 
+        public List<WorkspaceRuntimeServices> Services { get; } = [];
+
         public WorkspaceRuntimeServices Create(WorkspaceRuntimeServicesRequest request)
         {
             Requests.Add(request);
             if (request.IsolationBinding is null)
             {
-                return request.HostServices;
+                var hostServices = new WorkspaceRuntimeServices(
+                    request.HostServices.Backends,
+                    request.HostServices.NetworkRoute,
+                    networkEgressSink: request.NetworkEgressState);
+                Services.Add(hostServices);
+                return hostServices;
             }
 
             var lifetime = new RecordingWorkspaceRuntimeLifetime();
             Created.Add(lifetime);
             var host = request.HostServices.Backends;
-            return new WorkspaceRuntimeServices(
+            var services = new WorkspaceRuntimeServices(
                 host,
                 WorkspaceNetworkRoute.ViaProxy(new Uri(
                     "socks5://127.0.0.1:1",
                     UriKind.Absolute)),
-                lifetime);
+                lifetime,
+                request.NetworkEgressState);
+            Services.Add(services);
+            return services;
         }
     }
 

@@ -32,6 +32,8 @@ internal static class DefinitionJson
             BrowserProfileDefinition value => JsonSerializer.Serialize(value, Context.BrowserProfileDefinition),
             DatabaseConnectionProfile value => JsonSerializer.Serialize(value, Context.DatabaseConnectionProfile),
             QuickTerminalSettings value => JsonSerializer.Serialize(value, Context.QuickTerminalSettings),
+            NetworkConnectionProfile value => JsonSerializer.Serialize(value, Context.NetworkConnectionProfile),
+            ApplicationNetworkSettings value => JsonSerializer.Serialize(value, Context.ApplicationNetworkSettings),
             _ => throw new NotSupportedException(
                 $"Definition type '{definition.GetType().FullName}' is not supported."),
         };
@@ -65,6 +67,10 @@ internal static class DefinitionJson
                 JsonSerializer.Deserialize(payloadJson, Context.DatabaseConnectionProfile),
             var value when value == DefinitionKind.QuickTerminalSettings =>
                 JsonSerializer.Deserialize(payloadJson, Context.QuickTerminalSettings),
+            var value when value == DefinitionKind.NetworkConnection =>
+                JsonSerializer.Deserialize(payloadJson, Context.NetworkConnectionProfile),
+            var value when value == DefinitionKind.ApplicationNetworkSettings =>
+                JsonSerializer.Deserialize(payloadJson, Context.ApplicationNetworkSettings),
             _ => null,
         };
 
@@ -120,6 +126,7 @@ internal static class DefinitionJson
         AddStrictStringEnumConverter<BrowserPermissionRetention>(options);
         AddStrictStringEnumConverter<BrowserActivityRetention>(options);
         AddStrictStringEnumConverter<BrowserAuthenticationScheme>(options);
+        AddStrictStringEnumConverter<NetworkProxyProtocol>(options);
 
         return new DefinitionJsonContext(options);
     }
@@ -154,9 +161,16 @@ internal static class DefinitionJson
 [JsonSerializable(typeof(BrowserProfileDefinition))]
 [JsonSerializable(typeof(DatabaseConnectionProfile))]
 [JsonSerializable(typeof(QuickTerminalSettings))]
+[JsonSerializable(typeof(NetworkConnectionProfile))]
+[JsonSerializable(typeof(ApplicationNetworkSettings))]
 [JsonSerializable(typeof(AgentPolicy))]
 [JsonSerializable(typeof(ConnectionEndpoint.Local), TypeInfoPropertyName = "ConnectionEndpointLocal")]
 [JsonSerializable(typeof(FileProviderConfiguration.Local), TypeInfoPropertyName = "FileProviderConfigurationLocal")]
 [JsonSerializable(typeof(AiProviderAuthentication.None), TypeInfoPropertyName = "AiProviderAuthenticationNone")]
 [JsonSerializable(typeof(ConnectionAuthentication.None), TypeInfoPropertyName = "ConnectionAuthenticationNone")]
+[JsonSerializable(typeof(NetworkConnectionConfiguration.Proxy), TypeInfoPropertyName = "NetworkConfigurationProxy")]
+[JsonSerializable(typeof(NetworkConnectionConfiguration.WireGuard), TypeInfoPropertyName = "NetworkConfigurationWireGuard")]
+[JsonSerializable(typeof(NetworkConnectionConfiguration.OpenVpn), TypeInfoPropertyName = "NetworkConfigurationOpenVpn")]
+[JsonSerializable(typeof(NetworkConnectionConfiguration.AnyConnect), TypeInfoPropertyName = "NetworkConfigurationAnyConnect")]
+[JsonSerializable(typeof(NetworkConnectionConfiguration.Tailscale), TypeInfoPropertyName = "NetworkConfigurationTailscale")]
 internal sealed partial class DefinitionJsonContext : JsonSerializerContext;

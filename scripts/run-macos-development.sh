@@ -140,10 +140,7 @@ done
 
 candidate_parent="$(mktemp -d "${app_parent}/.ghostshell-macos-run.XXXXXX")"
 candidate="${candidate_parent}/GhostShell.dev.app"
-cleanup() {
-    rm -rf -- "${candidate_parent}"
-}
-trap cleanup EXIT
+trap 'rm -rf -- "${candidate_parent}"' EXIT
 
 contents="${candidate}/Contents"
 macos_directory="${contents}/MacOS"
@@ -153,6 +150,18 @@ mkdir -p -- "${macos_directory}" "${frameworks_directory}" "${resources_director
 
 echo "Assembling the macOS CEF development bundle..." >&2
 /usr/bin/ditto --clone --noqtn "${target_directory}" "${macos_directory}"
+# Incremental managed output may still contain the retired in-guest helper.
+# The SDK runtime never mounts application code into the guest.
+rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
+workspace_runtime="${macos_directory}/runtimes/osx-arm64/workspace-runtime/workspace-runtime"
+if [[ -f "${workspace_runtime}" ]]; then
+    # Re-sign this child only; Chromium's entitlements must not be applied to
+    # the VM owner, and VM privileges must not spread to other app executables.
+    /usr/bin/codesign --force --sign - \
+        --entitlements "${repository_dir}/tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements" \
+        "${workspace_runtime}"
+    /usr/bin/codesign --verify --strict "${workspace_runtime}"
+fi
 "${namespace_avalonia_native}" \
     "${macos_directory}/runtimes/osx/native/libAvaloniaNative.dylib"
 /usr/bin/sed \

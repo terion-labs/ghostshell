@@ -12,10 +12,19 @@ public sealed class FtpFileProvider : RemoteHierarchicalFileProvider
     private readonly IFtpFeatureSource? _featureSource;
 
     public FtpFileProvider(ISecretVault secretVault, FtpFileProviderOptions options)
+        : this(secretVault, options, networkConnector: null)
+    {
+    }
+
+    internal FtpFileProvider(
+        ISecretVault secretVault,
+        FtpFileProviderOptions options,
+        IWorkspaceNetworkConnector? networkConnector)
         : this(
             new FluentFtpSessionFactory(
                 secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
-                options ?? throw new ArgumentNullException(nameof(options))),
+                options ?? throw new ArgumentNullException(nameof(options)),
+                networkConnector),
             options)
     {
     }

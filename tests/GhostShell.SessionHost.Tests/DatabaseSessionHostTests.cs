@@ -53,6 +53,7 @@ public sealed class DatabaseSessionHostTests
             HostErrorCode.ResynchronizationRequired,
             replay.Error().Code);
         Assert.Equal(1, factory.CreateCount);
+        Assert.Equal(WorkspaceId, factory.LastWorkspaceId);
     }
 
     [Fact]
@@ -430,6 +431,8 @@ public sealed class DatabaseSessionHostTests
 
         public int CreateCount { get; private set; }
 
+        public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
         public bool FailOpen { get; init; }
 
         public Func<FakeDatabasePanelSession, CancellationToken, ValueTask>? AfterCreateAsync
@@ -447,12 +450,14 @@ public sealed class DatabaseSessionHostTests
         public FakeDatabasePanelSession? Session { get; private set; }
 
         public async ValueTask<IDatabasePanelSession> CreateAsync(
+            WorkspaceInstanceId workspaceId,
             SessionId sessionId,
             DatabaseSessionTarget target,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CreateCount++;
+            LastWorkspaceId = workspaceId;
             if (FailOpen)
             {
                 throw new InvalidOperationException(

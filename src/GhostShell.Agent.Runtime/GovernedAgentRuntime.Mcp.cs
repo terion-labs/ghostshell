@@ -61,6 +61,8 @@ public sealed partial class GovernedAgentRuntime
                     new AgentMcpOpenRunRequest(
                         runId,
                         actor,
+                        _workspaceId ?? throw new InvalidOperationException(
+                            "An MCP run requires a bound workspace."),
                         _timeProvider.GetUtcNow().ToUniversalTime()),
                     cancellationToken)
                 .ConfigureAwait(false);

@@ -193,6 +193,20 @@ internal sealed class PostgresFamilyDriver(
     public DbConnection CreateConnection(string connectionString) =>
         new NpgsqlConnection(connectionString);
 
+    public DbConnection CreateRoutedConnection(string connectionString, string host, int port)
+    {
+        var logicalHost = new NpgsqlConnectionStringBuilder(connectionString).Host;
+        if (string.IsNullOrWhiteSpace(logicalHost) || logicalHost.Contains(',', StringComparison.Ordinal))
+        {
+            throw new NotSupportedException("Routed PostgreSQL connections require one logical server host.");
+        }
+
+        return new NpgsqlConnection(RewriteEndpoint(connectionString, host, port))
+        {
+            SslClientAuthenticationOptionsCallback = options => options.TargetHost = logicalHost,
+        };
+    }
+
     public string NormalizeConnectionString(string connectionString) =>
         PostgresConnectionStrings.Normalize(connectionString);
 
@@ -340,6 +354,34 @@ internal sealed class MySqlFamilyDriver(
 
     public DbConnection CreateConnection(string connectionString) =>
         new MySqlConnection(connectionString);
+
+    public DbConnection CreateRoutedConnection(string connectionString, string host, int port)
+    {
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        if (builder.ServerRedirectionMode != MySqlServerRedirectionMode.Disabled)
+        {
+            throw new NotSupportedException("MySQL server redirection cannot open destinations outside the selected workspace relay.");
+        }
+
+        if (builder.SslMode == MySqlSslMode.VerifyFull)
+        {
+            var validator = new MySqlRelayCertificateValidator(builder.Server, builder.SslCa);
+            builder.Server = host;
+            builder.Port = checked((uint)port);
+            // Required activates the provider callback; the callback enforces
+            // VerifyFull, including CA trust and revocation, itself. Leaving
+            // SslCa set would cause MySqlConnector to ignore that callback.
+            builder.SslMode = MySqlSslMode.Required;
+            builder.SslCa = string.Empty;
+            builder.Pooling = false;
+            return new MySqlConnection(builder.ConnectionString)
+            {
+                RemoteCertificateValidationCallback = validator.Validate,
+            };
+        }
+
+        return new MySqlConnection(RewriteEndpoint(connectionString, host, port));
+    }
 
     public string ListDatabasesSql => """
         SELECT schema_name FROM information_schema.schemata
@@ -609,17 +651,39 @@ internal sealed class SqlServerDatabaseDriver : IDatabaseDriver
             return null;
         }
 
+        if (source.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase))
+        {
+            source = source[4..];
+        }
+
+        if (source.Contains('\\', StringComparison.Ordinal))
+        {
+            throw new NotSupportedException("Routed SQL Server connections require an explicit TCP host and port, not a named instance or pipe.");
+        }
+
         var parts = source.Split(',', 2);
         return new DatabaseEndpoint(
             parts[0].Trim(),
             parts.Length == 2 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var port) ? port : 1433);
     }
 
-    public string RewriteEndpoint(string connectionString, string host, int port) =>
-        new SqlConnectionStringBuilder(connectionString)
+    public string RewriteEndpoint(string connectionString, string host, int port)
+    {
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        if (!string.IsNullOrWhiteSpace(builder.FailoverPartner))
         {
-            DataSource = $"{host},{port}",
-        }.ConnectionString;
+            throw new NotSupportedException("SQL Server failover partners require a route-aware driver transport and cannot bypass the workspace relay.");
+        }
+        var endpoint = GetEndpoint(connectionString)
+            ?? throw new InvalidOperationException("SQL Server requires a logical server host.");
+        if (string.IsNullOrWhiteSpace(builder.HostNameInCertificate))
+        {
+            builder.HostNameInCertificate = endpoint.Host;
+        }
+
+        builder.DataSource = $"{host},{port}";
+        return builder.ConnectionString;
+    }
 
     private static readonly ConnectionDetailKeys DetailKeys = new(
         ["Server", "Data Source", "Address", "Addr", "Network Address"],
@@ -892,7 +956,8 @@ internal sealed class OracleDatabaseDriver : IDatabaseDriver
     public DatabaseEndpoint? GetEndpoint(string connectionString)
     {
         var source = new OracleConnectionStringBuilder(connectionString).DataSource;
-        if (string.IsNullOrWhiteSpace(source) || source.StartsWith('('))
+        if (string.IsNullOrWhiteSpace(source) || source.StartsWith('(')
+            || source.Contains("://", StringComparison.Ordinal))
         {
             return null;
         }
@@ -1129,6 +1194,9 @@ internal sealed class ClickHouseDatabaseDriver : IDatabaseDriver
 
     public DbConnection CreateConnection(string connectionString) =>
         new ClickHouseConnection(connectionString);
+
+    public DbConnection CreateRoutedConnection(string connectionString, string host, int port) =>
+        new RoutedClickHouseConnection(connectionString, host, port);
 
     public string ListDatabasesSql => """
         SELECT name FROM system.databases

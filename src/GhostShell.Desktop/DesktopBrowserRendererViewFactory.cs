@@ -54,10 +54,44 @@ internal sealed class DesktopBrowserRendererViewFactory(
         BrowserProfileBinding profile,
         CancellationToken cancellationToken)
     {
+        return await CreateRoutedAsync(
+                connection,
+                profile,
+                networkConnector: null,
+                cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    public async ValueTask<BrowserRendererView> CreateAsync(
+        ConnectionProfile connection,
+        BrowserProfileBinding profile,
+        IWorkspaceNetworkConnector networkConnector,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(networkConnector);
+        return await CreateRoutedAsync(
+                connection,
+                profile,
+                networkConnector,
+                cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    private async ValueTask<BrowserRendererView> CreateRoutedAsync(
+        ConnectionProfile connection,
+        BrowserProfileBinding profile,
+        IWorkspaceNetworkConnector? networkConnector,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(connection);
         if (connection.Endpoint is ConnectionEndpoint.Local)
         {
-            return CreateView(profileStore.AcquireLocal(profile));
+            return networkConnector is null
+                ? CreateView(profileStore.AcquireLocal(profile))
+                : CreateView(profileStore.AcquireRouted(
+                    profile,
+                    networkConnector.LocalProxyEndpoint.AbsoluteUri,
+                    networkConnector));
         }
 
         if (connection.Endpoint is not ConnectionEndpoint.Ssh)
@@ -69,6 +103,7 @@ internal sealed class DesktopBrowserRendererViewFactory(
         var route = await AcquireRemoteRouteAsync(
             profile,
             connection,
+            networkConnector,
             cancellationToken).ConfigureAwait(true);
         CefBrowserProfileLease? profileLease = null;
         try
@@ -159,11 +194,13 @@ internal sealed class DesktopBrowserRendererViewFactory(
     private async ValueTask<RemoteRoute> AcquireRemoteRouteAsync(
         BrowserProfileBinding profile,
         ConnectionProfile connection,
+        IWorkspaceNetworkConnector? networkConnector,
         CancellationToken cancellationToken)
     {
         var key = new RemoteRouteKey(
             profile.Selection,
-            connection.Id);
+            connection.Id,
+            networkConnector?.LocalProxyEndpoint.AbsoluteUri);
         lock (_routeGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -175,7 +212,7 @@ internal sealed class DesktopBrowserRendererViewFactory(
         }
 
         var tunnel = await tunnelFactory
-            .OpenAsync(connection, cancellationToken)
+            .OpenAsync(connection, networkConnector, cancellationToken)
             .ConfigureAwait(true);
         lock (_routeGate)
         {
@@ -246,7 +283,8 @@ internal sealed class DesktopBrowserRendererViewFactory(
 
     private readonly record struct RemoteRouteKey(
         BrowserProfileSelection Profile,
-        ConnectionId ConnectionId);
+        ConnectionId ConnectionId,
+        string? NetworkRouteIdentity);
 
     private sealed class RemoteRoute(
         RemoteRouteKey key,

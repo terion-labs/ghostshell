@@ -169,9 +169,42 @@ public sealed partial class WorkspaceView : UserControl
 
     public event EventHandler<RoutedEventArgs>? ToggleAgentPinRequested;
 
+    public event EventHandler<WorkspaceNetworkConnectionOptionViewModel>?
+        WorkspaceNetworkConnectionSelected;
+
+    public event EventHandler<RoutedEventArgs>? WorkspaceNetworkToggleRequested;
+
+    /// <summary>The network flyout asked for the page where connections are made.</summary>
+    public event EventHandler<RoutedEventArgs>? NetworkingSettingsRequested;
 
     private void OnActivateTabClick(object? sender, RoutedEventArgs e) =>
         ActivateTabRequested?.Invoke(sender, e);
+
+    private void OnWorkspaceNetworkConnectionClick(object? sender, RoutedEventArgs e)
+    {
+        _ = e;
+        if (sender is Control
+            {
+                DataContext: WorkspaceNetworkConnectionOptionViewModel connection,
+            })
+        {
+            WorkspaceNetworkConnectionSelected?.Invoke(this, connection);
+        }
+    }
+
+    private void OnWorkspaceNetworkToggleClick(object? sender, RoutedEventArgs e) =>
+        WorkspaceNetworkToggleRequested?.Invoke(sender, e);
+
+    private void OnNetworkingSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        NetworkingSettingsRequested?.Invoke(sender, e);
+        // Deferred: hiding a flyout inside its own button's Click detaches the
+        // content mid-dispatch, and the settings route has replaced this view
+        // by the time the popup would otherwise notice.
+        Dispatcher.UIThread.Post(
+            () => this.FindControl<Button>("WorkspaceNetworkButton")?.Flyout?.Hide(),
+            DispatcherPriority.Background);
+    }
 
     private void OnAgentQuestionResponseKeyDown(object? sender, KeyEventArgs e) =>
         AgentQuestionResponseKeyDownRequested?.Invoke(sender, e);

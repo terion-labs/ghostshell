@@ -95,3 +95,26 @@ public readonly record struct CommandId
 
     public override string ToString() => Value;
 }
+
+public readonly record struct NetworkConnectionId
+{
+    [JsonConstructor]
+    public NetworkConnectionId(string value) => Value = RuntimeId.Require(value, nameof(value));
+
+    public string Value { get; }
+
+    public static NetworkConnectionId New() => new(RuntimeId.NewValue());
+
+    public override string ToString() => Value;
+}
+
+public readonly record struct ApplicationNetworkSettingsId
+{
+    [JsonConstructor]
+    public ApplicationNetworkSettingsId(string value) =>
+        Value = RuntimeId.Require(value, nameof(value));
+
+    public string Value { get; }
+
+    public override string ToString() => Value;
+}

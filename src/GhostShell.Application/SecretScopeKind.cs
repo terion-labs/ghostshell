@@ -9,4 +9,5 @@ public enum SecretScopeKind
     BrowserProfile,
     FileProvider,
     DatabaseConnection,
+    NetworkConnection,
 }

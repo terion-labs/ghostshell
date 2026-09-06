@@ -6,6 +6,23 @@ namespace GhostShell.SessionHost.Tests;
 public sealed class FilePanelOperationTests
 {
     [Fact]
+    public async Task FileSessionCreationPreservesOwningWorkspaceIdentity()
+    {
+        var files = new FakeFilePanelSessionFactory();
+        await using var host = CreateHost(
+            files,
+            new ManualTimeProvider(DateTimeOffset.UnixEpoch));
+        var request = OpenRequest("files-workspace-route");
+
+        _ = await host.EnsureFilePanelSessionAsync(
+            request,
+            Context(),
+            CancellationToken.None);
+
+        Assert.Equal(request.Owner.WorkspaceId, files.LastWorkspaceId);
+    }
+
+    [Fact]
     public async Task CancellationDuringFileSessionCreationRetainsUncertainReplay()
     {
         var files = new FakeFilePanelSessionFactory();

@@ -54,6 +54,7 @@ public sealed class SettingsViewContractTests
                 "OnKeybindingProfileSelectionChanged",
             ["KeybindingSettingsRequested"] = "OnKeybindingSettingsClick",
             ["McpSettingsRequested"] = "OnMcpSettingsClick",
+            ["NetworkingSettingsRequested"] = "OnNetworkingSettingsClick",
             ["OpenThirdPartyNoticesRequested"] = "OnOpenThirdPartyNoticesClick",
             ["QuickTerminalSettingsRequested"] = "OnQuickTerminalSettingsClick",
             ["RecordKeybindingPrefixRequested"] = "OnRecordKeybindingPrefixClick",
@@ -122,6 +123,62 @@ public sealed class SettingsViewContractTests
                     extractedName,
                     StringComparison.Ordinal));
         }
+    }
+
+    [Fact]
+    public void Networking_settings_keep_secret_references_out_of_user_editors()
+    {
+        var page = LoadSettingsPage("NetworkingSettingsPageView");
+        var dialog = LoadView("NetworkConnectionEditorDialog");
+        var attributes = page.Descendants().Attributes()
+            .Concat(dialog.Descendants().Attributes())
+            .ToArray();
+
+        Assert.DoesNotContain(
+            attributes,
+            attribute => attribute.Value.Contains(
+                "SecretReference",
+                StringComparison.Ordinal));
+
+        // Every credential slot is the one picker component, bound to the
+        // option the editor resolves — never to the reference string itself.
+        var pickers = dialog.Descendants()
+            .Where(element => string.Equals(
+                element.Name.LocalName,
+                "NetworkCredentialPicker",
+                StringComparison.Ordinal))
+            .ToArray();
+        Assert.Contains(
+            pickers,
+            picker => string.Equals(
+                AttributeValue(picker, "SelectedItem"),
+                "{Binding SelectedConfigurationCredential, Mode=TwoWay}",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            pickers,
+            picker => string.Equals(
+                AttributeValue(picker, "SelectedItem"),
+                "{Binding SelectedPasswordCredential, Mode=TwoWay}",
+                StringComparison.Ordinal));
+        Assert.All(
+            pickers,
+            picker => Assert.Equal(
+                "OnAddCredentialRequested",
+                AttributeValue(picker, "AddRequested")));
+        Assert.Contains(
+            dialog.Descendants(),
+            element => string.Equals(
+                AttributeValue(element, "Click"),
+                "OnTestProfileClick",
+                StringComparison.Ordinal));
+
+        // The page lists and chooses; editing is the dialog's job.
+        Assert.DoesNotContain(
+            page.Descendants(),
+            element => string.Equals(
+                element.Name.LocalName,
+                "NetworkCredentialPicker",
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -349,6 +406,20 @@ public sealed class SettingsViewContractTests
         Assert.Equal(
             "OnQuickTerminalSettingsSaveRequested",
             AttributeValue(quickTerminalPage, "SaveRequested"));
+
+        var networkingPage = FindNamedElement(root, "NetworkingSettingsPage");
+        Assert.Equal(
+            "{Binding IsNetworkingSettingsVisible}",
+            AttributeValue(networkingPage, "IsVisible"));
+        var networkingSettings = Assert.Single(
+            networkingPage.Elements(),
+            element => string.Equals(
+                element.Name.LocalName,
+                "NetworkingSettingsPageView",
+                StringComparison.Ordinal));
+        Assert.Equal(
+            "{Binding NetworkSettings}",
+            AttributeValue(networkingSettings, "DataContext"));
 
         var pageHeaders = root.Descendants()
             .Where(element => string.Equals(element.Name.LocalName, "SettingsPageHeader", StringComparison.Ordinal))

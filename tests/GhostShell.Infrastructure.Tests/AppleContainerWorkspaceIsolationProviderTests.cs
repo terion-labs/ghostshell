@@ -13,6 +13,8 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
     private static readonly string HostHome =
         Path.TrimEndingDirectorySeparator(Path.GetTempPath());
     private static readonly WorkspaceId WorkspaceId = new("workspace-alpha");
+    private static readonly string PacketGatewayStateRoot = HostPath("packet-gateways");
+    private static readonly string PacketGatewayHelperDirectory = HostPath("packet-helper");
     private static readonly IReadOnlyList<WorkspaceIsolationMount> HomeMounts =
     [
         new(HostHome, GuestHome, isReadOnly: false),
@@ -37,6 +39,20 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
 
         var expectedName = AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId);
         Assert.Equal(expectedName, binding.ResourceName);
+        Assert.Equal(
+            AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId),
+            binding.Network?.ResourceName);
+        Assert.Equal("192.168.128.1", binding.Network?.Ipv4Gateway);
+        Assert.Equal("192.168.128.0/24", binding.Network?.Ipv4Subnet);
+        Assert.Equal(
+            Path.Combine(PacketGatewayStateRoot, expectedName, "guest.sock"),
+            binding.Network?.PacketSocketPath);
+        Assert.Equal(
+            AppleContainerWorkspaceIsolationProvider.GuestPacketGatewaySocket,
+            binding.Network?.GuestSocketPath);
+        Assert.Equal(
+            AppleContainerWorkspaceIsolationProvider.GuestPacketGatewayExecutable,
+            binding.Network?.GuestHelperPath);
         Assert.Equal(HomeMounts, binding.Mounts);
         Assert.Equal(
             AppleContainerWorkspaceIsolationProvider.ProviderDescriptor.Id,
@@ -84,6 +100,105 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         Assert.Equal(
             ["inspect", AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId)],
             runner.Commands[2].Arguments);
+    }
+
+    [Fact]
+    public async Task Prepare_creates_and_verifies_the_owned_host_only_network_when_absent()
+    {
+        var runner = new RecordingRunner(
+            AppleContainerCommandResult.Exited(0, CurrentVersionJson),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0, InspectJson()),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0));
+        runner.NetworkResults.Enqueue(AppleContainerCommandResult.Exited(1));
+        runner.NetworkResults.Enqueue(AppleContainerCommandResult.Exited(0));
+        runner.NetworkResults.Enqueue(AppleContainerCommandResult.Exited(0, NetworkInspectJson()));
+        var provider = Provider(runner);
+
+        var binding = Success(await provider.PrepareAsync(Request(), CancellationToken.None));
+
+        var networkName = AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId);
+        Assert.Equal(
+            ["network", "inspect", networkName],
+            runner.NetworkCommands[0].Arguments);
+        Assert.Equal(
+            [
+                "network",
+                "create",
+                "--internal",
+                "--label",
+                $"io.ghostshell.workspace={binding.ResourceName}",
+                "--label",
+                "io.ghostshell.isolation-schema=3",
+                networkName,
+            ],
+            runner.NetworkCommands[1].Arguments);
+        Assert.Equal(
+            ["network", "inspect", networkName],
+            runner.NetworkCommands[2].Arguments);
+        Assert.Equal(networkName, binding.Network?.ResourceName);
+    }
+
+    [Fact]
+    public async Task Prepare_uses_the_existing_nat_network_unless_host_only_is_explicitly_enabled()
+    {
+        var runner = new RecordingRunner(
+            AppleContainerCommandResult.Exited(0, CurrentVersionJson),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(1),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0, InspectJson(schemaVersion: "2")),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0),
+            AppleContainerCommandResult.Exited(0));
+        var provider = new AppleContainerWorkspaceIsolationProvider(
+            runner.RunAsync,
+            AppleContainerWorkspaceIsolationProvider.DefaultImageReference,
+            "/bin/sh",
+            ["-l"],
+            "/usr/bin/ssh",
+            "container-test");
+
+        var binding = Success(await provider.PrepareAsync(Request(), CancellationToken.None));
+
+        Assert.Null(binding.Network);
+        Assert.Empty(runner.NetworkCommands);
+        Assert.DoesNotContain("--network", runner.Commands[4].Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("--no-dns", runner.Commands[4].Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("--publish-socket", runner.Commands[4].Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain(
+            AppleContainerWorkspaceIsolationProvider.GuestPacketGatewayDirectory,
+            runner.Commands[4].Arguments,
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "io.ghostshell.isolation-schema=2",
+            runner.Commands[4].Arguments,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task Prepare_refuses_a_foreign_network_with_the_deterministic_name()
+    {
+        var runner = new RecordingRunner(
+            AppleContainerCommandResult.Exited(0, CurrentVersionJson),
+            AppleContainerCommandResult.Exited(0));
+        runner.NetworkResults.Enqueue(AppleContainerCommandResult.Exited(
+            0,
+            NetworkInspectJson(workspaceLabel: "another-owner")));
+        var provider = Provider(runner);
+
+        var failure = Failure(await provider.PrepareAsync(Request(), CancellationToken.None));
+
+        Assert.Equal(WorkspaceIsolationErrorCode.PrepareFailed, failure.Code);
+        Assert.Single(runner.NetworkCommands);
+        Assert.DoesNotContain(
+            runner.NetworkCommands,
+            command => command.Arguments.Contains("delete", StringComparer.Ordinal));
     }
 
     [Fact]
@@ -192,7 +307,33 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         Assert.DoesNotContain("--init", create, StringComparer.Ordinal);
         Assert.Contains(
             create.Zip(create.Skip(1)),
-            pair => pair.First == "--entrypoint" && pair.Second == "/sbin/init");
+            pair => pair.First == "--entrypoint"
+                    && pair.Second
+                    == AppleContainerWorkspaceIsolationProvider.GuestPacketGatewayExecutable);
+        Assert.Contains("--no-dns", create, StringComparer.Ordinal);
+        Assert.Contains(
+            create.Zip(create.Skip(1)),
+            pair => pair.First == "--publish-socket"
+                    && pair.Second == Path.Combine(
+                        PacketGatewayStateRoot,
+                        AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId),
+                        "guest.sock")
+                        + $":{AppleContainerWorkspaceIsolationProvider.GuestPacketGatewaySocket}");
+        Assert.Contains(
+            $"type=bind,source={PacketGatewayHelperDirectory},"
+            + $"target={AppleContainerWorkspaceIsolationProvider.GuestPacketGatewayDirectory},readonly",
+            create,
+            StringComparer.Ordinal);
+        Assert.Equal(
+            [
+                "init",
+                "--gateway",
+                "192.168.128.1",
+                "--",
+                "/sbin/init",
+            ],
+            create.TakeLast(5),
+            StringComparer.Ordinal);
         Assert.Contains(
             create.Zip(create.Skip(1)),
             pair => pair.First == "--cap-add" && pair.Second == "ALL");
@@ -229,6 +370,75 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         Assert.Contains(
             create.Zip(create.Skip(1)),
             pair => pair.First == "--memory" && pair.Second == "1G");
+        Assert.Contains(
+            create.Zip(create.Skip(1)),
+            pair => pair.First == "--network"
+                    && pair.Second
+                    == AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId));
+    }
+
+    [Fact]
+    public async Task Prepare_removes_only_the_owned_stale_packet_socket_before_container_creation()
+    {
+        var testDirectory = Directory.CreateTempSubdirectory("ghostshell-packet-transport-");
+        try
+        {
+            var stateRoot = Path.Combine(testDirectory.FullName, "state");
+            var helperDirectory = Directory.CreateDirectory(
+                Path.Combine(testDirectory.FullName, "helper"));
+            var helperPath = Path.Combine(helperDirectory.FullName, "workspace-gateway");
+            await File.WriteAllTextAsync(helperPath, "test-helper");
+            var resourceName = AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId);
+            var socketDirectory = Directory.CreateDirectory(
+                Path.Combine(stateRoot, resourceName));
+            var staleSocketPath = Path.Combine(socketDirectory.FullName, "guest.sock");
+            await File.WriteAllTextAsync(staleSocketPath, "stale");
+            var runner = new RecordingRunner(
+                AppleContainerCommandResult.Exited(0, CurrentVersionJson),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(1),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(
+                    0,
+                    InspectJson(
+                        packetGatewayStateRoot: stateRoot,
+                        packetGatewayHelperDirectory: helperDirectory.FullName)),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(0),
+                AppleContainerCommandResult.Exited(0));
+            var provider = new AppleContainerWorkspaceIsolationProvider(
+                runner.RunAsync,
+                AppleContainerWorkspaceIsolationProvider.DefaultImageReference,
+                "/bin/sh",
+                ["-l"],
+                "/usr/bin/ssh",
+                "container-test",
+                useHostOnlyNetwork: true,
+                packetGatewayStateRoot: stateRoot,
+                guestPacketGatewayHelperDirectory: helperDirectory.FullName,
+                requirePacketGatewayPayload: true);
+
+            var binding = Success(await provider.PrepareAsync(
+                Request(),
+                CancellationToken.None));
+
+            Assert.Equal(staleSocketPath, binding.Network?.PacketSocketPath);
+            Assert.False(File.Exists(staleSocketPath));
+            if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+            {
+                Assert.Equal(
+                    UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute,
+                    File.GetUnixFileMode(socketDirectory.FullName));
+            }
+        }
+        finally
+        {
+            testDirectory.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -259,7 +469,10 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
             ["-l"],
             "/usr/bin/ssh",
             "container-test",
-            buildDefaultImage: true);
+            buildDefaultImage: true,
+            useHostOnlyNetwork: true,
+            packetGatewayStateRoot: PacketGatewayStateRoot,
+            guestPacketGatewayHelperDirectory: PacketGatewayHelperDirectory);
         var progress = new RecordingProgress<WorkspaceIsolationProgress>();
 
         _ = Success(await provider.PrepareAsync(
@@ -547,7 +760,12 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
             new WorkspaceIsolationProcessRequest(ConnectionKind.Local, "/bin/zsh")));
 
         Assert.Empty(binding.Mounts);
-        Assert.DoesNotContain("--mount", runner.Commands[4].Arguments, StringComparer.Ordinal);
+        Assert.Equal(1, runner.Commands[4].Arguments.Count(argument => argument == "--mount"));
+        Assert.Contains(
+            $"type=bind,source={PacketGatewayHelperDirectory},"
+            + $"target={AppleContainerWorkspaceIsolationProvider.GuestPacketGatewayDirectory},readonly",
+            runner.Commands[4].Arguments,
+            StringComparer.Ordinal);
         Assert.Contains(
             launch.Arguments.Zip(launch.Arguments.Skip(1)),
             pair => pair.First == "--workdir" && pair.Second == "/home/ghostshell");
@@ -1000,6 +1218,20 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         Assert.Equal(
             ["image", "delete", $"{resourceName}-state:latest"],
             runner.Commands[2].Arguments);
+        Assert.Equal(
+            [
+                "network",
+                "inspect",
+                AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId),
+            ],
+            runner.NetworkCommands[0].Arguments);
+        Assert.Equal(
+            [
+                "network",
+                "delete",
+                AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId),
+            ],
+            runner.NetworkCommands[1].Arguments);
     }
 
     [Fact]
@@ -1518,7 +1750,10 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
             "/bin/sh",
             ["-l"],
             "/usr/bin/ssh",
-            "container-test");
+            "container-test",
+            useHostOnlyNetwork: true,
+            packetGatewayStateRoot: PacketGatewayStateRoot,
+            guestPacketGatewayHelperDirectory: PacketGatewayHelperDirectory);
 
     private static WorkspaceIsolationBinding Binding(
         IReadOnlyList<WorkspaceIsolationMount>? mounts = null) =>
@@ -1544,9 +1779,14 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         string? imageReference = null,
         string? baseImageReference = null,
         bool forwardsSshAgent = true,
-        string? workspaceLabel = null)
+        string? workspaceLabel = null,
+        string schemaVersion = "3",
+        string? packetGatewayStateRoot = null,
+        string? packetGatewayHelperDirectory = null)
     {
         var name = AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId);
+        packetGatewayStateRoot ??= PacketGatewayStateRoot;
+        packetGatewayHelperDirectory ??= PacketGatewayHelperDirectory;
         var inspectedMounts = (mounts ?? HomeMounts)
             .Select(mount => (object)new
             {
@@ -1555,6 +1795,16 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
                 options = MountOptions(mount.IsReadOnly),
             })
             .ToList();
+        if (string.Equals(schemaVersion, "3", StringComparison.Ordinal))
+        {
+            inspectedMounts.Add(new
+            {
+                source = packetGatewayHelperDirectory,
+                destination = AppleContainerWorkspaceIsolationProvider
+                    .GuestPacketGatewayDirectory,
+                options = MountOptions(isReadOnly: true),
+            });
+        }
         if (includeUnexpectedSshSocketMount)
         {
             inspectedMounts.Add(new
@@ -1568,7 +1818,7 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
         var labels = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["io.ghostshell.workspace"] = workspaceLabel ?? name,
-            ["io.ghostshell.isolation-schema"] = "2",
+            ["io.ghostshell.isolation-schema"] = schemaVersion,
         };
         if (baseImageReference is not null)
         {
@@ -1594,11 +1844,50 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
                         memoryInBytes = 1024UL * 1024UL * 1024UL,
                     },
                     ssh = forwardsSshAgent,
+                    networks = new[]
+                    {
+                        new
+                        {
+                            network = AppleContainerWorkspaceIsolationProvider
+                                .NetworkResourceName(WorkspaceId),
+                        },
+                    },
                     useInit = false,
                     initProcess = new
                     {
-                        executable = "/sbin/init",
+                        executable = string.Equals(schemaVersion, "3", StringComparison.Ordinal)
+                            ? AppleContainerWorkspaceIsolationProvider
+                                .GuestPacketGatewayExecutable
+                            : "/sbin/init",
+                        arguments = string.Equals(schemaVersion, "3", StringComparison.Ordinal)
+                            ? new[]
+                            {
+                                "init",
+                                "--gateway",
+                                "192.168.128.1",
+                                "--",
+                                "/sbin/init",
+                            }
+                            : [],
                     },
+                    dns = new
+                    {
+                        nameservers = Array.Empty<string>(),
+                    },
+                    publishedSockets = string.Equals(schemaVersion, "3", StringComparison.Ordinal)
+                        ? new[]
+                        {
+                            new
+                            {
+                                hostPath = Path.Combine(
+                                    packetGatewayStateRoot,
+                                    name,
+                                    "guest.sock"),
+                                containerPath = AppleContainerWorkspaceIsolationProvider
+                                    .GuestPacketGatewaySocket,
+                            },
+                        }
+                        : [],
                     mounts = inspectedMounts,
                 },
                 status = stringStatus ? (object)state : new { state },
@@ -1608,6 +1897,40 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
 
     private static IReadOnlyList<string> MountOptions(bool isReadOnly) =>
         isReadOnly ? ["ro"] : [];
+
+    private static string NetworkInspectJson(
+        string mode = "hostOnly",
+        string? workspaceLabel = null,
+        string gateway = "192.168.128.1",
+        string subnet = "192.168.128.0/24")
+    {
+        var containerName = AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId);
+        var networkName = AppleContainerWorkspaceIsolationProvider.NetworkResourceName(WorkspaceId);
+        return JsonSerializer.Serialize(new[]
+        {
+            new
+            {
+                configuration = new
+                {
+                    labels = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["io.ghostshell.workspace"] = workspaceLabel ?? containerName,
+                        ["io.ghostshell.isolation-schema"] = "3",
+                    },
+                    mode,
+                    name = networkName,
+                    options = new { },
+                    plugin = "container-network-vmnet",
+                },
+                id = networkName,
+                status = new
+                {
+                    ipv4Gateway = gateway,
+                    ipv4Subnet = subnet,
+                },
+            },
+        });
+    }
 
     private static string SnapshotImageReference() =>
         $"{AppleContainerWorkspaceIsolationProvider.ResourceName(WorkspaceId)}-state:latest";
@@ -1670,6 +1993,10 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
 
         public List<AppleContainerCommand> Commands { get; } = [];
 
+        public List<AppleContainerCommand> NetworkCommands { get; } = [];
+
+        public Queue<AppleContainerCommandResult> NetworkResults { get; } = [];
+
         public int? ThrowOnCommandIndex { get; init; }
 
         public IReadOnlyDictionary<int, IReadOnlyList<string>> OutputByCommandIndex { get; init; } =
@@ -1679,6 +2006,23 @@ public sealed class AppleContainerWorkspaceIsolationProviderTests
             AppleContainerCommand command,
             CancellationToken cancellationToken)
         {
+            if (command.Arguments.FirstOrDefault() == "network")
+            {
+                NetworkCommands.Add(command);
+                if (NetworkResults.TryDequeue(out var networkResult))
+                {
+                    return ValueTask.FromResult(networkResult);
+                }
+
+                var result = command.Arguments.ElementAtOrDefault(1) switch
+                {
+                    "inspect" => AppleContainerCommandResult.Exited(0, NetworkInspectJson()),
+                    "list" => AppleContainerCommandResult.Exited(0, "[]"),
+                    _ => AppleContainerCommandResult.Exited(0),
+                };
+                return ValueTask.FromResult(result);
+            }
+
             Commands.Add(command);
             if (Commands.Count - 1 == ThrowOnCommandIndex)
             {

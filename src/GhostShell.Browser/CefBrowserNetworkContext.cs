@@ -30,9 +30,12 @@ internal sealed class CefBrowserNetworkContext : IDisposable
     }
 
     public static CefBrowserNetworkContext Create(int socksProxyPort)
+        => Create(SocksProxyEndpoint(socksProxyPort));
+
+    public static CefBrowserNetworkContext Create(Uri proxyEndpoint)
     {
         return CreateConfigured(
-            RequiredPreferences(socksProxyPort),
+            RequiredPreferences(proxyEndpoint),
             CefBrowserContentPolicy.Ordinary,
             "The embedded browser could not create an isolated network context.");
     }
@@ -45,7 +48,26 @@ internal sealed class CefBrowserNetworkContext : IDisposable
             "The embedded browser could not create an isolated agent web context.");
     }
 
-    public CefBrowserView CreateView() => new(_context, _contentPolicy);
+    public static CefBrowserNetworkContext CreateIsolatedAgentWeb(int socksProxyPort)
+        => CreateIsolatedAgentWeb(
+            SocksProxyEndpoint(socksProxyPort));
+
+    public static CefBrowserNetworkContext CreateIsolatedAgentWeb(Uri proxyEndpoint)
+    {
+        return CreateConfigured(
+            AgentWebPreferences(proxyEndpoint),
+            CefBrowserContentPolicy.Ordinary,
+            "The embedded browser could not create an isolated agent web context.");
+    }
+
+    public CefBrowserView CreateView() => CreateView(proxyAuthenticationResolver: null);
+
+    public CefBrowserView CreateView(
+        IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver) =>
+        new(
+            _context,
+            _contentPolicy,
+            proxyAuthenticationResolver: proxyAuthenticationResolver);
 
     public void Dispose() => _context.Dispose();
 
@@ -65,6 +87,23 @@ internal sealed class CefBrowserNetworkContext : IDisposable
             ["profile.default_content_setting_values.popups"] = "2",
             ["webrtc.ip_handling_policy"] = "\"disable_non_proxied_udp\"",
         };
+
+    internal static IReadOnlyDictionary<string, string> AgentWebPreferences(
+        int socksProxyPort)
+        => AgentWebPreferences(
+            SocksProxyEndpoint(socksProxyPort));
+
+    internal static IReadOnlyDictionary<string, string> AgentWebPreferences(
+        Uri proxyEndpoint)
+    {
+        var preferences = new Dictionary<string, string>(
+            RequiredPreferences(proxyEndpoint),
+            StringComparer.Ordinal)
+        {
+            ["profile.default_content_setting_values.popups"] = "2",
+        };
+        return preferences;
+    }
 
     private static CefBrowserNetworkContext CreateConfigured(
         IReadOnlyDictionary<string, string> preferences,
@@ -97,19 +136,40 @@ internal sealed class CefBrowserNetworkContext : IDisposable
     /// </summary>
     internal static IReadOnlyDictionary<string, string> RequiredPreferences(
         int socksProxyPort)
+        => RequiredPreferences(
+            SocksProxyEndpoint(socksProxyPort));
+
+    internal static IReadOnlyDictionary<string, string> RequiredPreferences(
+        Uri proxyEndpoint)
     {
-        if (socksProxyPort is < 1 or > 65_535)
+        ArgumentNullException.ThrowIfNull(proxyEndpoint);
+        if (!proxyEndpoint.IsAbsoluteUri
+            || proxyEndpoint.Port is < 1 or > 65_535
+            || proxyEndpoint.Scheme is not ("socks5" or "http"))
         {
             throw new ArgumentOutOfRangeException(
-                nameof(socksProxyPort),
+                nameof(proxyEndpoint),
+                "A browser proxy must be an absolute HTTP or SOCKS5 endpoint.");
+        }
+
+        var proxy = $"{proxyEndpoint.Scheme}://{proxyEndpoint.Host}:{proxyEndpoint.Port}";
+        return new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["proxy"] = $$"""{"mode":"fixed_servers","server":"{{proxy}}","bypass_list":"<-loopback>"}""",
+            ["webrtc.ip_handling_policy"] = "\"disable_non_proxied_udp\"",
+        };
+    }
+
+    private static Uri SocksProxyEndpoint(int port)
+    {
+        if (port is < 1 or > 65_535)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(port),
                 "A SOCKS proxy port must be between 1 and 65535.");
         }
 
-        return new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["proxy"] = $$"""{"mode":"fixed_servers","server":"socks5://127.0.0.1:{{socksProxyPort}}","bypass_list":"<-loopback>"}""",
-            ["webrtc.ip_handling_policy"] = "\"disable_non_proxied_udp\"",
-        };
+        return new Uri($"socks5://127.0.0.1:{port}", UriKind.Absolute);
     }
 
     private static void SetRequiredPreferenceJson(

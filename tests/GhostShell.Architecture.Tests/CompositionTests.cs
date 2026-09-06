@@ -73,6 +73,15 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public async Task DesktopVpnProvidersUseTheBundledConnectionEngineLocator()
+    {
+        await using var services = DesktopComposition.CreateServiceProvider();
+
+        Assert.IsType<BundledConnectionEngineExecutableLocator>(
+            services.GetRequiredService<IConnectionExecutableLocator>());
+    }
+
+    [Fact]
     public async Task DesktopGraphResolvesOneSessionHostClientAndPresentationRoot()
     {
         await using var services = DesktopComposition.CreateServiceProvider();

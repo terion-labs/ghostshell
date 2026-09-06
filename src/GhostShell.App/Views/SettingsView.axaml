@@ -77,6 +77,12 @@
                     IsActive="{Binding IsWorkspaceSettingsVisible}"
                     Label="Workspaces &amp; screens" />
                 <components:ShellNavigationItem
+                    AutomationName="Networking settings"
+                    Click="OnNetworkingSettingsClick"
+                    Icon="Globe"
+                    IsActive="{Binding IsNetworkingSettingsVisible}"
+                    Label="Networking" />
+                <components:ShellNavigationItem
                     AutomationName="Keybinding settings"
                     Click="OnKeybindingSettingsClick"
                     Icon="Keyboard"
@@ -158,6 +164,13 @@
                 ResetTerminalPaletteRequested="OnAppearanceResetTerminalPaletteRequested"
                 SelectTerminalPaletteRequested="OnSelectTerminalPaletteClick" />
 
+            <Grid
+                x:Name="NetworkingSettingsPage"
+                IsVisible="{Binding IsNetworkingSettingsVisible}">
+              <settingsPages:NetworkingSettingsPageView
+                  DataContext="{Binding NetworkSettings}" />
+            </Grid>
+
             <StackPanel Spacing="{DynamicResource ShellSpaceXl}" IsVisible="{Binding IsWorkspaceSettingsVisible}">
               <Grid ColumnDefinitions="*,Auto">
                 <components:SettingsPageHeader
@@ -177,30 +190,20 @@
                       IsEnabled="{Binding CanChangeRestoreSessionsOnStart}" />
                 </controls:SettingRow>
               </controls:SettingsGroup>
-              <controls:SurfaceCard
+              <controls:Callout
                   Tone="Notice"
-                  Padding="{DynamicResource ShellCardPaddingCompact}"
+                  Glyph="Box"
+                  Title="Install Apple container to enable workspace isolation"
+                  Text="GhostSHELL uses Apple container on this Mac to run each isolated workspace in its own persistent environment. Install and start Apple container, then restart GhostSHELL."
                   IsVisible="{Binding CanInstallWorkspaceIsolationRuntime}">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
-                  <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
-                    <TextBlock
-                        FontWeight="SemiBold"
-                        Text="Install Apple container to enable workspace isolation" />
-                    <TextBlock
-                        Classes="Muted"
-                        FontSize="{DynamicResource ShellFontSize9}"
-                        Text="GhostSHELL uses Apple container on this Mac to run each isolated workspace in its own persistent environment. Install and start Apple container, then restart GhostSHELL."
-                        TextWrapping="Wrap" />
-                  </StackPanel>
+                <controls:Callout.Action>
                   <Button
-                      Grid.Column="1"
-                      VerticalAlignment="Center"
                       Classes="SecondaryButton"
                       Click="OnInstallWorkspaceIsolationRuntimeClick"
                       Content="Install Apple container…"
                       AutomationProperties.Name="Install Apple container runtime" />
-                </Grid>
-              </controls:SurfaceCard>
+                </controls:Callout.Action>
+              </controls:Callout>
               <controls:SurfaceCard Tone="Notice" Padding="{DynamicResource ShellCardPaddingCompact}"
                   x:Name="SavedScreenDeleteUndoNotice"
                   IsVisible="{Binding SavedScreenDeleteUndo.HasPending}"
@@ -241,17 +244,23 @@
                             <controls:IdentityTile Tint="{Binding Accent}" Symbol="{Binding IconSymbol}" />
                           </controls:ListItem.Leading>
                           <controls:ListItem.Trailing>
-                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
-                              <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
-                                <TextBlock VerticalAlignment="Center" Classes="Muted" Text="Isolate" />
-                                <ToggleSwitch
-                                    VerticalAlignment="Center"
-                                    IsChecked="{Binding IsIsolated, Mode=OneWay}"
-                                    IsCheckedChanged="OnWorkspaceIsolationChanged"
-                                    IsEnabled="{Binding CanToggleIsolation}"
-                                    AutomationProperties.Name="{Binding Name, StringFormat=Isolate {0} workspace}" />
-                              </StackPanel>
-                              <Button Classes="SecondaryButton" Click="OnEditWorkspaceClick" Content="Settings" />
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                              <!-- Isolation is stated here and changed in the
+                                   editor, next to the mounts and image it
+                                   governs: switching it restarts a running
+                                   workspace, which is not a list-row action. -->
+                              <controls:StatusChip
+                                  Shape="Rounded"
+                                  Tone="Default"
+                                  ToolTip.Tip="Runs in its own persistent environment"
+                                  IsVisible="{Binding IsIsolated}"
+                                  AutomationProperties.Name="{Binding Name, StringFormat={}{0} is isolated}">
+                                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                                  <icons:SymbolIcon VerticalAlignment="Center" Symbol="Box" FontSize="{DynamicResource ShellFontSize10}" />
+                                  <TextBlock VerticalAlignment="Center" Text="Isolated" />
+                                </StackPanel>
+                              </controls:StatusChip>
+                              <Button Classes="SecondaryButton" Click="OnEditWorkspaceClick" Content="Edit" />
                               <Button Classes="IconButton Danger" Click="OnDeleteWorkspaceClick" IsVisible="{Binding CanDelete}" AutomationProperties.Name="Delete workspace">
                                 <icons:SymbolIcon Symbol="Delete" FontSize="13" />
                               </Button>

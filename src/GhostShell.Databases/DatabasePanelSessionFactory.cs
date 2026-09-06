@@ -44,6 +44,13 @@ public sealed class DatabasePanelSessionFactory : IDatabasePanelSessionFactory
         SessionCapabilities.RedisSearch,
     ]);
 
+    public ValueTask<IDatabasePanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
+        SessionId sessionId,
+        DatabaseSessionTarget target,
+        CancellationToken cancellationToken) =>
+        CreateAsync(sessionId, target, cancellationToken);
+
     public async ValueTask<IDatabasePanelSession> CreateAsync(
         SessionId sessionId,
         DatabaseSessionTarget target,

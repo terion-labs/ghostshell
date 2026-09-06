@@ -14,6 +14,14 @@ public sealed class BrowserEngineRuntimeTests
     }
 
     [Fact]
+    public void RuntimeRoutesChromeAuthenticationThroughCefCallbacks()
+    {
+        Assert.Equal(
+            "disable-chrome-login-prompt",
+            BrowserEngineRuntime.DisableChromeLoginPromptSwitch);
+    }
+
+    [Fact]
     public void ExactPinnedRuntimeVersionIsAccepted()
     {
         BrowserEngineRuntime.ValidateVersions(

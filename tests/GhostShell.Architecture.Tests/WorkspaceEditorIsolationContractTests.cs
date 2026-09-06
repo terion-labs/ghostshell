@@ -141,6 +141,15 @@ public sealed class WorkspaceEditorIsolationContractTests
         Assert.Equal("{Binding GuestPath, Mode=TwoWay}", AttributeValue(guestPath, "Text"));
         var readOnly = FindAccessibleElement(mountRow, "Mount host path read only");
         Assert.Equal("{Binding IsReadOnly, Mode=TwoWay}", AttributeValue(readOnly, "IsChecked"));
+        var readWrite = FindAccessibleElement(mountRow, "Mount host path read and write");
+        Assert.Equal("{Binding IsReadWrite, Mode=TwoWay}", AttributeValue(readWrite, "IsChecked"));
+        // A radio cannot be clicked off, so a mount always has exactly one
+        // access level; a toggle segment could be left with neither.
+        Assert.Equal("RadioButton", readOnly.Name.LocalName);
+        Assert.Equal("RadioButton", readWrite.Name.LocalName);
+        Assert.Equal("True", AttributeValue(mountRow, "IsStacked"));
+        var browse = FindAccessibleElement(mountRow, "Choose a host folder");
+        Assert.Equal("OnBrowseIsolationMountHostPathClick", AttributeValue(browse, "Click"));
 
         var add = FindAccessibleElement(mountRow, "Add host mount");
         Assert.Equal("OnAddIsolationMountClick", AttributeValue(add, "Click"));
@@ -160,32 +169,36 @@ public sealed class WorkspaceEditorIsolationContractTests
     }
 
     [Fact]
-    public void Workspace_settings_list_exposes_isolation_and_runtime_installation()
+    public void Workspace_settings_list_states_isolation_and_offers_runtime_installation()
     {
         var root = Assert.IsType<XElement>(LoadSettings().Root);
-        var toggle = FindAccessibleElement(
-            root,
-            "{Binding Name, StringFormat=Isolate {0} workspace}");
-        Assert.Equal(
-            "{Binding IsIsolated, Mode=OneWay}",
-            AttributeValue(toggle, "IsChecked"));
-        Assert.Equal(
-            "{Binding CanToggleIsolation}",
-            AttributeValue(toggle, "IsEnabled"));
-        Assert.Equal(
-            "OnWorkspaceIsolationChanged",
-            AttributeValue(toggle, "IsCheckedChanged"));
+
+        // Isolation is read from the list and changed in the editor, beside the
+        // mounts and image it governs: flipping it restarts a running workspace,
+        // which is not something a list row should do on one click.
+        var chip = FindAccessibleElement(root, "{Binding Name, StringFormat={}{0} is isolated}");
+        Assert.Equal("{Binding IsIsolated}", AttributeValue(chip, "IsVisible"));
+        Assert.DoesNotContain(
+            root.Descendants(),
+            element => string.Equals(
+                AttributeValue(element, "IsCheckedChanged"),
+                "OnWorkspaceIsolationChanged",
+                StringComparison.Ordinal));
 
         var install = FindAccessibleElement(root, "Install Apple container runtime");
         Assert.Equal(
             "OnInstallWorkspaceIsolationRuntimeClick",
             AttributeValue(install, "Click"));
-        Assert.Contains(
-            root.Descendants(),
-            element => string.Equals(
-                AttributeValue(element, "Text"),
-                "Install Apple container to enable workspace isolation",
-                StringComparison.Ordinal));
+        var callout = install.Ancestors().First(element => string.Equals(
+            element.Name.LocalName,
+            "Callout",
+            StringComparison.Ordinal));
+        Assert.Equal(
+            "Install Apple container to enable workspace isolation",
+            AttributeValue(callout, "Title"));
+        Assert.Equal(
+            "{Binding CanInstallWorkspaceIsolationRuntime}",
+            AttributeValue(callout, "IsVisible"));
         Assert.DoesNotContain(
             root.Descendants(),
             element => string.Equals(
@@ -203,7 +216,6 @@ public sealed class WorkspaceEditorIsolationContractTests
             "GhostShell.App",
             "Views");
         var confirmation = File.ReadAllText(Path.Combine(views, "Confirmations.cs"));
-        var settingsHandler = File.ReadAllText(Path.Combine(views, "MainWindow.Settings.cs"));
         var editorHandler = File.ReadAllText(Path.Combine(views, "MainWindow.axaml.cs"));
 
         Assert.Contains(
@@ -211,8 +223,8 @@ public sealed class WorkspaceEditorIsolationContractTests
             confirmation,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Confirmations.WorkspaceIsolationRestart(workspace.Name)",
-            settingsHandler,
+            "Confirmations.WorkspaceIsolationRestart(",
+            editorHandler,
             StringComparison.Ordinal);
         Assert.Contains(
             "ViewModel.WorkspaceEditorImageChangeRebuildsIsolate(request)",

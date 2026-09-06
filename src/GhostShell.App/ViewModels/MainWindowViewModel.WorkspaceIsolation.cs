@@ -59,19 +59,18 @@ public sealed partial class MainWindowViewModel
     private (bool Required, Uri? Proxy) AgentNetworkProxyFor(
         WorkspaceInstanceId workspaceId)
     {
-        if (!_runtimeSources.TryGetValue(workspaceId, out var source)
-            || source.SourceDefinition.Kind != WorkspaceDefinition.Kind
-            || _catalog.Snapshot.Workspaces.FirstOrDefault(
-                item => item.Value.Key == source.SourceDefinition) is not { } stored
-            || !stored.Value.RunAgentInIsolation)
+        var runInIsolation = _runtimeSources.TryGetValue(workspaceId, out var source)
+            && source.SourceDefinition.Kind == WorkspaceDefinition.Kind
+            && _catalog.Snapshot.Workspaces.FirstOrDefault(
+                item => item.Value.Key == source.SourceDefinition) is { } stored
+            && stored.Value.RunAgentInIsolation;
+        var runtimeServices = _workspaceRuntimeLeases.RuntimeServicesFor(workspaceId);
+        if (runtimeServices?.IsNetworkBlocked is true)
         {
-            return (false, null);
+            return (true, null);
         }
 
-        return (
-            true,
-            _workspaceRuntimeLeases.RuntimeServicesFor(workspaceId)
-                ?.NetworkRoute.ProxyUri);
+        return (runInIsolation, runtimeServices?.EffectiveProxyUri);
     }
 
     public WorkspaceIsolationRuntimeInstallResult InstallWorkspaceIsolationRuntime()

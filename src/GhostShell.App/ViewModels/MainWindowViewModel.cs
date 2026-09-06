@@ -178,12 +178,18 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         IWorkspaceIsolationProvider? workspaceIsolationProvider = null,
         WorkspaceDefinitionOccupancy? workspaceDefinitionOccupancy = null,
         IWorkspaceIsolationRuntimeInstaller? workspaceIsolationRuntimeInstaller = null,
-        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null)
+        IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null,
+        IWorkspaceNetworkRuntime? workspaceNetworkRuntime = null)
     {
         SessionClient = sessionClient ?? throw new ArgumentNullException(nameof(sessionClient));
         _workspaceDefinitionOccupancy = workspaceDefinitionOccupancy
             ?? new WorkspaceDefinitionOccupancy();
         _uiThreadDispatcher = uiThreadDispatcher ?? AvaloniaUiThreadDispatcher.Instance;
+        _workspaceNetworkRuntime = workspaceNetworkRuntime;
+        _inactiveWorkspaceNetwork = new WorkspaceNetworkControlViewModel(
+            new WorkspaceNetworkPolicyUpdate(NetworkPolicy.Direct, []),
+            session: null,
+            _uiThreadDispatcher);
         ApplicationUpdates = new ApplicationUpdateViewModel(
             applicationUpdateService
                 ?? new PassiveApplicationUpdateService(
@@ -228,6 +234,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 ?? WorkspaceIsolationImages.Default,
             activeIsolationImageReference: ActiveIsolationImageReference);
         WorkspaceSettings.PropertyChanged += OnWorkspaceSettingsPropertyChanged;
+        NetworkSettings = new NetworkSettingsViewModel(
+            _catalog,
+            secretVault,
+            workspaceNetworkRuntime);
         SavedScreenSettings = new SavedScreenSettingsViewModel(
             _catalog,
             () => _aiProviderRuntime?.Profiles ?? []);
@@ -464,6 +474,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     public AppearanceSettingsViewModel AppearanceSettings { get; }
 
     public WorkspaceSettingsViewModel WorkspaceSettings { get; }
+
+    public NetworkSettingsViewModel NetworkSettings { get; }
 
     public SavedScreenSettingsViewModel SavedScreenSettings { get; }
 
@@ -1106,6 +1118,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 OnPropertyChanged(nameof(CanCreateBrowserPanel));
                 OnPropertyChanged(nameof(PanelConnectionOptions));
                 OnPropertyChanged(nameof(BrowserConnectionOptions));
+                OnPropertyChanged(nameof(WorkspaceNetwork));
+                OnPropertyChanged(nameof(IsWorkspaceNetworkControlVisible));
                 _activation?.Mark("notifications");
                 Launcher.RefreshSearchResults();
                 _activation?.Mark("search results");
@@ -2131,6 +2145,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     public bool IsAppearanceSettingsVisible => _navigation.IsAppearanceSettingsVisible;
 
     public bool IsWorkspaceSettingsVisible => _navigation.IsWorkspaceSettingsVisible;
+
+    public bool IsNetworkingSettingsVisible => _navigation.IsNetworkingSettingsVisible;
 
     public bool RestoreSessionsOnStart
     {
@@ -7954,6 +7970,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         }
         finally
         {
+            ScheduleWorkspaceNetworkCleanup(runtime.Id);
             _ = ScheduleWorkspaceIsolationCleanup(runtime);
         }
     }
@@ -7966,6 +7983,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             _runtimeSources.Remove(runtime.Id);
             _workspaceTerminalMultiplexingModes.Remove(runtime.Id);
             runtime.DisposePanels();
+            ScheduleWorkspaceNetworkCleanup(runtime.Id);
             if (!RequiresWorkspaceGraphRollback(runtime.Id))
             {
                 _ = ScheduleWorkspaceIsolationCleanup(runtime);
@@ -7979,10 +7997,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     private void StopRuntimeGraphWatch()
         => RuntimeGraph.StopWatching();
 
-    private Task<bool> RegisterRuntimeWorkspaceAsync(
+    private async Task<bool> RegisterRuntimeWorkspaceAsync(
         RuntimeWorkspaceViewModel runtime,
-        CancellationToken cancellationToken) =>
-        RuntimeGraph.RegisterAsync(runtime, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        await PrepareWorkspaceNetworkAsync(runtime, cancellationToken);
+        var registered = await RuntimeGraph.RegisterAsync(runtime, cancellationToken);
+        if (!registered)
+        {
+            ScheduleWorkspaceNetworkCleanup(runtime.Id);
+        }
+
+        return registered;
+    }
 
     private bool HasRuntimeWorkspacePanelCapacity(
         RuntimeWorkspaceViewModel workspace,
@@ -8627,6 +8654,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             preserveTerminalDraft: HasTerminalAppearanceDraft);
         AppearanceSettings.ApplyCatalog(snapshot);
         BrowserProfileSettingsEditor.ApplyCatalog(snapshot);
+        NetworkSettings.ApplyCatalog(snapshot);
+        WorkspaceSettings.ApplyCatalog(snapshot);
+        RefreshOpenWorkspaceNetworkPolicies(snapshot);
         RefreshBrowserPanelProfileOptions(snapshot);
         OnPropertyChanged(nameof(PanelConnectionOptions));
         OnPropertyChanged(nameof(BrowserConnectionOptions));
@@ -10405,7 +10435,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             SessionClient,
             ClientId,
             _startupCommandDispatcher,
-            _connectionSecurityRuntime,
+            WorkspaceRuntimeServicesFor(workspaceId)?.Backends.ConnectionSecurityRuntime
+                ?? _connectionSecurityRuntime,
             keymap: terminalKeymap is null
                 ? null
                 : TerminalKeymapSnapshot.FromProfile(terminalKeymap),
@@ -10454,18 +10485,36 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                     "File Viewer");
             }
 
-            var isolateProfile = isolated.FilePanelClient.Profiles.Single();
+            var workspaceProfile = isolated.FilePanelClient.Profiles.First();
+            var selectedProfile = initialProfileId is { } requestedProfileId
+                ? isolated.FilePanelClient.Profiles.FirstOrDefault(profile =>
+                    string.Equals(
+                        profile.Id,
+                        requestedProfileId.Value,
+                        StringComparison.Ordinal))
+                : null;
+            selectedProfile ??= workspaceProfile;
+            var selectedProfileId = new FileProviderProfileId(selectedProfile.Id);
+            var selectedLocation = initialLocation is not null
+                && string.Equals(
+                    initialLocation.ProviderProfileId,
+                    selectedProfile.Id,
+                    StringComparison.Ordinal)
+                    ? initialLocation
+                    : selectedProfile.StartLocation;
+            connection ??= ConnectionForFileProfile(selectedProfileId)
+                ?? BuiltInConnections.Local;
             return new FileRuntimePanelViewModel(
                 panelId,
                 title,
                 isolated.FilePanelClient,
-                transferQueue: null,
-                new FileProviderProfileId(isolateProfile.Id),
-                isolateProfile.StartLocation,
+                isolated.FileTransferQueueClient,
+                selectedProfileId,
+                selectedLocation,
                 initialLocationText,
                 deferInitialization,
-                BuiltInConnections.Local,
-                databaseClient: null,
+                connection,
+                isolated.DatabasePanelClient,
                 _imagePreviewDecoder,
                 _pdfPreviewRenderer,
                 _archiveTableOfContents,
@@ -10473,7 +10522,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 databaseRegistry: null,
                 _filePreviewPreferences,
                 FileTransferClipboard,
-                BuiltInFileProviders.HomeId);
+                new FileProviderProfileId(workspaceProfile.Id));
         }
 
         connection ??= ConnectionForFileProfile(initialProfileId) ?? LocalConnection();
@@ -12351,6 +12400,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 exception);
         }
 
+        await FinalizeWorkspaceNetworkShutdownAsync().ConfigureAwait(false);
+        await DisposeInactiveWorkspaceNetworkAsync().ConfigureAwait(false);
+
         try
         {
             await AwaitWorkspaceIsolationCleanupAsync().ConfigureAwait(false);
@@ -12436,6 +12488,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         AppearanceSettings.BackgroundSaveCompleted -= OnAppearanceBackgroundSaveCompleted;
         _appearancePreview.Changed -= OnAppearancePreviewChanged;
         WorkspaceSettings.PropertyChanged -= OnWorkspaceSettingsPropertyChanged;
+        NetworkSettings.Dispose();
         FileProviderSettings.PropertyChanged -= OnFileProviderSettingsPropertyChanged;
         AiProviderSettings.PropertyChanged -= OnAiProviderSettingsPropertyChanged;
         AiProviderSettings.RuntimeProfilesChanged -= OnAiProviderRuntimeProfilesChanged;
@@ -12453,6 +12506,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
 
         _openWorkspaces.Clear();
         _runtimeSources.Clear();
+        foreach (var workspaceId in _workspaceNetworkControls.Keys.ToArray())
+        {
+            ScheduleWorkspaceNetworkCleanup(workspaceId);
+        }
         _runtimeWorkspace?.DisposePanels();
         _runtimeWorkspace = null;
         WorkspaceSettings.Dispose();

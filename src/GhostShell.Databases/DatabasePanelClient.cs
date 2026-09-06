@@ -33,24 +33,29 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
 
     private readonly IReadOnlyDictionary<string, IDatabaseDriver> _drivers;
     private readonly IDatabaseTunnelFactory? _tunnelFactory;
+    private readonly ConnectionProfile? _defaultTunnel;
     private readonly ConcurrentDictionary<
         (string ConnectionId, string Host, int Port),
         Task<IDatabaseTunnelLease>> _tunnels = new();
 
-    public DatabasePanelClient(IDatabaseTunnelFactory? tunnelFactory = null)
-        : this(BuiltInDatabaseDrivers.All, tunnelFactory)
+    public DatabasePanelClient(
+        IDatabaseTunnelFactory? tunnelFactory = null,
+        ConnectionProfile? defaultTunnel = null)
+        : this(BuiltInDatabaseDrivers.All, tunnelFactory, defaultTunnel)
     {
     }
 
     public DatabasePanelClient(
         IReadOnlyList<IDatabaseDriver> drivers,
-        IDatabaseTunnelFactory? tunnelFactory = null)
+        IDatabaseTunnelFactory? tunnelFactory = null,
+        ConnectionProfile? defaultTunnel = null)
     {
         ArgumentNullException.ThrowIfNull(drivers);
         _drivers = drivers.ToDictionary(
             driver => driver.Descriptor.Id,
             StringComparer.Ordinal);
         _tunnelFactory = tunnelFactory;
+        _defaultTunnel = defaultTunnel;
         Drivers = [.. drivers.Select(driver => driver.Descriptor)];
     }
 
@@ -67,9 +72,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 return await ReadTablesAsync(connection, driver, token).ConfigureAwait(false);
             },
@@ -88,9 +93,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var objects = await ReadTablesAsync(connection, driver, token).ConfigureAwait(false);
                 var reader = new DatabaseMetadataReader(dialect);
@@ -120,9 +125,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var descriptors = await ReadTablesAsync(connection, driver, token)
                     .ConfigureAwait(false);
@@ -973,9 +978,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 await using var command = connection.CreateCommand();
                 command.CommandText = sql;
@@ -1006,9 +1011,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 return await driver.DescribeSessionAsync(connection, token)
                     .ConfigureAwait(false);
@@ -1072,9 +1077,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var result = await ExecuteQueryAsync(
                         connection,
@@ -1116,9 +1121,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 return await new DatabaseMetadataReader(dialect)
                     .ReadAsync(connection, databaseObject, token)
@@ -1148,9 +1153,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var requestedLimit = query.Limit;
                 var readQuery = query with { Limit = requestedLimit + 1 };
@@ -1214,9 +1219,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 return await ExecuteCountAsync(
                         connection,
@@ -1246,9 +1251,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var details = await new DatabaseMetadataReader(dialect)
                     .ReadAsync(connection, table, token, includeIndexes: false)
@@ -1327,9 +1332,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
-            async (effectiveConnectionString, token) =>
+            async (createConnection, token) =>
             {
-                await using var connection = driver.CreateConnection(effectiveConnectionString);
+                await using var connection = createConnection();
                 await connection.OpenAsync(token).ConfigureAwait(false);
                 var details = await new DatabaseMetadataReader(dialect)
                     .ReadAsync(connection, table, token, includeIndexes: false)
@@ -1432,12 +1437,15 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         IDatabaseDriver driver,
         string connectionString,
         ConnectionProfile? tunnel,
-        Func<string, CancellationToken, Task<TResult>> operation,
+        Func<Func<DbConnection>, CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken)
     {
+        tunnel ??= driver.Descriptor.DefaultPort is null
+            ? null
+            : _defaultTunnel;
         if (tunnel is null)
         {
-            return await operation(connectionString, cancellationToken).ConfigureAwait(false);
+            return await operation(() => driver.CreateConnection(connectionString), cancellationToken).ConfigureAwait(false);
         }
 
         if (_tunnelFactory is null)
@@ -1458,7 +1466,7 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
                     _ => OpenTunnelAsync(tunnel, endpoint, cancellationToken))
                 .ConfigureAwait(false);
             return await operation(
-                    driver.RewriteEndpoint(connectionString, "127.0.0.1", lease.LocalPort),
+                    () => driver.CreateRoutedConnection(connectionString, "127.0.0.1", lease.LocalPort),
                     cancellationToken)
                 .ConfigureAwait(false);
         }

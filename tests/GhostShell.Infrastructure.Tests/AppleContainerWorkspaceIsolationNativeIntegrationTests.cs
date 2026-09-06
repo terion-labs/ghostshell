@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using GhostShell.Application;
 using GhostShell.Core;
@@ -17,6 +18,7 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(15));
         var workspaceId = new WorkspaceId($"native-smoke-{Guid.NewGuid():N}");
         var resourceName = AppleContainerWorkspaceIsolationProvider.ResourceName(workspaceId);
+        var networkName = AppleContainerWorkspaceIsolationProvider.NetworkResourceName(workspaceId);
         var snapshotImage = $"{resourceName}-state:latest";
         var hostMount = Directory.CreateTempSubdirectory("ghostshell-native-mount-");
         var replacementHostMount = Directory.CreateTempSubdirectory(
@@ -29,7 +31,8 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
             Path.Combine(replacementHostMount.FullName, "replacement-marker"),
             "replacement",
             timeout.Token);
-        var provider = new AppleContainerWorkspaceIsolationProvider();
+        var provider = new AppleContainerWorkspaceIsolationProvider(
+            useHostOnlyNetwork: true);
         var request = new WorkspaceIsolationPrepareRequest(workspaceId);
         var progress = new RecordingProgress<WorkspaceIsolationProgress>();
         const string marker = "ghostshell-native-persistence-ok";
@@ -38,6 +41,7 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
         {
             var first = Success(await provider.PrepareAsync(request, progress, timeout.Token));
             Assert.Equal(resourceName, first.ResourceName);
+            Assert.Equal(networkName, first.Network?.ResourceName);
             Assert.Equal(
                 AppleContainerWorkspaceIsolationProvider.DefaultImageReference,
                 first.RuntimeImageReference);
@@ -67,6 +71,8 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
                 "test \"$(. /etc/os-release && printf '%s' \"$ID\")\" = ubuntu\n"
                 + "test \"$(cat /proc/1/comm)\" = systemd\n"
                 + "test \"$(systemctl is-system-running)\" = running\n"
+                + "test -z \"$(ip -4 route show default)\"\n"
+                + $"ip -4 route show '{first.Network?.Ipv4Gateway}/32' | grep -F 'scope link'\n"
                 + "test \"$(id -un)\" = ghostshell\n"
                 + "id -Gn | tr ' ' '\\n' | grep -Fx docker\n"
                 + "sudo -n true\n"
@@ -164,8 +170,232 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
                 ["image", "delete", snapshotImage],
                 standardInput: null,
                 CancellationToken.None);
+            _ = await RunProcessAsync(
+                AppleContainerWorkspaceIsolationProvider.DefaultContainerExecutablePath,
+                ["network", "delete", networkName],
+                standardInput: null,
+                CancellationToken.None);
             hostMount.Delete(recursive: true);
             replacementHostMount.Delete(recursive: true);
+        }
+    }
+
+    [NativeAppleContainerFact]
+    public Task Native_packet_gateway_routes_guest_dns_and_https_then_closes_fail_closed() =>
+        VerifyNativePacketGatewayAsync(configurationPath: null);
+
+    [NativeAppleContainerFact("GHOSTSHELL_TEST_WIREGUARD_CONFIG")]
+    public Task Native_WireGuard_routes_guest_IP_DNS_and_https_then_closes_fail_closed() =>
+        VerifyNativePacketGatewayAsync(Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_WIREGUARD_CONFIG"));
+
+    [NativeAppleContainerFact("GHOSTSHELL_TEST_OPENVPN_CONFIG")]
+    public Task Native_OpenVPN_routes_guest_IP_DNS_and_https_then_closes_fail_closed() =>
+        VerifyNativePacketGatewayAsync(Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_OPENVPN_CONFIG"), NetworkConnectionKind.OpenVpn);
+
+    [NativeAppleContainerFact("GHOSTSHELL_TEST_PROXY_URL_FILE")]
+    public Task Native_authenticated_proxy_routes_guest_DNS_and_https_then_closes_fail_closed() =>
+        VerifyNativePacketGatewayAsync(Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_PROXY_URL_FILE"), NetworkConnectionKind.Proxy);
+
+    private static async Task VerifyNativePacketGatewayAsync(string? configurationPath, NetworkConnectionKind kind = NetworkConnectionKind.WireGuard)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        using var vault = new InMemorySecretVault();
+        SecretMaterial? password = null;
+        NetworkConnectionProfile? connection = null;
+        if (configurationPath is not null && kind == NetworkConnectionKind.Proxy)
+        {
+            var uri = new Uri((await File.ReadAllTextAsync(configurationPath, timeout.Token)).Trim());
+            var userInfo = uri.UserInfo.Split(':', 2);
+            Assert.Equal(2, userInfo.Length);
+            password = SecretMaterial.CopyFrom(System.Text.Encoding.UTF8.GetBytes(Uri.UnescapeDataString(userInfo[1])));
+            connection = new NetworkConnectionProfile(new NetworkConnectionId("native-proxy"),
+                NetworkConnectionProfile.CurrentSchemaVersion, "Native Proxy",
+                new NetworkConnectionConfiguration.Proxy(NetworkProxyProtocol.Http, uri.Host, uri.Port,
+                    Uri.UnescapeDataString(userInfo[0])));
+        }
+        else if (configurationPath is not null)
+        {
+            var connectionId = new NetworkConnectionId("native-wireguard");
+            var reference = new SecretRef("native-wireguard-config");
+            var content = await File.ReadAllBytesAsync(configurationPath, timeout.Token);
+            try
+            {
+                using var secret = SecretMaterial.CopyFrom(content);
+                _ = Assert.IsType<SecretVaultResult<SecretMetadata>.Success>(await vault.CreateAsync(
+                    new CreateSecretRequest(reference, "Native VPN test", SecretKind.Password,
+                        new SecretScope(SecretScopeKind.NetworkConnection, connectionId.Value),
+                        new SecretUsePurpose(SecretUseKind.UserManagement, connectionId.Value)), secret, timeout.Token));
+            }
+            finally
+            {
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(content);
+            }
+
+            NetworkConnectionConfiguration configuration = new NetworkConnectionConfiguration.WireGuard(reference);
+            if (kind == NetworkConnectionKind.OpenVpn)
+            {
+                var credentialPath = Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_OPENVPN_CREDENTIAL_FILE");
+                Assert.False(string.IsNullOrWhiteSpace(credentialPath));
+                var credentials = await File.ReadAllBytesAsync(credentialPath, timeout.Token);
+                try
+                {
+                    var separator = Array.IndexOf(credentials, (byte)'\n');
+                    Assert.True(separator > 0);
+                    var username = System.Text.Encoding.UTF8.GetString(credentials, 0, separator).TrimEnd('\r');
+                    password = SecretMaterial.CopyFrom(credentials.AsSpan(separator + 1).TrimEnd((byte)'\n'));
+                    configuration = new NetworkConnectionConfiguration.OpenVpn(reference, username);
+                }
+                finally
+                {
+                    System.Security.Cryptography.CryptographicOperations.ZeroMemory(credentials);
+                }
+            }
+
+            connection = new NetworkConnectionProfile(connectionId, NetworkConnectionProfile.CurrentSchemaVersion,
+                "Native VPN", configuration);
+        }
+
+        var workspaceId = new WorkspaceId($"native-gateway-{Guid.NewGuid():N}");
+        var workspaceInstanceId = new WorkspaceInstanceId($"{workspaceId.Value}-instance");
+        var resourceName = AppleContainerWorkspaceIsolationProvider.ResourceName(workspaceId);
+        var networkName = AppleContainerWorkspaceIsolationProvider.NetworkResourceName(workspaceId);
+        var provider = new AppleContainerWorkspaceIsolationProvider(useHostOnlyNetwork: true);
+        IWorkspacePacketGatewaySession? session = null;
+
+        try
+        {
+            var prepared = await provider.PrepareAsync(
+                new WorkspaceIsolationPrepareRequest(workspaceId),
+                timeout.Token);
+            if (prepared is WorkspaceIsolationResult<WorkspaceIsolationBinding>.Failure prepareFailure)
+            {
+                var inspect = await RunProcessAsync(
+                    AppleContainerWorkspaceIsolationProvider.DefaultContainerExecutablePath,
+                    ["inspect", resourceName],
+                    standardInput: null,
+                    timeout.Token);
+                Assert.Fail(
+                    $"Workspace isolation failed: {prepareFailure.Error.StableCode}: "
+                    + $"{prepareFailure.Error.Message}\nContainer inspect:\n{inspect.StandardOutput}\n"
+                    + inspect.StandardError);
+            }
+
+            var binding = Assert.IsType<WorkspaceIsolationResult<WorkspaceIsolationBinding>.Success>(
+                prepared).Value;
+            Assert.NotNull(binding.Network);
+
+            var processes = new WorkspaceGatewayProcessRunner();
+            var backend = new BundledWorkspacePacketGatewayBackend(
+                [new ProxyNetworkConnectionProvider(vault)],
+                new AppleContainerGuestPacketRouterLauncher(
+                    AppleContainerWorkspaceIsolationProvider.DefaultContainerExecutablePath,
+                    processes),
+                processes,
+                StagedWorkspaceGatewayHostPath(),
+                openConnectLauncher: new WorkspaceVpnPacketRouteLauncher(vault, new NativeExecutableLocator(),
+                    processes, StagedWorkspaceGatewayHostPath()));
+            var runtime = new HostWorkspacePacketGatewayRuntime(backend);
+            var gatewayProgress = new RecordingProgress<NetworkConnectionProgress>();
+            var opened = await runtime.OpenAsync(
+                new WorkspacePacketGatewayOpenRequest(workspaceInstanceId, binding, connection, password),
+                gatewayProgress,
+                timeout.Token);
+            if (opened is NetworkConnectionResult<IWorkspacePacketGatewaySession>.Failure failure)
+            {
+                Assert.Fail(
+                    $"Workspace packet gateway failed: {failure.Error.StableCode}: "
+                    + failure.Error.Message + "\nProgress: "
+                    + string.Join(" | ", gatewayProgress.Values.Select(item => item.Status)));
+            }
+
+            session = Assert.IsType<NetworkConnectionResult<IWorkspacePacketGatewaySession>.Success>(
+                opened).Value;
+            Assert.Equal(WorkspacePacketGatewayState.Ready, session.Snapshot.State);
+            Assert.True(session.Snapshot.Capabilities?.IsUsableWorkspaceRoute);
+
+            var routed = await RunCommandAsync(
+                provider,
+                binding,
+                "/bin/sh",
+                [
+                    "-c",
+                    "set -eu; "
+                    + "ip -4 route show default | grep -F 'dev gsnet0'; "
+                    + (kind == NetworkConnectionKind.Proxy ? string.Empty : "ping -4 -c 1 -W 5 1.1.1.1 >/dev/null; ")
+                    + "getent ahostsv4 example.com >/dev/null; "
+                    + "curl --fail --silent --show-error --max-time 20 https://example.com >/dev/null; "
+                    + "printf routed",
+                ],
+                timeout.Token);
+            Assert.Contains("routed", routed, StringComparison.Ordinal);
+
+            if (connection?.ConnectionKind == NetworkConnectionKind.WireGuard
+                && session.Snapshot.Capabilities!.AddressFamilies.HasFlag(WorkspaceIpAddressFamilies.Ipv6))
+            {
+                var ipv6 = await RunCommandAsync(provider, binding, "/bin/sh",
+                    ["-c", "set -eu; ping -6 -c 1 -W 5 2606:4700:4700::1111 >/dev/null; "
+                        + "curl -6 --fail --silent --show-error --max-time 20 https://example.com >/dev/null; printf ipv6-routed"],
+                    timeout.Token);
+                Assert.Equal("ipv6-routed", ipv6);
+            }
+
+            var guestPid = (await RunCommandAsync(
+                    provider,
+                    binding,
+                    "/usr/bin/sudo",
+                    ["-n", "cat", "/var/lib/ghostshell/network.pid"],
+                    timeout.Token))
+                .Trim();
+            Assert.True(
+                int.TryParse(
+                    guestPid,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsedGuestPid)
+                && parsedGuestPid > 1);
+
+            await session.DisposeAsync();
+            session = null;
+            var closed = await RunCommandAsync(
+                provider,
+                binding,
+                "/bin/sh",
+                ["-c", "test -z \"$(ip -4 route show default)\"; printf blocked"],
+                timeout.Token);
+            Assert.Equal("blocked", closed);
+            var guestStopped = await RunCommandAsync(
+                provider,
+                binding,
+                "/usr/bin/sudo",
+                [
+                    "-n",
+                    "/bin/sh",
+                    "-c",
+                    $"test ! -e /var/lib/ghostshell/network.pid; "
+                    + "test ! -e /var/lib/ghostshell/network.sock; "
+                    + $"test ! -e /proc/{parsedGuestPid}; printf stopped",
+                ],
+                timeout.Token);
+            Assert.Equal("stopped", guestStopped);
+        }
+        finally
+        {
+            password?.Dispose();
+            if (session is not null)
+            {
+                await session.DisposeAsync();
+            }
+
+            _ = await RunProcessAsync(
+                AppleContainerWorkspaceIsolationProvider.DefaultContainerExecutablePath,
+                ["delete", "--force", resourceName],
+                standardInput: null,
+                CancellationToken.None);
+            _ = await RunProcessAsync(
+                AppleContainerWorkspaceIsolationProvider.DefaultContainerExecutablePath,
+                ["network", "delete", networkName],
+                standardInput: null,
+                CancellationToken.None);
         }
     }
 
@@ -254,6 +484,31 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
                 "libghostty-vt.dylib");
             Assert.True(File.Exists(runtime), $"The staged terminal runtime is missing: {runtime}");
             return runtime;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Could not locate the GhostSHELL repository above {AppContext.BaseDirectory}.");
+    }
+
+    private static string StagedWorkspaceGatewayHostPath()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (!File.Exists(Path.Combine(directory.FullName, "GhostShell.slnx")))
+            {
+                continue;
+            }
+
+            var helper = Path.Combine(
+                directory.FullName,
+                "native",
+                "artifacts",
+                "osx-arm64",
+                "ghostshell-workspace-gateway-darwin-arm64");
+            Assert.True(File.Exists(helper), $"The staged workspace gateway is missing: {helper}");
+            return helper;
         }
 
         throw new DirectoryNotFoundException(
@@ -393,8 +648,14 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
 
     private sealed class NativeAppleContainerFactAttribute : FactAttribute
     {
-        public NativeAppleContainerFactAttribute()
+        public NativeAppleContainerFactAttribute(string? configurationVariable = null)
         {
+            if (configurationVariable is not null && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(configurationVariable)))
+            {
+                Skip = $"Set {configurationVariable} to a private test configuration file.";
+                return;
+            }
+
             if (!string.Equals(
                     Environment.GetEnvironmentVariable(EnableVariable),
                     "1",
@@ -410,5 +671,12 @@ public sealed class AppleContainerWorkspaceIsolationNativeIntegrationTests
                 Skip = "The Apple container native test requires Apple-silicon macOS.";
             }
         }
+    }
+
+    private sealed class NativeExecutableLocator : IConnectionExecutableLocator
+    {
+        public string? Find(string executable) => executable == "ghostshell-openvpn-engine"
+            ? Path.Combine(Path.GetDirectoryName(StagedWorkspaceGatewayHostPath())!, "openvpn-engine", executable)
+            : null;
     }
 }

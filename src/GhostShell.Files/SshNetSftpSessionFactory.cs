@@ -14,7 +14,8 @@ internal sealed class SshNetSftpSessionFactory(
     ISshHostKeyTrustStore knownHosts,
     SftpFileProviderOptions options,
     IConnectionRuntime? connectionRuntime = null,
-    ISshAgentIdentitySource? agentIdentitySource = null)
+    ISshAgentIdentitySource? agentIdentitySource = null,
+    IWorkspaceNetworkConnector? networkConnector = null)
     : IRemoteHierarchicalFileSessionFactory
 {
     private readonly SystemSshAuthenticationBridge _systemAuthentication = new(
@@ -44,15 +45,13 @@ internal sealed class SshNetSftpSessionFactory(
                 ownedDisposables,
                 cancellationToken).ConfigureAwait(false);
             ownedDisposables.Add(authentication);
-            var connection = new ConnectionInfo(
-                endpoint.Host,
-                endpoint.Port,
+            var connection = SshNetConnectionInfoFactory.Create(
+                endpoint,
                 endpoint.Username,
-                authentication)
-            {
-                Timeout = TimeSpan.FromSeconds(15),
-                RetryAttempts = 1,
-            };
+                authentication,
+                networkConnector);
+            connection.Timeout = TimeSpan.FromSeconds(15);
+            connection.RetryAttempts = 1;
             client = new SftpClient(connection)
             {
                 KeepAliveInterval = options.Connection.KeepAlive.Enabled

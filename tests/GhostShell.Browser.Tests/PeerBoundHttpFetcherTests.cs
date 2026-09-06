@@ -161,6 +161,30 @@ public sealed class PeerBoundHttpFetcherTests
         Assert.Equal(AgentWebToolErrorCode.Cancelled, failed.Code);
     }
 
+    [Fact]
+    public async Task RoutedDnsFailureDoesNotAttemptAConnection()
+    {
+        var connectCount = 0;
+        var fetcher = new PeerBoundHttpFetcher(
+            static (_, _) => throw new IOException("The routed DNS port is blocked."),
+            (_, _, _) =>
+            {
+                connectCount++;
+                return ValueTask.FromResult<Stream>(Response(
+                    "200 OK",
+                    "text/plain",
+                    "unsafe"));
+            });
+
+        var result = await fetcher.FetchAsync(
+            new AgentHttpFetchRequest("https://blocked-dns.example.test/"),
+            CancellationToken.None);
+
+        var failed = Assert.IsType<AgentWebToolExecutionResult.Failed>(result);
+        Assert.Equal(AgentWebToolErrorCode.DnsFailed, failed.Code);
+        Assert.Equal(0, connectCount);
+    }
+
     private static Stream Response(
         string status,
         string mediaType,

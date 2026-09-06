@@ -14,10 +14,17 @@ namespace GhostShell.Files;
 public sealed class SshNetBrowserTunnelFactory(
     ISecretVault secretVault,
     ISshHostKeyTrustStore knownHosts,
-    IConnectionRuntime? connectionRuntime = null)
+    IConnectionRuntime? connectionRuntime = null,
+    IWorkspaceNetworkConnector? networkConnector = null)
 {
     public async ValueTask<SshBrowserTunnel> OpenAsync(
         ConnectionProfile connection,
+        CancellationToken cancellationToken) =>
+        await OpenAsync(connection, networkConnector, cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<SshBrowserTunnel> OpenAsync(
+        ConnectionProfile connection,
+        IWorkspaceNetworkConnector? routeConnector,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -45,15 +52,13 @@ public sealed class SshNetBrowserTunnelFactory(
                 ownedDisposables,
                 cancellationToken).ConfigureAwait(false);
             ownedDisposables.Add(authentication);
-            var info = new ConnectionInfo(
-                endpoint.Host,
-                endpoint.Port,
+            var info = SshNetConnectionInfoFactory.Create(
+                endpoint,
                 endpoint.Username,
-                authentication)
-            {
-                Timeout = TimeSpan.FromSeconds(15),
-                RetryAttempts = 1,
-            };
+                authentication,
+                routeConnector);
+            info.Timeout = TimeSpan.FromSeconds(15);
+            info.RetryAttempts = 1;
             client = new SshClient(info)
             {
                 KeepAliveInterval = connection.KeepAlive.Enabled

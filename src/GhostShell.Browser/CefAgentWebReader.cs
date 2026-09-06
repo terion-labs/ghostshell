@@ -9,6 +9,25 @@ internal sealed class CefAgentWebReader
     private static readonly TimeSpan DomQuietWindow = TimeSpan.FromMilliseconds(500);
     private static readonly SemaphoreSlim BrowserGate = new(1, 1);
     private readonly WebContentMarkdownConverter _converter = new();
+    private readonly IWorkspaceNetworkConnector? _networkConnector;
+
+    public CefAgentWebReader(int? socksProxyPort = null)
+    {
+        if (socksProxyPort is < 1 or > 65_535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(socksProxyPort));
+        }
+
+        _networkConnector = socksProxyPort is { } port
+            ? new LegacySocksConnector(port)
+            : null;
+    }
+
+    public CefAgentWebReader(IWorkspaceNetworkConnector networkConnector)
+    {
+        _networkConnector = networkConnector
+            ?? throw new ArgumentNullException(nameof(networkConnector));
+    }
 
     public async ValueTask<AgentWebToolExecutionResult> ReadAsync(
         AgentWebReadRequest request,
@@ -140,8 +159,16 @@ internal sealed class CefAgentWebReader
             (network, browser) = await AvaloniaBrowserUiDispatcher.Instance
                 .InvokeAsync(() =>
                 {
-                    var createdNetwork = CefBrowserNetworkContext.CreateIsolatedAgentWeb();
-                    var createdBrowser = createdNetwork.CreateView();
+                    var createdNetwork = _networkConnector is { } connector
+                        ? CefBrowserNetworkContext.CreateIsolatedAgentWeb(
+                            connector.BrowserProxyEndpoint)
+                        : CefBrowserNetworkContext.CreateIsolatedAgentWeb();
+                    var proxyResolver = _networkConnector?.LocalProxyCredentials is { } credentials
+                        ? new WorkspaceProxyAuthenticationResolver(
+                            _networkConnector.BrowserProxyEndpoint,
+                            credentials)
+                        : null;
+                    var createdBrowser = createdNetwork.CreateView(proxyResolver);
                     createdBrowser.SetResourceRequestPolicy(
                         (candidate, token) => BrowserDestinationPolicy.LocalSystem
                             .AllowsCefTransportAsync(candidate, token));
@@ -205,6 +232,20 @@ internal sealed class CefAgentWebReader
                 });
             }
         }
+    }
+
+    private sealed class LegacySocksConnector(int port) : IWorkspaceNetworkConnector
+    {
+        public WorkspaceNetworkEgress Egress => WorkspaceNetworkEgress.Direct;
+
+        public Uri LocalProxyEndpoint { get; } =
+            new($"socks5://127.0.0.1:{port}", UriKind.Absolute);
+
+        public ValueTask<Stream> ConnectTcpAsync(
+            string host,
+            int targetPort,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<Stream>(new NotSupportedException());
     }
 
     private static async ValueTask BeginNavigationAsync(

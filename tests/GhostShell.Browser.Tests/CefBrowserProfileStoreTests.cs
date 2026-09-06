@@ -130,6 +130,32 @@ public sealed class CefBrowserProfileStoreTests
     }
 
     [Fact]
+    public void AuthenticatedWorkspaceRoutePassesItsCredentialsToEveryCreatedView()
+    {
+        var contexts = new RecordingRequestContextFactory();
+        using var store = new CefBrowserProfileStore(null, contexts.Create);
+        var credentials = new WorkspaceNetworkProxyCredentials("workspace", "password");
+        var connector = new AuthenticatedConnector(credentials);
+        using var lease = store.AcquireRouted(
+            Binding("profile.proxy-auth", revision: 1),
+            "workspace.route",
+            connector);
+
+        Assert.Throws<NotSupportedException>(() => lease.CreateView());
+
+        var resolver = Assert.Single(contexts.Created).ProxyAuthenticationResolver;
+        Assert.NotNull(resolver);
+        Assert.Equal(
+            new BrowserAuthenticationCredentials("workspace", "password"),
+            resolver.Resolve(new BrowserAuthenticationChallenge(
+                true,
+                "127.0.0.1",
+                connector.BrowserProxyEndpoint.Port,
+                "GhostSHELL workspace",
+                "basic")));
+    }
+
+    [Fact]
     public void RoutedConnectionNamedLocalDoesNotShareTheLocalContext()
     {
         var contexts = new RecordingRequestContextFactory();
@@ -404,6 +430,103 @@ public sealed class CefBrowserProfileStoreTests
     }
 
     [Fact]
+    public async Task DurableWorkspaceProfileRestoresAcrossLoopbackPortChanges()
+    {
+        var root = TemporaryRoot();
+        var state = new RecordingStateStore();
+        var binding = Binding("profile.workspace", 1, BrowserProfilePersistence.DurableMetadata);
+        try
+        {
+            var firstContexts = new RecordingRequestContextFactory();
+            using (var first = new CefBrowserProfileStore(null, state, root, firstContexts.Create))
+            {
+                var connector = new AuthenticatedConnector(
+                    new WorkspaceNetworkProxyCredentials("workspace", "first"), 42001, "workspace:saved");
+                using (first.AcquireRouted(binding, connector.LocalProxyEndpoint.AbsoluteUri, connector))
+                {
+                    File.WriteAllText(Path.Combine(firstContexts.Created[0].CachePath!, "Cookies"), "signed-in");
+                }
+
+                first.ReleaseContextsForEngineShutdown();
+                Assert.True(first.SealRuntimeStateAfterEngineShutdown());
+            }
+
+            var secondContexts = new RecordingRequestContextFactory();
+            using var second = new CefBrowserProfileStore(null, state, root, secondContexts.Create);
+            var restoredConnector = new AuthenticatedConnector(
+                new WorkspaceNetworkProxyCredentials("workspace", "second"), 42002, "workspace:saved");
+            using var restored = second.AcquireRouted(
+                binding, restoredConnector.LocalProxyEndpoint.AbsoluteUri, restoredConnector);
+            Assert.Equal("signed-in", File.ReadAllText(Path.Combine(secondContexts.Created[0].CachePath!, "Cookies")));
+
+            var otherConnector = new AuthenticatedConnector(
+                new WorkspaceNetworkProxyCredentials("workspace", "other"), 42003, "workspace:other");
+            using var other = second.AcquireRouted(binding, otherConnector.LocalProxyEndpoint.AbsoluteUri, otherConnector);
+            Assert.False(File.Exists(Path.Combine(secondContexts.Created[1].CachePath!, "Cookies")));
+
+            var cleared = await second.ClearAsync(
+                new BrowserProfileClearRequest(binding.Selection, 1, BrowserProfileDataCategory.Cookies),
+                CancellationToken.None);
+            Assert.Equal(BrowserProfileClearStatus.Cleared, cleared.Status);
+            Assert.Equal(2, secondContexts.Created.Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HostProfileRestoresAfterRuntimeInstanceChangesWithoutSharingLiveRoutes(bool isolated)
+    {
+        var root = TemporaryRoot();
+        var state = new RecordingStateStore();
+        var template = Binding("profile.host", 1, BrowserProfilePersistence.DurableMetadata);
+        var selection = new BrowserProfileSelection(template.Selection.ProfileId,
+            isolated ? BrowserProfileKey.ForWorkspace("saved-workspace") : BrowserProfileKey.Global);
+        var binding = new BrowserProfileBinding(selection, template.Definition, template.Revision);
+        try
+        {
+            var firstContexts = new RecordingRequestContextFactory();
+            using (var first = new CefBrowserProfileStore(null, state, root, firstContexts.Create))
+            {
+                var connector = new AuthenticatedConnector(
+                    new WorkspaceNetworkProxyCredentials("workspace", "first"), 42101, "host-workspace");
+                using (first.AcquireRouted(binding, "runtime:first-instance", connector))
+                {
+                    File.WriteAllText(Path.Combine(firstContexts.Created[0].CachePath!, "Cookies"), "signed-in");
+                }
+
+                first.ReleaseContextsForEngineShutdown();
+                Assert.True(first.SealRuntimeStateAfterEngineShutdown());
+            }
+
+            var contexts = new RecordingRequestContextFactory();
+            using var second = new CefBrowserProfileStore(null, state, root, contexts.Create);
+            var restoredConnector = new AuthenticatedConnector(
+                new WorkspaceNetworkProxyCredentials("workspace", "second"), 42102, "host-workspace");
+            using var restored = second.AcquireRouted(binding, "runtime:recreated-instance", restoredConnector);
+            Assert.Equal("signed-in", File.ReadAllText(Path.Combine(contexts.Created[0].CachePath!, "Cookies")));
+
+            var otherSelection = new BrowserProfileSelection(template.Selection.ProfileId,
+                isolated ? BrowserProfileKey.ForWorkspace("another-saved-workspace") : BrowserProfileKey.Global);
+            var otherBinding = new BrowserProfileBinding(otherSelection, template.Definition, template.Revision);
+            var otherConnector = new AuthenticatedConnector(
+                new WorkspaceNetworkProxyCredentials("workspace", "other"), 42103, "host-workspace");
+            using var other = second.AcquireRouted(otherBinding, "runtime:another-instance", otherConnector);
+            Assert.Equal(2, contexts.Created.Count);
+            Assert.NotSame(contexts.Created[0], contexts.Created[1]);
+            Assert.Equal(!isolated, File.Exists(Path.Combine(contexts.Created[1].CachePath!, "Cookies")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void StartupRecoversAnOrphanedDurableRuntimeTree()
     {
         var root = TemporaryRoot();
@@ -614,6 +737,12 @@ public sealed class CefBrowserProfileStoreTests
 
         public int DisposeCount { get; private set; }
 
+        public IWorkspaceProxyAuthenticationResolver? ProxyAuthenticationResolver
+        {
+            get;
+            private set;
+        }
+
         public bool SetPreference(string name, string value)
         {
             Preferences.Add(name, value);
@@ -647,11 +776,41 @@ public sealed class CefBrowserProfileStoreTests
 
         public CefBrowserView CreateView(
             BrowserProfileBinding profile,
-            IBrowserProfileAuthenticationResolver? authenticationResolver) =>
+            IBrowserProfileAuthenticationResolver? authenticationResolver,
+            IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver)
+        {
+            ProxyAuthenticationResolver = proxyAuthenticationResolver;
             throw new NotSupportedException(
                 "The profile-store tests do not create native browser views.");
+        }
 
         public void Dispose() => DisposeCount++;
+    }
+
+    private sealed class AuthenticatedConnector(
+        WorkspaceNetworkProxyCredentials credentials,
+        int port = 65367,
+        string? profileRouteIdentity = null) : IWorkspaceNetworkConnector
+    {
+        public WorkspaceNetworkEgress Egress => WorkspaceNetworkEgress.Direct;
+
+        public Uri LocalProxyEndpoint { get; } = new(
+            $"socks5://127.0.0.1:{port}",
+            UriKind.Absolute);
+
+        public WorkspaceNetworkProxyCredentials? LocalProxyCredentials { get; } = credentials;
+
+        public Uri BrowserProxyEndpoint { get; } = new(
+            $"http://127.0.0.1:{port}",
+            UriKind.Absolute);
+
+        public string? BrowserProfileRouteIdentity => profileRouteIdentity;
+
+        public ValueTask<Stream> ConnectTcpAsync(
+            string host,
+            int port,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<Stream>(new NotSupportedException());
     }
 
     private sealed class RecordingStateStore : IBrowserProfileStateStore

@@ -42,6 +42,19 @@ internal sealed class SettingRow : ContentControl
     public static readonly StyledProperty<bool> IsLastProperty =
         AvaloniaProperty.Register<SettingRow, bool>(nameof(IsLast));
 
+    /// <summary>
+    /// Whether the control sits under the label rather than beside it.
+    ///
+    /// A row's control column fits a switch, a picker, or a field. A setting
+    /// whose control is a list — the folders an isolate can see, the
+    /// connections a workspace offers — does not fit a column, and squeezing
+    /// one in is how a list of editable rows ended up 470 pixels wide with
+    /// its own footnotes stacked beneath it. Stacked, the row keeps its name
+    /// and its description and gives the control the full width below them.
+    /// </summary>
+    public static readonly StyledProperty<bool> IsStackedProperty =
+        AvaloniaProperty.Register<SettingRow, bool>(nameof(IsStacked));
+
     static SettingRow()
     {
         DescriptionProperty.Changed.AddClassHandler<SettingRow>(
@@ -50,6 +63,8 @@ internal sealed class SettingRow : ContentControl
             (row, _) => row.UpdateStateClasses());
         ControlWidthProperty.Changed.AddClassHandler<SettingRow>(
             (row, _) => row.ApplyControlWidth());
+        IsStackedProperty.Changed.AddClassHandler<SettingRow>(
+            (row, _) => row.UpdateStateClasses());
     }
 
     public SettingRow() => UpdateStateClasses();
@@ -78,6 +93,12 @@ internal sealed class SettingRow : ContentControl
         set => SetValue(IsLastProperty, value);
     }
 
+    public bool IsStacked
+    {
+        get => GetValue(IsStackedProperty);
+        set => SetValue(IsStackedProperty, value);
+    }
+
     protected override Type StyleKeyOverride => typeof(SettingRow);
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -101,5 +122,6 @@ internal sealed class SettingRow : ContentControl
     {
         PseudoClasses.Set(":described", !string.IsNullOrWhiteSpace(Description));
         PseudoClasses.Set(":last", IsLast);
+        PseudoClasses.Set(":stacked", IsStacked);
     }
 }

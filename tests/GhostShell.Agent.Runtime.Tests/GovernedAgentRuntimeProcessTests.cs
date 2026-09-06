@@ -801,6 +801,7 @@ public sealed partial class GovernedAgentRuntimeProcessTests
                 mcpComposer: mcpHost is null
                     ? null
                     : new AgentMcpToolCallActionComposer(),
+                workspaceId: ProcessRuntimeContextProxy.WorkspaceId,
                 agentStatisticsHost: Statistics,
                 statisticsComposer: statisticsComposer,
                 agentDatabaseHost: Database,

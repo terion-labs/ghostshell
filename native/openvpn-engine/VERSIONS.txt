@@ -1,0 +1,9 @@
+OpenVPN Core 3.11.7 (MPL-2.0 option)
+commit 18edfae7e7fd8051c93bd4746ec69be91eb02dbb
+archive sha256 94df957ac9782ce077b55dc4451fc7aa087ebfaaa26962fbb3fad7596e91d97a
+Asio 1.32.0 (Boost-1.0)
+archive sha256 f1b94b80eeb00bb63a3c8cef5047d4e409df4d8a3fe502305976965827d95672
+OpenSSL 3.6.4 (Apache-2.0)
+archive sha256 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef
+LZ4 1.10.0 (BSD-2-Clause library)
+archive sha256 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b

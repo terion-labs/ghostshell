@@ -23,14 +23,16 @@ public sealed class SftpFileProvider : RemoteHierarchicalFileProvider, IDisposab
         ISecretVault secretVault,
         ISshHostKeyTrustStore knownHosts,
         SftpFileProviderOptions options,
-        IConnectionRuntime? connectionRuntime)
+        IConnectionRuntime? connectionRuntime,
+        IWorkspaceNetworkConnector? networkConnector = null)
         : this(
             new RetainedRemoteFileSessionFactory(
                 new SshNetSftpSessionFactory(
                     secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
                     knownHosts ?? throw new ArgumentNullException(nameof(knownHosts)),
                     options ?? throw new ArgumentNullException(nameof(options)),
-                    connectionRuntime)),
+                    connectionRuntime,
+                    networkConnector: networkConnector)),
             options)
     {
     }

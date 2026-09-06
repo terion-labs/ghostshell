@@ -48,7 +48,8 @@ public sealed record WorkspaceDefinition : IDurableDefinition
         bool isIsolated = false,
         IReadOnlyList<WorkspaceIsolationMountDefinition>? isolationMounts = null,
         string? isolationImageReference = null,
-        bool runAgentInIsolation = false)
+        bool runAgentInIsolation = false,
+        NetworkPolicy? networkOverride = null)
     {
         Id = id;
         SchemaVersion = schemaVersion;
@@ -82,6 +83,7 @@ public sealed record WorkspaceDefinition : IDurableDefinition
             ? null
             : isolationImageReference.Trim();
         RunAgentInIsolation = runAgentInIsolation;
+        NetworkOverride = networkOverride;
     }
 
     public static DefinitionKind Kind => DefinitionKind.Workspace;
@@ -170,6 +172,12 @@ public sealed record WorkspaceDefinition : IDurableDefinition
     public bool RunAgentInIsolation { get; }
 
     /// <summary>
+    /// Null inherits application networking. A value replaces the complete application
+    /// policy for this workspace.
+    /// </summary>
+    public NetworkPolicy? NetworkOverride { get; }
+
+    /// <summary>
     /// Null inherits the application preference. A concrete value makes the
     /// workspace behavior stable even when the global preference changes.
     /// </summary>
@@ -221,7 +229,8 @@ public sealed record WorkspaceDefinition : IDurableDefinition
             IsIsolated,
             IsolationMounts,
             IsolationImageReference,
-            RunAgentInIsolation);
+            RunAgentInIsolation,
+            NetworkOverride);
     }
 
     public static bool IsValidIcon(string? icon)

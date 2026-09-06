@@ -54,6 +54,7 @@ public sealed class DockerSessionHostTests
             HostErrorCode.ResynchronizationRequired,
             replay.Error().Code);
         Assert.Equal(1, factory.CreateCount);
+        Assert.Equal(WorkspaceId, factory.LastWorkspaceId);
     }
 
     [Fact]
@@ -501,6 +502,8 @@ public sealed class DockerSessionHostTests
 
         public int CreateCount { get; private set; }
 
+        public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
         public bool FailOpen { get; init; }
 
         public Func<FakeDockerPanelSession, CancellationToken, ValueTask>? AfterCreateAsync
@@ -518,12 +521,14 @@ public sealed class DockerSessionHostTests
         public FakeDockerPanelSession? Session { get; private set; }
 
         public async ValueTask<IDockerPanelSession> CreateAsync(
+            WorkspaceInstanceId workspaceId,
             SessionId sessionId,
             DockerSessionTarget target,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CreateCount++;
+            LastWorkspaceId = workspaceId;
             if (FailOpen)
             {
                 throw new InvalidOperationException(

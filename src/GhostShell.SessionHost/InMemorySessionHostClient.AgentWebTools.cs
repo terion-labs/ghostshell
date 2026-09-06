@@ -22,6 +22,7 @@ public sealed partial class InMemorySessionHostClient
 
         AgentActionPermit? permit = null;
         HostResult<AgentWebToolResult>? preDispatchFailure = null;
+        WorkspaceInstanceId? workspaceId = null;
         long revision = 0;
         try
         {
@@ -44,6 +45,7 @@ public sealed partial class InMemorySessionHostClient
             }
 
             var context = ((HostResult<AgentContextSnapshot>.Success)contextResult).Value;
+            workspaceId = context.Panels[0].WorkspaceId;
             revision = context.Revision;
             AgentActionExecutionBinding binding;
             try
@@ -145,6 +147,7 @@ public sealed partial class InMemorySessionHostClient
                     permit!.CancellationToken,
                     cancellationToken);
             var executed = await _agentWebToolExecutor.ExecuteAsync(
+                    workspaceId!.Value,
                     action.Request,
                     operationCancellation.Token)
                 .ConfigureAwait(false);

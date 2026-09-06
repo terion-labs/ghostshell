@@ -32,6 +32,8 @@ internal sealed class FakeFilePanelSessionFactory : IFilePanelSessionFactory
 
     public int CreateCount { get; private set; }
 
+    public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
     public Func<FakeFilePanelSession, CancellationToken, ValueTask>? AfterCreateAsync
     {
         get;
@@ -47,12 +49,14 @@ internal sealed class FakeFilePanelSessionFactory : IFilePanelSessionFactory
     public FakeFilePanelSession this[SessionId id] => _sessions[id];
 
     public async ValueTask<IFilePanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
         SessionId sessionId,
         FilePanelLocation initialLocation,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         CreateCount++;
+        LastWorkspaceId = workspaceId;
         var session = new FakeFilePanelSession(
             sessionId,
             initialLocation,

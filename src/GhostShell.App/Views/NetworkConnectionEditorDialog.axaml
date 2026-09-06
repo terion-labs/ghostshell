@@ -1,0 +1,286 @@
+<Window
+    x:Class="GhostShell.App.Views.NetworkConnectionEditorDialog"
+    x:DataType="vm:NetworkSettingsViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:GhostShell.App.ViewModels"
+    xmlns:controls="using:GhostShell.App.Controls"
+    xmlns:components="using:GhostShell.App.Views.Components"
+    Title="Network connection"
+    Width="720"
+    Height="720"
+    MinWidth="620"
+    MinHeight="520"
+    CanResize="True"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <!--
+    The editor for one proxy or VPN definition. It is a dialog like every other
+    definition editor, rather than a card appended to the bottom of the
+    Networking page: the page is where connections are listed and chosen, and
+    a form that appears below the list is a form nobody is looking at.
+  -->
+  <controls:DialogShell
+      Title="{Binding ProfileEditor.EditorTitle}"
+      Subtitle="The connection stores references to credentials; the values stay in the operating-system vault."
+      Chrome="Editor"
+      ShowsClose="True"
+      CloseRequested="OnCancelClick"
+      FooterHint="{Binding ProfileEditor.FooterHint}">
+    <controls:DialogShell.Footer>
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button
+            Classes="SecondaryButton"
+            Click="OnTestProfileClick"
+            Content="{Binding ProfileTestActionLabel}"
+            IsEnabled="{Binding CanTestProfile}"
+            AutomationProperties.Name="Test the network connection" />
+        <Button Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" />
+        <Button
+            Classes="PrimaryButton"
+            Click="OnSaveProfileClick"
+            Content="Save connection"
+            IsEnabled="{Binding ProfileEditor.CanSave}" />
+      </StackPanel>
+    </controls:DialogShell.Footer>
+
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <controls:Callout
+          Tone="Notice"
+          ShowsGlyph="False"
+          Text="{Binding OperationStatus}"
+          Classes.Warning="{Binding HasError}"
+          IsVisible="{Binding HasOperationStatus}" />
+
+      <StackPanel
+          x:DataType="vm:NetworkConnectionProfileEditorViewModel"
+          DataContext="{Binding ProfileEditor}"
+          Spacing="{DynamicResource ShellSpaceMd}">
+        <!-- Every kind starts the same way: a name and a type. -->
+        <controls:SurfaceCard>
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+            <controls:LabeledField Label="Name">
+              <TextBox
+                  Text="{Binding Name, Mode=TwoWay}"
+                  PlaceholderText="Office VPN"
+                  AutomationProperties.Name="Network connection name" />
+            </controls:LabeledField>
+            <controls:LabeledField Grid.Column="1" Label="Type" Hint="{Binding KindDescription}">
+              <ComboBox
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding KindOptions}"
+                  SelectedItem="{Binding SelectedKind, Mode=TwoWay}"
+                  AutomationProperties.Name="Network connection type">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NetworkConnectionKindOption">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:LabeledField>
+          </Grid>
+        </controls:SurfaceCard>
+
+        <!-- Proxy -->
+        <controls:SurfaceCard IsVisible="{Binding IsProxy}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <Grid ColumnDefinitions="*,2*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <controls:LabeledField Label="Protocol">
+                <ComboBox
+                    HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding ProxyProtocolOptions}"
+                    SelectedItem="{Binding SelectedProxyProtocol, Mode=TwoWay}"
+                    AutomationProperties.Name="Proxy protocol">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NetworkProxyProtocolOption">
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </controls:LabeledField>
+              <controls:LabeledField Grid.Column="1" Label="Host">
+                <TextBox
+                    Text="{Binding Host, Mode=TwoWay}"
+                    PlaceholderText="proxy.example.com"
+                    AutomationProperties.Name="Proxy host" />
+              </controls:LabeledField>
+              <controls:LabeledField Grid.Column="2" Label="Port">
+                <TextBox
+                    Text="{Binding Port, Mode=TwoWay}"
+                    PlaceholderText="1080"
+                    AutomationProperties.Name="Proxy port" />
+              </controls:LabeledField>
+            </Grid>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <controls:LabeledField Label="Username" Hint="Optional. Required when a password is used.">
+                <TextBox Text="{Binding Username, Mode=TwoWay}" AutomationProperties.Name="Proxy username" />
+              </controls:LabeledField>
+              <components:NetworkCredentialPicker
+                  Grid.Column="1"
+                  Label="Password"
+                  Hint="A stored password, or a prompt each time the connection starts."
+                  ItemsSource="{Binding PasswordCredentialOptions}"
+                  SelectedItem="{Binding SelectedPasswordCredential, Mode=TwoWay}"
+                  Target="{Binding PasswordCredentialTarget}"
+                  AddRequested="OnAddCredentialRequested" />
+            </Grid>
+          </StackPanel>
+        </controls:SurfaceCard>
+
+        <!-- WireGuard and OpenVPN: a configuration document, and for OpenVPN
+             the account that goes with it. -->
+        <controls:SurfaceCard IsVisible="{Binding IsConfigurationFileVpn}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <components:NetworkCredentialPicker
+                Label="{Binding ConfigurationSecretLabel}"
+                Hint="The client configuration file, stored in the vault."
+                ItemsSource="{Binding ConfigurationCredentialOptions}"
+                SelectedItem="{Binding SelectedConfigurationCredential, Mode=TwoWay}"
+                Target="{Binding ConfigurationCredentialTarget}"
+                AddRequested="OnAddCredentialRequested" />
+            <Grid
+                ColumnDefinitions="*,*"
+                ColumnSpacing="{DynamicResource ShellSpaceMd}"
+                IsVisible="{Binding IsOpenVpn}">
+              <controls:LabeledField Label="Username" Hint="For password authentication, such as Proton VPN. Leave blank for certificate-only profiles.">
+                <TextBox Text="{Binding Username, Mode=TwoWay}" AutomationProperties.Name="OpenVPN username" />
+              </controls:LabeledField>
+              <components:NetworkCredentialPicker
+                  Grid.Column="1"
+                  Label="Password"
+                  Hint="Optional. Without a stored password you are prompted on each connection."
+                  ItemsSource="{Binding PasswordCredentialOptions}"
+                  SelectedItem="{Binding SelectedPasswordCredential, Mode=TwoWay}"
+                  Target="{Binding PasswordCredentialTarget}"
+                  AddRequested="OnAddCredentialRequested" />
+            </Grid>
+          </StackPanel>
+        </controls:SurfaceCard>
+
+        <!-- AnyConnect -->
+        <controls:SurfaceCard IsVisible="{Binding IsAnyConnect}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <controls:LabeledField Label="Gateway" Hint="Absolute HTTPS URL.">
+                <TextBox
+                    Text="{Binding Gateway, Mode=TwoWay}"
+                    PlaceholderText="https://vpn.example.com"
+                    AutomationProperties.Name="AnyConnect gateway" />
+              </controls:LabeledField>
+              <controls:LabeledField Grid.Column="1" Label="Authentication group" Hint="Optional gateway group.">
+                <TextBox Text="{Binding AuthenticationGroup, Mode=TwoWay}" AutomationProperties.Name="AnyConnect authentication group" />
+              </controls:LabeledField>
+            </Grid>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <controls:LabeledField Label="Username" Hint="Optional.">
+                <TextBox Text="{Binding Username, Mode=TwoWay}" AutomationProperties.Name="AnyConnect username" />
+              </controls:LabeledField>
+              <components:NetworkCredentialPicker
+                  Grid.Column="1"
+                  Label="Password"
+                  Hint="A stored password, or a prompt each time the connection starts."
+                  ItemsSource="{Binding PasswordCredentialOptions}"
+                  SelectedItem="{Binding SelectedPasswordCredential, Mode=TwoWay}"
+                  Target="{Binding PasswordCredentialTarget}"
+                  AddRequested="OnAddCredentialRequested" />
+            </Grid>
+            <components:NetworkCredentialPicker
+                Label="Client certificate"
+                Hint="Optional."
+                ItemsSource="{Binding ClientCertificateCredentialOptions}"
+                SelectedItem="{Binding SelectedClientCertificateCredential, Mode=TwoWay}"
+                Target="AnyConnectClientCertificate"
+                AddRequested="OnAddCredentialRequested" />
+          </StackPanel>
+        </controls:SurfaceCard>
+
+        <!-- Tailscale -->
+        <controls:SurfaceCard IsVisible="{Binding IsTailscale}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <controls:LabeledField Label="Exit node">
+                <TextBox
+                    Text="{Binding ExitNode, Mode=TwoWay}"
+                    PlaceholderText="exit-node-name"
+                    AutomationProperties.Name="Tailscale exit node" />
+              </controls:LabeledField>
+              <controls:LabeledField Grid.Column="1" Label="Control server" Hint="Optional HTTPS URL for Headscale or another control server.">
+                <TextBox
+                    Text="{Binding ControlServer, Mode=TwoWay}"
+                    PlaceholderText="https://headscale.example.com"
+                    AutomationProperties.Name="Tailscale control server" />
+              </controls:LabeledField>
+            </Grid>
+            <components:NetworkCredentialPicker
+                Label="Auth key"
+                Hint="Optional. Without a stored key, the first connection signs in interactively."
+                ItemsSource="{Binding AuthKeyCredentialOptions}"
+                SelectedItem="{Binding SelectedAuthKeyCredential, Mode=TwoWay}"
+                Target="TailscaleAuthKey"
+                AddRequested="OnAddCredentialRequested" />
+          </StackPanel>
+        </controls:SurfaceCard>
+
+        <!-- The draft for one credential slot. It opens from the slot's own
+             "Add new…" and already knows which slot it fills. -->
+        <controls:SurfaceCard Tone="Sunken" IsVisible="{Binding IsCredentialDraftOpen}">
+          <StackPanel
+              x:DataType="vm:NetworkCredentialDraftViewModel"
+              DataContext="{Binding Credential}"
+              Spacing="{DynamicResource ShellSpaceMd}">
+            <components:SectionHeader
+                Heading="{Binding Title}"
+                Description="The value is held in memory until the connection is saved, then stored in the operating-system vault and cleared from this form." />
+            <controls:LabeledField Label="Label" Hint="How this credential is listed here and in Security &amp; secrets.">
+              <TextBox
+                  Text="{Binding Label, Mode=TwoWay}"
+                  PlaceholderText="Office VPN password"
+                  AutomationProperties.Name="Credential label" />
+            </controls:LabeledField>
+            <controls:LabeledField Label="{Binding ValueLabel}">
+              <Panel>
+                <TextBox
+                    PasswordChar="●"
+                    Text="{Binding Value, Mode=TwoWay}"
+                    IsVisible="{Binding !IsDocument}"
+                    AutomationProperties.Name="Credential value" />
+                <TextBox
+                    AcceptsReturn="True"
+                    MinHeight="120"
+                    MaxHeight="240"
+                    FontFamily="{DynamicResource ShellDataFontFamily}"
+                    FontSize="{DynamicResource ShellFontSize10}"
+                    Text="{Binding Value, Mode=TwoWay}"
+                    TextWrapping="NoWrap"
+                    PlaceholderText="Paste the file contents"
+                    IsVisible="{Binding IsDocument}"
+                    AutomationProperties.Name="Credential document" />
+              </Panel>
+            </controls:LabeledField>
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+              <Button
+                  Classes="PrimaryButton"
+                  Click="OnStoreCredentialClick"
+                  Content="Add to connection"
+                  IsEnabled="{Binding CanStore}"
+                  AutomationProperties.Name="Add the credential to the connection" />
+              <Button
+                  Classes="TextButton"
+                  Click="OnCancelCredentialDraftClick"
+                  Content="Cancel"
+                  AutomationProperties.Name="Cancel adding a credential" />
+            </StackPanel>
+          </StackPanel>
+        </controls:SurfaceCard>
+      </StackPanel>
+
+      <controls:Callout
+          Classes.Warning="{Binding ProfileTestHasError}"
+          Classes.Success="{Binding ProfileTestSucceeded}"
+          Title="{Binding ProfileTestStatus}"
+          Text="{Binding ProfileTestDetail}"
+          IsVisible="{Binding HasProfileTestResult}"
+          AutomationProperties.Name="Network connection test result" />
+    </StackPanel>
+  </controls:DialogShell>
+</Window>

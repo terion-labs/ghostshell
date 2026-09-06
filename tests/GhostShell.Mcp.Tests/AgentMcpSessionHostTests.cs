@@ -245,6 +245,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     new AgentRunId("unregistered-run"),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
             var forged = await fixture.Host.OpenRunAsync(
@@ -254,9 +255,9 @@ public sealed class AgentMcpSessionHostTests
                     {
                         DisplayName = "Forged agent",
                     },
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
-
             Assert.Equal(
                 "mcp_run_not_authorized",
                 Assert.IsType<
@@ -270,6 +271,62 @@ public sealed class AgentMcpSessionHostTests
                         AgentMcpRunManifest>.Failure>(
                     forged).Error.StableCode);
             Assert.Empty(fixture.Vault.Purposes);
+        }
+    }
+
+    [Fact]
+    public async Task WorkspaceKillSwitchRejectsMcpBeforeResolvingSecrets()
+    {
+        var routes = new FixedWorkspaceNetworkRoutes(
+            new FixedWorkspaceNetworkConnector(WorkspaceNetworkEgress.Blocked));
+        var fixture = await HostFixture.CreateAsync(
+            mode: "normal",
+            workspaceNetworkRoutes: routes);
+        await using (fixture)
+        {
+            var result = await fixture.Host.OpenRunAsync(
+                new AgentMcpOpenRunRequest(
+                    HostFixture.RunId(),
+                    HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
+                    HostFixture.Now),
+                CancellationToken.None);
+
+            Assert.Equal(
+                "workspace_network_kill_switch_blocked",
+                Assert.IsType<
+                    AgentMcpHostResult<AgentMcpRunManifest>.Failure>(
+                    result).Error.StableCode);
+            Assert.Equal(HostFixture.WorkspaceId(), routes.LastWorkspaceId);
+            Assert.Empty(fixture.Vault.Purposes);
+        }
+    }
+
+    [Fact]
+    public async Task IsolatedWorkspacePlansMcpServerInsideWorkspaceRuntime()
+    {
+        var commandRuntime = new RecordingWorkspaceCommandRuntime();
+        var routes = new FixedWorkspaceNetworkRoutes(
+            new FixedWorkspaceNetworkConnector(WorkspaceNetworkEgress.Direct),
+            commandRuntime);
+        var fixture = await HostFixture.CreateAsync(
+            mode: "normal",
+            workspaceNetworkRoutes: routes);
+        await using (fixture)
+        {
+            _ = await fixture.OpenAsync();
+
+            Assert.Equal(1, commandRuntime.DuplexPlanCount);
+            Assert.Equal(
+                HostFixture.SecretCanary,
+                commandRuntime.LastConnection!.Startup.Environment.Single(
+                    variable => string.Equals(
+                        variable.Name,
+                        "GHOSTSHELL_ALLOWED",
+                        StringComparison.Ordinal)).Value
+                    is ConnectionEnvironmentValue.PlainText value
+                        ? value.Value
+                        : null);
         }
     }
 
@@ -424,6 +481,13 @@ public sealed class AgentMcpSessionHostTests
             var secretResolutionCount = fixture.Vault.Purposes.Count;
 
             var reopened = await fixture.OpenAsync();
+            var wrongWorkspace = await fixture.Host.OpenRunAsync(
+                new AgentMcpOpenRunRequest(
+                    HostFixture.RunId(),
+                    HostFixture.Agent(),
+                    new WorkspaceInstanceId("another-workspace"),
+                    HostFixture.Now),
+                CancellationToken.None);
             var forged = await fixture.Host.OpenRunAsync(
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
@@ -431,6 +495,7 @@ public sealed class AgentMcpSessionHostTests
                     {
                         DisplayName = "Forged agent",
                     },
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
             Assert.Null(await fixture.Broker.UpdateRunPolicyAsync(
@@ -444,6 +509,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
 
@@ -456,6 +522,12 @@ public sealed class AgentMcpSessionHostTests
                     AgentMcpHostResult<
                         AgentMcpRunManifest>.Failure>(
                     forged).Error.StableCode);
+            Assert.Equal(
+                "mcp_run_not_authorized",
+                Assert.IsType<
+                    AgentMcpHostResult<
+                        AgentMcpRunManifest>.Failure>(
+                    wrongWorkspace).Error.StableCode);
             Assert.Equal(
                 "mcp_run_not_authorized",
                 Assert.IsType<
@@ -479,6 +551,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None).AsTask();
             await fixture.Vault.ResolutionStarted.Task.WaitAsync(
@@ -536,6 +609,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
 
@@ -565,6 +639,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
 
@@ -656,6 +731,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     HostFixture.RunId(),
                     HostFixture.Agent(),
+                    HostFixture.WorkspaceId(),
                     HostFixture.Now),
                 CancellationToken.None);
 
@@ -1708,7 +1784,8 @@ public sealed class AgentMcpSessionHostTests
             bool omitWorkingDirectory = false,
             TimeSpan? shutdownGracePeriod = null,
             McpServerTransport? transport = null,
-            Func<Uri, HttpMessageHandler?>? streamableHttpHandlerFactory = null)
+            Func<Uri, HttpMessageHandler?>? streamableHttpHandlerFactory = null,
+            IWorkspaceNetworkRouteResolver? workspaceNetworkRoutes = null)
         {
             var assemblyPath = Assembly.GetExecutingAssembly().Location;
             var dotnetPath = Environment.ProcessPath
@@ -1876,7 +1953,8 @@ public sealed class AgentMcpSessionHostTests
                         shutdownGracePeriod
                             ?? TimeSpan.FromMilliseconds(50),
                 },
-                streamableHttpHandlerFactory);
+                streamableHttpHandlerFactory,
+                workspaceNetworkRoutes: workspaceNetworkRoutes);
             return new HostFixture(
                 host,
                 broker,
@@ -1893,6 +1971,7 @@ public sealed class AgentMcpSessionHostTests
                 new AgentMcpOpenRunRequest(
                     runId ?? RunId(),
                     Agent(),
+                    WorkspaceId(),
                     Now),
                 CancellationToken.None);
             return Assert.IsType<
@@ -2049,7 +2128,7 @@ public sealed class AgentMcpSessionHostTests
         private static WindowInstanceId WindowId() =>
             new("mcp-window");
 
-        private static WorkspaceInstanceId WorkspaceId() =>
+        public static WorkspaceInstanceId WorkspaceId() =>
             new("mcp-workspace");
 
         private static TabInstanceId TabId() => new("mcp-tab");
@@ -2057,6 +2136,81 @@ public sealed class AgentMcpSessionHostTests
         private static PanelInstanceId PanelId() => new("mcp-panel");
 
         private static SessionId SessionId() => new("mcp-session");
+    }
+
+    private sealed class FixedWorkspaceNetworkRoutes(
+        IWorkspaceNetworkConnector connector,
+        IConnectionCommandRuntime? commandRuntime = null) :
+        IWorkspaceNetworkRouteResolver
+    {
+        public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
+        public IWorkspaceNetworkConnector? ConnectorFor(
+            WorkspaceInstanceId workspaceId)
+        {
+            LastWorkspaceId = workspaceId;
+            return connector;
+        }
+
+        public IConnectionCommandRuntime? IsolatedCommandRuntimeFor(
+            WorkspaceInstanceId workspaceId)
+        {
+            LastWorkspaceId = workspaceId;
+            return commandRuntime;
+        }
+    }
+
+    private sealed class FixedWorkspaceNetworkConnector(
+        WorkspaceNetworkEgress egress) : IWorkspaceNetworkConnector
+    {
+        public WorkspaceNetworkEgress Egress { get; } = egress;
+
+        public Uri LocalProxyEndpoint { get; } =
+            new("socks5://127.0.0.1:45678", UriKind.Absolute);
+
+        public ValueTask<Stream> ConnectTcpAsync(
+            string host,
+            int port,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RecordingWorkspaceCommandRuntime : IConnectionCommandRuntime
+    {
+        public int DuplexPlanCount { get; private set; }
+
+        public ConnectionProfile? LastConnection { get; private set; }
+
+        public ValueTask<ConnectionRuntimeResult<TerminalLaunchRequest>> PlanCommandAsync(
+            ConnectionProfile connection,
+            string executable,
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask<ConnectionRuntimeResult<TerminalLaunchRequest>>
+            PlanDuplexCommandAsync(
+                ConnectionProfile connection,
+                string executable,
+                IReadOnlyList<string> arguments,
+                CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DuplexPlanCount++;
+            LastConnection = connection;
+            var environment = connection.Startup.Environment.ToDictionary(
+                variable => variable.Name,
+                variable => Assert.IsType<ConnectionEnvironmentValue.PlainText>(
+                    variable.Value).Value,
+                StringComparer.Ordinal);
+            return ValueTask.FromResult(
+                ConnectionRuntimeResult<TerminalLaunchRequest>.Succeed(
+                    new TerminalLaunchRequest(
+                        connection.Startup.Directory,
+                        executable,
+                        arguments,
+                        environment)));
+        }
     }
 
     public class CatalogProxy : DispatchProxy

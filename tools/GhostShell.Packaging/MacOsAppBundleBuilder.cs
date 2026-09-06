@@ -643,7 +643,7 @@ public sealed class MacOsAppBundleBuilder
         var topLevelDirectory = relativePath.Split(
             Path.DirectorySeparatorChar,
             2)[0];
-        var root = topLevelDirectory is "fonts" or "ghostty"
+        var root = topLevelDirectory is "connection-engine-legal" or "workspace-runtime-legal" or "fonts" or "ghostty"
             ? resourcesDirectory
             : executableDirectory;
         return Path.Combine(root, relativePath);

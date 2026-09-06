@@ -38,7 +38,8 @@ the visual references.
 | Git | `workspace-git` |
 | Database | `workspace-database` |
 | Redis | `workspace-redis` |
-| Settings | `settings-appearance`, `settings-workspaces`, `settings-terminal`, `settings-quick-terminal`, `settings-keybindings`, `settings-files`, `settings-agent`, `settings-mcp`, `settings-secrets`, `settings-diagnostics`, `settings-about` |
+| Settings | `settings-appearance`, `settings-workspaces`, `settings-networking`, `settings-terminal`, `settings-quick-terminal`, `settings-keybindings`, `settings-files`, `settings-agent`, `settings-mcp`, `settings-secrets`, `settings-diagnostics`, `settings-about` |
+| Workspace isolation and networking | `settings-workspace-editor-isolated` (isolation, runtime image, and host mounts), `settings-workspace-editor-networking` (the same editor at its end: the workspace's own network policy and offered connections), `settings-networking-editor` (the connection editor dialog) |
 | Command, panel, and layout overlays | `overlay-command-palette`, `overlay-new-panel`, `overlay-layout-designer` |
 | Shared components and semantic states | `design-system` appearance matrix |
 

@@ -77,6 +77,17 @@
       <Setter Property="BoxShadow" Value="{DynamicResource ShellFlyoutShadow}" />
       <Setter Property="Background" Value="{DynamicResource ShellSidebarOverlayBrush}" />
     </Style>
+    <!-- The route mark reads its state in colour: quiet when direct, green
+         once a route carries traffic, accent while one is being brought up. -->
+    <Style Selector="icons|SymbolIcon.NetworkMark">
+      <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+    </Style>
+    <Style Selector="icons|SymbolIcon.NetworkMark.connected">
+      <Setter Property="Foreground" Value="{DynamicResource ShellSuccessBrush}" />
+    </Style>
+    <Style Selector="icons|SymbolIcon.NetworkMark.busy">
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
   </UserControl.Styles>
   <Grid RowDefinitions="Auto,*,Auto">
     <Border
@@ -202,6 +213,123 @@
             VerticalAlignment="Center"
             Spacing="{DynamicResource ShellSpaceXs}"
             WindowDecorationProperties.ElementRole="User">
+          <!-- The route this workspace's traffic takes, named in the title bar
+               so a VPN that dropped is seen before it is discovered. The
+               flyout is where the route is switched without editing the
+               workspace. -->
+          <Button
+              x:Name="WorkspaceNetworkButton"
+              Classes="TextButton"
+              MinHeight="24"
+              Padding="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+              IsVisible="{Binding IsWorkspaceNetworkControlVisible}"
+              ToolTip.Tip="{Binding WorkspaceNetwork.StatusText}"
+              AutomationProperties.Name="{Binding WorkspaceNetwork.AutomationLabel}">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+              <icons:SymbolIcon
+                  VerticalAlignment="Center"
+                  Classes="NetworkMark"
+                  Classes.connected="{Binding WorkspaceNetwork.IsConnected}"
+                  Classes.busy="{Binding WorkspaceNetwork.IsConnecting}"
+                  FontSize="13"
+                  IsVisible="{Binding !WorkspaceNetwork.IsDegraded}"
+                  Symbol="Globe" />
+              <icons:SymbolIcon
+                  VerticalAlignment="Center"
+                  FontSize="13"
+                  Foreground="{DynamicResource ShellDangerBrush}"
+                  IsVisible="{Binding WorkspaceNetwork.IsFailed}"
+                  Symbol="ShieldError" />
+              <icons:SymbolIcon
+                  VerticalAlignment="Center"
+                  FontSize="13"
+                  Foreground="{DynamicResource ShellDangerBrush}"
+                  IsVisible="{Binding WorkspaceNetwork.IsBlocked}"
+                  Symbol="LockClosed" />
+              <TextBlock
+                  VerticalAlignment="Center"
+                  FontSize="{DynamicResource ShellFontSize9}"
+                  FontWeight="Medium"
+                  Text="{Binding WorkspaceNetwork.RouteLabel}" />
+            </StackPanel>
+            <Button.Flyout>
+              <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="SavedConnectionMenu">
+                <StackPanel MinWidth="300" MaxWidth="380" Spacing="{DynamicResource ShellSpaceSm}">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                    <controls:StatusChip
+                        VerticalAlignment="Top"
+                        Classes.Neutral="{Binding WorkspaceNetwork.IsDirect}"
+                        Classes.Notice="{Binding WorkspaceNetwork.IsConnecting}"
+                        Classes.Danger="{Binding WorkspaceNetwork.IsFailed}"
+                        Classes.Warning="{Binding WorkspaceNetwork.IsBlocked}"
+                        Content="{Binding WorkspaceNetwork.StateLabel}" />
+                    <TextBlock
+                        x:Name="WorkspaceNetworkStatus"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Classes="Muted"
+                        FontSize="{DynamicResource ShellFontSize10}"
+                        Text="{Binding WorkspaceNetwork.StatusText}"
+                        TextWrapping="Wrap"
+                        AutomationProperties.Name="Workspace network status" />
+                  </Grid>
+                  <ProgressBar
+                      Height="2"
+                      IsIndeterminate="True"
+                      IsVisible="{Binding WorkspaceNetwork.IsConnecting}"
+                      AutomationProperties.Name="Connecting workspace network" />
+                  <Border Height="1" Background="{DynamicResource ShellBorderBrush}" />
+                  <ItemsControl ItemsSource="{Binding WorkspaceNetwork.Connections}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WorkspaceNetworkConnectionOptionViewModel">
+                        <Button
+                            Classes="FlyoutMenuItem"
+                            Click="OnWorkspaceNetworkConnectionClick"
+                            AutomationProperties.Name="{Binding Name, StringFormat=Use network connection {0}}">
+                          <controls:ListItem Title="{Binding Name}" Detail="{Binding Kind}">
+                            <controls:ListItem.Trailing>
+                              <icons:SymbolIcon
+                                  FontSize="12"
+                                  Foreground="{DynamicResource ShellAccentBrush}"
+                                  IsVisible="{Binding IsSelected}"
+                                  Symbol="Checkmark" />
+                            </controls:ListItem.Trailing>
+                          </controls:ListItem>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock
+                      Classes="Muted"
+                      Text="No network connections are offered to this workspace."
+                      TextWrapping="Wrap"
+                      IsVisible="{Binding !WorkspaceNetwork.HasConnections}" />
+                  <Border Height="1" Background="{DynamicResource ShellBorderBrush}" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+                      <controls:StatusChip
+                          Tone="Warning"
+                          Content="Kill switch on"
+                          ToolTip.Tip="Traffic stays blocked if the selected connection fails."
+                          IsVisible="{Binding WorkspaceNetwork.IsKillSwitchEnabled}" />
+                      <Button
+                          Classes="TextButton"
+                          Click="OnNetworkingSettingsClick"
+                          Content="Manage connections…"
+                          AutomationProperties.Name="Open networking settings" />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="1"
+                        Classes="SecondaryButton"
+                        Click="OnWorkspaceNetworkToggleClick"
+                        Content="{Binding WorkspaceNetwork.ToggleAction}"
+                        IsEnabled="{Binding WorkspaceNetwork.CanToggle}"
+                        AutomationProperties.Name="{Binding WorkspaceNetwork.ToggleAction, StringFormat={}{0} workspace networking}" />
+                  </Grid>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
           <Button
               x:Name="AgentToggleButton"
               Classes="IconButton"

@@ -435,6 +435,57 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                     "The imported browser profile was disabled and its machine-local credential binding was detached. Web content is never included in a definition bundle.",
                     false));
             }
+            else if (definition is NetworkConnectionProfile networkConnection)
+            {
+                var detached = DetachImportedNetworkCredentials(networkConnection);
+                if (detached != networkConnection)
+                {
+                    definition = detached;
+                    importedDocument = document with
+                    {
+                        PayloadJson = DefinitionJson.Serialize(detached),
+                    };
+                    parsed.Issues.Add(new(
+                        DefinitionImportIssueCode.ImportedNetworkCredentialsDetached,
+                        detached.Key,
+                        "The imported network connection's machine-local credential bindings were detached. Add its credentials in Settings before using it.",
+                        false));
+                }
+            }
+            else if (definition is ApplicationNetworkSettings settings
+                     && settings.Policy.IsEnabled)
+            {
+                var disabled = new ApplicationNetworkSettings(
+                    settings.Id,
+                    settings.SchemaVersion,
+                    settings.Name,
+                    DisableImportedNetworkPolicy(settings.Policy));
+                definition = disabled;
+                importedDocument = document with
+                {
+                    PayloadJson = DefinitionJson.Serialize(disabled),
+                };
+                parsed.Issues.Add(new(
+                    DefinitionImportIssueCode.ImportedNetworkPolicyDisabled,
+                    disabled.Key,
+                    "Imported application networking was disabled. Review the selected connection and credentials in Settings before enabling it.",
+                    false));
+            }
+            else if (definition is WorkspaceDefinition workspace
+                     && workspace.NetworkOverride is { IsEnabled: true })
+            {
+                var disabled = DisableImportedWorkspaceNetworkPolicy(workspace);
+                definition = disabled;
+                importedDocument = document with
+                {
+                    PayloadJson = DefinitionJson.Serialize(disabled),
+                };
+                parsed.Issues.Add(new(
+                    DefinitionImportIssueCode.ImportedNetworkPolicyDisabled,
+                    disabled.Key,
+                    "Imported workspace networking was disabled. Review the selected connection and credentials in Settings before enabling it.",
+                    false));
+            }
 
             if (!parsed.Definitions.TryAdd(definition!.Key, definition))
             {
@@ -467,6 +518,81 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 authentication,
                 "The imported AI-provider authentication method is not supported."),
         };
+
+    private static NetworkConnectionProfile DetachImportedNetworkCredentials(
+        NetworkConnectionProfile profile)
+    {
+        var detached = profile.Configuration switch
+        {
+            NetworkConnectionConfiguration.Proxy proxy when proxy.PasswordSecret is not null =>
+                new NetworkConnectionConfiguration.Proxy(
+                    proxy.Protocol,
+                    proxy.Host,
+                    proxy.Port,
+                    proxy.Username,
+                    SecretRef.New()),
+            NetworkConnectionConfiguration.WireGuard =>
+                new NetworkConnectionConfiguration.WireGuard(SecretRef.New()),
+            NetworkConnectionConfiguration.OpenVpn openVpn =>
+                new NetworkConnectionConfiguration.OpenVpn(
+                    SecretRef.New(), openVpn.Username,
+                    openVpn.PasswordSecret is null ? null : SecretRef.New()),
+            NetworkConnectionConfiguration.AnyConnect anyConnect =>
+                new NetworkConnectionConfiguration.AnyConnect(
+                    anyConnect.Gateway,
+                    anyConnect.Username,
+                    anyConnect.PasswordSecret is null ? null : SecretRef.New(),
+                    anyConnect.AuthenticationGroup,
+                    anyConnect.ClientCertificateSecret is null ? null : SecretRef.New()),
+            NetworkConnectionConfiguration.Tailscale tailscale =>
+                new NetworkConnectionConfiguration.Tailscale(
+                    tailscale.ExitNode,
+                    tailscale.ControlServer,
+                    tailscale.AuthKeySecret is null ? null : SecretRef.New()),
+            NetworkConnectionConfiguration.Proxy => profile.Configuration,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(profile),
+                profile.Configuration,
+                "The imported network connection type is not supported."),
+        };
+        return detached == profile.Configuration
+            ? profile
+            : new NetworkConnectionProfile(
+                profile.Id,
+                profile.SchemaVersion,
+                profile.Name,
+                detached);
+    }
+
+    private static NetworkPolicy DisableImportedNetworkPolicy(NetworkPolicy policy) =>
+        new(
+            policy.Connections,
+            policy.SelectedConnectionId,
+            isEnabled: false,
+            policy.KillSwitchEnabled);
+
+    private static WorkspaceDefinition DisableImportedWorkspaceNetworkPolicy(
+        WorkspaceDefinition workspace) =>
+        new(
+            workspace.Id,
+            workspace.SchemaVersion,
+            workspace.Name,
+            workspace.Description,
+            workspace.Accent,
+            workspace.Entries,
+            workspace.AgentPolicyOverride,
+            workspace.Icon,
+            workspace.AutoSave,
+            workspace.Color,
+            workspace.AgentPanelPinned,
+            workspace.TerminalMultiplexingOverride,
+            workspace.BrowserProfileOverride,
+            workspace.HasExplicitAccent,
+            workspace.IsIsolated,
+            workspace.IsolationMounts,
+            workspace.IsolationImageReference,
+            workspace.RunAgentInIsolation,
+            DisableImportedNetworkPolicy(workspace.NetworkOverride!));
 
     private static PortableDefinitionDocument SanitizeExportedBrowserProfile(
         PortableDefinitionDocument document,

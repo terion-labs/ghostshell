@@ -39,5 +39,10 @@ public readonly record struct DefinitionKind
 
     public static DefinitionKind QuickTerminalSettings { get; } = new("quick-terminal-settings");
 
+    public static DefinitionKind NetworkConnection { get; } = new("network-connection");
+
+    public static DefinitionKind ApplicationNetworkSettings { get; } =
+        new("application-network-settings");
+
     public override string ToString() => Value;
 }

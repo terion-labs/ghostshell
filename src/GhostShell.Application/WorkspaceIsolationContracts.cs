@@ -310,7 +310,8 @@ public sealed record WorkspaceIsolationBinding
         IReadOnlyList<WorkspaceIsolationMount> mounts,
         Guid leaseId,
         string? imageReference = null,
-        string? runtimeImageReference = null)
+        string? runtimeImageReference = null,
+        WorkspaceIsolationNetworkBinding? network = null)
     {
         if (string.IsNullOrWhiteSpace(workspaceId.Value))
         {
@@ -344,6 +345,7 @@ public sealed record WorkspaceIsolationBinding
         RuntimeImageReference = string.IsNullOrWhiteSpace(runtimeImageReference)
             ? request.ImageReference
             : runtimeImageReference.Trim();
+        Network = network;
         LeaseId = leaseId;
     }
 
@@ -361,6 +363,9 @@ public sealed record WorkspaceIsolationBinding
 
     /// <summary>The concrete OCI image used by the running environment.</summary>
     public string? RuntimeImageReference { get; }
+
+    /// <summary>The host-only network and host gateway assigned to this environment.</summary>
+    public WorkspaceIsolationNetworkBinding? Network { get; }
 
     /// <summary>
     /// Identifies one acquire of a shared persistent isolate. Releasing the same lease more

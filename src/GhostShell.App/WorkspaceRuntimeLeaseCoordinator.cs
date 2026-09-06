@@ -126,21 +126,41 @@ internal sealed class WorkspaceRuntimeLeaseCoordinator(
                     "The workspace isolation binding is not owned by this window.");
             }
 
-            var connectionRuntime = binding is null
-                ? hostConnectionRuntime
-                : new WorkspaceIsolatedConnectionRuntime(
-                    hostConnectionRuntime,
+            var networkEgressState = new WorkspaceNetworkEgressState();
+            IConnectionRuntime connectionRuntime = new WorkspaceNetworkConnectionRuntime(
+                hostConnectionRuntime,
+                networkEgressState,
+                injectProxyEnvironment: binding is null);
+            if (binding is not null)
+            {
+                connectionRuntime = new WorkspaceIsolatedConnectionRuntime(
+                    connectionRuntime,
                     isolationProvider
                         ?? throw new InvalidOperationException(
                             "An isolated runtime workspace requires an isolation provider."),
                     binding);
+            }
+
             var runtimeServices = servicesFactory?.Create(
                     new WorkspaceRuntimeServicesRequest(
                         workspaceId,
                         connectionRuntime,
                         hostServices,
-                        binding))
-                ?? (binding is null ? hostServices : null);
+                        binding,
+                        networkEgressState))
+                ?? (binding is null
+                    ? new WorkspaceRuntimeServices(
+                        hostServices.Backends,
+                        hostServices.NetworkRoute,
+                        networkEgressSink: networkEgressState)
+                    : null);
+            if (ReferenceEquals(runtimeServices, hostServices))
+            {
+                runtimeServices = new WorkspaceRuntimeServices(
+                    hostServices.Backends,
+                    hostServices.NetworkRoute,
+                    networkEgressSink: networkEgressState);
+            }
             _leases.Add(
                 workspaceId,
                 new WorkspaceRuntimeLease(

@@ -136,6 +136,18 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
 
     public void Dismiss() => Editor = null;
 
+    public void ApplyCatalog(DefinitionCatalogSnapshot snapshot)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Editor?.ApplyNetworkCatalog(
+            [.. snapshot.NetworkConnections.Select(item => item.Value)],
+            snapshot.ApplicationNetworkSettings
+                .SingleOrDefault(item =>
+                    item.Value.Id == ApplicationNetworkSettings.DefaultId)?.Value
+                ?? ApplicationNetworkSettings.Default);
+    }
+
     public async ValueTask<DefinitionStoreResult<StoredDefinition<WorkspaceDefinition>>>
         SaveAsync(CancellationToken cancellationToken)
     {
@@ -280,7 +292,8 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
             isIsolated,
             current.IsolationMounts,
             current.IsolationImageReference,
-            current.RunAgentInIsolation && isIsolated);
+            current.RunAgentInIsolation && isIsolated,
+            current.NetworkOverride);
         return await _catalog.SaveWorkspaceAsync(
             updated,
             stored.Revision,
@@ -325,7 +338,8 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
             current.IsIsolated,
             current.IsolationMounts,
             current.IsolationImageReference,
-            current.RunAgentInIsolation);
+            current.RunAgentInIsolation,
+            current.NetworkOverride);
         return await _catalog.SaveWorkspaceAsync(
             updated,
             stored.Revision,
@@ -362,7 +376,13 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
                 _activeIsolationImageReference(definition.Id)
                 ?? definition.IsolationImageReference
                 ?? _defaultIsolationImageReference,
-            defaultIsolationImageReference: _defaultIsolationImageReference);
+            defaultIsolationImageReference: _defaultIsolationImageReference,
+            networkConnections:
+                [.. snapshot.NetworkConnections.Select(item => item.Value)],
+            applicationNetworkSettings: snapshot.ApplicationNetworkSettings
+                .SingleOrDefault(item =>
+                    item.Value.Id == ApplicationNetworkSettings.DefaultId)?.Value
+                ?? ApplicationNetworkSettings.Default);
         editor.SetPeers([.. snapshot.Workspaces.Select(item => item.Value)]);
         return editor;
     }

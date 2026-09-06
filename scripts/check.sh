@@ -43,6 +43,7 @@ export NUGET_PACKAGES="${repository_dir}/.nuget/packages"
 
 cd "${repository_dir}"
 
+"${script_dir}/check-network-native.sh" "${mode}"
 "${dotnet}" tool restore
 "${dotnet}" restore GhostShell.slnx --locked-mode
 "${script_dir}/audit-dependencies.sh"

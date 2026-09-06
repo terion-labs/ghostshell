@@ -39,7 +39,20 @@ public sealed class WorkspaceIsolationMountEditorViewModel : ObservableObject
     public bool IsReadOnly
     {
         get => _isReadOnly;
-        set => SetProperty(ref _isReadOnly, value);
+        set
+        {
+            if (SetProperty(ref _isReadOnly, value))
+            {
+                OnPropertyChanged(nameof(IsReadWrite));
+            }
+        }
+    }
+
+    /// <summary>The same access level from the other segment of the picker.</summary>
+    public bool IsReadWrite
+    {
+        get => !_isReadOnly;
+        set => IsReadOnly = !value;
     }
 
     public string RemoveAccessibleName => string.IsNullOrWhiteSpace(GuestPath)

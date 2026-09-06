@@ -1218,8 +1218,11 @@
     An explicit template rather than the theme's ToggleButton visuals: the
     segments have to tile the track exactly, and a themed button brings its own
     padding, border, and corner geometry that overflows a 3px inset track.
+
+    A radio segment is the same segment for a choice that must always have
+    exactly one answer: a toggle segment can be clicked off, a radio cannot.
   -->
-  <Style Selector="ToggleButton.Segment">
+  <Style Selector="ToggleButton.Segment, RadioButton.Segment">
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Margin" Value="0" />
     <Setter Property="Padding" Value="{controls:Inset Horizontal=Md, Vertical=Xs}" />
@@ -1246,20 +1249,20 @@
     </Setter>
   </Style>
 
-  <Style Selector="ToggleButton.Segment:pointerover /template/ Border#SegmentRoot">
+  <Style Selector="ToggleButton.Segment:pointerover /template/ Border#SegmentRoot, RadioButton.Segment:pointerover /template/ Border#SegmentRoot">
     <Setter Property="Background" Value="{DynamicResource ShellSurfaceRaisedBrush}" />
   </Style>
 
-  <Style Selector="ToggleButton.Segment:checked">
+  <Style Selector="ToggleButton.Segment:checked, RadioButton.Segment:checked">
     <Setter Property="Foreground" Value="{DynamicResource ShellAccentForegroundBrush}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
-  <Style Selector="ToggleButton.Segment:checked /template/ Border#SegmentRoot">
+  <Style Selector="ToggleButton.Segment:checked /template/ Border#SegmentRoot, RadioButton.Segment:checked /template/ Border#SegmentRoot">
     <Setter Property="Background" Value="{DynamicResource ShellAccentBrush}" />
   </Style>
 
-  <Style Selector="ToggleButton.Segment:focus-visible /template/ Border#SegmentRoot">
+  <Style Selector="ToggleButton.Segment:focus-visible /template/ Border#SegmentRoot, RadioButton.Segment:focus-visible /template/ Border#SegmentRoot">
     <Setter Property="BorderBrush" Value="{DynamicResource ShellAccentBrush}" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>

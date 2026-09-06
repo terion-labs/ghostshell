@@ -22,4 +22,8 @@ public sealed record DefinitionCatalogSnapshot(
     public IReadOnlyList<StoredDefinition<DatabaseConnectionProfile>> DatabaseConnections { get; init; } = [];
 
     public IReadOnlyList<StoredDefinition<BrowserProfileDefinition>> BrowserProfiles { get; init; } = [];
+
+    public IReadOnlyList<StoredDefinition<NetworkConnectionProfile>> NetworkConnections { get; init; } = [];
+
+    public IReadOnlyList<StoredDefinition<ApplicationNetworkSettings>> ApplicationNetworkSettings { get; init; } = [];
 }

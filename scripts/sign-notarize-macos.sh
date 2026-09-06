@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/Chromium.entitlements"
+workspace_entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements"
 app=""
 identity=""
 notary_profile=""
@@ -139,6 +140,14 @@ sign_chromium_bundle() {
     /usr/bin/codesign "${arguments[@]}"
 }
 
+sign_workspace_runtime() {
+    local arguments=(--force --entitlements "${workspace_entitlements}")
+    if [[ "${identity}" != "-" ]]; then
+        arguments+=(--options runtime --timestamp)
+    fi
+    /usr/bin/codesign "${arguments[@]}" --sign "${identity}" "$1"
+}
+
 # Sign leaf Mach-O libraries before the framework and app bundles that contain
 # them. `--deep` is intentionally avoided: it can silently apply the wrong
 # entitlements to nested Chromium helpers.
@@ -156,7 +165,11 @@ while IFS= read -r -d '' runtime_file; do
 
     runtime_description="$(/usr/bin/file -b "${runtime_file}")"
     if [[ "${runtime_description}" == Mach-O* ]]; then
-        sign_plain "${runtime_file}"
+        if [[ "${runtime_file}" == "${app}/Contents/MacOS/runtimes/osx-arm64/workspace-runtime/workspace-runtime" ]]; then
+            sign_workspace_runtime "${runtime_file}"
+        else
+            sign_plain "${runtime_file}"
+        fi
     fi
 done < <(find "${app}/Contents/MacOS" -type f -print0)
 

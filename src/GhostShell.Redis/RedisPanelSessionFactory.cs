@@ -9,7 +9,8 @@ using StackExchange.Redis;
 namespace GhostShell.Redis;
 
 public sealed class RedisPanelSessionFactory(
-    IDatabaseTunnelFactory? tunnelFactory = null) : IRedisPanelSessionFactory
+    IDatabaseTunnelFactory? tunnelFactory = null,
+    ConnectionProfile? defaultTunnel = null) : IRedisPanelSessionFactory
 {
     public async Task<IRedisPanelSession> OpenAsync(
         string connectionString,
@@ -17,7 +18,8 @@ public sealed class RedisPanelSessionFactory(
         CancellationToken cancellationToken)
     {
         var options = RedisConnectionCatalog.Parse(connectionString);
-        IDatabaseTunnelLease? tunnelLease = null;
+        RedisConnectionTunnel? tunnelLease = null;
+        tunnel ??= defaultTunnel;
         if (tunnel is not null)
         {
             if (tunnelFactory is null)
@@ -25,24 +27,11 @@ public sealed class RedisPanelSessionFactory(
                 throw new InvalidOperationException("SSH tunneling is unavailable in this build.");
             }
 
-            if (options.EndPoints.Count != 1 || !string.IsNullOrWhiteSpace(options.ServiceName))
-            {
-                throw new NotSupportedException(
-                    "Redis Cluster and Sentinel cannot use a single SSH port-forward safely.");
-            }
-
-            var endpoint = options.EndPoints[0];
-            var (host, port) = endpoint switch
-            {
-                DnsEndPoint dns => (dns.Host, dns.Port),
-                IPEndPoint ip => (ip.Address.ToString(), ip.Port),
-                _ => throw new InvalidOperationException("The Redis endpoint is not a TCP endpoint."),
-            };
-            tunnelLease = await tunnelFactory
-                .OpenAsync(tunnel, host, port, cancellationToken)
-                .ConfigureAwait(false);
-            options.EndPoints.Clear();
-            options.EndPoints.Add("127.0.0.1", tunnelLease.LocalPort);
+            // Keep logical endpoints intact for TLS, Cluster MOVED responses,
+            // and Sentinel discovery. The driver asks the tunnel for each socket.
+            tunnelLease = new RedisConnectionTunnel(tunnelFactory, tunnel);
+            options.Tunnel = tunnelLease;
+            options.ResolveDns = false;
         }
 
         ConnectionMultiplexer? connection = null;
@@ -98,7 +87,7 @@ internal sealed class RedisPanelSession : IRedisPanelSession
         """;
 
     private readonly ConnectionMultiplexer _connection;
-    private readonly IDatabaseTunnelLease? _tunnel;
+    private readonly IAsyncDisposable? _tunnel;
     private readonly ISubscriber _subscriber;
     private readonly ConcurrentDictionary<RedisSubscription, RedisChannel> _subscriptions = [];
     private IDatabase _database;
@@ -107,7 +96,7 @@ internal sealed class RedisPanelSession : IRedisPanelSession
 
     private RedisPanelSession(
         ConnectionMultiplexer connection,
-        IDatabaseTunnelLease? tunnel,
+        IAsyncDisposable? tunnel,
         int database,
         RedisServerFacts facts)
     {
@@ -125,7 +114,7 @@ internal sealed class RedisPanelSession : IRedisPanelSession
 
     public static async Task<RedisPanelSession> CreateAsync(
         ConnectionMultiplexer connection,
-        IDatabaseTunnelLease? tunnel,
+        IAsyncDisposable? tunnel,
         int database,
         CancellationToken cancellationToken)
     {

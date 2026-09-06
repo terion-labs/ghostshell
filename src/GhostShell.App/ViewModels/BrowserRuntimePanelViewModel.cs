@@ -117,7 +117,10 @@ public sealed class BrowserRuntimePanelViewModel : RuntimePanelViewModel
 
     public BrowserProfileBinding ProfileBinding => _profile;
 
-    public string BrowserProfileDisplayName => _profile.Definition.Name;
+    public string BrowserProfileDisplayName =>
+        _profile.Selection.Partition.Kind == BrowserProfileKind.Workspace
+            ? $"{_profile.Definition.Name} · Isolated workspace"
+            : _profile.Definition.Name;
 
     public string ConnectionDisplayName => _connectionDisplayName ?? (_connection.Endpoint is ConnectionEndpoint.Local
         ? "Local"

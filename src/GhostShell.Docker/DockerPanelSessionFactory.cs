@@ -38,6 +38,13 @@ public sealed class DockerPanelSessionFactory(
             : [],
     ]);
 
+    public ValueTask<IDockerPanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
+        SessionId sessionId,
+        DockerSessionTarget target,
+        CancellationToken cancellationToken) =>
+        CreateAsync(sessionId, target, cancellationToken);
+
     public async ValueTask<IDockerPanelSession> CreateAsync(
         SessionId sessionId,
         DockerSessionTarget target,

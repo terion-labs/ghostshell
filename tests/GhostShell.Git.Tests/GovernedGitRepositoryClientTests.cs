@@ -176,6 +176,36 @@ public sealed class GovernedGitRepositoryClientTests
     }
 
     [Fact]
+    public async Task Governed_https_read_preserves_the_workspace_proxy_after_scrubbing_untrusted_configuration()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var initial = await repository.ReadStateAsync();
+        await repository.RunGitAsync("remote", "add", "origin", "https://example.invalid/ghostshell.git");
+        var transport = new HttpsRemoteExecutor(repository.Executor, Assert.IsType<string>(initial.Guard.HeadSha));
+        var client = new GitRepositoryClient(transport, TimeProvider.System, new WorkspaceConnector());
+
+        var result = await client.ReadGovernedRemoteRefAsync(repository.Handle, "origin", "main", CancellationToken.None);
+
+        Assert.IsType<GitResult<GitGovernedRemoteRef>.Success>(result);
+        var command = Assert.Single(transport.RemoteCommands);
+        Assert.DoesNotContain("ALL_PROXY", command.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("HTTPS_PROXY", command.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("http.proxy=", command.Arguments, StringComparer.Ordinal);
+        Assert.Contains("GIT_CONFIG_GLOBAL=/dev/null", command.Arguments, StringComparer.Ordinal);
+        Assert.Contains("http.followRedirects=false", command.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain(command.Arguments, argument => argument.Contains("workspace-password", StringComparison.Ordinal));
+    }
+
+    private sealed class WorkspaceConnector : IWorkspaceNetworkConnector
+    {
+        public WorkspaceNetworkEgress Egress => WorkspaceNetworkEgress.Direct;
+        public Uri LocalProxyEndpoint => new("socks5://127.0.0.1:45123");
+        public WorkspaceNetworkProxyCredentials LocalProxyCredentials => new("workspace", "workspace-password");
+        public ValueTask<Stream> ConnectTcpAsync(string host, int port, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    [Fact]
     public async Task GovernedPushRejectsLocalRemoteBeforeClientOrServerHooks()
     {
         await using var repository = await LocalRepository.CreateAsync(withBareRemote: true);

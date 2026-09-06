@@ -1,0 +1,26 @@
+GhostSHELL OpenVPN userspace engine
+
+OpenVPN 3 Core 3.11.7, commit 18edfae7e7fd8051c93bd4746ec69be91eb02dbb.
+Copyright OpenVPN Inc. Used under its Mozilla Public License 2.0 option.
+Unmodified source: https://github.com/OpenVPN/openvpn3/tree/18edfae7e7fd8051c93bd4746ec69be91eb02dbb
+Source archive SHA-256: 94df957ac9782ce077b55dc4451fc7aa087ebfaaa26962fbb3fad7596e91d97a
+See OPENVPN-MPL-2.0.txt and OPENVPN-LICENSE.md.
+
+Asio 1.32.0, copyright Christopher M. Kohlhoff, Boost Software License 1.0.
+Source: https://github.com/chriskohlhoff/asio/tree/asio-1-32-0
+Source archive SHA-256: f1b94b80eeb00bb63a3c8cef5047d4e409df4d8a3fe502305976965827d95672
+See ASIO-LICENSE.txt.
+
+OpenSSL 3.6.4, copyright The OpenSSL Project Authors, Apache License 2.0.
+Source: https://github.com/openssl/openssl/releases/tag/openssl-3.6.4
+Source archive SHA-256: 9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef
+See OPENSSL-LICENSE.txt.
+
+LZ4 1.10.0, copyright Yann Collet, BSD 2-Clause License for the linked library.
+Source: https://github.com/lz4/lz4/tree/v1.10.0
+Source archive SHA-256: 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
+See LZ4-LICENSE.txt.
+
+Build recipe: scripts/build-openvpn-engine.sh in the GhostSHELL source repository.
+The engine statically links these libraries. Its remaining runtime dependencies
+are Apple system libraries and frameworks; no Homebrew packages are required.

@@ -6,6 +6,23 @@ namespace GhostShell.Infrastructure.Tests;
 public sealed class ConnectionCommandExecutorTests
 {
     [Fact]
+    public void Ssh_control_connections_belong_to_the_workspace_route()
+    {
+        var profile = SshProfile();
+        var first = ConnectionCommandExecutor.SshControlPath(profile, "socks5://127.0.0.1:1234");
+        var second = ConnectionCommandExecutor.SshControlPath(profile, "socks5://127.0.0.1:5678");
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Null(first);
+            Assert.Null(second);
+            return;
+        }
+
+        Assert.NotEqual(first, second, StringComparer.Ordinal);
+        Assert.Equal(first, ConnectionCommandExecutor.SshControlPath(profile, "socks5://127.0.0.1:1234"));
+    }
+
+    [Fact]
     public async Task TextCommandsReportTruncationWithoutAllocatingTheEntireLimitUpFront()
     {
         if (OperatingSystem.IsWindows())

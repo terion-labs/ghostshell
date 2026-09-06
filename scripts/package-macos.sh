@@ -33,6 +33,52 @@ nuget_packages="${NUGET_PACKAGES:-${repository_dir}/.nuget/packages}"
 sql_language_artifact_directory="${repository_dir}/native/artifacts/osx-arm64"
 sql_language_worker="${sql_language_artifact_directory}/ghostshell-sql-language"
 sql_language_receipt="${sql_language_artifact_directory}/build-receipt.json"
+workspace_gateway_host_directory="${repository_dir}/native/artifacts/osx-arm64"
+workspace_gateway_host_name="ghostshell-workspace-gateway-darwin-arm64"
+connection_engine_directory="${repository_dir}/native/artifacts/osx-arm64/connection-engines"
+workspace_runtime_directory="${repository_dir}/native/artifacts/osx-arm64/workspace-runtime"
+connection_engine_code_files=(
+    ghostshell-openvpn-engine
+    openconnect
+    libopenconnect.5.dylib
+    tailscale
+    tailscaled
+)
+connection_engine_legal_files=(
+    MANIFEST.sha256
+    THIRD-PARTY-NOTICES.md
+    GO-LICENSE.txt
+    OPENCONNECT-LGPL-2.1.txt
+    OPENCONNECT-SOURCE-AND-RELINKING.md
+    OPENSSL-LICENSE.txt
+    OPENVPN-MPL-2.0.txt
+    OPENVPN-LICENSE.md
+    ASIO-LICENSE.txt
+    LZ4-LICENSE.txt
+    OPENVPN-VERSIONS.txt
+    OPENVPN-THIRD-PARTY-NOTICES.txt
+)
+connection_engine_source="sources/openconnect-9.21.tar.gz"
+
+# Assets and their legal evidence move to separate bundle roots; compare each
+# staged byte against the verified build payload before release signing.
+verify_workspace_runtime_copy() {
+    local code_directory="$1" legal_directory="$2"
+    local source relative target
+    while IFS= read -r source; do
+        relative="${source#${workspace_runtime_directory}/}"
+        if [[ "${relative}" == legal/* ]]; then
+            target="${legal_directory}/${relative#legal/}"
+        else
+            target="${code_directory}/${relative}"
+        fi
+        if [[ ! -f "${target}" || -L "${target}" ]] || ! /usr/bin/cmp -s "${source}" "${target}"; then
+            echo "The workspace runtime payload is missing or altered: ${relative}." >&2
+            exit 1
+        fi
+    done < <(find "${workspace_runtime_directory}" -type f -print)
+    [[ -x "${code_directory}/workspace-runtime" ]] || { echo "Workspace runtime is not executable." >&2; exit 1; }
+}
 maven_content_lock="${repository_dir}/native/sql-language-worker/maven-content-lock.json"
 maximum_sql_language_macos_version="13.0"
 
@@ -359,6 +405,10 @@ required_native=(
     "${sql_language_artifact_directory}/THIRD-PARTY-NOTICES.md"
     "${sql_language_artifact_directory}/runtime-dependencies.txt"
     "${sql_language_receipt}"
+    "${workspace_gateway_host_directory}/${workspace_gateway_host_name}"
+    "${workspace_gateway_host_directory}/workspace-network-gateway-MANIFEST.sha256"
+    "${workspace_gateway_host_directory}/workspace-network-gateway-THIRD-PARTY-NOTICES.md"
+    "${workspace_gateway_host_directory}/workspace-network-gateway-GO-LICENSE.txt"
     "${maven_content_lock}"
     "${native_component_catalog}"
     "${native_build_receipt}"
@@ -377,6 +427,26 @@ for required in "${required_native[@]}"; do
         exit 1
     fi
 done
+"${repository_dir}/scripts/build-workspace-runtime.sh" --verify
+for required in \
+    "${connection_engine_code_files[@]}" \
+    "${connection_engine_legal_files[@]}" \
+    "${connection_engine_source}"; do
+    if [[ ! -f "${connection_engine_directory}/${required}" \
+        || -L "${connection_engine_directory}/${required}" ]]; then
+        echo "The bundled connection engine payload is incomplete or linked; missing ${required}." >&2
+        exit 1
+    fi
+done
+(
+    cd "${connection_engine_directory}"
+    /usr/bin/shasum -a 256 -c MANIFEST.sha256
+)
+
+(
+    cd "${workspace_gateway_host_directory}"
+    /usr/bin/shasum -a 256 -c workspace-network-gateway-MANIFEST.sha256
+)
 
 sql_language_receipt_rid="$(/usr/bin/plutil -extract rid raw -o - "${sql_language_receipt}")"
 sql_language_receipt_protocol="$(/usr/bin/plutil -extract protocolVersion raw -o - "${sql_language_receipt}")"
@@ -556,7 +626,10 @@ fi
     -p:GhostShellCefRuntimeArtifactDirectory="${cef_runtime_root}" \
     -p:DebugType=None \
     -p:DebugSymbols=false \
-    -p:GhostShellSqlLanguageRequired=true
+    -p:GhostShellSqlLanguageRequired=true \
+    -p:GhostShellWorkspaceGatewayRequired=true \
+    -p:GhostShellConnectionEnginesRequired=true \
+    -p:GhostShellWorkspaceRuntimeRequired=true
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
 fi
@@ -578,6 +651,9 @@ fi
     -p:DebugType=None \
     -p:DebugSymbols=false \
     -p:GhostShellSqlLanguageRequired=true \
+    -p:GhostShellWorkspaceGatewayRequired=true \
+    -p:GhostShellConnectionEnginesRequired=true \
+    -p:GhostShellWorkspaceRuntimeRequired=true \
     2>&1 | /usr/bin/tee "${aot_publish_log}"
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
@@ -638,6 +714,10 @@ required_publish=(
     "${publish_dir}/runtimes/osx-arm64/native/THIRD-PARTY-NOTICES.md"
     "${publish_dir}/runtimes/osx-arm64/native/runtime-dependencies.txt"
     "${publish_dir}/runtimes/osx-arm64/native/build-receipt.json"
+    "${publish_dir}/runtimes/osx-arm64/native/${workspace_gateway_host_name}"
+    "${publish_dir}/runtimes/osx-arm64/native/workspace-network-gateway-MANIFEST.sha256"
+    "${publish_dir}/runtimes/osx-arm64/native/workspace-network-gateway-THIRD-PARTY-NOTICES.md"
+    "${publish_dir}/runtimes/osx-arm64/native/workspace-network-gateway-GO-LICENSE.txt"
     "${publish_dir}/THIRD-PARTY-NOTICES.md"
     "${publish_dir}/DOTNET-LICENSE.txt"
     "${publish_dir}/DOTNET-THIRD-PARTY-NOTICES.txt"
@@ -666,6 +746,36 @@ for required in "${required_publish[@]}"; do
         exit 1
     fi
 done
+
+published_connection_engine_code="${publish_dir}/runtimes/osx-arm64/connection-engines"
+verify_workspace_runtime_copy "${publish_dir}/runtimes/osx-arm64/workspace-runtime" "${publish_dir}/workspace-runtime-legal"
+published_connection_engine_legal="${publish_dir}/connection-engine-legal"
+for required in "${connection_engine_code_files[@]}"; do
+    if [[ ! -f "${published_connection_engine_code}/${required}" \
+        || -L "${published_connection_engine_code}/${required}" \
+        || ! -x "${published_connection_engine_code}/${required}" ]] \
+        || ! /usr/bin/cmp -s \
+            "${connection_engine_directory}/${required}" \
+            "${published_connection_engine_code}/${required}"; then
+        echo "The published connection engine ${required} is missing, linked, non-executable, or altered." >&2
+        exit 1
+    fi
+done
+for required in "${connection_engine_legal_files[@]}" "${connection_engine_source}"; do
+    if [[ ! -f "${published_connection_engine_legal}/${required}" \
+        || -L "${published_connection_engine_legal}/${required}" ]] \
+        || ! /usr/bin/cmp -s \
+            "${connection_engine_directory}/${required}" \
+            "${published_connection_engine_legal}/${required}"; then
+        echo "The published connection engine evidence ${required} is missing, linked, or altered." >&2
+        exit 1
+    fi
+done
+
+(
+    cd "${publish_dir}/runtimes/osx-arm64/native"
+    /usr/bin/shasum -a 256 -c workspace-network-gateway-MANIFEST.sha256
+)
 
 # Apply the Objective-C class namespace fix before managed evidence and package
 # fingerprints are generated, so the inspected payload is the shipped payload.
@@ -866,6 +976,39 @@ if [[ ! -x "${candidate}/Contents/MacOS/runtimes/osx-arm64/native/ghostshell-sql
     echo "The packaged SQL language worker is missing or not executable." >&2
     exit 1
 fi
+candidate_workspace_gateway_host="${candidate}/Contents/MacOS/runtimes/osx-arm64/native"
+if [[ ! -x "${candidate_workspace_gateway_host}/${workspace_gateway_host_name}" ]]; then
+    echo "The packaged workspace network gateway payload is incomplete or not executable." >&2
+    exit 1
+fi
+(
+    cd "${candidate_workspace_gateway_host}"
+    /usr/bin/shasum -a 256 -c workspace-network-gateway-MANIFEST.sha256
+)
+candidate_connection_engine_code="${candidate}/Contents/MacOS/runtimes/osx-arm64/connection-engines"
+verify_workspace_runtime_copy "${candidate}/Contents/MacOS/runtimes/osx-arm64/workspace-runtime" "${candidate}/Contents/Resources/workspace-runtime-legal"
+candidate_connection_engine_legal="${candidate}/Contents/Resources/connection-engine-legal"
+for required in "${connection_engine_code_files[@]}"; do
+    if [[ ! -f "${candidate_connection_engine_code}/${required}" \
+        || -L "${candidate_connection_engine_code}/${required}" \
+        || ! -x "${candidate_connection_engine_code}/${required}" ]] \
+        || ! /usr/bin/cmp -s \
+            "${connection_engine_directory}/${required}" \
+            "${candidate_connection_engine_code}/${required}"; then
+        echo "The packaged connection engine ${required} is missing, linked, non-executable, or altered." >&2
+        exit 1
+    fi
+done
+for required in "${connection_engine_legal_files[@]}" "${connection_engine_source}"; do
+    if [[ ! -f "${candidate_connection_engine_legal}/${required}" \
+        || -L "${candidate_connection_engine_legal}/${required}" ]] \
+        || ! /usr/bin/cmp -s \
+            "${connection_engine_directory}/${required}" \
+            "${candidate_connection_engine_legal}/${required}"; then
+        echo "The packaged connection engine evidence ${required} is missing, linked, or altered." >&2
+        exit 1
+    fi
+done
 candidate_sql_language_directory="${candidate}/Contents/MacOS/runtimes/osx-arm64/native"
 candidate_sql_language_resources="${candidate}/Contents/Resources/Native/SqlLanguage"
 for required in \

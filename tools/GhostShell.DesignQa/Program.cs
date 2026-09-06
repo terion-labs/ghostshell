@@ -79,6 +79,10 @@ internal static class Program
         "workspace-redis",
         "settings-appearance",
         "settings-workspaces",
+        "settings-networking",
+        "settings-networking-editor",
+        "settings-workspace-editor-isolated",
+        "settings-workspace-editor-networking",
         "settings-terminal",
         "settings-quick-terminal",
         "settings-keybindings",
@@ -312,6 +316,13 @@ internal sealed class QaApplication : Avalonia.Application
         new("settings-security", vm => vm.ShowSettings(SettingsPage.Secrets)),
         new("settings-appearance", vm => vm.ShowSettings(SettingsPage.Appearance)),
         new("settings-workspaces", vm => vm.ShowSettings(SettingsPage.Workspaces)),
+        new("settings-networking", vm => vm.ShowSettings(SettingsPage.Networking)),
+        // The connection editor is a dialog, opened on the saved proxy so the
+        // account and credential slots render filled rather than blank.
+        new(
+            "settings-networking-editor",
+            vm => vm.ShowSettings(SettingsPage.Networking),
+            Dialog: OpenNetworkConnectionEditor),
         new("settings-terminal", vm => vm.ShowSettings(SettingsPage.Terminal)),
         new("settings-quick-terminal", vm => vm.ShowSettings(SettingsPage.QuickTerminal)),
         new("settings-keybindings", vm => vm.ShowSettings(SettingsPage.Keybindings)),
@@ -602,6 +613,24 @@ internal sealed class QaApplication : Avalonia.Application
             vm.ShowSettings(SettingsPage.Workspaces);
             vm.BeginEditWorkspace(new WorkspaceId("operations"));
         }, Height: 1200),
+        // The isolated workspace: host mounts, the runtime image, and a
+        // network policy of its own, which the plain editor never shows.
+        new("settings-workspace-editor-isolated", vm =>
+        {
+            vm.ShowSettings(SettingsPage.Workspaces);
+            vm.BeginEditWorkspace(new WorkspaceId("field"));
+        }, Height: 1500),
+        // The same editor scrolled to its end: the workspace's own network
+        // policy and the connections it offers sit below the fold.
+        new(
+            "settings-workspace-editor-networking",
+            vm =>
+            {
+                vm.ShowSettings(SettingsPage.Workspaces);
+                vm.BeginEditWorkspace(new WorkspaceId("field"));
+            },
+            Height: 1500,
+            PrepareCapture: ScrollWorkspaceEditorToEnd),
         // The two interactions a still capture cannot otherwise reach. Both
         // drive the real controls — the flyout is opened as a click opens it,
         // and the reorder is a genuine press-move-release on the drag handle —
@@ -769,6 +798,27 @@ internal sealed class QaApplication : Avalonia.Application
     /// The dialog the tab list opens, built from the same options the editor
     /// hands it.
     /// </summary>
+    private static void ScrollWorkspaceEditorToEnd(MainWindow window)
+    {
+        var editor = window.GetVisualDescendants()
+            .OfType<WorkspaceEditorView>()
+            .First();
+        // The detail column's own scroller, by name: the rail's list scrolls
+        // too, and it comes first in the tree.
+        editor.FindControl<ScrollViewer>("DetailScroll")!.ScrollToEnd();
+    }
+
+    private static Window OpenNetworkConnectionEditor(MainWindowViewModel viewModel)
+    {
+        var settings = viewModel.NetworkSettings;
+        var proxy = settings.Profiles.Single(profile =>
+            string.Equals(profile.Name, "Corp proxy", StringComparison.Ordinal));
+        // The draft is created before the vault is consulted, so the dialog
+        // has an editor to show as soon as this returns.
+        _ = settings.BeginEditProfileAsync(proxy, CancellationToken.None).AsTask();
+        return new NetworkConnectionEditorDialog(settings);
+    }
+
     private static Window OpenAddTabDialog(MainWindowViewModel viewModel)
     {
         var editor = viewModel.WorkspaceEditor

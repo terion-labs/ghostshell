@@ -36,6 +36,8 @@ public enum DefinitionImportIssueCode
     ImportedMcpProfileDisabled,
     ImportedAiProviderProfileDisabled,
     ImportedBrowserProfileDisabled,
+    ImportedNetworkCredentialsDetached,
+    ImportedNetworkPolicyDisabled,
 }
 
 public sealed record DefinitionImportIssue(

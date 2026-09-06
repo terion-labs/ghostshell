@@ -10,7 +10,7 @@ namespace GhostShell.Infrastructure;
 /// Performs a bounded SSH handshake only far enough to capture the server's public host key. It
 /// deliberately rejects that key on the wire; trust is a separate compare-and-swap operation.
 /// </summary>
-internal sealed class SshNetHostKeyScanner : ISshHostKeyScanner
+internal sealed class SshNetHostKeyScanner(IWorkspaceNetworkConnector? networkConnector = null) : ISshHostKeyScanner
 {
     private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(12);
 
@@ -25,15 +25,13 @@ internal sealed class SshNetHostKeyScanner : ISshHostKeyScanner
         }
 
         var username = endpoint.Username ?? "ghostshell-host-key-scan";
-        var connection = new ConnectionInfo(
-            endpoint.Host,
-            endpoint.Port,
+        var connection = WorkspaceSshConnectionInfo.Create(
+            endpoint,
             username,
-            new NoneAuthenticationMethod(username))
-        {
-            Timeout = ScanTimeout,
-            RetryAttempts = 1,
-        };
+            new NoneAuthenticationMethod(username),
+            networkConnector);
+        connection.Timeout = ScanTimeout;
+        connection.RetryAttempts = 1;
         using var client = new SshClient(connection);
         SshHostKeyCandidate? candidate = null;
         client.HostKeyReceived += (_, eventArgs) =>

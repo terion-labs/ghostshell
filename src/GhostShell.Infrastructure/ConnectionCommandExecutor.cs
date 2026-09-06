@@ -331,7 +331,7 @@ public sealed class ConnectionCommandExecutor(
                 SshArguments(
                     launch.Arguments,
                     request,
-                    SshControlPath(request.Connection)),
+                    SshControlPath(request.Connection, ProxyIdentity(launch))),
             ConnectionKind.Docker =>
                 DockerArguments(launch.Arguments, request),
             ConnectionKind.Wsl =>
@@ -358,7 +358,7 @@ public sealed class ConnectionCommandExecutor(
                     launch.Arguments,
                     request.Executable,
                     request.Arguments,
-                    SshControlPath(request.Connection)),
+                    SshControlPath(request.Connection, ProxyIdentity(launch))),
             ConnectionKind.Docker =>
                 DockerArgumentsCore(launch.Arguments, request.Executable, request.Arguments),
             ConnectionKind.Wsl =>
@@ -428,7 +428,10 @@ public sealed class ConnectionCommandExecutor(
         return Array.AsReadOnly(arguments.ToArray());
     }
 
-    internal static string? SshControlPath(ConnectionProfile connection)
+    private static string? ProxyIdentity(TerminalLaunchRequest launch) =>
+        launch.Environment.TryGetValue("ALL_PROXY", out var proxy) ? proxy : null;
+
+    internal static string? SshControlPath(ConnectionProfile connection, string? routeIdentity = null)
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
         {
@@ -450,6 +453,9 @@ public sealed class ConnectionCommandExecutor(
         }
 
         AppendAuthenticationIdentity(identity, connection.Authentication);
+        // OpenSSH's %C excludes ProxyCommand. A master must never be shared
+        // between workspace brokers, even when their SSH profiles are identical.
+        identity.Append('\0').Append(routeIdentity);
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(identity.ToString()));
         var profileIdentity = Convert.ToHexString(digest.AsSpan(0, 6)).ToLowerInvariant();
         return $"/tmp/ghostshell-{Environment.ProcessId}-{SshControlInstance}-{profileIdentity}-%C";

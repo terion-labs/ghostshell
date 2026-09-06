@@ -20,6 +20,7 @@ public sealed class AgentWebSearchSessionHostTests
         var search = Assert.IsType<AgentWebSearchResult>(result);
         Assert.Equal("Search results", search.Title);
         Assert.Equal(1, fixture.Executor.SearchCount);
+        Assert.Equal(fixture.WorkspaceId, fixture.Executor.LastWorkspaceId);
         var completion = Assert.Single(fixture.Authorization.Completions);
         Assert.Equal(AgentActionOutcome.Succeeded, completion.Outcome);
         Assert.Equal("web_search_completed", completion.StableCode);
@@ -177,13 +178,17 @@ public sealed class AgentWebSearchSessionHostTests
     {
         public int SearchCount { get; private set; }
 
+        public WorkspaceInstanceId? LastWorkspaceId { get; private set; }
+
         public ValueTask<AgentWebToolExecutionResult> ExecuteAsync(
+            WorkspaceInstanceId workspaceId,
             AgentWebToolRequest request,
             CancellationToken cancellationToken)
         {
             _ = request;
             cancellationToken.ThrowIfCancellationRequested();
             SearchCount++;
+            LastWorkspaceId = workspaceId;
             return ValueTask.FromResult<AgentWebToolExecutionResult>(
                 new AgentWebToolExecutionResult.Succeeded(
                     new AgentWebSearchResult(

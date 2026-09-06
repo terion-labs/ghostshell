@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using GhostShell.Agent;
 using GhostShell.Application;
 using GhostShell.Core;
@@ -52,7 +54,7 @@ public sealed class CatalogAiProviderRuntime :
                 oauthOptions),
             proxy => new AiProviderFactory(
                 secretVault,
-                AiProviderHttpTransport.CreateHandler(new WebProxy(proxy)),
+                AiProviderHttpTransport.CreateHandler(CreateWebProxy(proxy)),
                 limits,
                 oauthOptions))
     {
@@ -353,7 +355,8 @@ public sealed class CatalogAiProviderRuntime :
                     "Routed AI-provider connections are unavailable in this composition.");
             }
 
-            var key = networkProxy.AbsoluteUri;
+            var key = Convert.ToHexString(SHA256.HashData(
+                Encoding.UTF8.GetBytes(networkProxy.AbsoluteUri)));
             if (!_routedFactories.TryGetValue(key, out routedFactory!))
             {
                 routedFactory = _routedFactoryFactory(networkProxy);
@@ -362,6 +365,31 @@ public sealed class CatalogAiProviderRuntime :
         }
 
         return routedFactory.Create(profile, model, serviceTier);
+    }
+
+    internal static WebProxy CreateWebProxy(Uri endpoint)
+    {
+        var proxy = new WebProxy(new UriBuilder(endpoint)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+        }.Uri);
+        if (!string.IsNullOrEmpty(endpoint.UserInfo))
+        {
+            var userInfo = endpoint.UserInfo.Split(':', 2);
+            if (userInfo.Length != 2)
+            {
+                throw new ArgumentException(
+                    "The workspace network proxy credentials are invalid.",
+                    nameof(endpoint));
+            }
+
+            proxy.Credentials = new NetworkCredential(
+                Uri.UnescapeDataString(userInfo[0]),
+                Uri.UnescapeDataString(userInfo[1]));
+        }
+
+        return proxy;
     }
 
     public async ValueTask<AgentChatSendResult> SendAsync(

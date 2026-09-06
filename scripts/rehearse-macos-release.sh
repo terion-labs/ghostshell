@@ -171,7 +171,7 @@ for required_variable in \
         exit 1
     fi
 done
-for required_command in assetutil cmake curl ditto file mvn python3 security shasum spctl; do
+for required_command in assetutil cmake curl ditto file go mvn python3 security shasum spctl; do
     if ! command -v "${required_command}" >/dev/null 2>&1; then
         echo "Release rehearsal requires ${required_command}." >&2
         exit 1
@@ -364,6 +364,10 @@ cd "${sealed_source}"
     --source-root . \
     --require-clearance
 ./scripts/build-libghostty-vt.sh --rid osx-arm64
+./scripts/build-workspace-network-gateway.sh --rid osx-arm64
+./scripts/build-workspace-runtime.sh
+./scripts/build-openvpn-engine.sh
+./scripts/build-macos-connection-engines.sh
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
 ./scripts/build-cef-runtime.sh --rid osx-arm64 --dotnet "${dotnet}"
 security unlock-keychain -p "${signing_password}" "${signing_keychain}"

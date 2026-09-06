@@ -106,7 +106,8 @@ public sealed class DefinitionEditSessionViewModel : ObservableObject
                 current.IsIsolated,
                 current.IsolationMounts,
                 current.IsolationImageReference,
-                current.RunAgentInIsolation);
+                current.RunAgentInIsolation,
+                current.NetworkOverride);
             return ToUnit(await _catalog.SaveWorkspaceAsync(
                 updated,
                 revision,

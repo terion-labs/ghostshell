@@ -14,17 +14,26 @@ RUN apt-get update \
         less \
         locales \
         man-db \
+        nftables \
+        openconnect \
+        openvpn \
         openssh-client \
         procps \
+        redsocks \
+        socat \
         sudo \
         systemd \
         systemd-sysv \
         tzdata \
         vim-tiny \
         wget \
+        wireguard-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && yes | unminimize
+
+RUN useradd --system --no-create-home --home-dir /nonexistent \
+        --shell /usr/sbin/nologin ghostshell-net
 
 RUN : > /etc/machine-id \
     && : > /var/lib/dbus/machine-id \

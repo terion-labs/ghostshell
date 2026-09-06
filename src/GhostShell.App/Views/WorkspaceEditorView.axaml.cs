@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using GhostShell.App.Controls;
 using GhostShell.App.ViewModels;
 using GhostShell.App.Views.Components;
@@ -213,6 +214,30 @@ public sealed partial class WorkspaceEditorView : UserControl
             && sender is Control { DataContext: WorkspaceIsolationMountEditorViewModel mount })
         {
             editor.RemoveIsolationMount(mount);
+        }
+    }
+
+    /// <summary>
+    /// The host path is a folder on this machine, so the platform's folder
+    /// picker names it — typing an absolute path is the fallback, not the way.
+    /// </summary>
+    private async void OnBrowseIsolationMountHostPathClick(object? sender, RoutedEventArgs e)
+    {
+        _ = e;
+        if (sender is not Control { DataContext: WorkspaceIsolationMountEditorViewModel mount }
+            || TopLevel.GetTopLevel(this)?.StorageProvider is not { CanPickFolder: true } storage)
+        {
+            return;
+        }
+
+        var picked = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose a host folder",
+            AllowMultiple = false,
+        });
+        if (picked.Count > 0 && picked[0].TryGetLocalPath() is { } path)
+        {
+            mount.HostPath = path;
         }
     }
 

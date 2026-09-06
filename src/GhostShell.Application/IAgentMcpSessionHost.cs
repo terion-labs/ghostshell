@@ -28,6 +28,7 @@ public sealed record AgentMcpOpenRunRequest
     public AgentMcpOpenRunRequest(
         AgentRunId runId,
         ActorDescriptor actor,
+        WorkspaceInstanceId workspaceId,
         DateTimeOffset openedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(runId.Value))
@@ -54,12 +55,22 @@ public sealed record AgentMcpOpenRunRequest
 
         RunId = runId;
         Actor = actor;
+        if (string.IsNullOrWhiteSpace(workspaceId.Value))
+        {
+            throw new ArgumentException(
+                "An MCP run requires a workspace identifier.",
+                nameof(workspaceId));
+        }
+
+        WorkspaceId = workspaceId;
         OpenedAtUtc = openedAtUtc;
     }
 
     public AgentRunId RunId { get; }
 
     public ActorDescriptor Actor { get; }
+
+    public WorkspaceInstanceId WorkspaceId { get; }
 
     public DateTimeOffset OpenedAtUtc { get; }
 }

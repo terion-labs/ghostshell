@@ -188,6 +188,7 @@ public interface IDatabasePanelSessionFactory
     CapabilitySet RedisCapabilities { get; }
 
     ValueTask<IDatabasePanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
         SessionId sessionId,
         DatabaseSessionTarget target,
         CancellationToken cancellationToken);

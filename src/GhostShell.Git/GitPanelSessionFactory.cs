@@ -28,6 +28,13 @@ public sealed class GitPanelSessionFactory(
         SessionCapabilities.GitCommit,
     ]);
 
+    public ValueTask<IGitPanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
+        SessionId sessionId,
+        GitSessionTarget target,
+        CancellationToken cancellationToken) =>
+        CreateAsync(sessionId, target, cancellationToken);
+
     public async ValueTask<IGitPanelSession> CreateAsync(
         SessionId sessionId,
         GitSessionTarget target,

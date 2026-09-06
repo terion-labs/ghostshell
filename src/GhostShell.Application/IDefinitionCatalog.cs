@@ -125,6 +125,25 @@ public interface IDefinitionCatalog
         long? expectedRevision,
         CancellationToken cancellationToken);
 
+    ValueTask<DefinitionStoreResult<StoredDefinition<NetworkConnectionProfile>>> SaveNetworkConnectionAsync(
+        NetworkConnectionProfile definition,
+        long? expectedRevision,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult(
+            DefinitionStoreResult<StoredDefinition<NetworkConnectionProfile>>.Failure(new(
+                DefinitionStoreErrorCode.UnsupportedKind,
+                "This catalog cannot store network connections.")));
+
+    ValueTask<DefinitionStoreResult<StoredDefinition<ApplicationNetworkSettings>>>
+        SaveApplicationNetworkSettingsAsync(
+            ApplicationNetworkSettings definition,
+            long? expectedRevision,
+            CancellationToken cancellationToken) =>
+        ValueTask.FromResult(
+            DefinitionStoreResult<StoredDefinition<ApplicationNetworkSettings>>.Failure(new(
+                DefinitionStoreErrorCode.UnsupportedKind,
+                "This catalog cannot store application network settings.")));
+
     ValueTask<DefinitionStoreResult<Unit>> DeleteAsync(
         DefinitionKey key,
         long expectedRevision,

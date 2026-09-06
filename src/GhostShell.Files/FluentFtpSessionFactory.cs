@@ -5,6 +5,7 @@ using System.Security.Authentication;
 using System.Text;
 using FluentFTP;
 using FluentFTP.Exceptions;
+using FluentFTP.Proxy.AsyncProxy;
 using GhostShell.Application;
 using GhostShell.Core;
 
@@ -13,7 +14,10 @@ namespace GhostShell.Files;
 /// <summary>Maps the frozen provider seam to FluentFTP without leaking its SDK types.</summary>
 internal sealed class FluentFtpSessionFactory(
     ISecretVault secretVault,
-    FtpFileProviderOptions options) : IRemoteHierarchicalFileSessionFactory, IFtpFeatureSource
+    FtpFileProviderOptions options,
+    IWorkspaceNetworkConnector? networkConnector = null) :
+    IRemoteHierarchicalFileSessionFactory,
+    IFtpFeatureSource
 {
     private FtpConnectionSnapshot? _lastConnection;
 
@@ -31,15 +35,31 @@ internal sealed class FluentFtpSessionFactory(
         }
 
         var config = CreateConfig(options);
-        var client = new AsyncFtpClient(
-            options.Host,
-            new NetworkCredential(options.Username, password),
-            options.Port,
-            config,
-            logger: null)
-        {
-            Encoding = options.ControlEncoding,
-        };
+        var credentials = new NetworkCredential(options.Username, password);
+        AsyncFtpClient client = networkConnector is null
+            ? new AsyncFtpClient(
+                options.Host,
+                credentials,
+                options.Port,
+                config,
+                logger: null)
+            : new AsyncFtpClientSocks5Proxy(new FtpProxyProfile
+            {
+                ProxyHost = networkConnector.LocalProxyEndpoint.Host,
+                ProxyPort = networkConnector.LocalProxyEndpoint.Port,
+                ProxyCredentials = networkConnector.LocalProxyCredentials is { } proxyCredentials
+                    ? new NetworkCredential(
+                        proxyCredentials.Username,
+                        proxyCredentials.Password)
+                    : null,
+                FtpHost = options.Host,
+                FtpPort = options.Port,
+                FtpCredentials = credentials,
+            })
+            {
+                Config = config,
+            };
+        client.Encoding = options.ControlEncoding;
 
         try
         {

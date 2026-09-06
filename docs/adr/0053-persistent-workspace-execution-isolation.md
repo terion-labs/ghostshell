@@ -51,7 +51,7 @@ resource is reused.
 
 ### macOS
 
-The target provider is an app-bundled, signed Swift helper over
+The provider is an app-bundled, signed Swift helper over
 [Apple Containerization](https://github.com/apple/containerization/blob/main/README.md).
 Containerization already runs each Linux container in its own lightweight VM,
 uses Virtualization.framework on Apple silicon, provides OCI image and ext4
@@ -60,7 +60,19 @@ guest processes through `vminitd` over vsock. Building on bare
 `VZVirtualMachine` would make GhostSHELL recreate all of those layers without
 producing a lighter execution boundary.
 
-The first provider is explicitly a bootstrap adapter over Apple's installed
+As of 2026-09-05, the default provider uses Containerization 0.42.0 directly.
+One signed `workspace-runtime` process owns each VM and persistent ext4 disk;
+mount changes replace VM configuration without exporting or rebuilding that disk.
+Its only virtual NIC terminates at the host-owned gateway, and its private Unix
+control channel supports structured exec, PTY resizing and route leases. The
+runtime, kernel, init filesystem and required libraries are bundled. No installed
+Apple CLI or custom guest network helper is required. SDK workspaces start fresh;
+CLI workspace migration is explicitly out of scope. See
+[the implementation contract](../architecture/host-owned-workspace-network.md).
+
+### Earlier CLI bootstrap (superseded)
+
+The first provider was a bootstrap adapter over Apple's installed
 [`container` CLI](https://github.com/apple/container/blob/main/docs/command-reference.md).
 It is available only on Apple silicon with macOS 26 and a compatible external
 runtime. It creates one persistent named VM-backed container per workspace and

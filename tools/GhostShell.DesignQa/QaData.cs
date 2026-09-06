@@ -196,6 +196,14 @@ internal static class QaData
             ["production"])),
     ];
 
+    // Declared before the workspaces that reference them: static initializers
+    // run in textual order, and a policy built from an unset ID throws.
+    private static readonly NetworkConnectionId OfficeVpnId = new("office-vpn");
+
+    private static readonly NetworkConnectionId CorpProxyId = new("corp-proxy");
+
+    private static readonly NetworkConnectionId FieldTailnetId = new("field-tailnet");
+
     public static IReadOnlyList<StoredDefinition<WorkspaceDefinition>> Workspaces { get; } =
     [
         Stored(new WorkspaceDefinition(
@@ -259,7 +267,75 @@ internal static class QaData
                     "Full-stack Dev"),
             ],
             icon: "code")),
+        // Isolated, with host folders mounted and its own network route, so
+        // the editor's isolation and networking groups render populated
+        // rather than as two toggles that are off.
+        Stored(new WorkspaceDefinition(
+            new WorkspaceId("field"),
+            WorkspaceDefinition.CurrentSchemaVersion,
+            "Field",
+            "Customer site work over the office VPN",
+            "#7A6BD1",
+            [
+                new WorkspaceEntry.ConnectionReference(
+                    new WorkspaceEntryId("field-bastion"),
+                    new ConnectionId("bastion-eu"),
+                    null),
+            ],
+            icon: "shield",
+            isIsolated: true,
+            isolationMounts:
+            [
+                new WorkspaceIsolationMountDefinition("/Users/me/projects/field", "/workspace", false),
+                new WorkspaceIsolationMountDefinition("/Users/me/.ssh", "/home/me/.ssh", true),
+            ],
+            networkOverride: new NetworkPolicy(
+                [OfficeVpnId, CorpProxyId],
+                OfficeVpnId,
+                isEnabled: true,
+                killSwitchEnabled: true))),
     ];
+
+    /// <summary>
+    /// One of each shape the connection list distinguishes: a VPN whose whole
+    /// configuration is a vault document, a proxy with an endpoint and an
+    /// account, and a tailnet exit node.
+    /// </summary>
+    public static IReadOnlyList<StoredDefinition<NetworkConnectionProfile>> NetworkConnections { get; } =
+    [
+        Stored(new NetworkConnectionProfile(
+            OfficeVpnId,
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Office VPN",
+            new NetworkConnectionConfiguration.WireGuard(new SecretRef("qa-office-vpn-config")))),
+        Stored(new NetworkConnectionProfile(
+            CorpProxyId,
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Corp proxy",
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Socks5,
+                "proxy.corp.example",
+                1080,
+                "terion",
+                new SecretRef("qa-corp-proxy-password")))),
+        Stored(new NetworkConnectionProfile(
+            FieldTailnetId,
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Field tailnet",
+            new NetworkConnectionConfiguration.Tailscale("field-exit-1"))),
+    ];
+
+    /// <summary>The application default: routed through the office VPN, kill switch on.</summary>
+    public static StoredDefinition<ApplicationNetworkSettings> ApplicationNetworkSettings { get; } =
+        Stored(new ApplicationNetworkSettings(
+            GhostShell.Core.ApplicationNetworkSettings.DefaultId,
+            GhostShell.Core.ApplicationNetworkSettings.CurrentSchemaVersion,
+            "Application networking",
+            new NetworkPolicy(
+                [OfficeVpnId, CorpProxyId, FieldTailnetId],
+                OfficeVpnId,
+                isEnabled: true,
+                killSwitchEnabled: true)));
 
     /// <summary>
     /// The same built-in terminal profile the catalog seeds on first run, so the
@@ -469,6 +545,8 @@ problem.
         [Stored(QuickTerminalSettings.Default)])
     {
         DatabaseConnections = DatabaseConnections,
+        NetworkConnections = NetworkConnections,
+        ApplicationNetworkSettings = [ApplicationNetworkSettings],
         BrowserProfiles =
         [
             Stored(BuiltInBrowserProfiles.Default),

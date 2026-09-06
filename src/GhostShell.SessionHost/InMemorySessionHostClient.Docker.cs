@@ -148,6 +148,7 @@ public sealed partial class InMemorySessionHostClient
             {
                 createdEngine = await _dockerPanelFactory
                     .CreateAsync(
+                        request.Owner.WorkspaceId,
                         request.SessionId,
                         request.Target,
                         operationCancellation.Token)

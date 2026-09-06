@@ -87,17 +87,15 @@ public abstract record WorkspaceIsolationPlatformSupport
 public sealed class WorkspaceIsolationPlatformResolver
 {
     private static readonly WorkspaceIsolationPlatformAdapter AppleContainer = new(
-        AppleContainerWorkspaceIsolationProvider.ProviderDescriptor,
-        "container",
+        WorkspaceSdkIsolationProvider.ProviderDescriptor,
+        "workspace-runtime",
         new WorkspaceIsolationRuntimeInstallation(
-            "Apple container",
+            "GhostShell workspace runtime",
             new Uri(
-                "https://github.com/apple/container/releases/latest",
+                "https://github.com/terion-labs/ghostshell/releases/latest",
                 UriKind.Absolute),
-            "GhostSHELL could not open Apple's container installer page."),
-        executable => new AppleContainerWorkspaceIsolationProvider(
-            imageReference: AppleContainerWorkspaceIsolationProvider.DefaultImageReference,
-            containerExecutable: executable));
+            "GhostSHELL could not open the application download page."),
+        executable => new WorkspaceSdkIsolationProvider(executable));
 
     public WorkspaceIsolationPlatformSupport ResolveCurrent() =>
         Resolve(

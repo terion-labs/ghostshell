@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GhostShell.Application;
 
 namespace GhostShell.Browser.Tests;
 
@@ -56,6 +57,52 @@ public sealed class CefBrowserNetworkContextTests
         Assert.Equal(
             "direct",
             proxyDocument.RootElement.GetProperty("mode").GetString());
+    }
+
+    [Fact]
+    public void Workspace_browser_uses_credential_free_http_proxy_address()
+    {
+        var preferences = CefBrowserNetworkContext.RequiredPreferences(
+            new Uri("http://127.0.0.1:45002", UriKind.Absolute));
+        using var proxyDocument = JsonDocument.Parse(preferences["proxy"]);
+
+        Assert.Equal(
+            "http://127.0.0.1:45002",
+            proxyDocument.RootElement.GetProperty("server").GetString());
+        Assert.DoesNotContain(
+            "password",
+            preferences["proxy"],
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Workspace_proxy_authentication_matches_only_exact_basic_challenge()
+    {
+        var credentials = new WorkspaceNetworkProxyCredentials("workspace", "password");
+        var resolver = new WorkspaceProxyAuthenticationResolver(
+            new Uri("http://127.0.0.1:45002", UriKind.Absolute),
+            credentials);
+
+        Assert.Equal(
+            new BrowserAuthenticationCredentials("workspace", "password"),
+            resolver.Resolve(new BrowserAuthenticationChallenge(
+                true,
+                "127.0.0.1",
+                45002,
+                "GhostSHELL workspace",
+                "basic")));
+        Assert.Null(resolver.Resolve(new BrowserAuthenticationChallenge(
+            false,
+            "127.0.0.1",
+            45002,
+            "GhostSHELL workspace",
+            "basic")));
+        Assert.Null(resolver.Resolve(new BrowserAuthenticationChallenge(
+            true,
+            "127.0.0.1",
+            45003,
+            "GhostSHELL workspace",
+            "basic")));
     }
 
     [Theory]

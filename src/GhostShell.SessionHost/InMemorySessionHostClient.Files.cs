@@ -158,6 +158,7 @@ public sealed partial class InMemorySessionHostClient
             {
                 createdEngine = await _filePanelFactory
                     .CreateAsync(
+                        request.Owner.WorkspaceId,
                         request.SessionId,
                         request.InitialLocation,
                         operationCancellation.Token)

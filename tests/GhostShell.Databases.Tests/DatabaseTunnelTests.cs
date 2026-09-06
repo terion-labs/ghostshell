@@ -1,11 +1,81 @@
 using GhostShell.Application;
 using GhostShell.Core;
 using GhostShell.Databases;
+using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace GhostShell.Databases.Tests;
 
 public sealed class DatabaseTunnelTests
 {
+    [Theory]
+    [InlineData("postgres")]
+    [InlineData("cockroach")]
+    public void Postgres_relay_keeps_TLS_identity_and_strict_validation(string driverId)
+    {
+        using var connection = Assert.IsType<NpgsqlConnection>(Driver(driverId).CreateRoutedConnection(
+            "Host=db.internal;Database=app;SSL Mode=VerifyFull", "127.0.0.1", 15432));
+        var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = "127.0.0.1" };
+        connection.SslClientAuthenticationOptionsCallback!(options);
+
+        Assert.Equal("db.internal", options.TargetHost);
+        Assert.Null(options.RemoteCertificateValidationCallback);
+        Assert.Equal(SslMode.VerifyFull, new NpgsqlConnectionStringBuilder(connection.ConnectionString).SslMode);
+    }
+
+    [Theory]
+    [InlineData("", "db.internal")]
+    [InlineData(";HostNameInCertificate=certificate.internal", "certificate.internal")]
+    public void SqlServer_relay_keeps_certificate_name_and_validation(string extra, string expected)
+    {
+        var rewritten = Driver("sqlserver").RewriteEndpoint(
+            $"Server=db.internal,1433;Encrypt=True;TrustServerCertificate=False{extra}", "127.0.0.1", 15432);
+        var options = new SqlConnectionStringBuilder(rewritten);
+        Assert.Equal(expected, options.HostNameInCertificate);
+        Assert.False(options.TrustServerCertificate);
+        Assert.Equal("127.0.0.1,15432", options.DataSource);
+    }
+
+    [Theory]
+    [InlineData("mysql")]
+    [InlineData("mariadb")]
+    public void Mysql_full_TLS_verification_uses_an_explicit_logical_identity_validator(string driverId)
+    {
+        using var connection = Assert.IsType<MySqlConnector.MySqlConnection>(Driver(driverId).CreateRoutedConnection(
+            "Server=db.internal;SslMode=VerifyFull", "127.0.0.1", 15432));
+        Assert.NotNull(connection.RemoteCertificateValidationCallback);
+        Assert.False(connection.RemoteCertificateValidationCallback(connection, null, null,
+            System.Net.Security.SslPolicyErrors.RemoteCertificateNotAvailable));
+    }
+
+    [Fact]
+    public void SqlServer_tcp_prefix_does_not_become_part_of_the_TLS_hostname()
+    {
+        var options = new SqlConnectionStringBuilder(Driver("sqlserver").RewriteEndpoint(
+            "Server=tcp:db.internal,1433;Encrypt=True", "127.0.0.1", 15432));
+        Assert.Equal("db.internal", options.HostNameInCertificate);
+    }
+
+    [Theory]
+    [InlineData("mysql", "Server=db.internal;ServerRedirectionMode=Required")]
+    [InlineData("sqlserver", "Server=db.internal;Database=app;Failover Partner=other.internal")]
+    public void Unsupported_automatic_destination_changes_cannot_bypass_the_relay(string driverId, string value)
+    {
+        Assert.Throws<NotSupportedException>(() => Driver(driverId).CreateRoutedConnection(value, "127.0.0.1", 15432));
+    }
+
+    [Theory]
+    [InlineData("Data Source=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=db.internal)(PORT=1522)))")]
+    [InlineData("Data Source=tcps://db.internal:1522/app")]
+    public async Task Unsupported_Oracle_address_cannot_bypass_the_workspace_route(string value)
+    {
+        var factory = new RecordingTunnelFactory();
+        await using var client = new DatabasePanelClient(BuiltInDatabaseDrivers.All, factory, SshProfile());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.ListTablesAsync(
+            "oracle", value, null, CancellationToken.None));
+        Assert.Equal(0, factory.OpenCount);
+    }
+
     [Theory]
     [InlineData(
         "postgres",

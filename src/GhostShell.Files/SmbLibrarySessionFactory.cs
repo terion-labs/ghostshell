@@ -14,7 +14,9 @@ namespace GhostShell.Files;
 /// </summary>
 internal sealed class SmbLibrarySessionFactory(
     ISecretVault secretVault,
-    SmbFileProviderOptions options) : IRemoteHierarchicalFileSessionFactory
+    SmbFileProviderOptions options,
+    IWorkspaceNetworkConnector? networkConnector = null) :
+    IRemoteHierarchicalFileSessionFactory
 {
     private static readonly UTF8Encoding StrictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
@@ -24,6 +26,20 @@ internal sealed class SmbLibrarySessionFactory(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (networkConnector?.Egress == WorkspaceNetworkEgress.Blocked)
+        {
+            throw new RemoteFileSessionException(
+                RemoteFileSessionErrorCode.Unsupported,
+                "The workspace network kill switch is blocking SMB traffic.");
+        }
+
+        if (networkConnector is not null && !RoutedSmb2Client.IsCompatible)
+        {
+            throw new RemoteFileSessionException(
+                RemoteFileSessionErrorCode.Unsupported,
+                "The installed SMBLibrary version cannot use the active workspace network route.");
+        }
+
         ResolvedSmbCredential credential;
         try
         {
@@ -45,17 +61,31 @@ internal sealed class SmbLibrarySessionFactory(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var client = new SMB2Client(
-            checked((int)options.ResponseTimeout.TotalMilliseconds),
-            enableSMB311Support: true);
+        var timeout = checked((int)options.ResponseTimeout.TotalMilliseconds);
+        SmbLibraryRoutedTransport? routedTransport = null;
+        SMB2Client client = networkConnector is null
+            ? new SMB2Client(timeout, enableSMB311Support: true)
+            : new RoutedSmb2Client(timeout);
         try
         {
-            var openTask = Task.Run(
-                () => OpenSession(client, credential),
-                CancellationToken.None);
+            if (networkConnector is not null)
+            {
+                routedTransport = await SmbLibraryRoutedTransport.OpenAsync(
+                        networkConnector,
+                        options.Server,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var opening = new OpeningSmbSession(
+                this,
+                client,
+                credential,
+                routedTransport);
+            var openTask = Task.Run(opening.Open, CancellationToken.None);
             using var cancellation = cancellationToken.UnsafeRegister(
-                static state => AbortClient((SMB2Client)state!),
-                client);
+                static state => ((OpeningSmbSession)state!).Abort(),
+                opening);
             var session = await openTask.ConfigureAwait(false);
             if (!cancellationToken.IsCancellationRequested)
             {
@@ -67,30 +97,37 @@ internal sealed class SmbLibrarySessionFactory(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            AbortClient(client);
+            AbortClient(client, routedTransport);
             throw;
         }
         catch (RemoteFileSessionException)
         {
-            AbortClient(client);
+            AbortClient(client, routedTransport);
             throw;
         }
         catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
-            AbortClient(client);
+            AbortClient(client, routedTransport);
             throw new OperationCanceledException(cancellationToken);
         }
         catch (Exception exception)
         {
-            AbortClient(client);
+            AbortClient(client, routedTransport);
             throw MapException(exception);
         }
     }
 
-    private SmbLibrarySession OpenSession(SMB2Client client, ResolvedSmbCredential credential)
+    private SmbLibrarySession OpenSession(
+        SMB2Client client,
+        ResolvedSmbCredential credential,
+        SmbLibraryRoutedTransport? routedTransport)
     {
-        if (!client.Connect(options.Server, SMBTransportType.DirectTCPTransport))
+        var connected = routedTransport is null
+            ? client.Connect(options.Server, SMBTransportType.DirectTCPTransport)
+            : ((RoutedSmb2Client)client).Connect(options.Server, routedTransport.LocalPort);
+        if (!connected)
         {
+            routedTransport?.ThrowIfFailed();
             throw new RemoteFileSessionException(
                 RemoteFileSessionErrorCode.Transient,
                 "The SMB server could not be reached.",
@@ -112,8 +149,23 @@ internal sealed class SmbLibrarySessionFactory(
             throw SmbLibrarySession.MapStatus(treeStatus, "connect to the configured SMB share");
         }
 
-        return new SmbLibrarySession(client, fileStore);
+        if (routedTransport is not null && IsDfsFileStore(fileStore))
+        {
+            throw new RemoteFileSessionException(
+                RemoteFileSessionErrorCode.Unsupported,
+                "DFS referrals are unavailable through the active workspace network route.");
+        }
+
+        return new SmbLibrarySession(client, fileStore, routedTransport);
     }
+
+    private static bool IsDfsFileStore(ISMBFileStore fileStore) => IsDfsFileStoreTypeName(
+        fileStore.GetType().FullName);
+
+    internal static bool IsDfsFileStoreTypeName(string? typeName) => string.Equals(
+        typeName,
+        "SMBLibrary.Client.DFS.SMB2DfsFileStore",
+        StringComparison.Ordinal);
 
     private async ValueTask<ResolvedSmbCredential> ResolveCredentialAsync(
         CancellationToken cancellationToken)
@@ -194,6 +246,10 @@ internal sealed class SmbLibrarySessionFactory(
             RemoteFileSessionErrorCode.Transient,
             "The SMB network connection failed.",
             retryable: true),
+        WorkspaceNetworkBlockedException => new RemoteFileSessionException(
+            RemoteFileSessionErrorCode.Transient,
+            "The workspace network kill switch is blocking SMB traffic.",
+            retryable: true),
         IOException => new RemoteFileSessionException(
             RemoteFileSessionErrorCode.Transient,
             "The SMB transport failed.",
@@ -203,7 +259,9 @@ internal sealed class SmbLibrarySessionFactory(
             "The SMB adapter failed to open a session."),
     };
 
-    private static void AbortClient(SMB2Client client)
+    private static void AbortClient(
+        SMB2Client client,
+        SmbLibraryRoutedTransport? routedTransport = null)
     {
         try
         {
@@ -213,6 +271,22 @@ internal sealed class SmbLibrarySessionFactory(
         {
             // Cancellation and failure cleanup must not replace the sanitized primary error.
         }
+
+        routedTransport?.Dispose();
+    }
+
+    private sealed class OpeningSmbSession(
+        SmbLibrarySessionFactory factory,
+        SMB2Client client,
+        ResolvedSmbCredential credential,
+        SmbLibraryRoutedTransport? routedTransport)
+    {
+        public SmbLibrarySession Open() => factory.OpenSession(
+            client,
+            credential,
+            routedTransport);
+
+        public void Abort() => AbortClient(client, routedTransport);
     }
 
     private sealed record ResolvedSmbCredential(string Domain, string Username, string Password)
@@ -223,7 +297,8 @@ internal sealed class SmbLibrarySessionFactory(
 
 internal sealed class SmbLibrarySession(
     SMB2Client client,
-    ISMBFileStore fileStore) : IRemoteHierarchicalFileSession
+    ISMBFileStore fileStore,
+    IDisposable? routedTransport = null) : IRemoteHierarchicalFileSession
 {
     private const CreateOptions SafeOpenOptions =
         CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT
@@ -839,6 +914,8 @@ internal sealed class SmbLibrarySession(
         {
             // Abort is used by cancellation and disposal and must remain best effort.
         }
+
+        routedTransport?.Dispose();
     }
 
     private static void ThrowForStatus(NTStatus status, string operation)

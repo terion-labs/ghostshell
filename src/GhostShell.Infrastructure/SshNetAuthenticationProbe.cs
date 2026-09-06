@@ -14,7 +14,8 @@ namespace GhostShell.Infrastructure;
 /// </summary>
 internal sealed class SshNetAuthenticationProbe(
     ISecretVault secretVault,
-    SshKnownHostStore knownHosts) : ISshAuthenticationProbe
+    SshKnownHostStore knownHosts,
+    IWorkspaceNetworkConnector? networkConnector = null) : ISshAuthenticationProbe
 {
     private static readonly TimeSpan AuthenticationTimeout = TimeSpan.FromSeconds(12);
 
@@ -66,15 +67,13 @@ internal sealed class SshNetAuthenticationProbe(
 
             var method = ((ConnectionRuntimeResult<AuthenticationMethod>.Success)authentication).Value;
             disposables.Add(method);
-            var connection = new ConnectionInfo(
-                endpoint.Host,
-                endpoint.Port,
+            var connection = WorkspaceSshConnectionInfo.Create(
+                endpoint,
                 username,
-                method)
-            {
-                Timeout = AuthenticationTimeout,
-                RetryAttempts = 1,
-            };
+                method,
+                networkConnector);
+            connection.Timeout = AuthenticationTimeout;
+            connection.RetryAttempts = 1;
             client = new SshClient(connection)
             {
                 KeepAliveInterval = profile.KeepAlive.Enabled

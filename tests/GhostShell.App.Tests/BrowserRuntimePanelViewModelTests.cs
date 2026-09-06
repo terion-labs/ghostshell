@@ -453,6 +453,39 @@ public sealed class BrowserRuntimePanelViewModelTests
         Assert.Equal(popup, requested?.Address);
     }
 
+    [Fact]
+    public void WorkspaceProfileFooterNamesTheIsolatedPartition()
+    {
+        var panelId = new PanelInstanceId("browser-panel");
+        using var panel = new BrowserRuntimePanelViewModel(
+            panelId,
+            "Documentation",
+            new SessionOwner(
+                HostMode.Desktop,
+                new WindowInstanceId("window"),
+                new WorkspaceInstanceId("workspace"),
+                new TabInstanceId("tab"),
+                panelId),
+            BrowserAddress.Blank,
+            DispatchProxy.Create<ISessionHostClient, NoopSessionClient>(),
+            new ClientId("client"),
+            BuiltInConnections.Local,
+            new BrowserProfileBinding(
+                new BrowserProfileSelection(
+                    BuiltInBrowserProfiles.Default.Id,
+                    BrowserProfileKey.ForWorkspace("workspace-saved")),
+                BuiltInBrowserProfiles.Default,
+                revision: 1),
+            new RecordingBrowserRendererViewFactory(
+                new BrowserRendererView(
+                    new Border(),
+                    new RecordingBrowserRenderer())));
+
+        Assert.Equal(
+            "Default browser · Isolated workspace",
+            panel.BrowserProfileDisplayName);
+    }
+
     private static BrowserAddress Address(string value)
     {
         Assert.True(BrowserAddress.TryParse(value, out var address));

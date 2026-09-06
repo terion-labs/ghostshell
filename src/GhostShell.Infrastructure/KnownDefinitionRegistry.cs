@@ -29,7 +29,9 @@ internal static class KnownDefinitionRegistry
         || kind == DefinitionKind.McpServerProfile
         || kind == DefinitionKind.BrowserProfile
         || kind == DefinitionKind.DatabaseConnection
-        || kind == DefinitionKind.QuickTerminalSettings;
+        || kind == DefinitionKind.QuickTerminalSettings
+        || kind == DefinitionKind.NetworkConnection
+        || kind == DefinitionKind.ApplicationNetworkSettings;
 
     public static bool TryParse(
         PortableDefinitionDocument document,
@@ -274,6 +276,14 @@ internal static class KnownDefinitionRegistry
                     "The built-in default browser profile has an invalid policy.");
             }
 
+            if (definition is ApplicationNetworkSettings applicationNetworkSettings
+                && applicationNetworkSettings.Id != ApplicationNetworkSettings.DefaultId)
+            {
+                return Invalid(
+                    key,
+                    "Application network settings must use the built-in identity.");
+            }
+
             if (definition is ScreenDefinition screen
                 && (string.IsNullOrWhiteSpace(screen.LayoutId.Value)
                     || screen.Panels.Any(panel =>
@@ -365,6 +375,10 @@ internal static class KnownDefinitionRegistry
                 DatabaseConnectionProfile.CurrentSchemaVersion,
             var value when value == DefinitionKind.QuickTerminalSettings =>
                 QuickTerminalSettings.CurrentSchemaVersion,
+            var value when value == DefinitionKind.NetworkConnection =>
+                NetworkConnectionProfile.CurrentSchemaVersion,
+            var value when value == DefinitionKind.ApplicationNetworkSettings =>
+                ApplicationNetworkSettings.CurrentSchemaVersion,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
         };
 
@@ -390,6 +404,10 @@ internal static class KnownDefinitionRegistry
                 type == typeof(DatabaseConnectionProfile),
             var value when value == DefinitionKind.QuickTerminalSettings =>
                 type == typeof(QuickTerminalSettings),
+            var value when value == DefinitionKind.NetworkConnection =>
+                type == typeof(NetworkConnectionProfile),
+            var value when value == DefinitionKind.ApplicationNetworkSettings =>
+                type == typeof(ApplicationNetworkSettings),
             _ => false,
         };
 

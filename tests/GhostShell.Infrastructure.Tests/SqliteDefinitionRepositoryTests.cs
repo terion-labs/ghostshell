@@ -1157,6 +1157,204 @@ public sealed class SqliteDefinitionRepositoryTests
             CancellationToken.None)).Value!.Value.IsEnabled);
     }
 
+    [Fact]
+    public async Task NetworkPoliciesRoundTripAndProtectTheirConnections()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var connections = new SqliteDefinitionRepository<NetworkConnectionProfile>(
+            temporary.Database,
+            TimeProvider.System);
+        var applicationSettings = new SqliteDefinitionRepository<ApplicationNetworkSettings>(
+            temporary.Database,
+            TimeProvider.System);
+        var workspaces = new SqliteDefinitionRepository<WorkspaceDefinition>(
+            temporary.Database,
+            TimeProvider.System);
+        var connection = NetworkConnection();
+        var policy = new NetworkPolicy([connection.Id], connection.Id, true, true);
+        var settings = new ApplicationNetworkSettings(
+            ApplicationNetworkSettings.DefaultId,
+            ApplicationNetworkSettings.CurrentSchemaVersion,
+            "Application networking",
+            policy);
+        var workspace = new WorkspaceDefinition(
+            new WorkspaceId("networked-workspace"),
+            WorkspaceDefinition.CurrentSchemaVersion,
+            "Networked workspace",
+            description: null,
+            accent: null,
+            entries: [],
+            networkOverride: policy);
+
+        Assert.True((await connections.SaveAsync(
+            connection,
+            expectedRevision: null,
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await applicationSettings.SaveAsync(
+            settings,
+            expectedRevision: null,
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await workspaces.SaveAsync(
+            workspace,
+            expectedRevision: null,
+            CancellationToken.None)).IsSuccess);
+
+        await temporary.ReopenAsync();
+
+        connections = new(temporary.Database, TimeProvider.System);
+        applicationSettings = new(temporary.Database, TimeProvider.System);
+        workspaces = new(temporary.Database, TimeProvider.System);
+        var restoredConnection = await connections.GetAsync(
+            connection.Key,
+            CancellationToken.None);
+        var restoredSettings = await applicationSettings.GetAsync(
+            settings.Key,
+            CancellationToken.None);
+        var restoredWorkspace = await workspaces.GetAsync(
+            workspace.Key,
+            CancellationToken.None);
+
+        Assert.True(restoredConnection.IsSuccess, restoredConnection.Error?.Message);
+        Assert.Equal(connection, restoredConnection.Value!.Value);
+        Assert.True(restoredSettings.IsSuccess, restoredSettings.Error?.Message);
+        AssertNetworkPolicy(policy, restoredSettings.Value!.Value.Policy);
+        Assert.True(restoredWorkspace.IsSuccess, restoredWorkspace.Error?.Message);
+        AssertNetworkPolicy(policy, restoredWorkspace.Value!.Value.NetworkOverride);
+
+        var deleted = await connections.DeleteAsync(
+            connection.Key,
+            restoredConnection.Value.Revision,
+            CancellationToken.None);
+
+        Assert.False(deleted.IsSuccess);
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, deleted.Error!.Code);
+
+        var replacementCredential = new SecretRef("vault.proxy.password.replaced");
+        var updatedConnection = new NetworkConnectionProfile(
+            connection.Id,
+            connection.SchemaVersion,
+            connection.Name,
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Https,
+                "proxy.example.com",
+                8443,
+                "operator",
+                replacementCredential));
+        Assert.True((await connections.SaveAsync(
+            updatedConnection,
+            restoredConnection.Value.Revision,
+            CancellationToken.None)).IsSuccess);
+
+        await temporary.ReopenAsync();
+
+        connections = new(temporary.Database, TimeProvider.System);
+        applicationSettings = new(temporary.Database, TimeProvider.System);
+        workspaces = new(temporary.Database, TimeProvider.System);
+        restoredConnection = await connections.GetAsync(
+            connection.Key,
+            CancellationToken.None);
+        restoredSettings = await applicationSettings.GetAsync(
+            settings.Key,
+            CancellationToken.None);
+        restoredWorkspace = await workspaces.GetAsync(
+            workspace.Key,
+            CancellationToken.None);
+        var reloadedProxy = Assert.IsType<NetworkConnectionConfiguration.Proxy>(
+            restoredConnection.Value!.Value.Configuration);
+        Assert.Equal(replacementCredential, reloadedProxy.PasswordSecret);
+
+        var directSettings = new ApplicationNetworkSettings(
+            settings.Id,
+            settings.SchemaVersion,
+            settings.Name,
+            NetworkPolicy.Direct);
+        var inheritedWorkspace = new WorkspaceDefinition(
+            workspace.Id,
+            workspace.SchemaVersion,
+            workspace.Name,
+            workspace.Description,
+            workspace.Accent,
+            workspace.Entries,
+            workspace.AgentPolicyOverride,
+            workspace.Icon,
+            workspace.AutoSave,
+            workspace.Color,
+            workspace.AgentPanelPinned,
+            workspace.TerminalMultiplexingOverride,
+            workspace.BrowserProfileOverride,
+            workspace.HasExplicitAccent,
+            workspace.IsIsolated,
+            workspace.IsolationMounts,
+            workspace.IsolationImageReference,
+            workspace.RunAgentInIsolation,
+            networkOverride: null);
+        Assert.True((await applicationSettings.SaveAsync(
+            directSettings,
+            restoredSettings.Value!.Revision,
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await workspaces.SaveAsync(
+            inheritedWorkspace,
+            restoredWorkspace.Value!.Revision,
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await connections.DeleteAsync(
+            connection.Key,
+            restoredConnection.Value.Revision,
+            CancellationToken.None)).IsSuccess);
+
+        await temporary.ReopenAsync();
+
+        connections = new(temporary.Database, TimeProvider.System);
+        applicationSettings = new(temporary.Database, TimeProvider.System);
+        workspaces = new(temporary.Database, TimeProvider.System);
+        var missingConnection = await connections.GetAsync(
+            connection.Key,
+            CancellationToken.None);
+        var reloadedSettings = await applicationSettings.GetAsync(
+            settings.Key,
+            CancellationToken.None);
+        var reloadedWorkspace = await workspaces.GetAsync(
+            workspace.Key,
+            CancellationToken.None);
+
+        Assert.False(missingConnection.IsSuccess);
+        Assert.Equal(DefinitionStoreErrorCode.NotFound, missingConnection.Error!.Code);
+        Assert.Equal(NetworkPolicy.Direct, reloadedSettings.Value!.Value.Policy);
+        Assert.Null(reloadedWorkspace.Value!.Value.NetworkOverride);
+    }
+
+    [Fact]
+    public async Task NetworkPoliciesRejectMissingConnections()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var missingId = new NetworkConnectionId("network.missing");
+        var policy = new NetworkPolicy([missingId], missingId, true, false);
+        var applicationSettings = new ApplicationNetworkSettings(
+            ApplicationNetworkSettings.DefaultId,
+            ApplicationNetworkSettings.CurrentSchemaVersion,
+            "Application networking",
+            policy);
+        var workspace = new WorkspaceDefinition(
+            new WorkspaceId("missing-network-workspace"),
+            WorkspaceDefinition.CurrentSchemaVersion,
+            "Missing network workspace",
+            description: null,
+            accent: null,
+            entries: [],
+            networkOverride: policy);
+
+        var settingsResult = await new SqliteDefinitionRepository<ApplicationNetworkSettings>(
+                temporary.Database,
+                TimeProvider.System)
+            .SaveAsync(applicationSettings, null, CancellationToken.None);
+        var workspaceResult = await new SqliteDefinitionRepository<WorkspaceDefinition>(
+                temporary.Database,
+                TimeProvider.System)
+            .SaveAsync(workspace, null, CancellationToken.None);
+
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, settingsResult.Error!.Code);
+        Assert.Equal(DefinitionStoreErrorCode.DependencyConflict, workspaceResult.Error!.Code);
+    }
+
     private static SqliteDefinitionRepository<LayoutDefinition> CreateLayoutRepository(
         TemporaryDatabase temporary) =>
         new(temporary.Database, TimeProvider.System);
@@ -1171,6 +1369,27 @@ public sealed class SqliteDefinitionRepositoryTests
             ConnectionStartup.Default,
             ConnectionKeepAlive.Disabled,
             SshHostKeyPolicy.NotApplicable);
+
+    private static NetworkConnectionProfile NetworkConnection() =>
+        new(
+            new NetworkConnectionId("network.proxy"),
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Office proxy",
+            new NetworkConnectionConfiguration.Proxy(
+                NetworkProxyProtocol.Https,
+                "proxy.example.com",
+                8443,
+                "operator",
+                new SecretRef("vault.proxy.password")));
+
+    private static void AssertNetworkPolicy(NetworkPolicy expected, NetworkPolicy? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(expected.Connections, actual.Connections);
+        Assert.Equal(expected.SelectedConnectionId, actual.SelectedConnectionId);
+        Assert.Equal(expected.IsEnabled, actual.IsEnabled);
+        Assert.Equal(expected.KillSwitchEnabled, actual.KillSwitchEnabled);
+    }
 
     private static ScreenPanelDefinition ConnectedPanel(
         ConnectionId connectionId,

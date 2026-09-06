@@ -231,6 +231,7 @@ public sealed class SecurityCampaignDockerAuthorityTests
         public DockerControlSession? Session { get; private set; }
 
         public ValueTask<IDockerPanelSession> CreateAsync(
+            WorkspaceInstanceId workspaceId,
             SessionId sessionId,
             DockerSessionTarget target,
             CancellationToken cancellationToken)

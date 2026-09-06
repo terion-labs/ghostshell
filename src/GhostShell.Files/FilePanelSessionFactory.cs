@@ -40,6 +40,13 @@ public sealed class FilePanelSessionFactory : IFilePanelSessionFactory
     ]);
 
     public ValueTask<IFilePanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
+        SessionId sessionId,
+        FilePanelLocation initialLocation,
+        CancellationToken cancellationToken) =>
+        CreateAsync(sessionId, initialLocation, cancellationToken);
+
+    public ValueTask<IFilePanelSession> CreateAsync(
         SessionId sessionId,
         FilePanelLocation initialLocation,
         CancellationToken cancellationToken)

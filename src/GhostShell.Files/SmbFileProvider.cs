@@ -10,11 +10,15 @@ public sealed class SmbFileProvider : RemoteHierarchicalFileProvider
         maximumReadBytes: 64L * 1024 * 1024,
         maximumBufferSize: 1024 * 1024);
 
-    public SmbFileProvider(ISecretVault secretVault, SmbFileProviderOptions options)
+    public SmbFileProvider(
+        ISecretVault secretVault,
+        SmbFileProviderOptions options,
+        IWorkspaceNetworkConnector? networkConnector = null)
         : this(
             new SmbLibrarySessionFactory(
                 secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
-                options ?? throw new ArgumentNullException(nameof(options))),
+                options ?? throw new ArgumentNullException(nameof(options)),
+                networkConnector),
             options)
     {
     }

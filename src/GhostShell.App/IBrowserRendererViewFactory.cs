@@ -37,6 +37,23 @@ public interface IBrowserRendererViewFactory
         CancellationToken cancellationToken) =>
         CreateAsync(connection, profile.Selection.Partition, cancellationToken);
 
+    /// <summary>
+    /// Creates a browser whose local socket, including the SSH transport for a
+    /// routed browser, is opened through one workspace's live network route.
+    /// </summary>
+    ValueTask<BrowserRendererView> CreateAsync(
+        ConnectionProfile connection,
+        BrowserProfileBinding profile,
+        IWorkspaceNetworkConnector networkConnector,
+        CancellationToken cancellationToken) =>
+        connection.Endpoint is ConnectionEndpoint.Local
+            ? CreateThroughSocksProxyAsync(
+                networkConnector.LocalProxyEndpoint.Port,
+                networkConnector.LocalProxyEndpoint.AbsoluteUri,
+                profile,
+                cancellationToken)
+            : CreateAsync(connection, profile, cancellationToken);
+
     ValueTask<BrowserRendererView> CreateThroughSocksProxyAsync(
         int socksProxyPort,
         string routeIdentity,

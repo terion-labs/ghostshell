@@ -151,6 +151,7 @@ public interface IGitPanelSessionFactory
     CapabilitySet Capabilities { get; }
 
     ValueTask<IGitPanelSession> CreateAsync(
+        WorkspaceInstanceId workspaceId,
         SessionId sessionId,
         GitSessionTarget target,
         CancellationToken cancellationToken);

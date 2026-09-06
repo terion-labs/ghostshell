@@ -71,6 +71,35 @@ public sealed partial class MainWindow
         }
     }
 
+    private async void OnWorkspaceNetworkConnectionSelected(
+        object? sender,
+        WorkspaceNetworkConnectionOptionViewModel connection)
+    {
+        _ = sender;
+        try
+        {
+            await ViewModel.WorkspaceNetwork.SelectAsync(connection.Id, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async void OnWorkspaceNetworkToggleRequested(
+        object? sender,
+        RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        try
+        {
+            await ViewModel.WorkspaceNetwork.ToggleAsync(_lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
     public async Task RequestNewFileViewerAsync()
     {
         if (ViewModel.HasOverlay && !await TryCloseOverlayAsync())

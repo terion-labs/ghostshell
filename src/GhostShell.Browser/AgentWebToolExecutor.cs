@@ -1,28 +1,37 @@
 using GhostShell.Application;
+using GhostShell.Core;
 
 namespace GhostShell.Browser;
 
-public sealed class AgentWebToolExecutor : IAgentWebToolExecutor
+public sealed class AgentWebToolExecutor(
+    IWorkspaceNetworkRouteResolver routeResolver) : IAgentWebToolExecutor
 {
-    private readonly PeerBoundHttpFetcher _httpFetcher = new();
-    private readonly CefAgentWebReader _webReader = new();
-    private readonly CefAgentWebSearchExecutor _webSearch = new();
-
     public async ValueTask<AgentWebToolExecutionResult> ExecuteAsync(
+        WorkspaceInstanceId workspaceId,
         AgentWebToolRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var connector = routeResolver.ConnectorFor(workspaceId);
+        if (connector is null)
+        {
+            return new AgentWebToolExecutionResult.Failed(
+                AgentWebToolErrorCode.Unavailable);
+        }
+
         return request switch
         {
             AgentHttpFetchRequest fetch =>
-                await _httpFetcher.FetchAsync(fetch, cancellationToken)
+                await new PeerBoundHttpFetcher(connector)
+                    .FetchAsync(fetch, cancellationToken)
                     .ConfigureAwait(false),
             AgentWebReadRequest read =>
-                await _webReader.ReadAsync(read, cancellationToken)
+                await new CefAgentWebReader(connector)
+                    .ReadAsync(read, cancellationToken)
                     .ConfigureAwait(false),
             AgentWebSearchRequest search =>
-                Map(await _webSearch.SearchAsync(search, cancellationToken)
+                Map(await new CefAgentWebSearchExecutor(connector)
+                    .SearchAsync(search, cancellationToken)
                     .ConfigureAwait(false)),
             _ => new AgentWebToolExecutionResult.Failed(
                 AgentWebToolErrorCode.Unavailable),

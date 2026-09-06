@@ -18,7 +18,8 @@ namespace GhostShell.Files;
 internal sealed class FileProviderAdapterFactory(
     ISecretVault secretVault,
     ISshHostKeyTrustStore knownHosts,
-    IConnectionRuntime? connectionRuntime = null)
+    IConnectionRuntime? connectionRuntime = null,
+    IWorkspaceNetworkConnector? networkConnector = null)
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
@@ -106,6 +107,11 @@ internal sealed class FileProviderAdapterFactory(
         CancellationToken cancellationToken)
     {
         var clientConfiguration = CreateS3ClientConfiguration(configuration);
+        if (networkConnector is not null)
+        {
+            clientConfiguration.HttpClientFactory =
+                new WorkspaceConnectorHttpClientFactory(networkConnector);
+        }
 
         AmazonS3Client client;
         if (configuration.CredentialsSecret is { } secretReference)
@@ -185,7 +191,8 @@ internal sealed class FileProviderAdapterFactory(
             secretVault,
             knownHosts,
             options,
-            connectionRuntime);
+            connectionRuntime,
+            networkConnector);
         return Owned(
             profile,
             provider,
@@ -224,7 +231,7 @@ internal sealed class FileProviderAdapterFactory(
             connectionMode,
             configuration.Port,
             configuration.RemoteRoot);
-        var provider = new FtpFileProvider(secretVault, options);
+        var provider = new FtpFileProvider(secretVault, options, networkConnector);
         return Owned(
             profile,
             provider,
@@ -254,7 +261,10 @@ internal sealed class FileProviderAdapterFactory(
             configuration.Share,
             authentication,
             configuration.RemoteRoot);
-        var provider = new SmbFileProvider(secretVault, options);
+        var provider = new SmbFileProvider(
+            secretVault,
+            options,
+            networkConnector);
         return Owned(
             profile,
             provider,
@@ -298,12 +308,25 @@ internal sealed class FileProviderAdapterFactory(
         FileProviderConfiguration.WebDav configuration,
         CancellationToken cancellationToken)
     {
-        var handler = new HttpClientHandler
+        var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
-            CheckCertificateRevocationList = true,
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                CertificateRevocationCheckMode =
+                    System.Security.Cryptography.X509Certificates.X509RevocationMode.Online,
+            },
             PreAuthenticate = true,
         };
+        if (networkConnector is not null)
+        {
+            handler.ConnectCallback = async (context, token) =>
+                await networkConnector.ConnectTcpAsync(
+                        context.DnsEndPoint.Host,
+                        context.DnsEndPoint.Port,
+                        token)
+                    .ConfigureAwait(false);
+        }
         if (configuration.PasswordSecret is { } secretReference)
         {
             var password = await ResolveTextSecretAsync(
@@ -493,6 +516,30 @@ internal sealed class FileProviderAdapterFactory(
 
     private static FileProviderAdapterConfigurationException InvalidConfiguration(string message) =>
         new(message);
+
+    private sealed class WorkspaceConnectorHttpClientFactory(
+        IWorkspaceNetworkConnector networkConnector) : Amazon.Runtime.HttpClientFactory
+    {
+        public override HttpClient CreateHttpClient(IClientConfig clientConfig)
+        {
+            ArgumentNullException.ThrowIfNull(clientConfig);
+            var handler = new SocketsHttpHandler
+            {
+                AllowAutoRedirect = clientConfig.AllowAutoRedirect,
+                ConnectCallback = async (context, cancellationToken) =>
+                    await networkConnector.ConnectTcpAsync(
+                            context.DnsEndPoint.Host,
+                            context.DnsEndPoint.Port,
+                            cancellationToken)
+                        .ConfigureAwait(false),
+            };
+            return new HttpClient(handler, disposeHandler: true);
+        }
+
+        public override bool UseSDKHttpClientCaching(IClientConfig clientConfig) => false;
+
+        public override bool DisposeHttpClientsAfterUse(IClientConfig clientConfig) => true;
+    }
 }
 
 internal sealed record OwnedFileProviderRegistration(

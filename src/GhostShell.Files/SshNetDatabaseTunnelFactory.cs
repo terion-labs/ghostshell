@@ -15,7 +15,8 @@ namespace GhostShell.Files;
 public sealed class SshNetDatabaseTunnelFactory(
     ISecretVault secretVault,
     ISshHostKeyTrustStore knownHosts,
-    IConnectionRuntime? connectionRuntime = null) : IDatabaseTunnelFactory
+    IConnectionRuntime? connectionRuntime = null,
+    IWorkspaceNetworkConnector? networkConnector = null) : IDatabaseTunnelFactory
 {
     public async ValueTask<IDatabaseTunnelLease> OpenAsync(
         ConnectionProfile connection,
@@ -49,15 +50,13 @@ public sealed class SshNetDatabaseTunnelFactory(
                 ownedDisposables,
                 cancellationToken).ConfigureAwait(false);
             ownedDisposables.Add(authentication);
-            var info = new ConnectionInfo(
-                endpoint.Host,
-                endpoint.Port,
+            var info = SshNetConnectionInfoFactory.Create(
+                endpoint,
                 endpoint.Username,
-                authentication)
-            {
-                Timeout = TimeSpan.FromSeconds(15),
-                RetryAttempts = 1,
-            };
+                authentication,
+                networkConnector);
+            info.Timeout = TimeSpan.FromSeconds(15);
+            info.RetryAttempts = 1;
             client = new SshClient(info)
             {
                 KeepAliveInterval = connection.KeepAlive.Enabled

@@ -252,6 +252,7 @@ public sealed class SecurityCampaignGitAuthorityTests
         public CampaignGitPanelSession? Session { get; private set; }
 
         public ValueTask<IGitPanelSession> CreateAsync(
+            WorkspaceInstanceId workspaceId,
             SessionId sessionId,
             GitSessionTarget target,
             CancellationToken cancellationToken)

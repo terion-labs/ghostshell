@@ -22,6 +22,24 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (WorkspaceSshCommand.IsInvocation(args))
+        {
+            Environment.ExitCode = WorkspaceSshCommand
+                .RunAsync(args, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+            return;
+        }
+
+        if (WorkspaceSocksProxyCommand.IsInvocation(args))
+        {
+            Environment.ExitCode = WorkspaceSocksProxyCommand
+                .RunAsync(args, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+            return;
+        }
+
         VelopackStartup.Run(args);
 
         if (ConnectionCredentialProcessHost.IsPrivateHelperInvocation(args))

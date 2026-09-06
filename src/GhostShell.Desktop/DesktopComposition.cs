@@ -125,20 +125,55 @@ public static class DesktopComposition
         });
         services.AddSingleton<IConnectionCredentialBroker, ConnectionCredentialBroker>();
         services.AddSingleton(_ => ConnectionRuntimeOptions.Detect());
-        var executableLocator = new PathConnectionExecutableLocator();
+        var executableLocator = new BundledConnectionEngineExecutableLocator(
+            new PathConnectionExecutableLocator());
         services.AddSingleton<IConnectionExecutableLocator>(executableLocator);
+        var hasWorkspaceIsolationProvider = false;
         if (new WorkspaceIsolationPlatformResolver().ResolveCurrent()
             is WorkspaceIsolationPlatformSupport.Available { Adapter: var isolationAdapter })
         {
             services.AddSingleton<IWorkspaceIsolationRuntimeInstaller>(_ =>
                 new WorkspaceIsolationRuntimeInstaller(isolationAdapter.Installation));
-            if (executableLocator.Find(isolationAdapter.RuntimeExecutableName)
+            if (WorkspaceSdkIsolationProvider.FindBundledRuntime()
                 is { } runtimeExecutable)
             {
                 services.AddSingleton<IWorkspaceIsolationProvider>(_ =>
                     isolationAdapter.CreateProvider(runtimeExecutable));
+                hasWorkspaceIsolationProvider = true;
             }
         }
+
+        services.AddSingleton<INetworkConnectionProvider>(provider =>
+            new ProxyNetworkConnectionProvider(
+                provider.GetRequiredService<ISecretVault>(),
+                provider.GetService<IWorkspaceIsolationProvider>()));
+        services.AddSingleton<INetworkPasswordPrompt, AvaloniaNetworkPasswordPrompt>();
+        if (hasWorkspaceIsolationProvider)
+        {
+            services.AddSingleton<IWorkspaceIsolationEgressGuard,
+                WorkspaceIsolationEgressGuard>();
+        }
+
+        AddVpnProvider(services, NetworkConnectionKind.WireGuard);
+        AddVpnProvider(services, NetworkConnectionKind.OpenVpn);
+        AddVpnProvider(services, NetworkConnectionKind.AnyConnect);
+        AddVpnProvider(services, NetworkConnectionKind.Tailscale);
+
+        services.AddSingleton<IWorkspacePacketGatewayRuntime>(provider =>
+            WorkspacePacketGatewayRuntimeFactory.Create(
+                provider.GetServices<INetworkConnectionProvider>(),
+                provider.GetRequiredService<IConnectionExecutableLocator>(),
+                provider.GetRequiredService<ISecretVault>()));
+        services.AddSingleton<IWorkspaceNetworkRuntime>(provider =>
+            new WorkspaceNetworkRuntime(
+                provider.GetServices<INetworkConnectionProvider>(),
+                provider.GetService<IWorkspaceIsolationEgressGuard>(),
+                provider.GetRequiredService<INetworkPasswordPrompt>(),
+                provider.GetRequiredService<IWorkspacePacketGatewayRuntime>(),
+                provider.GetRequiredService<ISecretVault>()));
+        services.AddSingleton<WorkspaceNetworkRouteRegistry>();
+        services.AddSingleton<IWorkspaceNetworkRouteResolver>(provider =>
+            provider.GetRequiredService<WorkspaceNetworkRouteRegistry>());
 
         services.AddSingleton<IConnectionCommandRunner, ProcessConnectionCommandRunner>();
         services.AddSingleton<IConnectionRuntimeAdapter, LocalConnectionRuntimeAdapter>();
@@ -199,7 +234,10 @@ public static class DesktopComposition
             provider.GetRequiredService<CatalogFileProviderRuntime>());
         services.AddSingleton<IFileTransferQueueClient>(provider =>
             provider.GetRequiredService<CatalogFileProviderRuntime>());
-        services.AddSingleton<IFilePanelSessionFactory, FilePanelSessionFactory>();
+        services.AddSingleton<FilePanelSessionFactory>();
+        services.AddSingleton<WorkspaceFilePanelSessionFactory>();
+        services.AddSingleton<IFilePanelSessionFactory>(provider =>
+            provider.GetRequiredService<WorkspaceFilePanelSessionFactory>());
         services.AddSingleton<BrowserPanelSessionFactory>();
         services.AddSingleton<IBrowserPanelSessionFactory>(provider =>
             provider.GetRequiredService<BrowserPanelSessionFactory>());
@@ -214,9 +252,18 @@ public static class DesktopComposition
         services.AddSingleton<IRedisPanelSessionFactory>(provider =>
             new RedisPanelSessionFactory(
                 provider.GetRequiredService<IDatabaseTunnelFactory>()));
-        services.AddSingleton<IDatabasePanelSessionFactory, DatabasePanelSessionFactory>();
-        services.AddSingleton<IDockerPanelSessionFactory, DockerPanelSessionFactory>();
-        services.AddSingleton<IGitPanelSessionFactory, GitPanelSessionFactory>();
+        services.AddSingleton<DatabasePanelSessionFactory>();
+        services.AddSingleton<WorkspaceDatabasePanelSessionFactory>();
+        services.AddSingleton<IDatabasePanelSessionFactory>(provider =>
+            provider.GetRequiredService<WorkspaceDatabasePanelSessionFactory>());
+        services.AddSingleton<DockerPanelSessionFactory>();
+        services.AddSingleton<WorkspaceDockerPanelSessionFactory>();
+        services.AddSingleton<IDockerPanelSessionFactory>(provider =>
+            provider.GetRequiredService<WorkspaceDockerPanelSessionFactory>());
+        services.AddSingleton<GitPanelSessionFactory>();
+        services.AddSingleton<WorkspaceGitPanelSessionFactory>();
+        services.AddSingleton<IGitPanelSessionFactory>(provider =>
+            provider.GetRequiredService<WorkspaceGitPanelSessionFactory>());
         services.AddSingleton<IDatabaseConnectionCatalog, RedisConnectionCatalog>();
         services.AddSingleton<ISqlLanguageService, CalciteSqlLanguageService>();
         // Keep ImageMagick previews unavailable until native decoding runs in a
@@ -348,6 +395,18 @@ public static class DesktopComposition
             ValidateOnBuild = true,
             ValidateScopes = true,
         });
+    }
+
+    private static void AddVpnProvider(
+        IServiceCollection services,
+        NetworkConnectionKind kind)
+    {
+        services.AddSingleton<INetworkConnectionProvider>(provider =>
+            new IsolatedVpnConnectionProvider(
+                kind,
+                provider.GetRequiredService<ISecretVault>(),
+                provider.GetService<IWorkspaceIsolationProvider>(),
+                provider.GetRequiredService<IConnectionExecutableLocator>()));
     }
 
     private static HostOperatingSystem CurrentOperatingSystem() =>

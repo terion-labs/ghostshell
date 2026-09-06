@@ -34,10 +34,10 @@ public sealed class WorkspaceRuntimeLeaseCoordinatorTests
         coordinator.Register(directId, binding: null);
         coordinator.Register(isolatedId, binding);
 
-        Assert.Same(hostRuntime, coordinator.ConnectionRuntimeFor(directId));
+        Assert.NotSame(hostRuntime, coordinator.ConnectionRuntimeFor(directId));
         Assert.IsType<WorkspaceIsolatedConnectionRuntime>(
             coordinator.ConnectionRuntimeFor(isolatedId));
-        Assert.Same(hostServices, coordinator.RuntimeServicesFor(directId));
+        Assert.NotSame(hostServices, coordinator.RuntimeServicesFor(directId));
         Assert.NotNull(coordinator.RuntimeServicesFor(isolatedId)?.NetworkRoute.ProxyUri);
         Assert.Collection(
             factory.Requests,

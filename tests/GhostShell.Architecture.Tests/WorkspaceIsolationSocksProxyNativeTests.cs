@@ -33,10 +33,22 @@ public sealed class WorkspaceIsolationSocksProxyNativeTests
             await client.ConnectAsync(IPAddress.Loopback, proxy.LocalPort, timeout.Token);
             var stream = client.GetStream();
 
-            await stream.WriteAsync(new byte[] { 5, 1, 0 }, timeout.Token);
+            await stream.WriteAsync(new byte[] { 5, 1, 2 }, timeout.Token);
             var greeting = new byte[2];
             await stream.ReadExactlyAsync(greeting, timeout.Token);
-            Assert.Equal(new byte[] { 5, 0 }, greeting);
+            Assert.Equal(new byte[] { 5, 2 }, greeting);
+            var username = Encoding.UTF8.GetBytes(proxy.LocalProxyCredentials.Username);
+            var password = Encoding.UTF8.GetBytes(proxy.LocalProxyCredentials.Password);
+            var authentication = new byte[3 + username.Length + password.Length];
+            authentication[0] = 1;
+            authentication[1] = checked((byte)username.Length);
+            username.CopyTo(authentication, 2);
+            authentication[2 + username.Length] = checked((byte)password.Length);
+            password.CopyTo(authentication, 3 + username.Length);
+            await stream.WriteAsync(authentication, timeout.Token);
+            var authenticationReply = new byte[2];
+            await stream.ReadExactlyAsync(authenticationReply, timeout.Token);
+            Assert.Equal(new byte[] { 1, 0 }, authenticationReply);
 
             const string host = "www.google.com";
             var hostBytes = Encoding.ASCII.GetBytes(host);

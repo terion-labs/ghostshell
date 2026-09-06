@@ -1,3 +1,4 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -19,17 +20,24 @@ public sealed partial class DatabasePasswordPromptDialog : Window
     public DatabasePasswordPromptDialog(
         string connectionName,
         bool canSavePassword = false,
-        string passwordStoreLabel = "Save in system credential store")
+        string passwordStoreLabel = "Save in system credential store",
+        string? description = null)
         : this()
     {
         Title = $"{connectionName} password";
         PromptTitle.Text = $"{connectionName} password";
+        AutomationProperties.SetName(PasswordInput, $"{connectionName} password");
         if (canSavePassword)
         {
             PromptDescription.Text =
                 "Use this password for the current session, or save it securely for future connections.";
             SavePasswordCheckBox.Content = passwordStoreLabel;
             SavePasswordCheckBox.IsVisible = true;
+        }
+
+        if (description is not null)
+        {
+            PromptDescription.Text = description;
         }
 
         Opened += (_, _) => PasswordInput.Focus();

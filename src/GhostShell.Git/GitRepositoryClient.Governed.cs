@@ -1212,11 +1212,11 @@ public sealed partial class GitRepositoryClient
         // The URL is already resolved to a credential-free HTTPS endpoint.
         ExecuteIsolatedGitAsync(
             repository,
-            SealedGitEnvironment,
+            RemoteReadEnvironment(repository),
             [
                 .. SealedGitOptions,
                 "-C", "/",
-                .. HttpsTransportOptions(remoteUrl),
+                .. HttpsTransportOptions(remoteUrl, UsesWorkspaceProxy(repository)),
                 .. arguments,
             ],
             timeout,
@@ -1254,7 +1254,8 @@ public sealed partial class GitRepositoryClient
                 repository.Connection,
                 "sudo",
                 [
-                    "-n", "-u", owner, "-H", "--", "env",
+                    "-n", "-u", owner, "-H", .. WorkspaceSudoEnvironment(repository),
+                    "--", "env",
                     .. environmentArguments,
                     GitExecutable,
                     .. gitArguments,
@@ -1301,7 +1302,43 @@ public sealed partial class GitRepositoryClient
         return null;
     }
 
-    private static IReadOnlyList<string> HttpsTransportOptions(string remoteUrl)
+    private bool UsesWorkspaceProxy(GitRepositoryHandle repository) =>
+        networkConnector is not null && repository.Connection.Endpoint is GhostShell.Core.ConnectionEndpoint.Local;
+
+    private IReadOnlyList<string> WorkspaceSudoEnvironment(GitRepositoryHandle repository) =>
+        UsesWorkspaceProxy(repository)
+            ? ["--preserve-env=ALL_PROXY,all_proxy,HTTP_PROXY,http_proxy,HTTPS_PROXY,https_proxy,NO_PROXY,no_proxy,GIT_SSH_COMMAND,GIT_SSH_VARIANT"]
+            : [];
+
+    private IReadOnlyList<string> RemoteReadEnvironment(GitRepositoryHandle repository)
+    {
+        if (!UsesWorkspaceProxy(repository))
+        {
+            return SealedGitEnvironment;
+        }
+
+        // The workspace executor supplies these values after planning. Preserve
+        // them rather than copying credentials into env's command-line arguments.
+        var environment = new List<string>();
+        for (var index = 0; index < SealedGitEnvironment.Length; index++)
+        {
+            if (string.Equals(SealedGitEnvironment[index], "-u", StringComparison.Ordinal)
+                && index + 1 < SealedGitEnvironment.Length
+                && IsProxyVariable(SealedGitEnvironment[index + 1]))
+            {
+                index++;
+                continue;
+            }
+            environment.Add(SealedGitEnvironment[index]);
+        }
+        return environment;
+    }
+
+    private static bool IsProxyVariable(string name) => name is
+        "HTTP_PROXY" or "HTTPS_PROXY" or "ALL_PROXY" or "NO_PROXY"
+        or "http_proxy" or "https_proxy" or "all_proxy" or "no_proxy";
+
+    private static IReadOnlyList<string> HttpsTransportOptions(string remoteUrl, bool workspaceProxy)
     {
         var httpScope = $"http.{remoteUrl}";
         var credentialScope = $"credential.{remoteUrl}";
@@ -1313,8 +1350,11 @@ public sealed partial class GitRepositoryClient
             "-c", $"{httpScope}.cookieFile=",
             "-c", "http.saveCookies=false",
             "-c", $"{httpScope}.saveCookies=false",
-            "-c", "http.proxy=",
-            "-c", $"{httpScope}.proxy=",
+            .. workspaceProxy ? (IReadOnlyList<string>)[] :
+            [
+                "-c", "http.proxy=",
+                "-c", $"{httpScope}.proxy=",
+            ],
             "-c", "http.proxySSLCert=",
             "-c", $"{httpScope}.proxySSLCert=",
             "-c", "http.proxySSLKey=",

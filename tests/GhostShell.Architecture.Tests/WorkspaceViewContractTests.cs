@@ -84,6 +84,21 @@ public sealed class WorkspaceViewContractTests
     }
 
     [Fact]
+    public void Workspace_network_status_avoids_Avalonia_macOS_empty_live_region_crash()
+    {
+        var root = Assert.IsType<XElement>(LoadView("WorkspaceView").Root);
+        var status = FindNamedElement(root, "WorkspaceNetworkStatus");
+
+        Assert.Equal(
+            "{Binding WorkspaceNetwork.StatusText}",
+            AttributeValue(status, "Text"));
+        Assert.Equal(
+            "Workspace network status",
+            AttributeValue(status, "AutomationProperties.Name"));
+        Assert.Null(AttributeValue(status, "AutomationProperties.LiveSetting"));
+    }
+
+    [Fact]
     public void Agent_toolbar_robot_pulses_for_a_run_in_any_workspace()
     {
         var root = Assert.IsType<XElement>(LoadView("WorkspaceView").Root);

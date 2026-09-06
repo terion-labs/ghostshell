@@ -149,6 +149,7 @@ public sealed partial class InMemorySessionHostClient
             {
                 createdEngine = await _gitPanelFactory
                     .CreateAsync(
+                        request.Owner.WorkspaceId,
                         request.SessionId,
                         request.Target,
                         operationCancellation.Token)

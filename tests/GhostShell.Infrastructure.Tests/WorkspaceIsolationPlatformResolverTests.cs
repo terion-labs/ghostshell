@@ -8,7 +8,7 @@ public sealed class WorkspaceIsolationPlatformResolverTests
     private readonly WorkspaceIsolationPlatformResolver _resolver = new();
 
     [Fact]
-    public void Apple_silicon_on_mac_os_26_selects_apple_container_without_claiming_network_attachment()
+    public void Apple_silicon_on_mac_os_26_selects_bundled_sdk_runtime()
     {
         var support = Assert.IsType<WorkspaceIsolationPlatformSupport.Available>(
             _resolver.Resolve(
@@ -17,10 +17,10 @@ public sealed class WorkspaceIsolationPlatformResolverTests
                 new Version(26, 0)));
 
         Assert.Equal(
-            AppleContainerWorkspaceIsolationProvider.ProviderDescriptor,
+            WorkspaceSdkIsolationProvider.ProviderDescriptor,
             support.Adapter.Descriptor);
         Assert.Equal(
-            AppleContainerWorkspaceIsolationProvider.ProviderDescriptor.Capabilities,
+            WorkspaceSdkIsolationProvider.ProviderDescriptor.Capabilities,
             support.Adapter.Descriptor.Capabilities);
         Assert.NotEqual(
             WorkspaceIsolationCapability.None,
@@ -34,8 +34,9 @@ public sealed class WorkspaceIsolationPlatformResolverTests
             WorkspaceIsolationCapability.None,
             support.Adapter.Descriptor.Capabilities
             & WorkspaceIsolationCapability.DedicatedNetworkNamespace);
-        Assert.Equal("container", support.Adapter.RuntimeExecutableName);
-        Assert.Equal("Apple container", support.Adapter.Installation.RuntimeDisplayName);
+        Assert.Equal("workspace-runtime", support.Adapter.RuntimeExecutableName);
+        Assert.Equal("GhostShell workspace runtime", support.Adapter.Installation.RuntimeDisplayName);
+        Assert.IsType<WorkspaceSdkIsolationProvider>(support.Adapter.CreateProvider("/app/workspace-runtime"));
     }
 
     [Fact]
