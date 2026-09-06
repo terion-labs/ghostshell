@@ -243,6 +243,27 @@ public sealed class ConnectionEnginePackagingTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("format-and-boundaries", "./scripts/check.sh --quick")]
+    [InlineData("macos-early-release", "./scripts/build-workspace-network-gateway.sh")]
+    public void NetworkingWorkflowJobsInstallPinnedGoBeforeUsingIt(string jobName, string command)
+    {
+        var workflow = Read(".github", "workflows", "repository-gate.yml");
+        var jobStart = workflow.IndexOf($"\n  {jobName}:", StringComparison.Ordinal);
+        Assert.True(jobStart >= 0);
+        var nextJob = workflow.IndexOf("\n  ", jobStart + 1, StringComparison.Ordinal);
+        while (nextJob >= 0 && workflow[nextJob + 3] == ' ')
+        {
+            nextJob = workflow.IndexOf("\n  ", nextJob + 1, StringComparison.Ordinal);
+        }
+
+        var job = nextJob < 0 ? workflow[jobStart..] : workflow[jobStart..nextJob];
+        var setup = job.IndexOf("uses: actions/setup-go@", StringComparison.Ordinal);
+        var invocation = job.IndexOf(command, StringComparison.Ordinal);
+        Assert.True(setup >= 0 && invocation > setup);
+        Assert.Contains("go-version: '1.26.3'", job[setup..invocation], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BundleBuilderPlacesConnectionEngineLegalEvidenceInResources()
     {
