@@ -37,20 +37,21 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task Signed_bundle_loads_guest_boot_images_from_resources()
+    public async Task Signed_bundle_loads_provisioned_guest_boot_images_from_cache()
     {
         _ = await SeedDiskAsync();
         var contents = Path.Combine(_directory, "GhostShell.app", "Contents");
         var runtimeDirectory = Path.Combine("runtimes", "osx-arm64", "workspace-runtime");
         var provider = new WorkspaceSdkIsolationProvider(
             Path.Combine(contents, "MacOS", runtimeDirectory, "workspace-runtime"),
-            Path.Combine(_directory, "state"), "/app/workspace-network-gateway", _runner, 501, 20);
+            Path.Combine(_directory, "state"), "/app/workspace-network-gateway", _runner, 501, 20,
+            (_, _) => Task.FromResult(Path.Combine(_directory, "boot-cache")));
         var binding = Success(await provider.PrepareAsync(new WorkspaceIsolationPrepareRequest(_workspace), CancellationToken.None));
         var serve = Assert.Single(_runner.Starts);
         using var config = JsonDocument.Parse(await File.ReadAllTextAsync(serve.Arguments[2], CancellationToken.None));
-        Assert.Equal(Path.Combine(contents, "Resources", runtimeDirectory, "kernel.bin"),
+        Assert.Equal(Path.Combine(_directory, "boot-cache", "kernel.bin"),
             config.RootElement.GetProperty("kernelPath").GetString());
-        Assert.Equal(Path.Combine(contents, "Resources", runtimeDirectory, "initfs.ext4"),
+        Assert.Equal(Path.Combine(_directory, "boot-cache", "initfs.ext4"),
             config.RootElement.GetProperty("initfsPath").GetString());
         _ = Success(await provider.StopAsync(binding, CancellationToken.None));
     }
@@ -208,7 +209,7 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
 
     private WorkspaceSdkIsolationProvider Provider() => new(
         "/app/workspace-runtime", Path.Combine(_directory, "state"),
-        "/app/workspace-network-gateway", _runner, 501, 20);
+        "/app/workspace-network-gateway", _runner, 501, 20, (_, _) => Task.FromResult("/app"));
 
     private async Task<string> SeedDiskAsync()
     {

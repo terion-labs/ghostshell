@@ -67,6 +67,9 @@ verify_workspace_runtime_copy() {
     local source relative target
     while IFS= read -r source; do
         relative="${source#${workspace_runtime_directory}/}"
+        case "${relative}" in
+            kernel.bin|initfs.ext4|legal/sources/*) continue ;;
+        esac
         if [[ "${relative}" == legal/* ]]; then
             target="${legal_directory}/${relative#legal/}"
         elif [[ "${relative}" == workspace-runtime || "${relative}" == *.dylib ]]; then
@@ -80,6 +83,9 @@ verify_workspace_runtime_copy() {
         fi
     done < <(find "${workspace_runtime_directory}" -type f -print)
     [[ -x "${code_directory}/workspace-runtime" ]] || { echo "Workspace runtime is not executable." >&2; exit 1; }
+    for excluded in "${resource_directory}/kernel.bin" "${resource_directory}/initfs.ext4" "${legal_directory}/sources"; do
+        [[ ! -e "${excluded}" ]] || { echo "On-demand assets leaked into the app: ${excluded}" >&2; exit 1; }
+    done
 }
 maven_content_lock="${repository_dir}/native/sql-language-worker/maven-content-lock.json"
 maximum_sql_language_macos_version="13.0"
@@ -763,7 +769,7 @@ for required in "${connection_engine_code_files[@]}"; do
         exit 1
     fi
 done
-for required in "${connection_engine_legal_files[@]}" "${connection_engine_source}"; do
+for required in "${connection_engine_legal_files[@]}"; do
     if [[ ! -f "${published_connection_engine_legal}/${required}" \
         || -L "${published_connection_engine_legal}/${required}" ]] \
         || ! /usr/bin/cmp -s \
@@ -1012,7 +1018,7 @@ for required in "${connection_engine_code_files[@]}"; do
         exit 1
     fi
 done
-for required in "${connection_engine_legal_files[@]}" "${connection_engine_source}"; do
+for required in "${connection_engine_legal_files[@]}"; do
     if [[ ! -f "${candidate_connection_engine_legal}/${required}" \
         || -L "${candidate_connection_engine_legal}/${required}" ]] \
         || ! /usr/bin/cmp -s \

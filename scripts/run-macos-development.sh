@@ -154,6 +154,10 @@ echo "Assembling the macOS CEF development bundle..." >&2
 # The SDK runtime never mounts application code into the guest.
 rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
 workspace_runtime="${macos_directory}/runtimes/osx-arm64/workspace-runtime/workspace-runtime"
+# Incremental dotnet output can still contain files copied by older versions.
+# These are disposable staging copies, never the shared provisioning cache.
+rm -f -- "${workspace_runtime%/*}/kernel.bin" "${workspace_runtime%/*}/initfs.ext4"
+rm -rf -- "${macos_directory}/workspace-runtime-legal/sources" "${macos_directory}/connection-engine-legal/sources"
 if [[ -f "${workspace_runtime}" ]]; then
     # Match the release bundle's resource layout so SDK boot paths are identical.
     workspace_resources="${resources_directory}/runtimes/osx-arm64/workspace-runtime"
@@ -212,6 +216,9 @@ rmdir -- "${candidate_parent}"
 trap - EXIT
 
 echo "Launching ${app_bundle}" >&2
+# Development uses the same verified provisioning path without fetching an
+# unpublished app version from GitHub. Do not copy the sidecar into the bundle.
+export GHOSTSHELL_WORKSPACE_BOOT_ARCHIVE="${repository_dir}/native/artifacts/workspace-runtime-build/distribution/GhostShell-workspace-boot-arm64.zip"
 if [[ ${#application_arguments[@]} -eq 0 ]]; then
     exec "${app_bundle}/Contents/MacOS/GhostShell"
 fi

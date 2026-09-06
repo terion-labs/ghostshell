@@ -29,7 +29,7 @@ source_manifest() {
     (
         cd "${repository_dir}"
         shasum -a 256 native/workspace-runtime/Package.swift native/workspace-runtime/Package.resolved \
-            scripts/build-workspace-runtime.sh tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements
+            scripts/build-workspace-runtime.sh scripts/package-workspace-boot.py tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements
         find native/workspace-runtime/Sources -type f -print | LC_ALL=C sort | while IFS= read -r path; do
             shasum -a 256 "${path}"
         done
@@ -47,6 +47,10 @@ case "${1:-}" in
         codesign --display --entitlements :- workspace-runtime 2>/dev/null \
             | python3 -c 'import plistlib,sys; assert plistlib.loads(sys.stdin.buffer.read())=={"com.apple.security.virtualization":True}, "Unexpected workspace runtime entitlements"'
         diff -u "${artifact_dir}/legal/SOURCE-MANIFEST.sha256" <(source_manifest)
+        cd "${build_dir}/distribution"
+        shasum -a 256 -c GhostShell-workspace-boot-arm64.zip.sha256
+        expected_boot_sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "${artifact_dir}/boot-assets.json")"
+        [[ "$(shasum -a 256 GhostShell-workspace-boot-arm64.zip | awk '{print $1}')" == "${expected_boot_sha}" ]]
         exit 0 ;;
     --test)
         xcrun swift test --package-path "${package_dir}" --scratch-path "${swift_scratch_dir}" --disable-automatic-resolution
@@ -185,7 +189,13 @@ variant. Upstream binary archive SHA-256: ${kernel_archive_sha256}.
 Linux source SHA-256: ${linux_sha256}.
 Kata source SHA-256: ${kata_source_sha256}.
 The checked-in scripts/build-workspace-runtime.sh reproduces the payload assembly.
+Boot images and sources are not part of the app bundle. Download the matching
+GhostShell-workspace-boot-arm64.zip and GhostShell-networking-sources.zip assets
+from the same GhostShell release. The source paths above refer to that source
+package's workspace-runtime directory. MANIFEST.sha256 describes the complete
+build payload, including those separately distributed files.
 EOF
+python3 "${script_dir}/package-workspace-boot.py" "${staging_dir}" "${build_dir}/distribution"
 (
     cd "${staging_dir}"
     find . -type f ! -name MANIFEST.sha256 -print | LC_ALL=C sort | while IFS= read -r path; do

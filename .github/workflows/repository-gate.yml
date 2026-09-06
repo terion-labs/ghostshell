@@ -578,6 +578,10 @@ jobs:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip.sha256" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip.sha256" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip.sha256" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/app.ghostshell-${RELEASE_VERSION}-osx-arm64-stable-full.nupkg" \

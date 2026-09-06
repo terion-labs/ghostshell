@@ -306,6 +306,7 @@ fi
 
 /bin/mv "${velopack_release}/${portable_name}" \
     "${velopack_release}/${archive_name}"
+python3 "${script_dir}/package-networking-downloads.py" "${repository_dir}" "${verified_app}" "${velopack_release}"
 rm -f -- \
     "${velopack_release}/assets.${channel}.json" \
     "${velopack_release}/RELEASES-${channel}"

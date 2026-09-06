@@ -36,6 +36,8 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
     private readonly IWorkspaceGatewayProcessRunner _processes;
     private readonly uint _uid;
     private readonly uint _gid;
+    private readonly Func<IProgress<WorkspaceIsolationProgress>?, CancellationToken, Task<string>> _prepareBootAssets;
+    private string? _bootDirectory;
     private readonly ConcurrentDictionary<WorkspaceId, WorkspaceState> _workspaces = new();
 
     public WorkspaceSdkIsolationProvider(string executable)
@@ -56,7 +58,8 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         string gatewayExecutable,
         IWorkspaceGatewayProcessRunner processes,
         uint uid,
-        uint gid)
+        uint gid,
+        Func<IProgress<WorkspaceIsolationProgress>?, CancellationToken, Task<string>>? prepareBootAssets = null)
     {
         _executable = Path.GetFullPath(executable);
         _stateRoot = Path.GetFullPath(stateRoot);
@@ -64,6 +67,7 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         _processes = processes;
         _uid = uid;
         _gid = gid;
+        _prepareBootAssets = prepareBootAssets ?? PrepareBootAssetsAsync;
         // macOS Unix socket paths are short. The private root identity separates users
         // and installations without exposing workspace names in /tmp.
         var identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(_stateRoot)))[..16];
@@ -122,6 +126,7 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
             CreatePrivateDirectory(_socketRoot);
             var socketDirectory = SocketDirectory(request.WorkspaceId);
             CreatePrivateDirectory(socketDirectory);
+            _bootDirectory = await _prepareBootAssets(progress, cancellationToken).ConfigureAwait(false);
             var rootfs = Path.Combine(directory, "rootfs.ext4");
             var imageMarker = Path.Combine(directory, "image.txt");
             if (File.Exists(imageMarker))
@@ -408,6 +413,17 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
     private WorkspaceSdkConfiguration Configuration(
         WorkspaceIsolationPrepareRequest request, string rootfs, string socket, IReadOnlyList<string> initialArguments)
     {
+        var assetDirectory = _bootDirectory ?? throw new InvalidOperationException("Boot images must be provisioned before starting a workspace.");
+        return new(ResourceName(request.WorkspaceId), socket, rootfs,
+            Path.Combine(assetDirectory, "kernel.bin"),
+            Path.Combine(assetDirectory, "initfs.ext4"), _gatewayExecutable,
+            1, 1024UL * 1024 * 1024, ResourceName(request.WorkspaceId),
+            [.. request.Mounts.Select(static mount => new WorkspaceSdkMount(mount.HostSource, mount.GuestDestination, mount.IsReadOnly))],
+            initialArguments);
+    }
+
+    private Task<string> PrepareBootAssetsAsync(IProgress<WorkspaceIsolationProgress>? progress, CancellationToken cancellationToken)
+    {
         var runtimeDirectory = Path.GetDirectoryName(_executable)!;
         var executableDirectory = new DirectoryInfo(runtimeDirectory).Parent?.Parent?.Parent;
         var assetDirectory = runtimeDirectory;
@@ -415,17 +431,17 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
             && string.Equals(runtimeDirectory, Path.Combine(executableDirectory.FullName,
                 "runtimes", "osx-arm64", "workspace-runtime"), StringComparison.Ordinal))
         {
-            // Signed app bundles separate host executables from guest boot images.
-            // Unbundled builds retain their adjacent assets for SDK tests and development.
+            // Only the pinned descriptor and Swift resources live in the bundle.
             assetDirectory = Path.Combine(executableDirectory.Parent.FullName, "Resources",
                 "runtimes", "osx-arm64", "workspace-runtime");
         }
-        return new(ResourceName(request.WorkspaceId), socket, rootfs,
-            Path.Combine(assetDirectory, "kernel.bin"),
-            Path.Combine(assetDirectory, "initfs.ext4"), _gatewayExecutable,
-            1, 1024UL * 1024 * 1024, ResourceName(request.WorkspaceId),
-            [.. request.Mounts.Select(static mount => new WorkspaceSdkMount(mount.HostSource, mount.GuestDestination, mount.IsReadOnly))],
-            initialArguments);
+        var version = typeof(WorkspaceSdkIsolationProvider).Assembly.GetName().Version!.ToString(3);
+        var assets = new WorkspaceBootAssets(Path.Combine(assetDirectory, "boot-assets.json"), Path.Combine(_stateRoot, "boot"),
+            new Uri($"https://github.com/terion-labs/ghostshell/releases/download/v{version}/{WorkspaceBootAssets.ArchiveName}"));
+        // The development launcher supplies the locally built sidecar. It is still
+        // verified against the descriptor; production never requires this override.
+        return assets.EnsureAsync(progress, cancellationToken,
+            localArchive: Environment.GetEnvironmentVariable("GHOSTSHELL_WORKSPACE_BOOT_ARCHIVE"));
     }
 
     private async ValueTask<IWorkspaceGatewayProcess> StartRuntimeAsync(

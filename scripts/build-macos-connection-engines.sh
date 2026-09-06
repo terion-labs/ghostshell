@@ -231,7 +231,9 @@ cat > "${relinking}" <<EOF
 
 GhostSHELL invokes OpenConnect ${openconnect_version} as a separate executable and ships
 libopenconnect as a replaceable dynamic library. The complete corresponding OpenConnect
-source is included at sources/openconnect-${openconnect_version}.tar.gz. Its SHA-256 is:
+source is distributed in GhostShell-networking-sources.zip beside the app in the
+same GitHub release, at connection-engines/sources/openconnect-${openconnect_version}.tar.gz.
+The source archive is not needed at runtime and is not embedded in the app. Its SHA-256 is:
 
     ${openconnect_sha256}
 

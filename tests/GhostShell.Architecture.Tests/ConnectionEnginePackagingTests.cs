@@ -8,7 +8,26 @@ public sealed class ConnectionEnginePackagingTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
-    public void WorkspaceRuntimeBundlesPinnedBootAssetsWithoutTheAppleCli()
+    public void App_excludes_boot_images_and_source_archives_and_release_publishes_sidecars()
+    {
+        var project = XDocument.Load(Path.Combine(RepositoryRoot, "src", "GhostShell.Desktop", "GhostShell.Desktop.csproj"));
+        var content = project.Descendants("Content").ToArray();
+        var runtime = Assert.Single(content, element => string.Equals((string?)element.Attribute("Include"),
+            "$(GhostShellWorkspaceRuntimeDirectory)/**/*", StringComparison.Ordinal));
+        var excluded = (string?)runtime.Attribute("Exclude");
+        Assert.Contains("/kernel.bin", excluded, StringComparison.Ordinal);
+        Assert.Contains("/initfs.ext4", excluded, StringComparison.Ordinal);
+        var legal = Assert.Single(content, element => string.Equals((string?)element.Attribute("Include"),
+            "$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*", StringComparison.Ordinal));
+        Assert.Contains("/legal/sources/**/*", (string?)legal.Attribute("Exclude"), StringComparison.Ordinal);
+        var workflow = Read(".github", "workflows", "repository-gate.yml");
+        Assert.Contains("/distribution/GhostShell-workspace-boot-arm64.zip", workflow, StringComparison.Ordinal);
+        Assert.Contains("/distribution/GhostShell-networking-sources.zip", workflow, StringComparison.Ordinal);
+        Assert.Contains("package-networking-downloads.py", Read("scripts", "package-macos-github-release.sh"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WorkspaceRuntimeBuildsSeparatePinnedBootAssetsWithoutTheAppleCli()
     {
         var script = Read("scripts", "build-workspace-runtime.sh");
         Assert.Contains("legal/SOURCE-MANIFEST.sha256", script, StringComparison.Ordinal);
@@ -181,7 +200,7 @@ public sealed class ConnectionEnginePackagingTests
             "connection-engine-legal/%(Filename)%(Extension)",
             links,
             StringComparer.Ordinal);
-        Assert.Contains(
+        Assert.DoesNotContain(
             "connection-engine-legal/sources/openconnect-9.21.tar.gz",
             links,
             StringComparer.Ordinal);

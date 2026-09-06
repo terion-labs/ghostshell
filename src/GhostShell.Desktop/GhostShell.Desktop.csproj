@@ -164,15 +164,15 @@
   <ItemGroup Condition="'$(GhostShellConnectionEnginesPayloadAvailable)' == 'true'">
     <Content Include="$(GhostShellConnectionEnginesDirectory)/ghostshell-openvpn-engine;$(GhostShellConnectionEnginesDirectory)/openconnect;$(GhostShellConnectionEnginesDirectory)/libopenconnect.5.dylib;$(GhostShellConnectionEnginesDirectory)/tailscale;$(GhostShellConnectionEnginesDirectory)/tailscaled" Link="runtimes/osx-arm64/connection-engines/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(GhostShellConnectionEnginesDirectory)/*.txt;$(GhostShellConnectionEnginesDirectory)/*.md;$(GhostShellConnectionEnginesDirectory)/*.sha256" Link="connection-engine-legal/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(GhostShellConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz" Link="connection-engine-legal/sources/openconnect-9.21.tar.gz" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GhostShellWorkspaceRuntimePayloadAvailable)' == 'true'">
-    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/**/*" Exclude="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*" Link="runtimes/osx-arm64/workspace-runtime/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*" Link="workspace-runtime-legal/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/**/*" Exclude="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*;$(GhostShellWorkspaceRuntimeDirectory)/kernel.bin;$(GhostShellWorkspaceRuntimeDirectory)/initfs.ext4" Link="runtimes/osx-arm64/workspace-runtime/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceRuntimeDirectory)/legal/**/*" Exclude="$(GhostShellWorkspaceRuntimeDirectory)/legal/sources/**/*" Link="workspace-runtime-legal/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GhostShellWorkspaceRuntimeRequired)' == 'true'">
+    <GhostShellWorkspaceRuntimeRequiredFile Include="$(GhostShellWorkspaceRuntimeDirectory)/boot-assets.json" />
     <GhostShellWorkspaceRuntimeRequiredFile Include="$(GhostShellWorkspaceRuntimeDirectory)/legal/SOURCE-MANIFEST.sha256;$(GhostShellWorkspaceRuntimeDirectory)/legal/SWIFT-LICENSE.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/MUSL-COPYRIGHT.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/WorkspaceRuntime.entitlements" />
     <GhostShellWorkspaceRuntimeRequiredFile Include="$(GhostShellWorkspaceRuntimeDirectory)/workspace-runtime;$(GhostShellWorkspaceRuntimeDirectory)/kernel.bin;$(GhostShellWorkspaceRuntimeDirectory)/initfs.ext4;$(GhostShellWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256;$(GhostShellWorkspaceRuntimeDirectory)/legal/Package.resolved;$(GhostShellWorkspaceRuntimeDirectory)/legal/THIRD-PARTY-NOTICES.md;$(GhostShellWorkspaceRuntimeDirectory)/legal/SOURCE-AND-BUILD.md;$(GhostShellWorkspaceRuntimeDirectory)/legal/kernel.config;$(GhostShellWorkspaceRuntimeDirectory)/legal/LINUX-GPL-2.0.txt;$(GhostShellWorkspaceRuntimeDirectory)/legal/sources/linux-6.18.35.tar.xz;$(GhostShellWorkspaceRuntimeDirectory)/legal/sources/kata-containers-3.32.0.tar.gz" />
   </ItemGroup>

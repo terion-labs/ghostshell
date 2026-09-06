@@ -72,11 +72,11 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
     }
 
     [Fact]
-    public void Workspace_boot_images_and_privacy_manifests_are_resources()
+    public void Workspace_boot_descriptor_and_privacy_manifests_are_resources()
     {
         var publish = CreatePublishPayload();
         var relativeDirectory = Path.Combine("runtimes", "osx-arm64", "workspace-runtime");
-        string[] resources = ["kernel.bin", "initfs.ext4", Path.Combine("dependency.bundle", "PrivacyInfo.xcprivacy")];
+        string[] resources = ["boot-assets.json", Path.Combine("dependency.bundle", "PrivacyInfo.xcprivacy")];
         foreach (var name in resources.Append("workspace-runtime").Append("libswift_Concurrency.dylib"))
         {
             var path = Path.Combine(publish, relativeDirectory, name);
