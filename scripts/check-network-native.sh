@@ -30,7 +30,7 @@ if [[ "${mode}" == --full ]]; then
         go vet -mod=readonly ./...
     )
     if [[ "$(uname -s):$(uname -m)" == Darwin:arm64 ]]; then
-        if [[ ! -f "${repository_dir}/native/artifacts/osx-arm64/openvpn-engine-build/build/CMakeCache.txt" ]]; then
+        if [[ ! -f "${repository_dir}/native/artifacts/openvpn-engine-build/build/CMakeCache.txt" ]]; then
             "${script_dir}/build-openvpn-engine.sh"
         fi
         "${script_dir}/build-openvpn-engine.sh" --test

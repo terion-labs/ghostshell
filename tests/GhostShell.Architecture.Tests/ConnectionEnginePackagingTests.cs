@@ -29,6 +29,17 @@ public sealed class ConnectionEnginePackagingTests
     }
 
     [Fact]
+    public void OpenVpnBuildIntermediatesStayOutsideTheShippingRidDirectory()
+    {
+        var build = Read("scripts", "build-openvpn-engine.sh");
+        var gate = Read("scripts", "check-network-native.sh");
+        Assert.Contains("build_directory=\"${repository_root}/native/artifacts/openvpn-engine-build\"", build, StringComparison.Ordinal);
+        Assert.Contains("native/artifacts/openvpn-engine-build/build/CMakeCache.txt", gate, StringComparison.Ordinal);
+        Assert.DoesNotContain("osx-arm64/openvpn-engine-build", build, StringComparison.Ordinal);
+        Assert.DoesNotContain("osx-arm64/openvpn-engine-build", gate, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceRuntimeKeepsSwiftBuildsOutsideTheSealedSource()
     {
         var script = Read("scripts", "build-workspace-runtime.sh");

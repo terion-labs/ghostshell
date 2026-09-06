@@ -3,7 +3,8 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_directory="${repository_root}/native/artifacts/osx-arm64/openvpn-engine"
-build_directory="${repository_root}/native/artifacts/osx-arm64/openvpn-engine-build"
+# RID directories contain distributable payloads only, never compiler outputs.
+build_directory="${repository_root}/native/artifacts/openvpn-engine-build"
 if [[ "${1:-}" == --help ]]; then
     echo "Usage: scripts/build-openvpn-engine.sh [--verify|--test]"
     exit 0
