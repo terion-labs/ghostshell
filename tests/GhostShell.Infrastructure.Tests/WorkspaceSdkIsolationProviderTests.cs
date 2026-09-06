@@ -37,6 +37,25 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Signed_bundle_loads_guest_boot_images_from_resources()
+    {
+        _ = await SeedDiskAsync();
+        var contents = Path.Combine(_directory, "GhostShell.app", "Contents");
+        var runtimeDirectory = Path.Combine("runtimes", "osx-arm64", "workspace-runtime");
+        var provider = new WorkspaceSdkIsolationProvider(
+            Path.Combine(contents, "MacOS", runtimeDirectory, "workspace-runtime"),
+            Path.Combine(_directory, "state"), "/app/workspace-network-gateway", _runner, 501, 20);
+        var binding = Success(await provider.PrepareAsync(new WorkspaceIsolationPrepareRequest(_workspace), CancellationToken.None));
+        var serve = Assert.Single(_runner.Starts);
+        using var config = JsonDocument.Parse(await File.ReadAllTextAsync(serve.Arguments[2], CancellationToken.None));
+        Assert.Equal(Path.Combine(contents, "Resources", runtimeDirectory, "kernel.bin"),
+            config.RootElement.GetProperty("kernelPath").GetString());
+        Assert.Equal(Path.Combine(contents, "Resources", runtimeDirectory, "initfs.ext4"),
+            config.RootElement.GetProperty("initfsPath").GetString());
+        _ = Success(await provider.StopAsync(binding, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Persistent_disk_boots_with_host_attachment_and_never_starts_guest_router()
     {
         var disk = await SeedDiskAsync();
@@ -51,6 +70,8 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
         Assert.Equal("serve", serve.Arguments[0]);
         using var config = JsonDocument.Parse(await File.ReadAllTextAsync(serve.Arguments[2], CancellationToken.None));
         Assert.Equal(disk, config.RootElement.GetProperty("rootfsPath").GetString());
+        Assert.Equal(Path.GetFullPath("/app/kernel.bin"), config.RootElement.GetProperty("kernelPath").GetString());
+        Assert.Equal(Path.GetFullPath("/app/initfs.ext4"), config.RootElement.GetProperty("initfsPath").GetString());
         Assert.Equal("/sbin/init", config.RootElement.GetProperty("initialArguments")[0].GetString());
         Assert.Empty(config.RootElement.GetProperty("mounts").EnumerateArray());
         Assert.DoesNotContain(_runner.Commands, command => command.Executable.EndsWith("/container", StringComparison.Ordinal));

@@ -52,6 +52,49 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
     public MacOsAppBundleBuilderTests() => Directory.CreateDirectory(_temporaryDirectory);
 
     [Fact]
+    public void Gateway_metadata_is_packaged_as_resources()
+    {
+        var publish = CreatePublishPayload();
+        var relativeDirectory = Path.Combine("runtimes", "osx-arm64", "native");
+        string[] resources = ["workspace-network-gateway-MANIFEST.sha256", "workspace-network-gateway-THIRD-PARTY-NOTICES.md", "workspace-network-gateway-GO-LICENSE.txt"];
+        Directory.CreateDirectory(Path.Combine(publish, relativeDirectory));
+        foreach (var name in resources)
+        {
+            File.WriteAllText(Path.Combine(publish, relativeDirectory, name), "gateway metadata");
+        }
+        var output = OutputPath();
+        _ = new MacOsAppBundleBuilder().Build(Request(publish, output));
+        foreach (var name in resources)
+        {
+            Assert.Equal("gateway metadata", File.ReadAllText(Path.Combine(output, "Contents", "Resources", relativeDirectory, name)));
+            Assert.False(File.Exists(Path.Combine(output, "Contents", "MacOS", relativeDirectory, name)));
+        }
+    }
+
+    [Fact]
+    public void Workspace_boot_images_and_privacy_manifests_are_resources()
+    {
+        var publish = CreatePublishPayload();
+        var relativeDirectory = Path.Combine("runtimes", "osx-arm64", "workspace-runtime");
+        string[] resources = ["kernel.bin", "initfs.ext4", Path.Combine("dependency.bundle", "PrivacyInfo.xcprivacy")];
+        foreach (var name in resources.Append("workspace-runtime").Append("libswift_Concurrency.dylib"))
+        {
+            var path = Path.Combine(publish, relativeDirectory, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "runtime payload");
+        }
+        var output = OutputPath();
+        _ = new MacOsAppBundleBuilder().Build(Request(publish, output));
+        foreach (var name in resources)
+        {
+            Assert.Equal("runtime payload", File.ReadAllText(Path.Combine(output, "Contents", "Resources", relativeDirectory, name)));
+            Assert.False(File.Exists(Path.Combine(output, "Contents", "MacOS", relativeDirectory, name)));
+        }
+        Assert.True(File.Exists(Path.Combine(output, "Contents", "MacOS", relativeDirectory, "workspace-runtime")));
+        Assert.True(File.Exists(Path.Combine(output, "Contents", "MacOS", relativeDirectory, "libswift_Concurrency.dylib")));
+    }
+
+    [Fact]
     public void Builder_creates_the_exact_acceptance_bundle_without_modifying_publish_payload()
     {
         var publish = CreatePublishPayload();

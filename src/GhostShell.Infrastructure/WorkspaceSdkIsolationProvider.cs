@@ -406,13 +406,27 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
     private string SocketDirectory(WorkspaceId workspaceId) => Path.Combine(_socketRoot, ResourceName(workspaceId)[^20..]);
 
     private WorkspaceSdkConfiguration Configuration(
-        WorkspaceIsolationPrepareRequest request, string rootfs, string socket, IReadOnlyList<string> initialArguments) =>
-        new(ResourceName(request.WorkspaceId), socket, rootfs,
-            Path.Combine(Path.GetDirectoryName(_executable)!, "kernel.bin"),
-            Path.Combine(Path.GetDirectoryName(_executable)!, "initfs.ext4"), _gatewayExecutable,
+        WorkspaceIsolationPrepareRequest request, string rootfs, string socket, IReadOnlyList<string> initialArguments)
+    {
+        var runtimeDirectory = Path.GetDirectoryName(_executable)!;
+        var executableDirectory = new DirectoryInfo(runtimeDirectory).Parent?.Parent?.Parent;
+        var assetDirectory = runtimeDirectory;
+        if (executableDirectory is { Name: "MacOS", Parent.Name: "Contents" }
+            && string.Equals(runtimeDirectory, Path.Combine(executableDirectory.FullName,
+                "runtimes", "osx-arm64", "workspace-runtime"), StringComparison.Ordinal))
+        {
+            // Signed app bundles separate host executables from guest boot images.
+            // Unbundled builds retain their adjacent assets for SDK tests and development.
+            assetDirectory = Path.Combine(executableDirectory.Parent.FullName, "Resources",
+                "runtimes", "osx-arm64", "workspace-runtime");
+        }
+        return new(ResourceName(request.WorkspaceId), socket, rootfs,
+            Path.Combine(assetDirectory, "kernel.bin"),
+            Path.Combine(assetDirectory, "initfs.ext4"), _gatewayExecutable,
             1, 1024UL * 1024 * 1024, ResourceName(request.WorkspaceId),
             [.. request.Mounts.Select(static mount => new WorkspaceSdkMount(mount.HostSource, mount.GuestDestination, mount.IsReadOnly))],
             initialArguments);
+    }
 
     private async ValueTask<IWorkspaceGatewayProcess> StartRuntimeAsync(
         WorkspaceSdkConfiguration configuration, string directory, CancellationToken cancellationToken)

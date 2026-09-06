@@ -70,6 +70,8 @@ public sealed class ConnectionEnginePackagingTests
         Assert.Contains("-p:GhostShellWorkspaceRuntimeRequired=true", package, StringComparison.Ordinal);
         Assert.Contains("verify_workspace_runtime_copy", package, StringComparison.Ordinal);
         Assert.Contains("Contents/Resources/workspace-runtime-legal", package, StringComparison.Ordinal);
+        Assert.Contains("Contents/Resources/runtimes/osx-arm64/workspace-runtime", package, StringComparison.Ordinal);
+        Assert.Contains("${resources_directory}/runtimes/osx-arm64/workspace-runtime", development, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -646,6 +646,20 @@ public sealed class MacOsAppBundleBuilder
         var root = topLevelDirectory is "connection-engine-legal" or "workspace-runtime-legal" or "fonts" or "ghostty"
             ? resourcesDirectory
             : executableDirectory;
+        var workspaceRuntime = Path.Combine("runtimes", "osx-arm64", "workspace-runtime")
+            + Path.DirectorySeparatorChar;
+        if (relativePath.StartsWith(workspaceRuntime, StringComparison.Ordinal)
+            && !string.Equals(relativePath, workspaceRuntime + "workspace-runtime", StringComparison.Ordinal)
+            && !string.Equals(Path.GetExtension(relativePath), ".dylib", StringComparison.Ordinal))
+        {
+            // Boot images and dependency privacy manifests are resources, not host code.
+            root = resourcesDirectory;
+        }
+        if (relativePath.StartsWith(Path.Combine("runtimes", "osx-arm64", "native")
+                + Path.DirectorySeparatorChar + "workspace-network-gateway-", StringComparison.Ordinal))
+        {
+            root = resourcesDirectory;
+        }
         return Path.Combine(root, relativePath);
     }
 

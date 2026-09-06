@@ -155,6 +155,15 @@ echo "Assembling the macOS CEF development bundle..." >&2
 rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
 workspace_runtime="${macos_directory}/runtimes/osx-arm64/workspace-runtime/workspace-runtime"
 if [[ -f "${workspace_runtime}" ]]; then
+    # Match the release bundle's resource layout so SDK boot paths are identical.
+    workspace_resources="${resources_directory}/runtimes/osx-arm64/workspace-runtime"
+    mkdir -p "${workspace_resources}"
+    for runtime_asset in "${workspace_runtime%/*}/"*; do
+        case "${runtime_asset##*/}" in
+            workspace-runtime|*.dylib) continue ;;
+        esac
+        mv "${runtime_asset}" "${workspace_resources}/"
+    done
     # Re-sign this child only; Chromium's entitlements must not be applied to
     # the VM owner, and VM privileges must not spread to other app executables.
     /usr/bin/codesign --force --sign - \

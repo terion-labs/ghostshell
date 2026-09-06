@@ -63,14 +63,16 @@ connection_engine_source="sources/openconnect-9.21.tar.gz"
 # Assets and their legal evidence move to separate bundle roots; compare each
 # staged byte against the verified build payload before release signing.
 verify_workspace_runtime_copy() {
-    local code_directory="$1" legal_directory="$2"
+    local code_directory="$1" legal_directory="$2" resource_directory="${3:-$1}"
     local source relative target
     while IFS= read -r source; do
         relative="${source#${workspace_runtime_directory}/}"
         if [[ "${relative}" == legal/* ]]; then
             target="${legal_directory}/${relative#legal/}"
-        else
+        elif [[ "${relative}" == workspace-runtime || "${relative}" == *.dylib ]]; then
             target="${code_directory}/${relative}"
+        else
+            target="${resource_directory}/${relative}"
         fi
         if [[ ! -f "${target}" || -L "${target}" ]] || ! /usr/bin/cmp -s "${source}" "${target}"; then
             echo "The workspace runtime payload is missing or altered: ${relative}." >&2
@@ -981,12 +983,23 @@ if [[ ! -x "${candidate_workspace_gateway_host}/${workspace_gateway_host_name}" 
     echo "The packaged workspace network gateway payload is incomplete or not executable." >&2
     exit 1
 fi
-(
-    cd "${candidate_workspace_gateway_host}"
-    /usr/bin/shasum -a 256 -c workspace-network-gateway-MANIFEST.sha256
-)
+candidate_workspace_gateway_resources="${candidate}/Contents/Resources/runtimes/osx-arm64/native"
+for required in "${workspace_gateway_host_name}" \
+    workspace-network-gateway-MANIFEST.sha256 \
+    workspace-network-gateway-THIRD-PARTY-NOTICES.md \
+    workspace-network-gateway-GO-LICENSE.txt; do
+    gateway_target="${candidate_workspace_gateway_resources}/${required}"
+    if [[ "${required}" == "${workspace_gateway_host_name}" ]]; then
+        gateway_target="${candidate_workspace_gateway_host}/${required}"
+    fi
+    if [[ ! -f "${gateway_target}" || -L "${gateway_target}" ]] \
+        || ! /usr/bin/cmp -s "${workspace_gateway_host_directory}/${required}" "${gateway_target}"; then
+        echo "The packaged workspace network gateway payload is missing or altered: ${required}." >&2
+        exit 1
+    fi
+done
 candidate_connection_engine_code="${candidate}/Contents/MacOS/runtimes/osx-arm64/connection-engines"
-verify_workspace_runtime_copy "${candidate}/Contents/MacOS/runtimes/osx-arm64/workspace-runtime" "${candidate}/Contents/Resources/workspace-runtime-legal"
+verify_workspace_runtime_copy "${candidate}/Contents/MacOS/runtimes/osx-arm64/workspace-runtime" "${candidate}/Contents/Resources/workspace-runtime-legal" "${candidate}/Contents/Resources/runtimes/osx-arm64/workspace-runtime"
 candidate_connection_engine_legal="${candidate}/Contents/Resources/connection-engine-legal"
 for required in "${connection_engine_code_files[@]}"; do
     if [[ ! -f "${candidate_connection_engine_code}/${required}" \
