@@ -29,6 +29,20 @@ public sealed class ConnectionEnginePackagingTests
     }
 
     [Fact]
+    public void WorkspaceRuntimeKeepsSwiftBuildsOutsideTheSealedSource()
+    {
+        var script = Read("scripts", "build-workspace-runtime.sh");
+        Assert.Contains("swift_scratch_dir=\"${build_dir}/swift\"", script, StringComparison.Ordinal);
+        var swiftCommands = script.Split('\n')
+            .Where(line => line.Contains("xcrun swift ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(3, swiftCommands.Length);
+        Assert.All(swiftCommands, line => Assert.Contains("--scratch-path \"${swift_scratch_dir}\"", line, StringComparison.Ordinal));
+        Assert.Contains("\"${swift_scratch_dir}/checkouts/\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("${package_dir}/.build", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OnlyTheWorkspaceRuntimeReceivesVirtualizationPrivileges()
     {
         var entitlements = XDocument.Load(Path.Combine(RepositoryRoot,

@@ -6,6 +6,9 @@ repository_dir="$(cd "${script_dir}/.." && pwd)"
 package_dir="${repository_dir}/native/workspace-runtime"
 artifact_dir="${repository_dir}/native/artifacts/osx-arm64/workspace-runtime"
 build_dir="${repository_dir}/native/artifacts/workspace-runtime-build"
+# Release source exports are sealed read-only. Keep SwiftPM products and locked
+# dependency checkouts with the other writable native build artifacts.
+swift_scratch_dir="${build_dir}/swift"
 entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements"
 # Swift Testing is supplied by full Xcode, not every Command Line Tools SDK.
 if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
@@ -46,7 +49,7 @@ case "${1:-}" in
         diff -u "${artifact_dir}/legal/SOURCE-MANIFEST.sha256" <(source_manifest)
         exit 0 ;;
     --test)
-        xcrun swift test --package-path "${package_dir}" --disable-automatic-resolution
+        xcrun swift test --package-path "${package_dir}" --scratch-path "${swift_scratch_dir}" --disable-automatic-resolution
         exit 0 ;;
     "") ;;
     *) echo "Unknown workspace runtime build option." >&2; exit 64 ;;
@@ -90,9 +93,9 @@ download "https://raw.githubusercontent.com/swiftlang/swift/swift-6.3-RELEASE/LI
 download "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5" \
     MUSL-COPYRIGHT.txt f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af
 
-xcrun swift build --package-path "${package_dir}" -c release --disable-automatic-resolution
+xcrun swift build --package-path "${package_dir}" --scratch-path "${swift_scratch_dir}" -c release --disable-automatic-resolution
 "${script_dir}/build-workspace-runtime.sh" --test
-binary_dir="$(xcrun swift build --package-path "${package_dir}" -c release --show-bin-path)"
+binary_dir="$(xcrun swift build --package-path "${package_dir}" --scratch-path "${swift_scratch_dir}" -c release --show-bin-path)"
 diff -u "${staging_dir}/legal/SOURCE-MANIFEST.sha256" <(source_manifest)
 install -m 755 "${binary_dir}/workspace-runtime" "${staging_dir}/workspace-runtime"
 # Swift compatibility libraries are not necessarily present on the deployment OS.
@@ -148,7 +151,7 @@ notices="${staging_dir}/legal/THIRD-PARTY-NOTICES.md"
     printf '# Workspace runtime dependency notices\n\n'
     printf 'Containerization %s, revision %s. Exact dependency versions are in Package.resolved.\n\n' "${sdk_version}" "${sdk_revision}"
     printf 'The vminit image is %s. Kernel source and build material are in sources/ and kernel.config.\n' "${vminit_image}"
-    for checkout in "${package_dir}/.build/checkouts/"*; do
+    for checkout in "${swift_scratch_dir}/checkouts/"*; do
         [[ -d "${checkout}" ]] || continue
         licenses="$(find "${checkout}" -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) ! -path '*/.git/*' -print | LC_ALL=C sort)"
         [[ -n "${licenses}" ]] || { echo "Missing license for $(basename "${checkout}")." >&2; exit 1; }
