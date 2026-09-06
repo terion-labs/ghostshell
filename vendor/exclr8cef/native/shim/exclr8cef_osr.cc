@@ -5,6 +5,7 @@
 #include <cmath>
 #include <climits>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -2422,7 +2423,16 @@ extern "C" int excef_create_offscreen_browser_ex(
 extern "C" int excef_create_request_context(const char* cache_path) {
     CefRequestContextSettings settings;
     if (cache_path && *cache_path) {
-        CefString(&settings.cache_path).FromString(cache_path);
+        // CEF canonicalizes its root, but compares request-context paths as
+        // supplied. macOS /var and /private/var must identify the same root.
+        std::error_code error;
+        const auto canonical_path = std::filesystem::weakly_canonical(cache_path, error);
+        if (error || !canonical_path.is_absolute()) return 0;
+        CefString(&settings.cache_path).FromString(canonical_path.string());
+        // GhostSHELL supplies disk paths only for retained profiles. The global
+        // context is in-memory, so its cookie setting does not retain sessions
+        // in these independent request contexts. Private contexts stay transient.
+        settings.persist_session_cookies = true;
     }
     CefRefPtr<CefRequestContext> ctx = CefRequestContext::CreateContext(
         settings, /*handler=*/nullptr);

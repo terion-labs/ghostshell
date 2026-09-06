@@ -571,6 +571,10 @@ fi
     --catalog "${catalog}" \
     --runtime-identifier "${target_rid}"
 
+if [[ "${target_rid}" == osx-arm64 && "${host_rid}" == osx-arm64 ]]; then
+    bash "${script_dir}/test-browser-session-cookies.sh" "${cef_artifact_dir}"
+fi
+
 existing_artifact_dir="${artifact_parent_dir}/${target_rid}"
 if [[ -d "${existing_artifact_dir}" ]]; then
     shopt -s dotglob nullglob

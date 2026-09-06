@@ -271,19 +271,26 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                                 or EndOfStreamException
                                 or InvalidDataException)
                         {
-                            DeleteOwnedDirectory(entryDirectory);
+                            DeleteRuntimeEntry(entryDirectory);
                             continue;
                         }
 
                         if (record.Phase == BrowserProfileRuntimePhase.Preparing)
                         {
-                            DeleteOwnedDirectory(entryDirectory);
+                            DeleteRuntimeEntry(entryDirectory);
                             continue;
                         }
 
-                        var cacheDirectory = Path.Combine(entryDirectory, "cache");
+                        var cacheDirectory = CacheDirectoryForEntry(entryDirectory);
+                        if (!Directory.Exists(cacheDirectory))
+                        {
+                            // A previous build may have left its nested profile
+                            // behind after an unclean shutdown. Seal it as-is.
+                            cacheDirectory = Path.Combine(entryDirectory, "cache");
+                        }
+
                         _stateStore.Seal(record.StateKey, cacheDirectory);
-                        DeleteOwnedDirectory(entryDirectory);
+                        DeleteRuntimeEntry(entryDirectory);
                     }
 
                     DeleteOwnedDirectory(ContextsRoot);
@@ -359,7 +366,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                 {
                     if (_stateStore?.IsRetentionEnabled == false)
                     {
-                        DeleteOwnedDirectory(entry.EntryDirectory!);
+                        DeleteRuntimeEntry(entry.EntryDirectory!);
                         continue;
                     }
 
@@ -370,7 +377,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     }
 
                     _stateStore.Seal(entry.StateKey, entry.CacheDirectory!);
-                    DeleteOwnedDirectory(entry.EntryDirectory!);
+                    DeleteRuntimeEntry(entry.EntryDirectory!);
                 }
                 catch (Exception exception)
                     when (exception is IOException
@@ -501,7 +508,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     profile.Selection,
                     RouteKey(persistentRouteIdentity ?? routeIdentity));
                 entryDirectory = CreateRuntimeEntry(stateKey.Value);
-                cacheDirectory = Path.Combine(entryDirectory, "cache");
+                cacheDirectory = CacheDirectoryForEntry(entryDirectory);
                 _stateStore!.Restore(stateKey.Value, cacheDirectory);
             }
 
@@ -545,7 +552,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                 context?.Dispose();
                 if (entryDirectory is not null)
                 {
-                    DeleteOwnedDirectory(entryDirectory);
+                    DeleteRuntimeEntry(entryDirectory);
                 }
 
                 throw;
@@ -572,7 +579,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             }
 
             var entryDirectory = CreateRuntimeEntry(stateKey);
-            var cacheDirectory = Path.Combine(entryDirectory, "cache");
+            var cacheDirectory = CacheDirectoryForEntry(entryDirectory);
             ICefBrowserRequestContext? context = null;
             try
             {
@@ -594,7 +601,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             catch
             {
                 context?.Dispose();
-                DeleteOwnedDirectory(entryDirectory);
+                DeleteRuntimeEntry(entryDirectory);
                 throw;
             }
         }
@@ -675,7 +682,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
                         if (item.Value.EntryDirectory is not null)
                         {
-                            DeleteOwnedDirectory(item.Value.EntryDirectory);
+                            DeleteRuntimeEntry(item.Value.EntryDirectory);
                         }
 
                         _contexts.Remove(item.Key);
@@ -819,6 +826,17 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         PreparePrivateDirectory(entryDirectory);
         BrowserProfileRuntimeManifest.Write(entryDirectory, stateKey);
         return entryDirectory;
+    }
+
+    // Chromium requires each disk profile to be an immediate child of its
+    // root cache directory. Recovery metadata stays outside the profile tree.
+    private string CacheDirectoryForEntry(string entryDirectory) =>
+        Path.Combine(_runtimeRoot!, "profile-" + Path.GetFileName(entryDirectory));
+
+    private void DeleteRuntimeEntry(string entryDirectory)
+    {
+        DeleteOwnedDirectory(CacheDirectoryForEntry(entryDirectory));
+        DeleteOwnedDirectory(entryDirectory);
     }
 
     private static void PreparePrivateDirectory(string directory)

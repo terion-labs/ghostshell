@@ -14,7 +14,7 @@ internal sealed class DesktopProductComponentCatalog : IProductComponentCatalog
             "BSD-3-Clause + bundled third-party notices"),
         new(
             "Exclr8CEF",
-            "0.8.0-ghostshell.6",
+            "0.8.0-ghostshell.7",
             "Avalonia off-screen Chromium binding",
             "MIT"),
         new(

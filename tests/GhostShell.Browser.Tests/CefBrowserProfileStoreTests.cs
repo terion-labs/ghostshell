@@ -393,6 +393,7 @@ public sealed class CefBrowserProfileStoreTests
                 {
                     var cachePath = Assert.Single(firstContexts.Created).CachePath;
                     Assert.NotNull(cachePath);
+                    Assert.Equal(root, Path.GetDirectoryName(cachePath));
                     Directory.CreateDirectory(Path.Combine(cachePath, "Default"));
                     File.WriteAllText(
                         Path.Combine(cachePath, "Default", "Cookies"),
@@ -526,8 +527,10 @@ public sealed class CefBrowserProfileStoreTests
         }
     }
 
-    [Fact]
-    public void StartupRecoversAnOrphanedDurableRuntimeTree()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StartupRecoversAnOrphanedDurableRuntimeTree(bool previousNestedLayout)
     {
         var root = TemporaryRoot();
         var state = new RecordingStateStore();
@@ -548,6 +551,12 @@ public sealed class CefBrowserProfileStoreTests
                 File.WriteAllText(
                     Path.Combine(Assert.Single(contexts.Created).CachePath!, "Cookies"),
                     "recover-me");
+            }
+
+            if (previousNestedLayout)
+            {
+                var entry = Assert.Single(Directory.GetDirectories(Path.Combine(root, "contexts")));
+                Directory.Move(contexts.Created[0].CachePath!, Path.Combine(entry, "cache"));
             }
 
             using var recovery = new CefBrowserProfileStore(
@@ -578,8 +587,9 @@ public sealed class CefBrowserProfileStoreTests
         {
             Directory.CreateDirectory(entry);
             BrowserProfileRuntimeManifest.Write(entry, key);
-            Directory.CreateDirectory(Path.Combine(entry, "cache"));
-            File.WriteAllText(Path.Combine(entry, "cache", "Cookies"), "partial");
+            var cache = Path.Combine(root, "profile-" + Path.GetFileName(entry));
+            Directory.CreateDirectory(cache);
+            File.WriteAllText(Path.Combine(cache, "Cookies"), "partial");
 
             using var recovery = new CefBrowserProfileStore(
                 null,
@@ -589,6 +599,7 @@ public sealed class CefBrowserProfileStoreTests
             Assert.True(recovery.RecoverOrphanedRuntimeState());
             Assert.Equal(0, state.SealCount);
             Assert.False(Directory.Exists(entry));
+            Assert.False(Directory.Exists(cache));
         }
         finally
         {
