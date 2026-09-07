@@ -293,7 +293,8 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
             current.IsolationMounts,
             current.IsolationImageReference,
             current.RunAgentInIsolation && isIsolated,
-            current.NetworkOverride);
+            current.NetworkOverride,
+            current.SortOrder);
         return await _catalog.SaveWorkspaceAsync(
             updated,
             stored.Revision,
@@ -339,7 +340,8 @@ public sealed class WorkspaceSettingsViewModel : ObservableObject, IDisposable
             current.IsolationMounts,
             current.IsolationImageReference,
             current.RunAgentInIsolation,
-            current.NetworkOverride);
+            current.NetworkOverride,
+            current.SortOrder);
         return await _catalog.SaveWorkspaceAsync(
             updated,
             stored.Revision,

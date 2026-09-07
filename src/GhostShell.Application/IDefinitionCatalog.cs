@@ -49,6 +49,14 @@ public interface IDefinitionCatalog
         long? expectedRevision,
         CancellationToken cancellationToken);
 
+    /// <summary>Atomically persists one complete workspace ordering. No definitions are created or removed.</summary>
+    ValueTask<DefinitionStoreError?> ReorderWorkspacesAsync(
+        IReadOnlyList<WorkspaceId> orderedIds,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult<DefinitionStoreError?>(new(
+            DefinitionStoreErrorCode.UnsupportedKind,
+            "This catalog cannot reorder workspaces atomically."));
+
     /// <summary>
     /// Saves a workspace together with the auto-saved tab layouts its entries
     /// reference, as one atomic batch. Returns null on success. The default

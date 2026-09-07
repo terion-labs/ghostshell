@@ -79,6 +79,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _ = new WorkspaceRailDragController(this);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
         // Tunneled so any input anywhere counts as activity for the idle
         // lock, before a control can mark it handled.

@@ -49,7 +49,8 @@ public sealed record WorkspaceDefinition : IDurableDefinition
         IReadOnlyList<WorkspaceIsolationMountDefinition>? isolationMounts = null,
         string? isolationImageReference = null,
         bool runAgentInIsolation = false,
-        NetworkPolicy? networkOverride = null)
+        NetworkPolicy? networkOverride = null,
+        int sortOrder = int.MaxValue)
     {
         Id = id;
         SchemaVersion = schemaVersion;
@@ -84,6 +85,7 @@ public sealed record WorkspaceDefinition : IDurableDefinition
             : isolationImageReference.Trim();
         RunAgentInIsolation = runAgentInIsolation;
         NetworkOverride = networkOverride;
+        SortOrder = sortOrder;
     }
 
     public static DefinitionKind Kind => DefinitionKind.Workspace;
@@ -96,6 +98,9 @@ public sealed record WorkspaceDefinition : IDurableDefinition
     public int SchemaVersion { get; }
 
     public string Name { get; }
+
+    /// <summary>Saved rail order. Unpositioned and newly created workspaces sort last by name.</summary>
+    public int SortOrder { get; init; }
 
     public string? Description { get; }
 
@@ -230,7 +235,8 @@ public sealed record WorkspaceDefinition : IDurableDefinition
             IsolationMounts,
             IsolationImageReference,
             RunAgentInIsolation,
-            NetworkOverride);
+            NetworkOverride,
+            SortOrder);
     }
 
     public static bool IsValidIcon(string? icon)

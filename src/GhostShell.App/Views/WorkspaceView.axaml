@@ -492,6 +492,7 @@
                     OpenRequested="OnOpenWorkspaceClick"
                     CloseRequested="OnCloseWorkspaceClick"
                     ToolTip.Tip="{Binding Name}"
+                    AutomationProperties.HelpText="Drag to reorder workspaces. Alt+Up or Alt+Down moves the focused workspace."
                     AutomationProperties.Name="{Binding Name}" />
               </DataTemplate>
             </ItemsControl.ItemTemplate>

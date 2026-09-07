@@ -488,6 +488,12 @@
       <Setter Property="Template">
         <ControlTemplate>
           <Panel ClipToBounds="False">
+            <Border Name="PART_SortBefore" Height="{DynamicResource ShellSpaceXs}" Margin="{controls:Inset Top=Sm, Scale=-0.5}"
+                VerticalAlignment="Top" Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="False" IsHitTestVisible="False" />
+            <Border Name="PART_SortAfter" Height="{DynamicResource ShellSpaceXs}" Margin="{controls:Inset Bottom=Sm, Scale=-0.5}"
+                VerticalAlignment="Bottom" Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="False" IsHitTestVisible="False" />
             <!--
               The colour is layered rather than swapped, because a style
               targeting a template part cannot reach back to the tile for a
@@ -633,6 +639,13 @@
           </Panel>
         </ControlTemplate>
       </Setter>
+
+      <Style Selector="^.sortBefore /template/ Border#PART_SortBefore">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+      <Style Selector="^.sortAfter /template/ Border#PART_SortAfter">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
 
       <!-- Alive, but not the one you are looking at: outlined in its own colour
            while its fill stays at rest. Two different marks, because they are

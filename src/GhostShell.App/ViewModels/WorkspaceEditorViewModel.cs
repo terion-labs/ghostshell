@@ -1124,7 +1124,8 @@ public sealed class WorkspaceEditorViewModel : ObservableObject, IDisposable
             ? _original.IsolationImageReference
             : IsolationImageReference,
         RunAgentInIsolation,
-        OverridesNetworkSettings ? NetworkPolicy.CreatePolicy() : null);
+        OverridesNetworkSettings ? NetworkPolicy.CreatePolicy() : null,
+        _original.SortOrder);
 
     private IReadOnlyList<DefinitionValidationIssue> Validate()
     {

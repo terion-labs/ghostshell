@@ -331,7 +331,8 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             storedDefinition.IsolationMounts,
             storedDefinition.IsolationImageReference,
             storedDefinition.RunAgentInIsolation,
-            storedDefinition.NetworkOverride);
+            storedDefinition.NetworkOverride,
+            storedDefinition.SortOrder);
         var unchanged = DefinitionPayloadEquals(definition, storedDefinition)
             && layouts.All(item =>
                 storedLayouts.TryGetValue(item.Definition.Id.Value, out var existing)

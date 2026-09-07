@@ -8581,7 +8581,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     {
         _presentedCatalogSnapshot = snapshot;
         var workspaces = snapshot.Workspaces
-            .OrderBy(item => item.Value.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => item.Value.SortOrder)
+            .ThenBy(item => item.Value.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Value.Id.Value, StringComparer.Ordinal)
             .Select(item => new LauncherWorkspaceViewModel(
                 item.Value.Id,
                 item.Revision,

@@ -592,7 +592,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
             workspace.IsolationMounts,
             workspace.IsolationImageReference,
             workspace.RunAgentInIsolation,
-            DisableImportedNetworkPolicy(workspace.NetworkOverride!));
+            DisableImportedNetworkPolicy(workspace.NetworkOverride!),
+            workspace.SortOrder);
 
     private static PortableDefinitionDocument SanitizeExportedBrowserProfile(
         PortableDefinitionDocument document,

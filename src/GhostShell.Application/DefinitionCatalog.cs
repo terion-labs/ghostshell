@@ -2,7 +2,7 @@ using GhostShell.Core;
 
 namespace GhostShell.Application;
 
-public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
+public sealed partial class DefinitionCatalog : IDefinitionCatalog, IDisposable
 {
     private const string DefaultTerminalProfileId = "builtin.terminal.default";
     private static readonly TerminalPalette LegacyGhostShellDarkPalette = new(
@@ -1581,7 +1581,8 @@ public sealed class DefinitionCatalog : IDefinitionCatalog, IDisposable
                     workspace.IsolationMounts,
                     workspace.IsolationImageReference,
                     workspace.RunAgentInIsolation,
-                    workspace.NetworkOverride),
+                    workspace.NetworkOverride,
+                    workspace.SortOrder),
                 stored.Revision,
                 cancellationToken)
             .ConfigureAwait(false);
