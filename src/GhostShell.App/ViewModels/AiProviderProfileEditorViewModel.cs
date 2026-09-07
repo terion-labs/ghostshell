@@ -1,3 +1,4 @@
+using System.Text;
 using GhostShell.Application;
 using GhostShell.Core;
 
@@ -81,6 +82,10 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         "Tests use the saved credential to load the provider's model list.";
     private IReadOnlyList<AiProviderModelDescriptor> _models = [];
     private AiProviderProfile? _modelCatalogProfile;
+    private readonly Func<CreateSecretRequest, SecretMaterial, CancellationToken, ValueTask<SecretVaultResult<SecretMetadata>>>? _storeCredential;
+    private string _apiKeyValue = string.Empty;
+    private string _credentialStatus = string.Empty;
+    private bool _isStoringCredential;
 
     public AiProviderProfileEditorViewModel(
         IAiProviderProfileRuntime runtime,
@@ -88,12 +93,14 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         AiProviderProfile? existing = null,
         long? expectedRevision = null,
         int suggestedOrder = 0,
-        IAiProviderAuthenticationRuntime? authenticationRuntime = null)
+        IAiProviderAuthenticationRuntime? authenticationRuntime = null,
+        Func<CreateSecretRequest, SecretMaterial, CancellationToken, ValueTask<SecretVaultResult<SecretMetadata>>>? storeCredential = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _authenticationRuntime = authenticationRuntime;
         ArgumentNullException.ThrowIfNull(secrets);
         ExpectedRevision = expectedRevision;
+        _storeCredential = storeCredential;
         _id = existing?.Id ?? AiProviderProfileId.New();
         _schemaVersion = existing?.SchemaVersion ?? AiProviderProfile.CurrentSchemaVersion;
         ProviderKinds = Enum.GetValues<AiProviderKind>();
@@ -163,7 +170,7 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
 
     public IReadOnlyList<AiProviderIdentityOption> ProviderOptions { get; }
 
-    public IReadOnlyList<AiProviderSecretOption> SecretOptions { get; }
+    public IReadOnlyList<AiProviderSecretOption> SecretOptions { get; private set; }
 
     public bool HasSingleCredentialOption => SecretOptions.Count == 1;
 
@@ -384,7 +391,99 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
     public AiProviderSecretOption? SelectedCredential
     {
         get => _selectedCredential;
-        set => SetProperty(ref _selectedCredential, value);
+        set
+        {
+            // Rebuilding the picker briefly writes null through its two-way binding.
+            if (value is not null)
+            {
+                SetProperty(ref _selectedCredential, value);
+            }
+        }
+    }
+
+    public string ApiKeyValue
+    {
+        get => _apiKeyValue;
+        set
+        {
+            if (SetProperty(ref _apiKeyValue, value))
+            {
+                OnPropertyChanged(nameof(CanStoreCredential));
+            }
+        }
+    }
+
+    public string CredentialStatus
+    {
+        get => _credentialStatus;
+        private set => SetProperty(ref _credentialStatus, value);
+    }
+
+    public bool IsStoringCredential
+    {
+        get => _isStoringCredential;
+        private set
+        {
+            if (SetProperty(ref _isStoringCredential, value))
+            {
+                OnPropertyChanged(nameof(CanTest));
+                OnPropertyChanged(nameof(CanStoreCredential));
+            }
+        }
+    }
+
+    public bool CanStoreCredential => _storeCredential is not null
+        && !IsStoringCredential && !IsTesting && ApiKeyValue.Length > 0;
+
+    public async Task<bool> StoreApiKeyAsync(CancellationToken cancellationToken)
+    {
+        if (!UsesCredential || !CanStoreCredential)
+        {
+            CredentialStatus = "Enter an API key before storing it.";
+            return false;
+        }
+
+        IsStoringCredential = true;
+        try
+        {
+            var request = new CreateSecretRequest(SecretRef.New(), $"{Required(Name, "Provider name")} API key",
+                SecretKind.ApiKey, new SecretScope(SecretScopeKind.AiProvider, _id.Value),
+                new SecretUsePurpose(SecretUseKind.UserManagement, _id.Value));
+            using var material = SecretMaterial.TakeOwnership(Encoding.UTF8.GetBytes(ApiKeyValue));
+            ApiKeyValue = string.Empty;
+            var result = await _storeCredential!(request, material, cancellationToken);
+            if (result is not SecretVaultResult<SecretMetadata>.Success success)
+            {
+                CredentialStatus = "The API key could not be stored. Check that the system keychain is available and try again.";
+                return false;
+            }
+
+            // Create a fresh entry, never overwrite a key another saved profile may still use.
+            var option = new AiProviderSecretOption(success.Value.Reference, success.Value.Label, "API key", true);
+            SecretOptions = [.. SecretOptions, option];
+            _selectedCredential = option;
+            OnPropertyChanged(nameof(SecretOptions));
+            OnPropertyChanged(nameof(SelectedCredential));
+            OnPropertyChanged(nameof(HasSingleCredentialOption));
+            OnPropertyChanged(nameof(HasMultipleCredentialOptions));
+            CredentialStatus = "API key stored in the system keychain and selected for this provider.";
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            CredentialStatus = "API-key storage was cancelled.";
+            return false;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            CredentialStatus = "The API key could not be stored. Enter a provider name and key, then try again.";
+            return false;
+        }
+        finally
+        {
+            ApiKeyValue = string.Empty;
+            IsStoringCredential = false;
+        }
     }
 
     public bool IsTesting
@@ -395,11 +494,12 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
             if (SetProperty(ref _isTesting, value))
             {
                 OnPropertyChanged(nameof(CanTest));
+                OnPropertyChanged(nameof(CanStoreCredential));
             }
         }
     }
 
-    public bool CanTest => IsProviderRuntimeSupported && !IsTesting;
+    public bool CanTest => IsProviderRuntimeSupported && !IsTesting && !IsStoringCredential;
 
     public string TestStatus
     {
@@ -419,8 +519,26 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         private set => SetProperty(ref _models, value);
     }
 
-    public AiProviderProfileSaveRequest CreateSaveRequest() =>
-        new(BuildProfile(), ExpectedRevision);
+    public AiProviderProfileSaveRequest CreateSaveRequest()
+    {
+        if (UsesCredential && ApiKeyValue.Length > 0)
+        {
+            throw new ArgumentException("Store the entered API key before saving the provider.");
+        }
+
+        return new(BuildProfile(), ExpectedRevision);
+    }
+
+    public async Task<AiProviderProfileSaveRequest?> PrepareSaveAsync(CancellationToken cancellationToken)
+    {
+        if (IsTesting || IsStoringCredential
+            || (UsesCredential && ApiKeyValue.Length > 0 && !await StoreApiKeyAsync(cancellationToken)))
+        {
+            return null;
+        }
+
+        return CreateSaveRequest();
+    }
 
     public async ValueTask<AiProviderAuthenticationLaunch?> BeginAuthenticationAsync(
         CancellationToken cancellationToken)
@@ -507,7 +625,7 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
 
     public async Task TestAsync(CancellationToken cancellationToken)
     {
-        if (IsTesting)
+        if (IsTesting || IsStoringCredential)
         {
             return;
         }
@@ -516,6 +634,11 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         {
             TestStatus = "Provider unavailable";
             TestDetail = ProviderAvailability;
+            return;
+        }
+
+        if (UsesCredential && ApiKeyValue.Length > 0 && !await StoreApiKeyAsync(cancellationToken))
+        {
             return;
         }
 
@@ -858,8 +981,8 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
             new(
                 null,
                 existing is null
-                    ? "Create credential slot when saved"
-                    : "Replace with a new credential slot",
+                    ? "Add an API key below"
+                    : "Add a new API key below",
                 "API key",
                 true),
         };

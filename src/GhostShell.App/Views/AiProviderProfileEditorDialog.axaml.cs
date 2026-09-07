@@ -28,6 +28,10 @@ public sealed partial class AiProviderProfileEditorDialog : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        if (DataContext is AiProviderProfileEditorViewModel editor)
+        {
+            editor.ApiKeyValue = string.Empty;
+        }
         _lifetime.Cancel();
         _lifetime.Dispose();
         base.OnClosed(e);
@@ -78,14 +82,25 @@ public sealed partial class AiProviderProfileEditorDialog : Window
         }
     }
 
-    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    private async void OnStoreApiKeyClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        HideValidationError();
+        await ViewModel.StoreApiKeyAsync(_lifetime.Token);
+    }
+
+    private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;
         try
         {
             HideValidationError();
-            Close(ViewModel.CreateSaveRequest());
+            if (await ViewModel.PrepareSaveAsync(_lifetime.Token) is { } request)
+            {
+                Close(request);
+            }
         }
         catch (Exception exception) when (exception is ArgumentException or UriFormatException)
         {

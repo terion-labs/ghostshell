@@ -635,6 +635,7 @@ public sealed partial class MainWindow
             var editor = ViewModel.CreateAiProviderEditor(profileId);
             var request = await new AiProviderProfileEditorDialog(editor)
                 .ShowDialog<AiProviderProfileSaveRequest?>(this);
+            await ViewModel.RefreshSecretsAsync(_lifetime.Token);
             if (request is not null)
             {
                 _ = await ViewModel.SaveAiProviderProfileAsync(request, _lifetime.Token);

@@ -4289,7 +4289,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
 
     public AiProviderProfileEditorViewModel CreateAiProviderEditor(
         AiProviderProfileId? profileId = null) =>
-        AiProviderSettings.CreateEditor(profileId);
+        AiProviderSettings.CreateEditor(profileId, SecretSettings.CreateAiProviderDraftAsync);
 
     public async ValueTask<DefinitionStoreResult<StoredDefinition<AiProviderProfile>>>
         SaveAiProviderProfileAsync(

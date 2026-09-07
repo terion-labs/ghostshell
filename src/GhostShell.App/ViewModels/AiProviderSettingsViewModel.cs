@@ -53,7 +53,9 @@ public sealed class AiProviderSettingsViewModel : ObservableObject, IDisposable
         RefreshDefinitions();
     }
 
-    public AiProviderProfileEditorViewModel CreateEditor(AiProviderProfileId? profileId = null)
+    public AiProviderProfileEditorViewModel CreateEditor(
+        AiProviderProfileId? profileId = null,
+        Func<CreateSecretRequest, SecretMaterial, CancellationToken, ValueTask<SecretVaultResult<SecretMetadata>>>? storeCredential = null)
     {
         ThrowIfDisposed();
         var runtime = _runtime
@@ -65,7 +67,8 @@ public sealed class AiProviderSettingsViewModel : ObservableObject, IDisposable
                 runtime,
                 secrets,
                 suggestedOrder: NextOrder(_catalog.Snapshot),
-                authenticationRuntime: _authenticationRuntime);
+                authenticationRuntime: _authenticationRuntime,
+                storeCredential: storeCredential);
         }
 
         var stored = _catalog.Snapshot.AiProviderProfiles
@@ -77,7 +80,8 @@ public sealed class AiProviderSettingsViewModel : ObservableObject, IDisposable
             secrets,
             stored.Value,
             stored.Revision,
-            authenticationRuntime: _authenticationRuntime);
+            authenticationRuntime: _authenticationRuntime,
+            storeCredential: storeCredential);
     }
 
     public ValueTask<DefinitionStoreResult<StoredDefinition<AiProviderProfile>>> SaveAsync(

@@ -1,11 +1,185 @@
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using GhostShell.App.ViewModels;
+using GhostShell.App.Views;
 using GhostShell.Application;
 using GhostShell.Core;
 
 namespace GhostShell.App.Tests;
 
+[Collection(AvaloniaUiCollection.Name)]
 public sealed class AiProviderProfileEditorViewModelTests
 {
+    [Fact]
+    public async Task Inline_key_is_masked_and_stays_selected_when_the_live_picker_rebuilds()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var session = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        try
+        {
+            Assert.True(await session.Dispatch(async () =>
+            {
+                using var runtime = new StubRuntime();
+                var editor = new AiProviderProfileEditorViewModel(runtime, [],
+                    storeCredential: (request, _, _) => ValueTask.FromResult(Stored(request)))
+                { Name = "Gateway" };
+                var dialog = new AiProviderProfileEditorDialog(editor);
+                dialog.Show();
+                try
+                {
+                    var input = dialog.FindControl<TextBox>("ApiKeyInput");
+                    Assert.NotNull(input);
+                    Assert.NotEqual(default, input.PasswordChar);
+                    input.Text = "synthetic-key";
+                    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                    Assert.Equal("synthetic-key", editor.ApiKeyValue);
+                    Assert.True(await editor.StoreApiKeyAsync(timeout.Token));
+                    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                    dialog.UpdateLayout();
+                    Assert.Empty(input.Text!);
+                    var selected = editor.SelectedCredential;
+                    Assert.NotNull(selected);
+                    Assert.True(selected.IsAvailable);
+                    Assert.Contains(dialog.GetVisualDescendants().OfType<ComboBox>(),
+                        picker => Equals(picker.SelectedItem, selected));
+                    editor.ApiKeyValue = "discarded-synthetic-key";
+                }
+                finally { dialog.Close(); }
+                Assert.Empty(editor.ApiKeyValue);
+                return true;
+            }, timeout.Token));
+        }
+        finally { await session.DisposeAsync(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Test_and_save_store_a_new_key_before_using_the_draft(bool test)
+    {
+        using var runtime = new StubRuntime();
+        CreateSecretRequest? stored = null;
+        SecretMaterial? capturedMaterial = null;
+        var editor = new AiProviderProfileEditorViewModel(runtime, [], storeCredential: (request, material, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            stored = request;
+            capturedMaterial = material;
+            var bytes = new byte[material.Length];
+            material.CopyTo(bytes);
+            Assert.Equal("synthetic-inline-key", System.Text.Encoding.UTF8.GetString(bytes));
+            return ValueTask.FromResult(Stored(request));
+        })
+        { Name = "Gateway", ApiKeyValue = "synthetic-inline-key" };
+
+        AiProviderProfile? profile;
+        if (test)
+        {
+            await editor.TestAsync(CancellationToken.None);
+            profile = runtime.LastProfile;
+        }
+        else
+        {
+            profile = (await editor.PrepareSaveAsync(CancellationToken.None))?.Profile;
+        }
+
+        Assert.NotNull(profile);
+        Assert.NotNull(stored);
+        Assert.Equal(SecretKind.ApiKey, stored.Kind);
+        Assert.Equal(new SecretScope(SecretScopeKind.AiProvider, editor.ProfileId), stored.Scope);
+        Assert.Equal(new SecretUsePurpose(SecretUseKind.UserManagement, editor.ProfileId), stored.Purpose);
+        Assert.Equal(stored.Reference, Assert.IsType<AiProviderAuthentication.ApiKey>(profile.Authentication).Secret);
+        Assert.Equal(stored.Reference, editor.SelectedCredential?.Reference);
+        Assert.True(editor.SelectedCredential?.IsAvailable);
+        Assert.Empty(editor.ApiKeyValue);
+        Assert.True(capturedMaterial?.IsDisposed);
+        Assert.DoesNotContain("synthetic-inline-key", profile.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_storage_clears_input_without_testing_or_changing_the_selected_key(bool throws)
+    {
+        using var runtime = new StubRuntime();
+        var reference = new SecretRef("existing-provider-key");
+        var profile = Profile(new AiProviderAuthentication.ApiKey(reference), AiProviderKind.OpenAi,
+            new Uri("https://api.openai.com/v1/"));
+        var editor = new AiProviderProfileEditorViewModel(runtime, [], profile, storeCredential: (_, _, _) =>
+            throws
+                ? throw new InvalidOperationException("synthetic-secret-must-not-appear")
+                : ValueTask.FromResult(SecretVaultResult<SecretMetadata>.Fail(
+                    SecretVaultError.Create(SecretVaultErrorCode.AccessDenied))))
+        { ApiKeyValue = "synthetic-secret-must-not-appear" };
+
+        Assert.Null(await editor.PrepareSaveAsync(CancellationToken.None));
+        editor.ApiKeyValue = "synthetic-secret-must-not-appear";
+        await editor.TestAsync(CancellationToken.None);
+
+        Assert.Null(runtime.LastProfile);
+        Assert.Equal(reference, editor.SelectedCredential?.Reference);
+        Assert.Empty(editor.ApiKeyValue);
+        Assert.False(editor.IsStoringCredential);
+        Assert.Contains("could not be stored", editor.CredentialStatus, StringComparison.Ordinal);
+        Assert.DoesNotContain("synthetic-secret-must-not-appear", editor.CredentialStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Each_stored_key_has_a_fresh_reference_and_null_binding_updates_preserve_selection()
+    {
+        using var runtime = new StubRuntime();
+        var editor = new AiProviderProfileEditorViewModel(runtime, [],
+            storeCredential: (request, _, _) => ValueTask.FromResult(Stored(request)))
+        { Name = "Gateway", ApiKeyValue = "first-synthetic-key" };
+        Assert.True(await editor.StoreApiKeyAsync(CancellationToken.None));
+        var first = editor.SelectedCredential;
+        editor.ApiKeyValue = "second-synthetic-key";
+        Assert.True(await editor.StoreApiKeyAsync(CancellationToken.None));
+        var second = editor.SelectedCredential;
+        editor.SelectedCredential = null;
+
+        Assert.NotEqual(first?.Reference, second?.Reference);
+        Assert.Equal(second, editor.SelectedCredential);
+        Assert.Contains(first, editor.SecretOptions);
+        Assert.Contains(second, editor.SecretOptions);
+    }
+
+    [Fact]
+    public async Task Pending_storage_blocks_duplicate_save_and_test_and_cancellation_clears_input()
+    {
+        using var runtime = new StubRuntime();
+        using var cancellation = new CancellationTokenSource();
+        var pending = new TaskCompletionSource<SecretVaultResult<SecretMetadata>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var editor = new AiProviderProfileEditorViewModel(runtime, [], storeCredential: (_, _, token) =>
+        {
+            calls++;
+            return new ValueTask<SecretVaultResult<SecretMetadata>>(pending.Task.WaitAsync(token));
+        })
+        { Name = "Gateway", ApiKeyValue = "synthetic-key" };
+        var storing = editor.StoreApiKeyAsync(cancellation.Token);
+        Assert.True(editor.IsStoringCredential);
+        Assert.False(editor.CanStoreCredential);
+        Assert.False(editor.CanTest);
+        Assert.Null(await editor.PrepareSaveAsync(CancellationToken.None));
+        await editor.TestAsync(CancellationToken.None);
+        cancellation.Cancel();
+
+        Assert.False(await storing);
+        Assert.Equal(1, calls);
+        Assert.Null(runtime.LastProfile);
+        Assert.Empty(editor.ApiKeyValue);
+        Assert.False(editor.IsStoringCredential);
+        Assert.Contains("cancelled", editor.CredentialStatus, StringComparison.Ordinal);
+    }
+
+    private static SecretVaultResult<SecretMetadata> Stored(CreateSecretRequest request) =>
+        SecretVaultResult<SecretMetadata>.Succeed(new SecretMetadata(request.Reference, request.Label,
+            request.Kind, request.Scope, SecretVaultPersistenceKind.OsProtectedPersistent,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
     [Fact]
     public void New_openai_profile_uses_an_opaque_repairable_credential_slot()
     {

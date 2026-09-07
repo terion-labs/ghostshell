@@ -104,6 +104,29 @@ public sealed class SecretSettingsViewModel : ObservableObject, IDisposable
             cancellationToken);
     }
 
+    public async ValueTask<SecretVaultResult<SecretMetadata>> CreateAiProviderDraftAsync(
+        CreateSecretRequest request,
+        SecretMaterial material,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(material);
+        if (request.Scope.Kind != SecretScopeKind.AiProvider || request.Kind != SecretKind.ApiKey)
+        {
+            return SecretVaultResult<SecretMetadata>.Fail(SecretVaultError.Create(SecretVaultErrorCode.InvalidRequest));
+        }
+
+        // Drafts already have a stable provider ID but are not in the catalog yet.
+        var result = await _vault.CreateAsync(request, material, cancellationToken);
+        if (result is SecretVaultResult<SecretMetadata>.Success)
+        {
+            await RefreshAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
     public async ValueTask<bool> CreateAiProviderAsync(
         AiProviderProfileId profileId,
         string label,

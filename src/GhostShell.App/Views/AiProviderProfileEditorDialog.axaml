@@ -24,11 +24,11 @@
       <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
         <Button Classes="SecondaryButton" Click="OnTestClick" Content="Test" IsEnabled="{Binding CanTest}" />
         <Button Click="OnCancelClick" Content="Cancel" IsCancel="True" />
-        <Button Classes="PrimaryButton" Click="OnSaveClick" Content="Save provider" IsDefault="True" IsEnabled="{Binding IsProviderRuntimeSupported}" />
+        <Button Classes="PrimaryButton" Click="OnSaveClick" Content="Save provider" IsDefault="True" IsEnabled="{Binding CanTest}" />
       </StackPanel>
     </controls:DialogShell.Footer>
 
-    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}" IsEnabled="{Binding !IsStoringCredential}">
       <controls:SurfaceCard>
         <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
           <Grid
@@ -137,7 +137,24 @@
                 </Grid>
               </Grid>
             </controls:LabeledField>
-            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="API keys are kept in the system keychain. Save the profile first, then add its key from AI settings." TextWrapping="Wrap" />
+            <controls:LabeledField Label="New API key">
+              <TextBox
+                  x:Name="ApiKeyInput"
+                  Text="{Binding ApiKeyValue, Mode=TwoWay}"
+                  PasswordChar="●"
+                  MaxLength="65536"
+                  PlaceholderText="Paste an API key"
+                  AutomationProperties.Name="New provider API key" />
+            </controls:LabeledField>
+            <Button
+                Classes="SecondaryButton"
+                HorizontalAlignment="Left"
+                Click="OnStoreApiKeyClick"
+                Content="Store API key"
+                IsEnabled="{Binding CanStoreCredential}"
+                AutomationProperties.Name="Store API key in system keychain" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Store, Test, or Save writes the entered key to the system keychain and selects it here. Stored keys remain in the keychain if you cancel; existing keys are not overwritten." TextWrapping="Wrap" />
+            <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
           <StackPanel
               IsVisible="{Binding UsesInteractiveAuthentication}"

@@ -8,6 +8,41 @@ namespace GhostShell.App.Tests;
 public sealed class SecretSettingsViewModelTests
 {
     [Fact]
+    public async Task Draft_ai_provider_can_store_a_key_before_catalog_save_and_refreshes_projection()
+    {
+        var fixture = CreateFixture(DefinitionCatalogSnapshot.Empty);
+        using var viewModel = fixture.CreateViewModel();
+        var profileId = AiProviderProfileId.New();
+        var request = new CreateSecretRequest(SecretRef.New(), "Draft API key", SecretKind.ApiKey,
+            new SecretScope(SecretScopeKind.AiProvider, profileId.Value),
+            new SecretUsePurpose(SecretUseKind.UserManagement, profileId.Value));
+        using var material = SecretMaterial.CopyFrom("synthetic-key"u8);
+
+        var result = await viewModel.CreateAiProviderDraftAsync(request, material, CancellationToken.None);
+
+        Assert.IsType<SecretVaultResult<SecretMetadata>.Success>(result);
+        Assert.Equal(request, fixture.Vault.CreateRequest);
+        Assert.Equal(request.Reference, Assert.Single(viewModel.Secrets).Reference);
+    }
+
+    [Fact]
+    public async Task Draft_ai_provider_rejects_other_credential_scopes_before_vault_mutation()
+    {
+        var fixture = CreateFixture(DefinitionCatalogSnapshot.Empty);
+        using var viewModel = fixture.CreateViewModel();
+        var request = new CreateSecretRequest(SecretRef.New(), "Connection key", SecretKind.ApiKey,
+            new SecretScope(SecretScopeKind.Connection, "connection"),
+            new SecretUsePurpose(SecretUseKind.UserManagement, "connection"));
+        using var material = SecretMaterial.CopyFrom("synthetic-key"u8);
+
+        var result = await viewModel.CreateAiProviderDraftAsync(request, material, CancellationToken.None);
+
+        Assert.IsType<SecretVaultResult<SecretMetadata>.Failure>(result);
+        Assert.Null(fixture.Vault.CreateRequest);
+        Assert.Empty(viewModel.Secrets);
+    }
+
+    [Fact]
     public async Task File_provider_credential_creation_mutates_vault_and_refreshes_projection()
     {
         var profile = LocalProfile("files.secret-owner", "Secret owner");
