@@ -261,6 +261,13 @@ public sealed class SavedScreenAgentPolicyEditorViewModel : ObservableObject, ID
         get => _selectedModel;
         set
         {
+            // Replacing ItemsSource makes ComboBox briefly write null back.
+            // There is no empty choice: clearing an enabled policy's model is
+            // not a user action offered by this picker.
+            if (value is null && ModelOptions.Count > 0)
+            {
+                return;
+            }
             if (value is not null && !ModelOptions.Contains(value))
             {
                 throw new ArgumentException(
@@ -285,6 +292,10 @@ public sealed class SavedScreenAgentPolicyEditorViewModel : ObservableObject, ID
         get => _selectedProvider;
         set
         {
+            if (value is null && ProviderOptions.Count > 0)
+            {
+                return;
+            }
             if (value is not null && !ProviderOptions.Contains(value))
             {
                 throw new ArgumentException(

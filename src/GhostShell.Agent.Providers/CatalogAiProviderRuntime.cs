@@ -32,7 +32,7 @@ public sealed class CatalogAiProviderRuntime :
     private readonly AiProviderFactory _factory;
     private readonly Func<Uri, AiProviderFactory>? _routedFactoryFactory;
     private readonly Dictionary<string, AiProviderFactory> _routedFactories = [];
-    private readonly Dictionary<AiProviderProfileId, IReadOnlyList<AiProviderModelDescriptor>>
+    private readonly Dictionary<AiProviderProfileId, (AiProviderProfile Profile, IReadOnlyList<AiProviderModelDescriptor> Models)>
         _discoveredModels = [];
     private IReadOnlyList<AiProviderProfileDescriptor> _profiles = [];
     private IReadOnlyList<AiProviderRuntimeDiagnostic> _diagnostics = [];
@@ -222,7 +222,7 @@ public sealed class CatalogAiProviderRuntime :
             lock (_gate)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
-                _discoveredModels[profile.Id] = Array.AsReadOnly(models.ToArray());
+                _discoveredModels[profile.Id] = (profile, Array.AsReadOnly(models.ToArray()));
             }
 
             Refresh(_catalog.Snapshot);
@@ -731,8 +731,9 @@ public sealed class CatalogAiProviderRuntime :
     {
         lock (_gate)
         {
-            return _discoveredModels.TryGetValue(profile.Id, out var models)
-                ? models
+            return _discoveredModels.TryGetValue(profile.Id, out var discovered)
+                && discovered.Profile == profile
+                ? discovered.Models
                 : AvailableModels(profile);
         }
     }
@@ -740,6 +741,13 @@ public sealed class CatalogAiProviderRuntime :
     private static IReadOnlyList<AiProviderModelDescriptor> AvailableModels(
         AiProviderProfile profile)
     {
+        if (profile.DiscoveredModelIds.Count > 0)
+        {
+            return [.. profile.DiscoveredModelIds.Prepend(profile.DefaultModel)
+                .Distinct(StringComparer.Ordinal)
+                .Select(id => new AiProviderModelDescriptor(id, id))];
+        }
+
         if (profile.Identity == AiProviderKind.OpenAi
             && profile.Authentication is AiProviderAuthentication.OAuth)
         {

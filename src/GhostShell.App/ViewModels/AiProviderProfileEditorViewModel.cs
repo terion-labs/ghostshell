@@ -80,6 +80,7 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
     private string _testDetail =
         "Tests use the saved credential to load the provider's model list.";
     private IReadOnlyList<AiProviderModelDescriptor> _models = [];
+    private AiProviderProfile? _modelCatalogProfile;
 
     public AiProviderProfileEditorViewModel(
         IAiProviderProfileRuntime runtime,
@@ -118,6 +119,9 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         _defaultModel = existing.DefaultModel;
         _order = existing.Order;
         _isEnabled = existing.IsEnabled;
+        _modelCatalogProfile = existing;
+        _models = [.. existing.DiscoveredModelIds
+            .Select(id => new AiProviderModelDescriptor(id, id))];
         var existingMode = existing.Authentication switch
         {
             AiProviderAuthentication.None =>
@@ -533,7 +537,12 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
         try
         {
             var result = await _runtime.TestAsync(profile, cancellationToken);
-            Models = result.Models;
+            if (result.Models.Count > 0)
+            {
+                // Discovery can succeed even when the chosen default model is unavailable.
+                _modelCatalogProfile = profile;
+                Models = result.Models;
+            }
             TestStatus = !result.IsSuccess
                 ? "Test failed"
                 : string.Equals(result.Code, "ai_provider_test_configuration_valid"
@@ -603,7 +612,15 @@ public sealed class AiProviderProfileEditorViewModel : ObservableObject
             authentication,
             Required(DefaultModel, "Default model"),
             Order,
-            IsEnabled);
+            IsEnabled,
+            discoveredModelIds: _modelCatalogProfile is { } tested
+                && tested.ProviderKind == Kind
+                && string.Equals(tested.Endpoint.AbsoluteUri,
+                    endpoint.AbsoluteUri.EndsWith('/') ? endpoint.AbsoluteUri : endpoint.AbsoluteUri + "/",
+                    StringComparison.Ordinal)
+                && tested.Authentication == authentication
+                    ? Models.Select(model => model.Id).ToArray()
+                    : []);
     }
 
     private async Task ObserveAuthenticationAsync(

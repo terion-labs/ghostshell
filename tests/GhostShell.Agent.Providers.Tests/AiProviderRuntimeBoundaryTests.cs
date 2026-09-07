@@ -805,6 +805,28 @@ public sealed class AiProviderRuntimeBoundaryTests
             Assert.Single(runtime.Profiles).Models.Select(model => model.Id), StringComparer.Ordinal);
         Assert.Equal(1, handler.CallCount);
         Assert.EndsWith("/v1/models", handler.LastRequest!.Uri.AbsoluteUri);
+        var changed = new AiProviderProfile(profile.Id, profile.SchemaVersion, profile.Name,
+            profile.ProviderKind, new Uri("https://replacement.example/v1/"), profile.Authentication,
+            "replacement-model", profile.Order);
+        catalog.Publish(Snapshot(changed));
+        Assert.Equal(["replacement-model"], Assert.Single(runtime.Profiles).Models.Select(model => model.Id), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void Saved_custom_catalog_populates_all_policy_pickers_without_network_discovery()
+    {
+        var profile = new AiProviderProfile(AiProviderProfileId.New(), AiProviderProfile.CurrentSchemaVersion,
+            "Custom", AiProviderKind.OpenAiCompatible, new Uri("http://localhost:11434/v1/"),
+            new AiProviderAuthentication.None(), "custom/manual", 0,
+            discoveredModelIds: ["custom/primary", "custom/fast"]);
+        var catalog = new FixedDefinitionCatalog(Snapshot(profile));
+        using var vault = new InMemorySecretVault();
+        var handler = new StubHttpMessageHandler((_, _) => throw new InvalidOperationException("No discovery expected."));
+        using var factory = new AiProviderFactory(vault, handler);
+        using var runtime = new CatalogAiProviderRuntime(catalog, factory);
+        Assert.Equal(["custom/manual", "custom/primary", "custom/fast"],
+            Assert.Single(runtime.Profiles).Models.Select(model => model.Id), StringComparer.Ordinal);
+        Assert.Equal(0, handler.CallCount);
     }
 
     [Fact]

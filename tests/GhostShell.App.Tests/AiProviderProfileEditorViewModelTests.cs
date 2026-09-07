@@ -122,6 +122,35 @@ public sealed class AiProviderProfileEditorViewModelTests
         Assert.Equal("Connected.", editor.TestDetail);
         Assert.Equal("model", Assert.Single(editor.Models).Id);
         Assert.NotNull(runtime.LastProfile);
+        var saved = editor.CreateSaveRequest().Profile;
+        Assert.Equal(["model"], saved.DiscoveredModelIds);
+        var reopened = new AiProviderProfileEditorViewModel(runtime, [], saved);
+        Assert.Equal(["model"], reopened.CreateSaveRequest().Profile.DiscoveredModelIds);
+        reopened.DefaultModel = "another-model";
+        Assert.Equal(["model"], reopened.CreateSaveRequest().Profile.DiscoveredModelIds);
+        reopened.Endpoint = "http://localhost:11435/v1/";
+        Assert.Empty(reopened.CreateSaveRequest().Profile.DiscoveredModelIds);
+    }
+
+    [Fact]
+    public async Task Discovery_remains_available_when_the_default_model_needs_correction()
+    {
+        using var runtime = new StubRuntime
+        {
+            Result = new AiProviderTestResult(false, "ai_provider_model_unavailable", "Choose a returned model.",
+                [new AiProviderModelDescriptor("actual-model", "Actual model")]),
+        };
+        var editor = new AiProviderProfileEditorViewModel(runtime, [])
+        {
+            Name = "Local",
+            Kind = AiProviderKind.OpenAiCompatible,
+            Endpoint = "http://localhost:11434/v1",
+            DefaultModel = "wrong-model",
+            UseNoAuthentication = true,
+        };
+        await editor.TestAsync(CancellationToken.None);
+        editor.DefaultModel = "actual-model";
+        Assert.Equal(["actual-model"], editor.CreateSaveRequest().Profile.DiscoveredModelIds);
     }
 
     [Fact]

@@ -1598,10 +1598,15 @@ public sealed partial class MainWindow : Window
 
         if (!editor.IsValid)
         {
-            ViewModel.SetError(
-                "This workspace cannot be left as it stands: "
-                + editor.ValidationSummary);
-            return false;
+            if (!await Confirmations.DiscardChanges(
+                    "Discard workspace changes?",
+                    "These changes cannot be saved yet. Discard them to switch workspaces, or keep editing.\n\n"
+                    + editor.ValidationSummary).ShowDialog<bool>(this))
+            {
+                return false;
+            }
+            editor.Reset();
+            return true;
         }
 
         return (await SaveWorkspaceEditorFromWindowAsync(

@@ -900,7 +900,8 @@
               Classes="Muted"
               FontSize="{DynamicResource ShellFontSize10}"
               Text="{CompiledBinding ValidationSummary}"
-              TextTrimming="CharacterEllipsis" />
+              TextWrapping="Wrap"
+              ToolTip.Tip="{CompiledBinding ValidationSummary}" />
           <Button Grid.Column="2" VerticalAlignment="Center" Classes="TextButton" Click="OnResetClick" Content="Reset" IsEnabled="{CompiledBinding IsDirty}" />
           <Button Grid.Column="3" MinWidth="88" VerticalAlignment="Center" Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" />
           <Button Grid.Column="4" MinWidth="128" VerticalAlignment="Center" Classes="PrimaryButton" Click="OnSaveClick" Content="Save workspace" IsEnabled="{CompiledBinding CanSave}" />

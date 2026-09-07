@@ -12,6 +12,7 @@ public sealed record AiProviderProfile : IDurableDefinition
     public const int CurrentSchemaVersion = 2;
     public const int MaximumNameLength = 128;
     public const int MaximumModelIdLength = 256;
+    public const int MaximumDiscoveredModels = 4 * 1024;
     public const int MaximumEndpointLength = 2_048;
     public const int MaximumOrder = 10_000;
 
@@ -24,7 +25,8 @@ public sealed record AiProviderProfile : IDurableDefinition
         AiProviderAuthentication authentication,
         string defaultModel,
         int order,
-        bool isEnabled = true)
+        bool isEnabled = true,
+        IReadOnlyList<string>? discoveredModelIds = null)
         : this(
             id,
             schemaVersion,
@@ -36,7 +38,8 @@ public sealed record AiProviderProfile : IDurableDefinition
             order,
             isEnabled,
             AiProviderCatalog.Get(providerKind).Protocol,
-            capabilities: null)
+            capabilities: null,
+            discoveredModelIds)
     {
     }
 
@@ -52,7 +55,8 @@ public sealed record AiProviderProfile : IDurableDefinition
         int order,
         bool isEnabled,
         AiProviderProtocol protocol,
-        AiProviderCapabilities? capabilities)
+        AiProviderCapabilities? capabilities,
+        IReadOnlyList<string>? discoveredModelIds = null)
     {
         RuntimeId.Require(id.Value, nameof(id));
         if (schemaVersion != CurrentSchemaVersion)
@@ -112,6 +116,15 @@ public sealed record AiProviderProfile : IDurableDefinition
             defaultModel,
             nameof(defaultModel),
             MaximumModelIdLength);
+        if (discoveredModelIds is { Count: > MaximumDiscoveredModels })
+        {
+            throw new ArgumentException("The discovered model list is too large.", nameof(discoveredModelIds));
+        }
+
+        DiscoveredModelIds = Array.AsReadOnly((discoveredModelIds ?? [])
+            .Select(model => RequirePrintable(model, nameof(discoveredModelIds), MaximumModelIdLength))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray());
         if (order is < 0 or > MaximumOrder)
         {
             throw new ArgumentOutOfRangeException(
@@ -150,6 +163,8 @@ public sealed record AiProviderProfile : IDurableDefinition
     public AiProviderCapabilities Capabilities { get; }
 
     public string DefaultModel { get; }
+
+    public IReadOnlyList<string> DiscoveredModelIds { get; }
 
     public int Order { get; }
 

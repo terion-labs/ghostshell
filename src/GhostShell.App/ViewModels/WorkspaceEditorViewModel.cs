@@ -1152,7 +1152,10 @@ public sealed class WorkspaceEditorViewModel : ObservableObject, IDisposable
         }
 
         var definition = BuildDefinition();
-        List<DefinitionValidationIssue> issues = [.. WorkspaceValidator.Validate(definition).Issues];
+        List<DefinitionValidationIssue> issues = [.. WorkspaceValidator.Validate(definition).Issues.Select(issue =>
+            _entries.FirstOrDefault(entry => string.Equals(entry.Id.Value, issue.Target, StringComparison.Ordinal)) is { } entry
+                ? issue with { Message = $"'{entry.DisplayName}': {issue.Message}" }
+                : issue)];
         foreach (var (value, label) in new[] { (Accent, "accent"), (Color, "color") })
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1196,7 +1199,8 @@ public sealed class WorkspaceEditorViewModel : ObservableObject, IDisposable
                 null,
                 tabDefinition.LayoutId,
                 tabDefinition.Panels);
-            issues.AddRange(ScreenValidator.Validate(screen, layout).Issues);
+            issues.AddRange(ScreenValidator.Validate(screen, layout).Issues.Select(issue =>
+                issue with { Message = $"'{entry.DisplayName}': {issue.Message}" }));
         }
 
         return [.. issues.DistinctBy(issue => (issue.Code, issue.Message, issue.Target))];

@@ -242,6 +242,27 @@ public sealed class WorkspaceEditorViewModelTests
     }
 
     [Fact]
+    public void Invalid_tab_identifies_what_needs_repair_and_can_be_discarded()
+    {
+        var connection = LocalConnection("local");
+        var layout = Layout("single", "main");
+        var workspace = Workspace([new WorkspaceEntry.Tab(new WorkspaceEntryId("tab"), "Scratch",
+            layout.Id, [TerminalPanel("terminal", "main", connection.Id)])]);
+        using var editor = new WorkspaceEditorViewModel(workspace, 2, [connection], [], [layout]);
+        var tab = Assert.Single(editor.WorkspaceTabEntries).Tab!;
+        Assert.True(tab.RemovePanel(tab.Panels[0].Id));
+        Assert.True(editor.IsDirty);
+        Assert.False(editor.CanSave);
+        Assert.Contains("Scratch", editor.ValidationSummary, StringComparison.Ordinal);
+        Assert.Equal(WorkspaceEditorCancelDisposition.ConfirmDiscard, editor.RequestCancel());
+        editor.Reset();
+        Assert.True(editor.IsValid, editor.ValidationSummary);
+        Assert.False(editor.IsDirty);
+        Assert.Single(Assert.Single(editor.WorkspaceTabEntries).Tab!.Panels);
+        Assert.Equal(WorkspaceEditorCancelDisposition.Close, editor.RequestCancel());
+    }
+
+    [Fact]
     public void Workspace_only_tab_persists_the_startup_delivery_failure_policy()
     {
         var connection = LocalConnection("local");

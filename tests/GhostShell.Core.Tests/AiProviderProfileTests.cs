@@ -5,6 +5,21 @@ namespace GhostShell.Core.Tests;
 public sealed class AiProviderProfileTests
 {
     [Fact]
+    public void Discovered_models_are_immutable_and_survive_serialization()
+    {
+        string[] models = ["custom/primary", "custom/fast", "custom/fast"];
+        var profile = new AiProviderProfile(AiProviderProfileId.New(), AiProviderProfile.CurrentSchemaVersion,
+            "Custom", AiProviderKind.OpenAiCompatible, new Uri("http://localhost:11434/v1/"),
+            new AiProviderAuthentication.None(), "custom/primary", 0, discoveredModelIds: models);
+        models[0] = "changed";
+        var restored = JsonSerializer.Deserialize<AiProviderProfile>(JsonSerializer.Serialize(profile));
+        Assert.Equal(["custom/primary", "custom/fast"], Assert.IsType<AiProviderProfile>(restored).DiscoveredModelIds);
+        var legacy = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(profile))!.AsObject();
+        legacy.Remove("DiscoveredModelIds");
+        Assert.Empty(JsonSerializer.Deserialize<AiProviderProfile>(legacy.ToJsonString())!.DiscoveredModelIds);
+    }
+
+    [Fact]
     public void ApiKeyIsPersistedOnlyAsAnOpaqueSecretReference()
     {
         var secret = new SecretRef("vault-ai-openai");
