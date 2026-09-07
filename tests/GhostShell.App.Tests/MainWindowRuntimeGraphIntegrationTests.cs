@@ -2206,6 +2206,61 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         Assert.True(viewModel.IsAgentPanelDockedVisible);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Agent_panel_visibility_is_retained_independently_when_switching_workspaces(bool pinned)
+    {
+        var snapshot = CreateCatalogSnapshot();
+        var stored = snapshot.Workspaces.Single(item => item.Value.Id == WorkspaceId);
+        var workspace = new WorkspaceDefinition(stored.Value.Id, stored.Value.SchemaVersion,
+            stored.Value.Name, stored.Value.Description, stored.Value.Accent, stored.Value.Entries,
+            agentPanelPinned: pinned);
+        snapshot = snapshot with
+        {
+            Workspaces = [.. snapshot.Workspaces.Select(item => item.Value.Id == WorkspaceId ? Store(workspace) : item)],
+        };
+        var (client, _) = CreateSessionClient();
+        using var viewModel = CreateViewModel(client, snapshot);
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        viewModel.ToggleAgentPanel();
+        Assert.Equal(!pinned, viewModel.IsAgentPanelVisible);
+
+        Assert.True(await viewModel.OpenWorkspaceAsync(SecondWorkspaceId));
+        Assert.False(viewModel.IsAgentPanelVisible);
+        viewModel.ToggleAgentPanel();
+        Assert.True(viewModel.IsAgentPanelVisible);
+
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        Assert.Equal(!pinned, viewModel.IsAgentPanelVisible);
+        Assert.Equal(pinned, viewModel.IsAgentPanelDocked);
+        Assert.False(viewModel.IsAgentPanelDockedVisible);
+        Assert.True(await viewModel.OpenWorkspaceAsync(SecondWorkspaceId));
+        Assert.True(viewModel.IsAgentPanelVisible);
+        Assert.False(viewModel.IsAgentPanelDocked);
+    }
+
+    [Fact]
+    public async Task Agent_panel_pin_is_retained_for_an_ad_hoc_workspace_without_a_saved_definition()
+    {
+        var (client, _) = CreateSessionClient();
+        using var viewModel = CreateViewModel(client, CreateCatalogSnapshot(),
+            browserRendererFactory: new RecordingBrowserRendererViewFactory());
+        Assert.True(await viewModel.OpenLocalBrowserWorkspaceAsync());
+        var browserWorkspace = viewModel.RuntimeWorkspace;
+        await viewModel.ToggleAgentPanelPinAsync(CancellationToken.None);
+        Assert.True(viewModel.IsAgentPanelDockedVisible);
+        viewModel.ToggleAgentPanel();
+
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        Assert.False(viewModel.IsAgentPanelDocked);
+        viewModel.RemoveRuntimeWorkspace(viewModel.RuntimeWorkspace!.Id);
+
+        Assert.Same(browserWorkspace, viewModel.RuntimeWorkspace);
+        Assert.True(viewModel.IsAgentPanelDocked);
+        Assert.False(viewModel.IsAgentPanelVisible);
+    }
+
     [Fact]
     public async Task Database_tab_appends_a_single_panel_tab()
     {

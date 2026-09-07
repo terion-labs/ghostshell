@@ -73,6 +73,12 @@ public sealed class RuntimeWorkspaceViewModel : ObservableObject
 
     public WorkspaceInstanceId Id { get; }
 
+    /// <summary>
+    /// The agent panel's last placement while this workspace remains open.
+    /// Null means it has not been shown yet and should use its saved pin default.
+    /// </summary>
+    internal (bool IsVisible, bool IsDocked)? AgentPanelPlacement { get; set; }
+
     public string Name { get; }
 
     /// <summary>The colour this workspace is recognised by.</summary>

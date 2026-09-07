@@ -1069,6 +1069,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         private set
         {
             var previous = _runtimeWorkspace;
+            if (!ReferenceEquals(previous, value) && previous is not null)
+            {
+                // Capture before the active-workspace notification changes the UI.
+                previous.AgentPanelPlacement = (IsAgentPanelVisible, IsAgentPanelDocked);
+            }
             if (SetProperty(ref _runtimeWorkspace, value))
             {
                 // Marked first because the notification above is not free: the
@@ -2754,15 +2759,15 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     public void ToggleAgentPanel() => IsAgentPanelVisible = !IsAgentPanelVisible;
 
     /// <summary>
-    /// Reads the front workspace's saved pin. A pinned panel is part of the
-    /// layout and comes up with it; an unpinned one is a flyout, summoned when
-    /// asked for — so arriving anywhere starts it hidden.
+    /// Restores the open workspace's placement. The saved pin supplies only
+    /// the initial default; switching back must not reopen a collapsed panel
+    /// or hide a flyout the user left visible.
     /// </summary>
     private void SyncAgentPanelPlacement(RuntimeWorkspaceViewModel? workspace)
     {
         var pinned = FrontWorkspaceDefinition(workspace)?.Value.AgentPanelPinned == true;
-        IsAgentPanelDocked = pinned;
-        IsAgentPanelVisible = pinned;
+        IsAgentPanelDocked = workspace?.AgentPanelPlacement?.IsDocked ?? pinned;
+        IsAgentPanelVisible = workspace?.AgentPanelPlacement?.IsVisible ?? pinned;
     }
 
     /// <summary>
