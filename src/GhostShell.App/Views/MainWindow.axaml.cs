@@ -853,6 +853,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void OnSaveWorkspaceLayoutClick(object? sender, RoutedEventArgs e)
+    {
+        _ = e;
+        if (sender is Control { DataContext: LauncherWorkspaceViewModel workspace })
+        {
+            await ViewModel.SaveWorkspaceLayoutAsync(workspace.Id, _lifetime.Token);
+        }
+    }
+
     /// <summary>
     /// Ends one workspace from the rail, and nothing else.
     ///

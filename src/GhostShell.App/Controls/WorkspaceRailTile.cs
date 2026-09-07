@@ -56,6 +56,17 @@ internal sealed class WorkspaceRailTile : TemplatedControl
     public static readonly StyledProperty<bool> CanCloseProperty =
         AvaloniaProperty.Register<WorkspaceRailTile, bool>(nameof(CanClose));
 
+    public static readonly StyledProperty<bool> CanSaveProperty =
+        AvaloniaProperty.Register<WorkspaceRailTile, bool>(nameof(CanSave));
+
+    public bool CanSave
+    {
+        get => GetValue(CanSaveProperty);
+        set => SetValue(CanSaveProperty, value);
+    }
+
+    public event EventHandler<RoutedEventArgs>? SaveRequested;
+
     /// <summary>
     /// Which way the tile grows when it opens its close action. It overflows the
     /// rail rather than widening it, so it has to grow away from the window
@@ -94,6 +105,8 @@ internal sealed class WorkspaceRailTile : TemplatedControl
         HasAttentionProperty.Changed.AddClassHandler<WorkspaceRailTile>(
             (tile, _) => tile.RefreshStateClasses());
         CanCloseProperty.Changed.AddClassHandler<WorkspaceRailTile>(
+            (tile, _) => tile.RefreshStateClasses());
+        CanSaveProperty.Changed.AddClassHandler<WorkspaceRailTile>(
             (tile, _) => tile.RefreshStateClasses());
         ExpandsLeftProperty.Changed.AddClassHandler<WorkspaceRailTile>(
             (tile, _) => tile.RefreshStateClasses());
@@ -204,6 +217,10 @@ internal sealed class WorkspaceRailTile : TemplatedControl
         {
             close.Click += OnCloseClick;
         }
+        if (e.NameScope.Find<Button>("PART_Save") is { } save)
+        {
+            save.Click += OnSaveClick;
+        }
     }
 
     /// <summary>
@@ -228,6 +245,13 @@ internal sealed class WorkspaceRailTile : TemplatedControl
         _ = sender;
         e.Handled = true;
         CloseRequested?.Invoke(this, e);
+    }
+
+    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        e.Handled = true;
+        SaveRequested?.Invoke(this, e);
     }
 
     private void RefreshBrushes()
@@ -287,6 +311,7 @@ internal sealed class WorkspaceRailTile : TemplatedControl
         PseudoClasses.Set(":current", IsCurrent);
         PseudoClasses.Set(":attention", HasAttention);
         PseudoClasses.Set(":closable", CanClose);
+        PseudoClasses.Set(":saveable", CanSave);
         PseudoClasses.Set(":expandsleft", ExpandsLeft);
     }
 }

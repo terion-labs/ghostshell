@@ -389,7 +389,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             () => RuntimeWorkspace,
             () => _runtimeHistorySource,
             () => _shutdownStarted,
-            WorkspaceAutoSave.Queue,
+            () =>
+            {
+                WorkspaceAutoSave.Queue();
+                RefreshWorkspaceRuntimeFlags();
+            },
             SetError,
             _uiThreadDispatcher);
         RuntimeGraph = new RuntimeWorkspaceGraphCoordinator(
@@ -7699,6 +7703,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             var runtime = FindOpenWorkspace(
                 new DefinitionKey(WorkspaceDefinition.Kind, item.Id.Value));
             item.IsOpen = runtime is not null;
+            item.CanSaveLayout = runtime is not null && WorkspaceAutoSave.CanSaveLayout(runtime, item.Id);
             item.IsInFront = _workspaceIsolationStartingWorkspaceId is { } startingId
                 ? item.Id == startingId
                 : runtime is not null && ReferenceEquals(runtime, RuntimeWorkspace);
@@ -7771,6 +7776,35 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             _runtimeSources.TryGetValue(runtime.Id, out var source)
             && source.SourceDefinition == definition);
 
+    public async Task SaveWorkspaceLayoutAsync(WorkspaceId workspaceId, CancellationToken cancellationToken)
+    {
+        if (FindOpenWorkspace(new DefinitionKey(WorkspaceDefinition.Kind, workspaceId.Value)) is not { } runtime)
+        {
+            return;
+        }
+
+        try
+        {
+            var saving = WorkspaceAutoSave.SaveLayoutAsync(runtime, workspaceId, cancellationToken);
+            RefreshWorkspaceRuntimeFlags();
+            if (await saving is { } error)
+            {
+                SetError(error);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            SetError("The workspace layout could not be saved. Try again.");
+        }
+        finally
+        {
+            RefreshWorkspaceRuntimeFlags();
+        }
+    }
+
     /// <summary>
     /// The one way a runtime workspace goes on screen.
     ///
@@ -7791,6 +7825,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             _runtimeSources[runtime.Id] = new RuntimeHistorySource(definition, durableTitle);
         }
 
+        WorkspaceAutoSave.TrackLayout(runtime);
         BringToFrontOfOpenSet(runtime);
         RuntimeWorkspace = runtime;
         Notifications.Watch(runtime);

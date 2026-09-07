@@ -1,12 +1,13 @@
+using System.Runtime.CompilerServices;
 using GhostShell.Application;
 using GhostShell.Core;
 
 namespace GhostShell.App.ViewModels;
 
 /// <summary>
-/// Owns durable write-back of one live runtime workspace. Navigation requests
-/// queue or flush operations; capture, revision checks, persistence, and
-/// cancellation remain inside this boundary.
+/// Owns durable write-back of live workspace layouts. Navigation queues or
+/// flushes autosave for the active workspace; manual saves target an open
+/// workspace without changing which one is active.
 /// </summary>
 public sealed class WorkspaceAutoSaveCoordinator : IDisposable
 {
@@ -21,6 +22,58 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
     private CancellationTokenSource? _debounce;
     private bool _sealed;
     private bool _disposed;
+    private bool _isSavingLayout;
+    private readonly ConditionalWeakTable<RuntimeWorkspaceViewModel, List<(string Title, string Layout)>> _savedLayouts = [];
+
+    // Remember the materialized layout, not generated persistence IDs. Opening
+    // a connection-reference workspace must not itself count as an edit.
+    public void TrackLayout(RuntimeWorkspaceViewModel runtime) =>
+        _savedLayouts.GetValue(runtime, CaptureLayoutShape);
+
+    public bool CanSaveLayout(RuntimeWorkspaceViewModel runtime, WorkspaceId workspaceId) =>
+        !_sealed && !_isSavingLayout && !_isShutdown()
+        && _catalog.Snapshot.Workspaces.Any(item => item.Value.Id == workspaceId && !item.Value.AutoSave)
+        && _savedLayouts.TryGetValue(runtime, out var saved)
+        && !saved.SequenceEqual(CaptureLayoutShape(runtime));
+
+    public async Task<string?> SaveLayoutAsync(RuntimeWorkspaceViewModel runtime, WorkspaceId workspaceId, CancellationToken cancellationToken)
+    {
+        if (!CanSaveLayout(runtime, workspaceId))
+        {
+            return null;
+        }
+
+        _isSavingLayout = true;
+        try
+        {
+            var stored = _catalog.Snapshot.Workspaces.Single(item => item.Value.Id == workspaceId);
+            var shape = CaptureLayoutShape(runtime);
+            var capture = CaptureWorkspaceAutoSave(runtime, stored.Value, stored.Revision);
+            if (capture is null)
+            {
+                return "The workspace layout is not ready to save. Wait for its panels to finish opening and try again.";
+            }
+
+            var error = await _catalog.SaveWorkspaceWithLayoutsAsync(capture.Workspace,
+                capture.WorkspaceRevision, capture.Layouts, cancellationToken);
+            if (error is not null)
+            {
+                return error.Message;
+            }
+
+            _savedLayouts.Remove(runtime);
+            _savedLayouts.Add(runtime, shape);
+            await CleanUpOrphanedAutoSaveLayoutsAsync(capture.Workspace);
+            return null;
+        }
+        finally
+        {
+            _isSavingLayout = false;
+        }
+    }
+
+    private static List<(string Title, string Layout)> CaptureLayoutShape(RuntimeWorkspaceViewModel runtime) =>
+        [.. runtime.Tabs.Where(tab => !IsLauncherTab(tab)).Select(tab => (tab.Title, tab.SerializeDockLayout()))];
 
     public WorkspaceAutoSaveCoordinator(
         IDefinitionCatalog catalog,
@@ -129,7 +182,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
 
     private async Task PersistWorkspaceAutoSaveAsync()
     {
-        if (AutoSaveSourceWorkspace() is not { } stored)
+        if (AutoSaveSourceWorkspace() is not { } stored || _runtimeWorkspace() is not { } runtime)
         {
             return;
         }
@@ -137,7 +190,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         WorkspaceAutoSaveCapture? capture;
         try
         {
-            capture = CaptureWorkspaceAutoSave(stored.Value, stored.Revision);
+            capture = CaptureWorkspaceAutoSave(runtime, stored.Value, stored.Revision);
         }
         catch (Exception exception) when (exception is
             ArgumentException or InvalidOperationException or FormatException)
@@ -153,6 +206,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             return;
         }
 
+        var shape = CaptureLayoutShape(runtime);
         var error = await _catalog.SaveWorkspaceWithLayoutsAsync(
             capture.Workspace,
             capture.WorkspaceRevision,
@@ -160,6 +214,8 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             CancellationToken.None);
         if (error is null)
         {
+            _savedLayouts.Remove(runtime);
+            _savedLayouts.Add(runtime, shape);
             await CleanUpOrphanedAutoSaveLayoutsAsync(capture.Workspace);
             return;
         }
@@ -198,10 +254,11 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
     /// refresh re-queues an identical capture.
     /// </summary>
     private WorkspaceAutoSaveCapture? CaptureWorkspaceAutoSave(
+        RuntimeWorkspaceViewModel runtime,
         WorkspaceDefinition storedDefinition,
         long storedRevision)
     {
-        if (_runtimeWorkspace() is not { Tabs.Count: > 0 } runtime)
+        if (runtime.Tabs.Count == 0)
         {
             return null;
         }
@@ -321,7 +378,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             entries,
             storedDefinition.AgentPolicyOverride,
             storedDefinition.Icon,
-            autoSave: true,
+            autoSave: storedDefinition.AutoSave,
             storedDefinition.Color,
             storedDefinition.AgentPanelPinned,
             storedDefinition.TerminalMultiplexingOverride,

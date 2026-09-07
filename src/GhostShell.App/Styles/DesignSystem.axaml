@@ -526,10 +526,10 @@
                     </Transitions>
                   </Border.Transitions>
                 </Border>
-                <Grid ColumnDefinitions="Auto,Auto,Auto">
+                <Grid Name="PART_Actions" HorizontalAlignment="Left" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto">
                   <Button
                       Name="PART_Open"
-                      Grid.Column="1"
+                      Grid.Column="2"
                       Classes="WorkspaceRailTileAction"
                       Theme="{StaticResource WorkspaceRailTileAction}"
                       Width="{DynamicResource ShellTileSizeMd}"
@@ -550,7 +550,7 @@
                   </Button>
                   <Button
                       Name="PART_Close"
-                      Grid.Column="2"
+                      Grid.Column="4"
                       Classes="WorkspaceRailTileAction"
                       Theme="{StaticResource WorkspaceRailTileAction}"
                       Width="{DynamicResource ShellTileSizeMd}"
@@ -570,6 +570,22 @@
                         Symbol="Dismiss"
                         FontSize="{DynamicResource ShellFontSize13}"
                         Foreground="{TemplateBinding MarkBrush}" />
+                  </Button>
+                  <Button
+                      Name="PART_Save"
+                      Grid.Column="3"
+                      Classes="WorkspaceRailTileAction"
+                      Theme="{StaticResource WorkspaceRailTileAction}"
+                      Width="{DynamicResource ShellTileSizeMd}"
+                      Height="{DynamicResource ShellTileSizeMd}"
+                      MinWidth="0" MinHeight="0"
+                      Padding="{DynamicResource ShellInsetNone}"
+                      Background="Transparent" BorderThickness="0"
+                      Foreground="{TemplateBinding MarkBrush}"
+                      IsVisible="False"
+                      ToolTip.Tip="Save workspace layout"
+                      AutomationProperties.Name="Save workspace layout">
+                    <icons:SymbolIcon Symbol="Save" FontSize="{DynamicResource ShellFontSize13}" />
                   </Button>
                 </Grid>
               </Panel>
@@ -688,6 +704,42 @@
       </Style>
       <Style Selector="^:closable:pointerover /template/ Border#PART_Ring">
         <Setter Property="Width" Value="{DynamicResource ShellWorkspaceRailTileExpandedWidth}" />
+      </Style>
+      <Style Selector="^:saveable:pointerover /template/ Border#PART_Surface">
+        <Setter Property="Width" Value="{DynamicResource ShellWorkspaceRailTileExpandedWidth}" />
+      </Style>
+      <Style Selector="^:saveable:pointerover /template/ Border#PART_Ring">
+        <Setter Property="Width" Value="{DynamicResource ShellWorkspaceRailTileExpandedWidth}" />
+      </Style>
+      <Style Selector="^:saveable:closable:pointerover /template/ Border#PART_Surface">
+        <Setter Property="Width" Value="{DynamicResource ShellWorkspaceRailTileSaveWidth}" />
+      </Style>
+      <Style Selector="^:saveable:closable:pointerover /template/ Border#PART_Ring">
+        <Setter Property="Width" Value="{DynamicResource ShellWorkspaceRailTileSaveWidth}" />
+      </Style>
+      <Style Selector="^:saveable /template/ Button#PART_Save">
+        <Setter Property="IsVisible" Value="True" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+      </Style>
+      <Style Selector="^:saveable:pointerover /template/ Button#PART_Save">
+        <Setter Property="IsHitTestVisible" Value="True" />
+      </Style>
+      <Style Selector="^:expandsleft /template/ Button#PART_Save">
+        <Setter Property="Grid.Column" Value="1" />
+      </Style>
+      <Style Selector="^:expandsleft /template/ Grid#PART_Actions">
+        <Setter Property="HorizontalAlignment" Value="Right" />
+      </Style>
+      <!-- Keep the action row at full width while the surface clips it. This
+           anchors the workspace icon when the right-hand rail is collapsed. -->
+      <Style Selector="^:closable /template/ Grid#PART_Actions">
+        <Setter Property="MinWidth" Value="{DynamicResource ShellWorkspaceRailTileExpandedWidth}" />
+      </Style>
+      <Style Selector="^:saveable /template/ Grid#PART_Actions">
+        <Setter Property="MinWidth" Value="{DynamicResource ShellWorkspaceRailTileExpandedWidth}" />
+      </Style>
+      <Style Selector="^:saveable:closable /template/ Grid#PART_Actions">
+        <Setter Property="MinWidth" Value="{DynamicResource ShellWorkspaceRailTileSaveWidth}" />
       </Style>
       <!-- Present whenever there is something to close, and hidden by the
            tile's own clip rather than by a switch: flipping it on and off left

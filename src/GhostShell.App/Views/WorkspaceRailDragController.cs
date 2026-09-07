@@ -38,7 +38,7 @@ internal sealed class WorkspaceRailDragController
         _ = sender;
         if (e.Source is not Visual visual
             || visual.FindAncestorOfType<WorkspaceRailTile>() is not { } tile
-            || string.Equals(visual.FindAncestorOfType<Button>(includeSelf: true)?.Name, "PART_Close", StringComparison.Ordinal)
+            || visual.FindAncestorOfType<Button>(includeSelf: true)?.Name is "PART_Close" or "PART_Save"
             || !e.Pointer.IsPrimary
             || !e.GetCurrentPoint(_root).Properties.IsLeftButtonPressed
             || _root.DataContext is not MainWindowViewModel { Workspaces.Count: > 1 })
@@ -211,4 +211,3 @@ internal sealed class WorkspaceRailDragController
         _sortTarget = null;
     }
 }
-

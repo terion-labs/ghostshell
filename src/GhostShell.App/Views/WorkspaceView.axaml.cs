@@ -84,6 +84,10 @@ public sealed partial class WorkspaceView : UserControl
     public event EventHandler<RoutedEventArgs>? OpenWorkspaceRequested;
 
     public event EventHandler<RoutedEventArgs>? CloseWorkspaceRequested;
+    public event EventHandler<RoutedEventArgs>? SaveWorkspaceLayoutRequested;
+
+    private void OnSaveWorkspaceLayoutClick(object? sender, RoutedEventArgs e) =>
+        SaveWorkspaceLayoutRequested?.Invoke(sender, e);
 
     /// <summary>
     /// The rail lists workspaces, so the button under them makes another one.

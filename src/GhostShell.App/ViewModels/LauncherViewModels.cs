@@ -30,6 +30,13 @@ public sealed class LauncherWorkspaceViewModel(
     private bool _isInFront;
     private bool _hasAttention;
     private bool _hasAgentActivity;
+    private bool _canSaveLayout;
+
+    public bool CanSaveLayout
+    {
+        get => _canSaveLayout;
+        internal set => SetProperty(ref _canSaveLayout, value);
+    }
     private bool _isIsolated = isIsolated;
 
     public WorkspaceId Id { get; } = id;

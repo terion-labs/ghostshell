@@ -488,6 +488,8 @@
                     HasAttention="{Binding HasAttention}"
                     HasAgentActivity="{Binding HasAgentActivity}"
                     CanClose="{Binding CanClose}"
+                    CanSave="{Binding CanSaveLayout}"
+                    SaveRequested="OnSaveWorkspaceLayoutClick"
                     ExpandsLeft="{Binding $parent[ItemsControl].DataContext.IsWorkspacePanelOnRight}"
                     OpenRequested="OnOpenWorkspaceClick"
                     CloseRequested="OnCloseWorkspaceClick"

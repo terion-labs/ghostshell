@@ -2141,6 +2141,50 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
     }
 
     [Fact]
+    public async Task Manual_layout_save_tracks_changes_and_saves_the_target_without_enabling_autosave()
+    {
+        var snapshot = CreateCatalogSnapshot();
+        var (client, _) = CreateSessionClient();
+        var catalog = DispatchProxy.Create<IDefinitionCatalog, RecordingAutoSaveCatalogProxy>();
+        var proxy = (RecordingAutoSaveCatalogProxy)(object)catalog;
+        proxy.Snapshot = snapshot;
+        using var viewModel = CreateViewModel(client, catalog);
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        var runtime = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        var rail = viewModel.Workspaces.Single(item => item.Id == WorkspaceId);
+        Assert.False(rail.CanSaveLayout);
+
+        var tab = runtime.Tabs[0];
+        var title = tab.Title;
+        Assert.True(await viewModel.RenameActiveTabAsync("Renamed layout"));
+        Assert.True(rail.CanSaveLayout);
+        Assert.True(await viewModel.RenameActiveTabAsync(title));
+        Assert.False(rail.CanSaveLayout);
+        Assert.True(await viewModel.RenameActiveTabAsync("Renamed layout"));
+        await viewModel.WorkspaceAutoSave.FlushAsync();
+        Assert.Null(proxy.SavedWorkspace);
+
+        Assert.True(await viewModel.OpenConnectionAsync(snapshot.Connections[0].Value.Id));
+        var active = viewModel.RuntimeWorkspace;
+        Assert.NotSame(runtime, active);
+        Assert.True(rail.CanSaveLayout);
+        proxy.BatchError = new DefinitionStoreError(DefinitionStoreErrorCode.StorageFailure, "Test storage unavailable.");
+        await viewModel.SaveWorkspaceLayoutAsync(WorkspaceId, CancellationToken.None);
+        Assert.True(rail.CanSaveLayout);
+        Assert.Null(proxy.SavedWorkspace);
+        proxy.BatchError = null;
+        await viewModel.SaveWorkspaceLayoutAsync(WorkspaceId, CancellationToken.None);
+
+        Assert.Same(active, viewModel.RuntimeWorkspace);
+        var saved = Assert.IsType<WorkspaceDefinition>(proxy.SavedWorkspace);
+        Assert.Equal(WorkspaceId, saved.Id);
+        Assert.False(saved.AutoSave);
+        Assert.Equal("Renamed layout", saved.Entries.OfType<WorkspaceEntry.Tab>().First().Name);
+        Assert.False(rail.CanSaveLayout);
+        Assert.Equal(3, proxy.SavedLayouts?.Count);
+    }
+
+    [Fact]
     public async Task Agent_panel_floats_hidden_by_default_and_the_pin_docks_and_persists()
     {
         var snapshot = CreateCatalogSnapshot();
@@ -10596,6 +10640,7 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
     /// </summary>
     public class RecordingAutoSaveCatalogProxy : DispatchProxy
     {
+        public DefinitionStoreError? BatchError { get; set; }
         private readonly List<(LayoutDefinition Definition, long? ExpectedRevision)> _layouts = [];
         private readonly TaskCompletionSource<WorkspaceDefinition> _workspaceSaved =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -10626,6 +10671,10 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
 
         private object RecordBatch(object?[] args)
         {
+            if (BatchError is not null)
+            {
+                return ValueTask.FromResult<DefinitionStoreError?>(BatchError);
+            }
             _layouts.AddRange(
                 (IReadOnlyList<(LayoutDefinition Definition, long? ExpectedRevision)>)args[2]!);
             SavedWorkspace = (WorkspaceDefinition)args[0]!;

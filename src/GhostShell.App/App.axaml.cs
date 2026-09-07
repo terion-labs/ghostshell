@@ -849,6 +849,9 @@ public sealed partial class App : Avalonia.Application
         Publish(
             "ShellWorkspaceRailTileExpandedWidth",
             Math.Round(resources.ControlMinHeight * 1.05) * 2);
+        Publish(
+            "ShellWorkspaceRailTileSaveWidth",
+            Math.Round(resources.ControlMinHeight * 1.05) * 3);
 
         // The attention dot, and the ring that keeps it legible on top of a
         // saturated tile. Derived like the tiles so a compact density does not

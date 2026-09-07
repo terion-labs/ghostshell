@@ -17,6 +17,65 @@ namespace GhostShell.App.Tests;
 [Collection(AvaloniaUiCollection.Name)]
 public sealed class WorkspaceOrderHeadlessTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public Task Hover_save_is_visible_only_when_needed_and_does_not_open_close_or_drag(bool expandsLeft, bool canClose) => RunAsync(async () =>
+    {
+        using var model = CreateModel(out var catalog);
+        var view = new WorkspaceView { DataContext = model };
+        var saved = 0;
+        var opened = 0;
+        var closed = 0;
+        view.SaveWorkspaceLayoutRequested += (_, _) => saved++;
+        view.OpenWorkspaceRequested += (_, _) => opened++;
+        view.CloseWorkspaceRequested += (_, _) => closed++;
+        var window = new Window { Width = 1000, Height = 700, Content = view, DataContext = model };
+        // Headless startup does not attach the desktop appearance publisher.
+        window.Resources["ShellTileSizeMd"] = 32d;
+        window.Resources["ShellWorkspaceRailTileExpandedWidth"] = 64d;
+        window.Resources["ShellWorkspaceRailTileSaveWidth"] = 96d;
+        _ = new WorkspaceRailDragController(window);
+        window.Show();
+        window.UpdateLayout();
+        try
+        {
+            var tile = Tiles(view)[0];
+            tile.ExpandsLeft = expandsLeft;
+            tile.CanClose = canClose;
+            var save = tile.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "PART_Save");
+            Assert.False(save.IsVisible);
+            model.Workspaces[0].CanSaveLayout = true;
+            var surface = tile.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PART_Surface" && ReferenceEquals(border.TemplatedParent, tile));
+            surface.Transitions = null;
+            window.UpdateLayout();
+            var open = tile.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "PART_Open");
+            Assert.True(Math.Abs(open.TranslatePoint(new Point(0, 0), tile)!.Value.X) <= 1,
+                $"tile={tile.Bounds} surface={surface.Bounds} surfaceWidth={surface.Width} open={open.Bounds} save={save.Bounds} grid={open.GetVisualParent()?.Bounds}");
+            window.MouseMove(Position(tile, window, 0.5));
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            window.UpdateLayout();
+            Assert.True(save.IsVisible);
+            Assert.True(save.IsHitTestVisible);
+            Assert.Equal(expandsLeft ? 1 : 3, Grid.GetColumn(save));
+            Assert.InRange(open.TranslatePoint(new Point(0, 0), tile)!.Value.X, -1, 1);
+            Assert.True(Math.Abs(tile.Bounds.Width * (canClose ? 3 : 2) - surface.Bounds.Width) < 1,
+                $"hover={tile.IsPointerOver} surfaceWidth={surface.Width} surface={surface.Bounds} tile={tile.Bounds} grid={open.GetVisualParent()?.Bounds}");
+            // Use the routed click after checking hover state; animation timing
+            // must not make a native-input test depend on wall-clock sleeps.
+            save.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(1, saved);
+            Assert.Equal(0, opened);
+            Assert.Equal(0, closed);
+            Assert.Equal(0, catalog.Writes);
+            model.Workspaces[0].CanSaveLayout = false;
+            Assert.False(save.IsVisible);
+        }
+        finally { window.Close(); }
+    });
+
     [Fact]
     public Task Drag_saves_order_without_opening_or_closing_and_shows_a_drop_marker() => RunAsync(async () =>
     {

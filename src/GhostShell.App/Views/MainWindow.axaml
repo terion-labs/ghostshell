@@ -444,6 +444,7 @@
         MoveQueuedFollowUpRequested="OnMoveAgentQueuedFollowUpRequested"
         OpenWorkspaceRequested="OnOpenWorkspaceClick"
         CloseWorkspaceRequested="OnCloseWorkspaceClick"
+        SaveWorkspaceLayoutRequested="OnSaveWorkspaceLayoutClick"
         CreateWorkspaceRequested="OnCreateWorkspaceClick"
         RefreshAgentAuditRequested="OnRefreshAgentAuditClick"
         ApplyAgentHistoryRetentionRequested="OnApplyAgentHistoryRetentionClick"
