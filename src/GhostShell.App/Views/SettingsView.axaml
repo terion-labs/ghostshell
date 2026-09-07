@@ -1241,25 +1241,33 @@
                       FontSize="{DynamicResource ShellFontSize9}"
                       Text="Long conversations compact automatically before the provider context limit. When configured, title generation runs once after the first completed response."
                       TextWrapping="Wrap" />
-                  <ItemsControl ItemsSource="{Binding DefaultAgentPolicy.Capabilities}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate>
-                        <Grid Margin="{controls:Inset Vertical=Sm}" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
-                          <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
-                            <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
-                            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding Description}" TextWrapping="Wrap" />
-                          </StackPanel>
-                          <Border Grid.Column="1" VerticalAlignment="Center" Classes="Segmented">
-                            <Grid ColumnDefinitions="60,60,60">
-                              <ToggleButton Classes="Segment" IsChecked="{Binding IsOff, Mode=TwoWay}" Content="Off" />
-                              <ToggleButton Grid.Column="1" Classes="Segment" IsChecked="{Binding IsAsk, Mode=TwoWay}" Content="Ask" />
-                              <ToggleButton Grid.Column="2" Classes="Segment" IsChecked="{Binding IsAuto, Mode=TwoWay}" Content="Auto" />
-                            </Grid>
-                          </Border>
-                        </Grid>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
+                  <Expander
+                      Header="Tool permissions"
+                      HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch"
+                      IsExpanded="False"
+                      AutomationProperties.Name="Default agent tool permissions"
+                      AutomationProperties.HelpText="Expand to edit the Off, Ask, and Auto permissions for each capability.">
+                    <ItemsControl ItemsSource="{Binding DefaultAgentPolicy.Capabilities}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Grid Margin="{controls:Inset Vertical=Sm}" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+                              <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding Description}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Border Grid.Column="1" VerticalAlignment="Center" Classes="Segmented">
+                              <Grid ColumnDefinitions="60,60,60">
+                                <ToggleButton Classes="Segment" IsChecked="{Binding IsOff, Mode=TwoWay}" Content="Off" />
+                                <ToggleButton Grid.Column="1" Classes="Segment" IsChecked="{Binding IsAsk, Mode=TwoWay}" Content="Ask" />
+                                <ToggleButton Grid.Column="2" Classes="Segment" IsChecked="{Binding IsAuto, Mode=TwoWay}" Content="Auto" />
+                              </Grid>
+                            </Border>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Expander>
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock
                         VerticalAlignment="Center"

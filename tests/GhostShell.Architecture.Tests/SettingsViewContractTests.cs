@@ -91,6 +91,25 @@ public sealed class SettingsViewContractTests
         };
 
     [Fact]
+    public void Default_agent_permissions_start_collapsed_without_hiding_model_settings()
+    {
+        var settings = LoadView("SettingsView");
+        var permissions = Assert.Single(settings.Descendants(), element => string.Equals(
+            AttributeValue(element, "ItemsSource"), "{Binding DefaultAgentPolicy.Capabilities}", StringComparison.Ordinal));
+        var expander = Assert.IsType<XElement>(permissions.Parent);
+        Assert.Equal("Expander", expander.Name.LocalName);
+        Assert.Equal("False", AttributeValue(expander, "IsExpanded"));
+        Assert.Equal("Tool permissions", AttributeValue(expander, "Header"));
+        Assert.Equal("Default agent tool permissions", AttributeValue(expander, "AutomationProperties.Name"));
+        Assert.Equal(["{Binding IsOff, Mode=TwoWay}", "{Binding IsAsk, Mode=TwoWay}", "{Binding IsAuto, Mode=TwoWay}"],
+            permissions.Descendants().Where(element => string.Equals(element.Name.LocalName, "ToggleButton", StringComparison.Ordinal))
+                .Select(element => AttributeValue(element, "IsChecked")), StringComparer.Ordinal);
+        var model = Assert.Single(settings.Descendants(), element => string.Equals(
+            AttributeValue(element, "AutomationProperties.Name"), "Default AI model", StringComparison.Ordinal));
+        Assert.DoesNotContain(expander, model.Ancestors());
+    }
+
+    [Fact]
     public void Main_window_defers_the_settings_route_behind_one_named_host()
     {
         var mainWindow = LoadView("MainWindow");
