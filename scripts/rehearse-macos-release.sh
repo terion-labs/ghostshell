@@ -195,7 +195,6 @@ signing_keychain="${signing_directory}/release.keychain-db"
 signing_password="$(uuidgen)"
 signing_identity="${APPLE_DEVELOPER_ID_APPLICATION}"
 notary_profile="ghostshell-local-$$"
-previous_default_keychain="$(security default-keychain -d user | tr -d '"' | xargs)"
 previous_keychains=()
 while IFS= read -r keychain; do
     keychain="$(printf '%s\n' "${keychain}" \
@@ -207,9 +206,6 @@ cleanup() {
     if [[ ${#previous_keychains[@]} -gt 0 ]]; then
         security list-keychains -d user -s \
             ${previous_keychains[@]+"${previous_keychains[@]}"} >/dev/null 2>&1 || true
-    fi
-    if [[ -n "${previous_default_keychain}" ]]; then
-        security default-keychain -d user -s "${previous_default_keychain}" >/dev/null 2>&1 || true
     fi
     if [[ -f "${signing_keychain}" ]]; then
         security delete-keychain "${signing_keychain}" >/dev/null 2>&1 || true
@@ -240,7 +236,9 @@ security set-key-partition-list \
 security list-keychains -d user -s \
     "${signing_keychain}" \
     ${previous_keychains[@]+"${previous_keychains[@]}"}
-security default-keychain -d user -s "${signing_keychain}"
+# Signing and notarization receive this keychain explicitly. Never make it the
+# user's default: unrelated apps could store new keys here and lose them when
+# this disposable keychain is deleted at the end of the rehearsal.
 security find-identity -v -p codesigning "${signing_keychain}" \
     | grep -Fq "${signing_identity}"
 xcrun notarytool store-credentials "${notary_profile}" \

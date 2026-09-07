@@ -15,6 +15,7 @@
     <AllowUnsafeBlocks Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(AllowUnsafeBlocks)' == ''">false</AllowUnsafeBlocks>
     <MeziantouAnalysisMode>Default</MeziantouAnalysisMode>
     <Deterministic>true</Deterministic>
+    <DefineConstants Condition="'$(GhostShellProductionBuild)' == 'true'">$(DefineConstants);GHOSTSHELL_PRODUCTION</DefineConstants>
     <!-- Every shipped managed assembly must prove that its reachable code is
          statically analyzable. This runs the trim and Native AOT analyzers at
          the owning project, where a warning still identifies first-party code

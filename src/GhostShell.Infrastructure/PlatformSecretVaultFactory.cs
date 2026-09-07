@@ -102,10 +102,10 @@ public static class PlatformSecretVaultFactory
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(localData))
         {
-            return Path.Combine(AppContext.BaseDirectory, ".ghostshell", leaf);
+            return Path.Combine(AppContext.BaseDirectory, "." + ApplicationStorageIdentity.PosixDirectoryName, leaf);
         }
 
-        return Path.Combine(localData, "GhostShell", leaf);
+        return Path.Combine(localData, ApplicationStorageIdentity.DirectoryName, leaf);
     }
 
     private static SecretVaultPlatform ResolvePlatform(SecretVaultPlatform requested)

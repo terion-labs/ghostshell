@@ -609,6 +609,7 @@ fi
     --runtime "${runtime_identifier}" \
     --locked-mode \
     -p:GhostShellProductVersion="${version}" \
+    -p:GhostShellProductionBuild=true \
     -p:GhostShellMacReleaseNativeAot=true
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
@@ -630,6 +631,7 @@ fi
     --output "${managed_evidence_dir}" \
     -p:RestoreLockedMode=true \
     -p:GhostShellProductVersion="${version}" \
+    -p:GhostShellProductionBuild=true \
     -p:GhostShellReleaseSourceManifestSha256="${source_manifest_sha:-}" \
     -p:GhostShellCefRuntimeArtifactDirectory="${cef_runtime_root}" \
     -p:DebugType=None \
@@ -654,6 +656,7 @@ fi
     -p:GhostShellMacReleaseNativeAot=true \
     -p:GhostShellNativeAotLinker="${native_aot_linker}" \
     -p:GhostShellProductVersion="${version}" \
+    -p:GhostShellProductionBuild=true \
     -p:GhostShellReleaseSourceManifestSha256="${source_manifest_sha:-}" \
     -p:GhostShellCefRuntimeArtifactDirectory="${cef_runtime_root}" \
     -p:DebugType=None \

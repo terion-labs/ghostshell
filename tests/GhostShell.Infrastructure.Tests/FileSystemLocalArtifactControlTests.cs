@@ -581,10 +581,10 @@ public sealed class FileSystemLocalArtifactControlTests
         if (OperatingSystem.IsMacOS())
         {
             Assert.Equal(
-                Path.Combine(userProfile, "Library", "Caches", "GhostShell"),
+                Path.Combine(userProfile, "Library", "Caches", ApplicationStorageIdentity.DirectoryName),
                 paths.CacheDirectory);
             Assert.Equal(
-                Path.Combine(userProfile, "Library", "Logs", "GhostShell"),
+                Path.Combine(userProfile, "Library", "Logs", ApplicationStorageIdentity.DirectoryName),
                 paths.ApplicationLogDirectory);
             return;
         }
@@ -593,18 +593,18 @@ public sealed class FileSystemLocalArtifactControlTests
         {
             var product = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "GhostShell");
+                ApplicationStorageIdentity.DirectoryName);
             Assert.Equal(Path.Combine(product, "Cache"), paths.CacheDirectory);
             Assert.Equal(Path.Combine(product, "Logs"), paths.ApplicationLogDirectory);
             return;
         }
 
         Assert.EndsWith(
-            Path.Combine("ghostshell"),
+            ApplicationStorageIdentity.PosixDirectoryName,
             paths.CacheDirectory,
             StringComparison.Ordinal);
         Assert.EndsWith(
-            Path.Combine("ghostshell", "logs"),
+            Path.Combine(ApplicationStorageIdentity.PosixDirectoryName, "logs"),
             paths.ApplicationLogDirectory,
             StringComparison.Ordinal);
     }

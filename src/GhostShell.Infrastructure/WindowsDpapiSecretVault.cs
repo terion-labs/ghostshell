@@ -25,7 +25,7 @@ public sealed partial class WindowsDpapiSecretVault : ISecretVault
 
     public WindowsDpapiSecretVault(
         string directory,
-        string serviceName = "app.ghostshell",
+        string serviceName = ApplicationStorageIdentity.SecretServiceName,
         ISecretAccessPolicy? accessPolicy = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);

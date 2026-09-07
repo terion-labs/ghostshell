@@ -49,8 +49,8 @@ public sealed record LocalArtifactPaths
         if (OperatingSystem.IsMacOS())
         {
             return new LocalArtifactPaths(
-                Path.Combine(userProfile, "Library", "Caches", "GhostShell"),
-                Path.Combine(userProfile, "Library", "Logs", "GhostShell"),
+                Path.Combine(userProfile, "Library", "Caches", ApplicationStorageIdentity.DirectoryName),
+                Path.Combine(userProfile, "Library", "Logs", ApplicationStorageIdentity.DirectoryName),
                 durableDataDirectory: durableDataDirectory);
         }
 
@@ -58,7 +58,7 @@ public sealed record LocalArtifactPaths
         {
             var productDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "GhostShell");
+                ApplicationStorageIdentity.DirectoryName);
             return new LocalArtifactPaths(
                 Path.Combine(productDirectory, "Cache"),
                 Path.Combine(productDirectory, "Logs"),
@@ -72,8 +72,8 @@ public sealed record LocalArtifactPaths
             "XDG_STATE_HOME",
             Path.Combine(userProfile, ".local", "state"));
         return new LocalArtifactPaths(
-            Path.Combine(cacheHome, "ghostshell"),
-            Path.Combine(stateHome, "ghostshell", "logs"),
+            Path.Combine(cacheHome, ApplicationStorageIdentity.PosixDirectoryName),
+            Path.Combine(stateHome, ApplicationStorageIdentity.PosixDirectoryName, "logs"),
             durableDataDirectory: durableDataDirectory);
     }
 

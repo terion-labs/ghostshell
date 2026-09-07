@@ -28,7 +28,7 @@ public sealed record BrowserProfileStoragePaths
         var data = GhostShellDataPaths.CreateDefault().DataDirectory;
         return new BrowserProfileStoragePaths(
             Path.Combine(data, "browser", "state"),
-            Path.Combine(Path.GetTempPath(), "GhostShell", "browser-runtime"));
+            Path.Combine(Path.GetTempPath(), ApplicationStorageIdentity.DirectoryName, "browser-runtime"));
     }
 
     private static string Normalize(string path)

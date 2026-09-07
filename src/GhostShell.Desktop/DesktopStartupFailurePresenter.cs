@@ -33,6 +33,9 @@ internal static class DesktopStartupFailurePresenter
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // stderr remains the deterministic fallback for headless or unavailable desktops.
+            GhostShell.Application.SecretSafeDiagnosticProjection.WriteStandardError(
+                "desktop.startup-message.failed",
+                exception);
         }
     }
 

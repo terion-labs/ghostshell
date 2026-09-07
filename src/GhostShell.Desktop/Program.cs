@@ -87,13 +87,24 @@ internal static class Program
         // finalization out the same way. Private credential helpers have
         // already exited without loading CEF; normal runs and CEF --type
         // subprocesses preserve CEF's required first-dispatch ordering.
-        var prepared = PrepareAsync(args).GetAwaiter().GetResult();
-        if (prepared is null)
+        var prepared = PrepareAsync().GetAwaiter().GetResult();
+        if (prepared is StartupPreparation.Failed failure)
+        {
+            // Preparation resumes on worker threads. Avalonia, including an
+            // error-only lifetime, must start on this original macOS thread.
+            DesktopStartupFailurePresenter.TryShow(
+                "GhostSHELL could not open this profile",
+                failure.Message,
+                args);
+            Environment.ExitCode = 1;
+            return;
+        }
+        if (prepared is not StartupPreparation.Ready ready)
         {
             return;
         }
 
-        var (services, instanceCoordinator) = prepared.Value;
+        var (services, instanceCoordinator) = ready;
         var cefInitialized = false;
         MainWindowViewModel? mainWindowViewModel = null;
         INativeNotificationService? nativeNotifications = null;
@@ -244,11 +255,10 @@ internal static class Program
 
     /// <summary>
     /// Everything that must happen before the window can exist, on whatever
-    /// threads it needs. Null means startup already ended — a helper run, a
-    /// second instance, or a failure this method has already reported.
+    /// threads it needs. Null means an existing instance was activated. Errors
+    /// are returned to Main for presentation on the process's original thread.
     /// </summary>
-    private static async Task<(ServiceProvider Services, SingleInstanceCoordinator Coordinator)?>
-        PrepareAsync(string[] args)
+    private static async Task<StartupPreparation?> PrepareAsync()
     {
         ConfigureDockDiagnostics();
 
@@ -261,11 +271,10 @@ internal static class Program
         }
         if (instanceStart is SingleInstanceStartResult.Failure instanceFailure)
         {
-            ReportStartupFailure(
-                instanceFailure.Error.StableCode,
-                instanceFailure.Error.Message,
-                args);
-            return null;
+            SecretSafeDiagnosticProjection.WriteStandardError(
+                "desktop.startup.failed",
+                SecretSafeDiagnosticKind.Unexpected);
+            return new StartupPreparation.Failed(instanceFailure.Error.Message);
         }
 
         var instanceCoordinator =
@@ -288,12 +297,8 @@ internal static class Program
                 SecretSafeDiagnosticProjection.WriteStandardError(
                     "desktop.profile-open.failed",
                     SecretSafeDiagnosticKind.Unexpected);
-                Environment.ExitCode = 1;
-                DesktopStartupFailurePresenter.TryShow(
-                    "GhostSHELL cannot open this profile",
-                    encryptionError,
-                    args);
-                return Abandon();
+                Abandon();
+                return new StartupPreparation.Failed(encryptionError);
             }
 
             Task<string?> InitializeProfileAsync() => InitializeProfileCoreAsync(services);
@@ -301,28 +306,32 @@ internal static class Program
             if (!encryption.AwaitingUnlock
                 && await InitializeProfileAsync() is { } profileError)
             {
-                Environment.ExitCode = 1;
-                DesktopStartupFailurePresenter.TryShow(
-                    "GhostSHELL could not open this profile",
-                    profileError,
-                    args);
-                return Abandon();
+                Abandon();
+                return new StartupPreparation.Failed(profileError);
             }
 
-            return (services, instanceCoordinator);
+            return new StartupPreparation.Ready(services, instanceCoordinator);
         }
         catch
         {
-            _ = Abandon();
+            Abandon();
             throw;
         }
 
-        (ServiceProvider, SingleInstanceCoordinator)? Abandon()
+        void Abandon()
         {
             services.DisposeAsync().AsTask().GetAwaiter().GetResult();
             instanceCoordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            return null;
         }
+    }
+
+    private abstract record StartupPreparation
+    {
+        public sealed record Ready(
+            ServiceProvider Services,
+            SingleInstanceCoordinator Coordinator) : StartupPreparation;
+
+        public sealed record Failed(string Message) : StartupPreparation;
     }
 
     private static async Task<string?> InitializeProfileCoreAsync(IServiceProvider services)
@@ -463,22 +472,6 @@ internal static class Program
             "desktop.lifecycle.failed",
             SecretSafeDiagnosticKind.Unexpected);
         Environment.ExitCode = 1;
-    }
-
-    private static void ReportStartupFailure(
-        string stableCode,
-        string message,
-        string[] args)
-    {
-        _ = stableCode;
-        SecretSafeDiagnosticProjection.WriteStandardError(
-            "desktop.startup.failed",
-            SecretSafeDiagnosticKind.Unexpected);
-        Environment.ExitCode = 1;
-        DesktopStartupFailurePresenter.TryShow(
-            "GhostSHELL could not start",
-            message,
-            args);
     }
 
     private static void RequestMainWindowActivation()

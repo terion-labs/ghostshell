@@ -4,7 +4,7 @@ namespace GhostShell.Infrastructure;
 
 public sealed record SecretVaultFactoryOptions
 {
-    public string ServiceName { get; init; } = "app.ghostshell";
+    public string ServiceName { get; init; } = ApplicationStorageIdentity.SecretServiceName;
 
     public string? DataDirectory { get; init; }
 

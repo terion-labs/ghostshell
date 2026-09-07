@@ -182,6 +182,9 @@ fi
     -e 's/__GHOSTSHELL_BUILD_VERSION__/1/g' \
     "${info_plist_template}" > "${contents}/Info.plist"
 /usr/bin/plutil -lint "${contents}/Info.plist" >/dev/null
+/usr/bin/plutil -replace CFBundleIdentifier -string app.ghostshell.development "${contents}/Info.plist"
+/usr/bin/plutil -replace CFBundleName -string "GhostShell Development" "${contents}/Info.plist"
+/usr/bin/plutil -replace CFBundleDisplayName -string "GhostShell Development" "${contents}/Info.plist"
 /usr/bin/ditto --noqtn "${app_icon}" "${resources_directory}/GhostShell.icns"
 
 /usr/bin/ditto --clone --noqtn \
