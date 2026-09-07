@@ -714,8 +714,8 @@
             <Button Click="OnImportClick" Content="Import…" />
             <Button Click="OnExportClick" Content="Export…" />
             <Button Click="OnResetClick" Content="Reset app defaults" />
-            <Button Click="OnCancelClick" Content="Cancel app" />
-            <Button Classes="PrimaryButton" Click="OnApplyClick" Content="Apply app" />
+            <Button Click="OnCancelClick" Content="Discard unsaved app changes" IsVisible="{Binding CanRetryAppearanceSave}" />
+            <Button Classes="PrimaryButton" Click="OnApplyClick" Content="Retry saving app changes" IsVisible="{Binding CanRetryAppearanceSave}" />
           </StackPanel>
         </StackPanel>
       </Grid>

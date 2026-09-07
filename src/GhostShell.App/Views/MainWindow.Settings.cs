@@ -870,7 +870,7 @@ public sealed partial class MainWindow
     /// </summary>
     private bool _applyingAppearanceControls;
 
-    private void OnApplicationAppearanceChanged(object? sender, RoutedEventArgs e)
+    private async void OnApplicationAppearanceChanged(object? sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;
@@ -892,6 +892,12 @@ public sealed partial class MainWindow
             }
 
             var status = AppearanceContrastStatus(theme, terminal: null);
+            var result = await ViewModel.SaveAppearanceThemeChangeAsync(theme, _lifetime.Token);
+            if (!result.IsSuccess)
+            {
+                SettingsRoute.SetAppearanceValidationStatus(result.Error!.Message, isWarning: true);
+                return;
+            }
             SettingsRoute.SetAppearanceValidationStatus(
                 status,
                 isWarning: status.StartsWith(
@@ -1032,7 +1038,9 @@ public sealed partial class MainWindow
         }
 
         return warnings.Count == 0
-            ? "Preview only — Apply saves; Cancel restores the exact saved appearance."
+            ? theme is not null
+                ? "Application appearance saves automatically."
+                : "Terminal preview only. Apply terminal saves; Cancel restores the saved terminal appearance."
             : "Contrast warning: " + string.Join("; ", warnings) + ".";
     }
 
@@ -1042,7 +1050,7 @@ public sealed partial class MainWindow
         _ = e;
         try
         {
-            var result = await ViewModel.ApplyAppearanceThemeAsync(
+            var result = await ViewModel.SaveAppearanceThemeChangeAsync(
                 ThemeFrom(SettingsRoute.CaptureAppearance()),
                 _lifetime.Token);
             if (!result.IsSuccess)
@@ -1241,6 +1249,12 @@ public sealed partial class MainWindow
             }
 
             _ = ViewModel.PreviewAppearanceTheme(theme);
+            var savedTheme = await ViewModel.SaveAppearanceThemeChangeAsync(theme, _lifetime.Token);
+            if (!savedTheme.IsSuccess)
+            {
+                SettingsRoute.SetAppearanceValidationStatus(savedTheme.Error!.Message, isWarning: true);
+                return;
+            }
             if (terminal is not null)
             {
                 _ = ViewModel.PreviewTerminalAppearance(terminal);

@@ -4603,6 +4603,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     public bool HasThemeAppearanceDraft =>
         OwnsAppearancePreview && _appearancePreview.Current.HasThemeDraft;
 
+    private bool _appearanceThemeSaveFailed;
+
+    public bool CanRetryAppearanceSave => _appearanceThemeSaveFailed && HasThemeAppearanceDraft;
+
     public bool HasTerminalAppearanceDraft =>
         OwnsAppearancePreview && _appearancePreview.Current.HasTerminalDraft;
 
@@ -4639,7 +4643,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 ?.Revision);
         _appearancePreviewLease = acquisition.Lease;
         AppearancePreviewStatus = acquisition.Conflict
-            ?? "Preview changes, then apply or cancel each section independently.";
+            ?? "Application appearance saves automatically. Terminal previews use Apply terminal or Cancel.";
         PublishAppearanceDraftState();
         return acquisition.IsSuccess;
     }
@@ -4722,6 +4726,29 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         return result;
     }
 
+    public async Task<DefinitionStoreResult<StoredDefinition<ThemePreference>>> SaveAppearanceThemeChangeAsync(
+        ThemePreference theme, CancellationToken cancellationToken)
+    {
+        _appearanceThemeSaveFailed = false;
+        PublishAppearanceDraftState();
+        var result = await AppearanceSettings.SaveThemeChangeAsync(theme, cancellationToken);
+        ApplyError(result.Error);
+        _appearanceThemeSaveFailed = !result.IsSuccess && _appearancePreview.Current.Theme == theme;
+        // An older write must not clear a newer live selection, and leaving
+        // Settings may already have released this window's preview lease.
+        if (result.IsSuccess && OwnsAppearancePreview && _appearancePreview.Current.Theme == theme)
+        {
+            _ = _appearancePreviewLease?.AdvanceThemeBaseline(result.Value!.Revision);
+            _ = _appearancePreviewLease?.ClearTheme();
+            ReleaseInactiveAppearanceLease();
+        }
+        AppearancePreviewStatus = result.IsSuccess
+            ? "Application appearance saved automatically."
+            : result.Error!.Message;
+        PublishAppearanceDraftState();
+        return result;
+    }
+
     public async ValueTask<DefinitionStoreResult<StoredDefinition<TerminalProfile>>>
         ApplyTerminalAppearanceAsync(CancellationToken cancellationToken)
     {
@@ -4778,7 +4805,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         }
 
         AppearancePreviewStatus =
-            "Preview changes, then apply or cancel each section independently.";
+            "Application appearance saves automatically. Terminal previews use Apply terminal or Cancel.";
         PublishAppearanceDraftState();
     }
 
@@ -4793,6 +4820,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     private void PublishAppearanceDraftState()
     {
         OnPropertyChanged(nameof(HasThemeAppearanceDraft));
+        OnPropertyChanged(nameof(CanRetryAppearanceSave));
         OnPropertyChanged(nameof(HasTerminalAppearanceDraft));
         OnPropertyChanged(nameof(HasUnresolvedAppearanceDrafts));
     }

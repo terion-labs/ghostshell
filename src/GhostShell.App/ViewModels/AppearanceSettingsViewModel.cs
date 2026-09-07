@@ -12,6 +12,38 @@ public sealed class AppearanceSettingsViewModel : ObservableObject, IDisposable
     private readonly IDefinitionCatalog _catalog;
     private ThemePreference _activeTheme;
     private bool _disposed;
+    private Task _pendingThemeSave = Task.CompletedTask;
+
+    /// <summary>Serializes live selections and reads the revision after earlier writes finish.</summary>
+    public Task<DefinitionStoreResult<StoredDefinition<ThemePreference>>> SaveThemeChangeAsync(
+        ThemePreference theme, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        var save = SaveThemeChangeAfterAsync(_pendingThemeSave, theme, cancellationToken);
+        _pendingThemeSave = save;
+        return save;
+    }
+
+    private async Task<DefinitionStoreResult<StoredDefinition<ThemePreference>>> SaveThemeChangeAfterAsync(
+        Task precedingSave, ThemePreference theme, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await precedingSave;
+            var stored = _catalog.Snapshot.Themes.FirstOrDefault(item => item.Value.Id == theme.Id);
+            return await SaveThemeAsync(theme, stored?.Revision, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return DefinitionStoreResult<StoredDefinition<ThemePreference>>.Failure(new(
+                DefinitionStoreErrorCode.Cancelled, "Appearance changes were not saved because saving was cancelled."));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return DefinitionStoreResult<StoredDefinition<ThemePreference>>.Failure(new(
+                DefinitionStoreErrorCode.StorageFailure, "Appearance changes could not be saved. Try again."));
+        }
+    }
 
     public AppearanceSettingsViewModel(IDefinitionCatalog catalog)
     {

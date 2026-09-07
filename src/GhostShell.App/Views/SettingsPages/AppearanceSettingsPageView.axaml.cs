@@ -33,7 +33,7 @@ public sealed partial class AppearanceSettingsPageView : UserControl
 
     /// <summary>
     /// Raised whenever a control on the page changes. The shell previews the
-    /// draft; persistence is an explicit Apply action.
+    /// selection and saves valid application changes automatically.
     /// </summary>
     public event EventHandler<RoutedEventArgs>? ApplicationAppearanceChanged;
 

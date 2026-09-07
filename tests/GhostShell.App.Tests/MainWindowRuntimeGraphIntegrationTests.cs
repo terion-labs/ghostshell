@@ -6154,6 +6154,91 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         Assert.True(coordinator.Current.IsEmpty);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Density_click_saves_automatically_and_survives_leaving_settings(bool leaveBeforeSaveCompletes)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var session = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        Assert.True(await session.Dispatch(async () =>
+        {
+            var catalog = DispatchProxy.Create<IDefinitionCatalog, AppearanceSettingsViewModelTests.RecordingCatalogProxy>();
+            var recording = (AppearanceSettingsViewModelTests.RecordingCatalogProxy)(object)catalog;
+            recording.Snapshot = CreateCatalogSnapshot() with { Themes = [Store(ThemePreference.Default)] };
+            var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            recording.BeforeSave = pending.Task;
+            var saved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            catalog.Changed += (_, _) => saved.TrySetResult();
+            var coordinator = new AppearancePreviewCoordinator();
+            var (client, _) = CreateSessionClient();
+            using var viewModel = CreateViewModel(client, catalog, appearancePreview: coordinator);
+            var window = new MainWindow { DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.NavigateToSettings(SettingsPage.Appearance);
+                window.UpdateLayout();
+                var compact = window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>()
+                    .Single(button => button.Name == "DensityCompact");
+                compact.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+                Assert.Equal(InterfaceDensity.Compact, coordinator.Current.Theme?.Density);
+                Assert.Equal(1, recording.SaveCount);
+                Assert.False(viewModel.CanRetryAppearanceSave);
+                if (leaveBeforeSaveCompletes)
+                {
+                    viewModel.ShowWorkspace();
+                }
+                pending.SetResult();
+                await saved.Task.WaitAsync(timeout.Token);
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+                viewModel.ShowWorkspace();
+                Assert.False(viewModel.HasThemeAppearanceDraft);
+                Assert.False(viewModel.CanRetryAppearanceSave);
+                Assert.Equal(InterfaceDensity.Compact, viewModel.ActiveTheme.Density);
+                using var reopened = new AppearanceSettingsViewModel(catalog);
+                Assert.Equal(InterfaceDensity.Compact, reopened.ActiveTheme.Density);
+                return true;
+            }
+            finally { window.Close(); }
+        }, timeout.Token));
+    }
+
+    [Fact]
+    public async Task Failed_appearance_autosave_offers_retry_and_clears_the_draft_after_success()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var session = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        Assert.True(await session.Dispatch(async () =>
+        {
+            var catalog = DispatchProxy.Create<IDefinitionCatalog, AppearanceSettingsViewModelTests.RecordingCatalogProxy>();
+            var recording = (AppearanceSettingsViewModelTests.RecordingCatalogProxy)(object)catalog;
+            recording.Snapshot = CreateCatalogSnapshot() with { Themes = [Store(ThemePreference.Default)] };
+            recording.SaveError = new(DefinitionStoreErrorCode.StorageFailure, "Write failed.");
+            var (client, _) = CreateSessionClient();
+            using var viewModel = CreateViewModel(client, catalog, appearancePreview: new AppearancePreviewCoordinator());
+            viewModel.ShowSettings(SettingsPage.Appearance);
+            var theme = new ThemePreference(
+                ThemePreference.Default.Id,
+                "Compact theme",
+                AppearanceMode.Dark,
+                ThemePreference.Default.PlatformProfile,
+                ThemePreference.Default.Accent,
+                density: InterfaceDensity.Compact);
+            Assert.True(viewModel.PreviewAppearanceTheme(theme));
+
+            Assert.False((await viewModel.SaveAppearanceThemeChangeAsync(theme, CancellationToken.None)).IsSuccess);
+            Assert.True(viewModel.CanRetryAppearanceSave);
+            Assert.True(viewModel.HasThemeAppearanceDraft);
+            recording.SaveError = null;
+            Assert.True((await viewModel.SaveAppearanceThemeChangeAsync(theme, CancellationToken.None)).IsSuccess);
+            Assert.False(viewModel.CanRetryAppearanceSave);
+            Assert.False(viewModel.HasThemeAppearanceDraft);
+            Assert.Equal(theme, viewModel.ActiveTheme);
+            return true;
+        }, timeout.Token));
+    }
+
     [Fact]
     public void Disposed_window_cannot_reacquire_the_process_appearance_preview()
     {

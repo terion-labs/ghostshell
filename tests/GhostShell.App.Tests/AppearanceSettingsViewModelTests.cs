@@ -8,6 +8,41 @@ namespace GhostShell.App.Tests;
 public sealed class AppearanceSettingsViewModelTests
 {
     [Fact]
+    public async Task Automatic_saves_serialize_rapid_changes_and_use_the_latest_revision()
+    {
+        var original = Theme();
+        using var settings = new AppearanceSettingsViewModel(Catalog(Snapshot(original, 7), out var recording));
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        recording.BeforeSave = pending.Task;
+        var first = settings.SaveThemeChangeAsync(Theme(showTabBar: false), CancellationToken.None);
+        var latest = Theme(showWorkspacesPanel: false);
+        var second = settings.SaveThemeChangeAsync(latest, CancellationToken.None);
+        Assert.Equal(1, recording.SaveCount);
+        pending.SetResult();
+
+        Assert.True((await first).IsSuccess);
+        Assert.True((await second).IsSuccess);
+        Assert.Equal(2, recording.SaveCount);
+        Assert.Equal(8, recording.ExpectedRevision);
+        Assert.Equal(latest, recording.Snapshot.Themes.Single().Value);
+        using var reopened = new AppearanceSettingsViewModel(Catalog(recording.Snapshot, out _));
+        Assert.Equal(latest, reopened.ActiveTheme);
+    }
+
+    [Fact]
+    public async Task Automatic_save_failure_preserves_saved_settings_and_allows_a_later_retry()
+    {
+        var original = Theme();
+        using var settings = new AppearanceSettingsViewModel(Catalog(Snapshot(original, 7), out var recording));
+        recording.SaveError = new DefinitionStoreError(DefinitionStoreErrorCode.StorageFailure, "Write failed.");
+        var changed = Theme(showTabBar: false);
+        Assert.False((await settings.SaveThemeChangeAsync(changed, CancellationToken.None)).IsSuccess);
+        Assert.Equal(original, recording.Snapshot.Themes.Single().Value);
+        recording.SaveError = null;
+        Assert.True((await settings.SaveThemeChangeAsync(changed, CancellationToken.None)).IsSuccess);
+        Assert.Equal(changed, recording.Snapshot.Themes.Single().Value);
+    }
+    [Fact]
     public void Theme_projects_every_shell_layout_choice()
     {
         var theme = Theme(
@@ -203,6 +238,7 @@ public sealed class AppearanceSettingsViewModelTests
 
     public class RecordingCatalogProxy : DispatchProxy
     {
+        private EventHandler? _changed;
         public DefinitionCatalogSnapshot Snapshot { get; set; } =
             DefinitionCatalogSnapshot.Empty;
 
@@ -213,19 +249,29 @@ public sealed class AppearanceSettingsViewModelTests
         public DefinitionStoreError? SaveError { get; set; }
 
         public int SaveCount { get; private set; }
+        public Task BeforeSave { get; set; } = Task.CompletedTask;
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod?.Name == "add_Changed")
+            {
+                _changed += (EventHandler)args![0]!;
+                return null;
+            }
+            if (targetMethod?.Name == "remove_Changed")
+            {
+                _changed -= (EventHandler)args![0]!;
+                return null;
+            }
             return targetMethod?.Name switch
             {
                 "get_Snapshot" => Snapshot,
-                "add_Changed" or "remove_Changed" => null,
                 nameof(IDefinitionCatalog.SaveThemeAsync) => Save(args!),
                 _ => throw new NotSupportedException(targetMethod?.Name),
             };
         }
 
-        private ValueTask<DefinitionStoreResult<StoredDefinition<ThemePreference>>> Save(
+        private async ValueTask<DefinitionStoreResult<StoredDefinition<ThemePreference>>> Save(
             object?[] args)
         {
             var cancellationToken = (CancellationToken)args[2]!;
@@ -233,6 +279,7 @@ public sealed class AppearanceSettingsViewModelTests
             SavedTheme = (ThemePreference)args[0]!;
             ExpectedRevision = (long?)args[1];
             SaveCount++;
+            await BeforeSave.WaitAsync(cancellationToken);
             var result = SaveError is null
                 ? DefinitionStoreResult<StoredDefinition<ThemePreference>>.Success(
                     new StoredDefinition<ThemePreference>(
@@ -241,7 +288,12 @@ public sealed class AppearanceSettingsViewModelTests
                         DateTimeOffset.UnixEpoch,
                         DateTimeOffset.UnixEpoch))
                 : DefinitionStoreResult<StoredDefinition<ThemePreference>>.Failure(SaveError);
-            return ValueTask.FromResult(result);
+            if (result.IsSuccess)
+            {
+                Snapshot = Snapshot with { Themes = [result.Value!] };
+                _changed?.Invoke(this, EventArgs.Empty);
+            }
+            return result;
         }
     }
 }
