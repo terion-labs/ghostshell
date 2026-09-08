@@ -12,13 +12,13 @@
     "status": "accepted-by-project-owner",
     "basis": "documented-engineering-evidence-without-independent-legal-review",
     "reviewedBy": "Terion Labs project owner",
-    "reviewedAtUtc": "2026-09-08T08:28:23Z"
+    "reviewedAtUtc": "2026-09-08T13:15:12Z"
   },
   "dispositions": {
     "managedComponents": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the documented SMBLibrary Native AOT replacement path and the remaining Inter package provenance uncertainty for this exact macOS closure, including the pinned patched MIT source builds of Microsoft.Data.SqlClient 6.0.2, SSH.NET 2026.0.0 and SharpCompress 0.50.3 with their retained source, patch, license and assembly evidence."
+      "comment": "The project owner accepts the documented SMBLibrary Native AOT replacement path and the remaining Inter package provenance uncertainty for this exact macOS closure, including the pinned patched MIT source build of Microsoft.Data.SqlClient 6.0.2 with its retained source, patch, license and assembly evidence, and the official MIT NuGet packages SSH.NET 2026.0.0 and SharpCompress 0.50.3 replacing their source forks with reviewed package hash and license evidence."
     },
     "nativeTerminalAndShell": {
       "status": "accepted-by-owner-for-macos",
@@ -63,7 +63,7 @@
     },
     {
       "path": "licenses/THIRD-PARTY-NOTICES.md",
-      "sha256": "7f1d240207a569fd5dc94df54a56ff8e736f51704b456854bf9a89329885fefd"
+      "sha256": "5ee01cfccfe290d5d91a48eac5f430445a45fd5b48046df2e373f4d54ec4c198"
     },
     {
       "path": "licenses/cef-runtime-components.json",
@@ -71,7 +71,7 @@
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "e63b77713053b35d409bc168c1086fad2ef9b3e1afc0d290cde3f93488a60411"
+      "sha256": "d64e478096efde396d9da9cfa67ba09959f85d9febf5ef3994e1c8ad3bab146a"
     },
     {
       "path": "licenses/native-terminal-components.json",

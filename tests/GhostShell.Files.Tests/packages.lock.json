@@ -145,16 +145,10 @@
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
           "LiteDB": "[5.0.21, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "SMBLibrary": "[1.5.7.1, )",
           "SSH.NET": "[2026.0.0, )",
           "SshNet.Agent": "[2026.0.0, )"
-        }
-      },
-      "ssh.net": {
-        "type": "Project",
-        "dependencies": {
-          "BouncyCastle.Cryptography": "[2.7.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )"
         }
       },
       "AWSSDK.S3": {
@@ -198,6 +192,16 @@
         "requested": "[1.5.7.1, )",
         "resolved": "1.5.7.1",
         "contentHash": "hcs1myPdnpmbp60rzWofrU9Kgmbmpht4OsrokEwRzxW/S2I47QJsh0s8EV5jIBRY8tp0UnNoJC3jm19wSvTb2A=="
+      },
+      "SSH.NET": {
+        "type": "CentralTransitive",
+        "requested": "[2026.0.0, )",
+        "resolved": "2026.0.0",
+        "contentHash": "Yu9dirPq8l3oaat0+OQ7K0nUf5MmYltpia5UGqsApTG4zTPvBC1cxbNnC3NERij26dUST0A3Ef1QdHSn5ArbWQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.7.0",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
+        }
       },
       "SshNet.Agent": {
         "type": "CentralTransitive",

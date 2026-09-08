@@ -70,7 +70,7 @@ recorded provenance exception for the exact macOS SQL worker closure.
 
 SPDX license texts are available from <https://spdx.org/licenses/>.
 The table below is the conservative managed third-party inventory in the
-current `osx-arm64` release catalog. It contains 127 NuGet packages and five
+current `osx-arm64` release catalog. It contains 129 NuGet packages and three
 separately licensed vendored projects, including the two Exclr8CEF bindings.
 First-party GhostSHELL project assemblies are omitted; the self-contained
 .NET runtimepack is indexed by the retained .NET license and notice files
@@ -82,10 +82,10 @@ output before distribution. This table does not claim a cross-target inventory
 and does not substitute for the release's exact native software bill of
 materials and platform-specific owner decision.
 
-The three patched source builds, SqlClient, SSH.NET and SharpCompress, are
-identified separately from stock NuGet binaries. Their complete MIT notices and
-reviewed source inventories/runtime patches are included under `Licenses` and
-`Licenses/Sources`. The managed SPDX record hashes the actual published assembly,
+The patched SqlClient source build is identified separately from stock NuGet
+binaries. Its complete MIT notice and reviewed source inventories/runtime patch
+are included under `Licenses` and `Licenses/Sources`. SSH.NET and SharpCompress
+use stock NuGet package provenance. The managed SPDX record for SqlClient hashes the actual published assembly,
 records the pinned upstream archive, and binds the reviewed source inputs. Public
 strong-name identity compatibility is not an upstream private-signature claim.
 
@@ -190,8 +190,8 @@ strong-name identity compatibility is not an upstream private-signature claim.
 | `SQLite3MC.PCLRaw.lib` | `2.4.0` | MIT |
 | `SQLite3MC.PCLRaw.provider` | `2.4.0` | MIT |
 | `SQLitePCLRaw.core` | `3.0.2` | Apache-2.0 |
-| `SSH.NET` | `2026.0.0` | MIT, patched source build; `sshnet-MIT.txt` |
-| `SharpCompress` | `0.50.3` | MIT, patched source build; `sharpcompress-MIT.txt` |
+| `SSH.NET` | `2026.0.0` | MIT |
+| `SharpCompress` | `0.50.3` | MIT |
 | `ShimSkiaSharp` | `5.1.1` | MIT |
 | `SkiaSharp.NativeAssets.macOS` | `4.150.1` | MIT |
 | `SkiaSharp` | `4.150.1` | MIT |

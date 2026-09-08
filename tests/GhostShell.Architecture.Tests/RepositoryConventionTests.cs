@@ -345,8 +345,6 @@ public sealed partial class RepositoryConventionTests
                     var notice = identity switch
                     {
                         "Microsoft.Data.SqlClient.Routed/6.0.2" => "sqlclient-MIT.txt",
-                        "SSH.NET/2026.0.0" => "sshnet-MIT.txt",
-                        "SharpCompress/0.50.3" => "sharpcompress-MIT.txt",
                         _ => throw new InvalidOperationException("Unreviewed source-built notice identity."),
                     };
                     var upstreamSeparator = upstream.LastIndexOf('/');
@@ -381,9 +379,9 @@ public sealed partial class RepositoryConventionTests
             noticeLines[(tableStart + 2)..tableEnd],
             StringComparer.Ordinal);
         Assert.Equal(132, expectedRows.Length);
-        Assert.Equal(127, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+        Assert.Equal(129, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => string.Equals(component.GetProperty("kind").GetString(), "nuget", StringComparison.Ordinal)));
-        Assert.Equal(3, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+        Assert.Equal(1, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => component.TryGetProperty("vendorSource", out _)));
         Assert.Contains(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.5.5` | MIT", StringComparison.Ordinal));
         Assert.DoesNotContain(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.2.1`", StringComparison.Ordinal));

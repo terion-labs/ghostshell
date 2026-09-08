@@ -45,6 +45,7 @@ public sealed class SshNetBrowserTunnelFactory(
         SshClient? client = null;
         try
         {
+            SshNetDirectTcpipChannel.ValidateVersion();
             var authentication = await CreateAuthenticationAsync(
                 connection,
                 endpoint.Username,
@@ -104,10 +105,11 @@ public sealed class SshNetBrowserTunnelFactory(
             var proxyCredentials = new WorkspaceNetworkProxyCredentials(
                 RandomNumberGenerator.GetHexString(16),
                 RandomNumberGenerator.GetHexString(64));
-            var forward = new ForwardedPortDynamic(
-                "127.0.0.1", 0, proxyCredentials.Username, proxyCredentials.Password);
-            client.AddForwardedPort(forward);
-            forward.Start();
+            var connectedClient = client;
+            var forward = new AuthenticatedSshSocksProxy(
+                proxyCredentials,
+                () => SshNetDirectTcpipChannel.Create(connectedClient),
+                info.Timeout);
             return new SshBrowserTunnel(
                 client,
                 forward,
@@ -282,26 +284,36 @@ public sealed class SshNetBrowserTunnelFactory(
     public sealed class SshBrowserTunnel : IDisposable
     {
         private readonly SshClient _client;
-        private readonly ForwardedPortDynamic _forward;
+        private readonly Session _session;
+        private readonly AuthenticatedSshSocksProxy _forward;
         private readonly IReadOnlyList<byte[]> _ownedBuffers;
         private readonly IReadOnlyList<IDisposable> _ownedDisposables;
         private bool _disposed;
 
         internal SshBrowserTunnel(
             SshClient client,
-            ForwardedPortDynamic forward,
+            AuthenticatedSshSocksProxy forward,
             WorkspaceNetworkProxyCredentials proxyCredentials,
             string profileRouteIdentity,
             IReadOnlyList<byte[]> ownedBuffers,
             IReadOnlyList<IDisposable> ownedDisposables)
         {
             _client = client;
+            _session = SshNetDirectTcpipChannel.GetConnectedSession(client);
             _forward = forward;
             _ownedBuffers = ownedBuffers;
             _ownedDisposables = ownedDisposables;
-            LocalPort = checked((int)forward.BoundPort);
+            LocalPort = forward.LocalPort;
             ProxyCredentials = proxyCredentials;
             ProfileRouteIdentity = profileRouteIdentity;
+            _client.ErrorOccurred += OnErrorOccurred;
+            // A clean SSH_MSG_DISCONNECT raises this public concrete-session event
+            // without ErrorOccurred. Use the existing session accessor, not polling.
+            _session.Disconnected += OnDisconnected;
+            if (!_client.IsConnected)
+            {
+                _forward.Dispose();
+            }
         }
 
         public int LocalPort { get; }
@@ -320,15 +332,21 @@ public sealed class SshNetBrowserTunnelFactory(
             _disposed = true;
             try
             {
-                _forward.Stop();
+                _forward.Dispose();
             }
             catch
             {
                 // The SSH session may already have stopped the forward.
             }
 
+            _client.ErrorOccurred -= OnErrorOccurred;
+            _session.Disconnected -= OnDisconnected;
             TryDispose(_client);
             DisposeAuthentication(_ownedBuffers, _ownedDisposables);
         }
+
+        private void OnErrorOccurred(object? sender, Renci.SshNet.Common.ExceptionEventArgs eventArgs) => _forward.Dispose();
+
+        private void OnDisconnected(object? sender, EventArgs eventArgs) => _forward.Dispose();
     }
 }

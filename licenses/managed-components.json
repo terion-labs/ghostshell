@@ -1329,35 +1329,25 @@
     },
     {
       "identity": "SSH.NET/2026.0.0",
-      "kind": "project",
-      "depsType": "project",
+      "kind": "nuget",
+      "depsType": "package",
       "licenseDeclared": "MIT",
-      "file": "Renci.SshNet.dll",
-      "vendorSource": {
-        "upstreamIdentity": "SSH.NET/2026.0.0",
-        "archiveUrl": "https://github.com/sshnet/SSH.NET/archive/7b2fd3dbf2c86a80a7b06cea020aa5f821c9902e.tar.gz",
-        "archiveSha256": "e3c305e2bf41d00f7aba51b9cdd151567dfe32c616ad322561ac59e3d6a4593b",
-        "upstreamManifestSha256": "815108291cdb0d7036076a40a82a7ce4286389c2cfe45869c3e7220fc3ba6603",
-        "sourceManifestSha256": "48105dd48d1ca54648c9af3c02f3c09b992ed18d9892657f9b70ffbd2c9314cc",
-        "patchSha256": "9d2485f3d62c0bcdf3396c935367981927871a151416cf2518c4c23669fd6ba4",
-        "licenseSha256": "84c79a38515de2833a7c353395e04056c0cbd77545d450fe216d569e1570b78e"
-      }
+      "nuGetId": "SSH.NET",
+      "contentHash": "Yu9dirPq8l3oaat0+OQ7K0nUf5MmYltpia5UGqsApTG4zTPvBC1cxbNnC3NERij26dUST0A3Ef1QdHSn5ArbWQ==",
+      "nupkgSha512": "xXfgKxQmdN3uBo8mP89cVEOvRmFkj5ovBMExrZFDRz5ZaclAcrgSx0Hx1U4Ov1mJPQRz5X2lGk0hwXickyhwAg==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
     },
     {
       "identity": "SharpCompress/0.50.3",
-      "kind": "project",
-      "depsType": "project",
+      "kind": "nuget",
+      "depsType": "package",
       "licenseDeclared": "MIT",
-      "file": "SharpCompress.dll",
-      "vendorSource": {
-        "upstreamIdentity": "SharpCompress/0.50.3",
-        "archiveUrl": "https://codeload.github.com/adamhathcock/sharpcompress/tar.gz/67bd9289f99dc77e1b65730a08e8213405921488",
-        "archiveSha256": "9a3a4d57b279243ce24332fbb342c152b5c286172fa57881d9536e83c777afeb",
-        "upstreamManifestSha256": "d759d0b43dce2b113cdafe91ce782449075e1e45a48ce4bd5f2187185712d2c8",
-        "sourceManifestSha256": "aa9ce920ad9d5d66e30458a53852fb46102d55c811db89344a1e0fb11d98ae05",
-        "patchSha256": "905c6845a855fb496961a64440479de5d8b29235d621f71f2b6ba194fda33861",
-        "licenseSha256": "23d697851a5d7d3f062a546446b0fd92f8961b65a087d255563540fadc7c6c68"
-      }
+      "nuGetId": "SharpCompress",
+      "contentHash": "xxpO3UQ7JTtl2CjsCLZqvThjGx7ETcgH93CuzOGnTrspG5C3NmMnTIvyUG3YRh3hSysQm3UQEiXBKF3zOmKPwQ==",
+      "nupkgSha512": "v+tr1293tdobGgznDsduMMdG3E7pmPzPUbqztvVRufQItYlQAZnZVm39ubXbdfZMPgDWdce5Nc3cIGI1gBiEcQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
     },
     {
       "identity": "ShimSkiaSharp/5.1.1",

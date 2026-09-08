@@ -181,9 +181,6 @@
           "SharpCompress": "[0.50.3, )"
         }
       },
-      "sharpcompress": {
-        "type": "Project"
-      },
       "Magick.NET-Q8-AnyCPU": {
         "type": "CentralTransitive",
         "requested": "[14.16.0, )",
@@ -207,6 +204,12 @@
           "bblanchon.PDFium.Win32": "152.0.7961",
           "bblanchon.PDFium.macOS": "152.0.7961"
         }
+      },
+      "SharpCompress": {
+        "type": "CentralTransitive",
+        "requested": "[0.50.3, )",
+        "resolved": "0.50.3",
+        "contentHash": "xxpO3UQ7JTtl2CjsCLZqvThjGx7ETcgH93CuzOGnTrspG5C3NmMnTIvyUG3YRh3hSysQm3UQEiXBKF3zOmKPwQ=="
       }
     }
   }

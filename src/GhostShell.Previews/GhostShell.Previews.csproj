@@ -7,14 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GhostShell.Previews.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="PDFtoImage" />
+    <PackageReference Include="SharpCompress" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GhostShell.Application\GhostShell.Application.csproj" />
     <ProjectReference Include="..\GhostShell.Core\GhostShell.Core.csproj" />
-    <ProjectReference Include="../../vendor/sharpcompress/SharpCompress.csproj" />
   </ItemGroup>
 
 </Project>

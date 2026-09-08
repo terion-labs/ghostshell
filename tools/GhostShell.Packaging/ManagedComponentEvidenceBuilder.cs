@@ -54,8 +54,6 @@ internal static partial class ManagedComponentEvidenceBuilder
         "Exclr8Cef.dll",
         "Exclr8Cef.WebView.dll",
         "Microsoft.Data.SqlClient.dll",
-        "Renci.SshNet.dll",
-        "SharpCompress.dll",
         "GhostShell.dll",
         "GhostShell.Agent.dll",
         "GhostShell.Agent.Providers.dll",

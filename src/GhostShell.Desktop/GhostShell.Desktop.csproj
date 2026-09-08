@@ -46,8 +46,6 @@
     <Content Include="../../licenses/SMBLIBRARY-LGPL-3.0.txt" Link="SMBLIBRARY-LGPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../licenses/GPL-3.0.txt" Link="GPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../licenses/THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../vendor/sshnet/upstream/LICENSE" Link="SSH-NET-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../vendor/sshnet/GHOSTSHELL-VENDORING.md" Link="SSH-NET-SOURCE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../native/artifacts/common/fonts/JetBrainsMono/OFL.txt" Link="JETBRAINS-MONO-OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 

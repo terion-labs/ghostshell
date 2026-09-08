@@ -9,8 +9,6 @@ public sealed class ProjectDependencyTests
     [Theory]
     [InlineData("vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj")]
     [InlineData("vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj")]
-    [InlineData("vendor/sshnet/SSH.NET.csproj")]
-    [InlineData("vendor/sharpcompress/SharpCompress.csproj")]
     [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj")]
     [InlineData("vendor/sqlclient/tests/Tds.TestSupport.csproj")]
     public void ActiveVendorProjectsHaveNormalSolutionConfigurationMapping(string projectPath)
@@ -22,8 +20,6 @@ public sealed class ProjectDependencyTests
     }
 
     [Theory]
-    [InlineData("vendor/sshnet/SSH.NET.csproj", "SSH.NET", "Renci.SshNet")]
-    [InlineData("vendor/sharpcompress/SharpCompress.csproj", "SharpCompress", "SharpCompress")]
     [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj",
         "Microsoft.Data.SqlClient.Routed", "Microsoft.Data.SqlClient")]
     public void PatchedProjectNamesMatchRestoreIdentityWithoutChangingClrNames(string projectPath, string packageId, string assemblyName)
@@ -32,6 +28,21 @@ public sealed class ProjectDependencyTests
         Assert.Equal(packageId, Path.GetFileNameWithoutExtension(projectPath));
         Assert.Equal(packageId, Assert.Single(project.Descendants("PackageId")).Value);
         Assert.Equal(assemblyName, Assert.Single(project.Descendants("AssemblyName")).Value);
+    }
+
+    [Theory]
+    [InlineData("src/GhostShell.Previews/GhostShell.Previews.csproj", "SharpCompress")]
+    [InlineData("src/GhostShell.Infrastructure/GhostShell.Infrastructure.csproj", "SSH.NET")]
+    [InlineData("src/GhostShell.Files/GhostShell.Files.csproj", "SSH.NET")]
+    public void UnmodifiedDependenciesUseCentrallyPinnedPackages(string projectPath, string packageId)
+    {
+        var project = LoadProject(projectPath);
+        var reference = Assert.Single(project.Descendants("PackageReference"), element =>
+            string.Equals((string?)element.Attribute("Include"), packageId, StringComparison.Ordinal));
+        Assert.Null(reference.Attribute("Version"));
+        Assert.DoesNotContain(References(project, "ProjectReference"), path =>
+            path.Contains("vendor/sshnet/", StringComparison.Ordinal)
+            || path.Contains("vendor/sharpcompress/", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -127,14 +138,12 @@ public sealed class ProjectDependencyTests
     }
 
     [Fact]
-    public void InfrastructureDependsOnlyOnApplicationCoreAndPinnedSshTransportProjects()
+    public void InfrastructureDependsOnlyOnApplicationAndCoreProjects()
     {
         var projectReferences = References(
             LoadProject("src/GhostShell.Infrastructure/GhostShell.Infrastructure.csproj"),
             "ProjectReference");
-        Assert.Contains("../../vendor/sshnet/SSH.NET.csproj", projectReferences, StringComparer.Ordinal);
         var references = projectReferences
-            .Where(reference => reference != "../../vendor/sshnet/SSH.NET.csproj")
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
             .ToHashSet(StringComparer.Ordinal);
@@ -150,11 +159,7 @@ public sealed class ProjectDependencyTests
         var projectReferences = References(
                 LoadProject("src/GhostShell.Files/GhostShell.Files.csproj"),
                 "ProjectReference");
-        // This pinned source adapter replaces the SSH.NET package to enforce
-        // authentication on its loopback listener; no presentation dependency.
-        Assert.Contains("../../vendor/sshnet/SSH.NET.csproj", projectReferences, StringComparer.Ordinal);
         var references = projectReferences
-            .Where(reference => reference != "../../vendor/sshnet/SSH.NET.csproj")
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
             .ToArray();

@@ -68,7 +68,7 @@ public sealed class ArchiveTableOfContents : IArchiveTableOfContents
         int offset,
         CancellationToken cancellationToken)
     {
-        // The pinned extension bypasses SharpCompress's retaining Entries
+        // The pinned compatibility adapter bypasses SharpCompress's retaining Entries
         // collection, so skipped headers are collectible even on deep pages.
         // Parsing still uses its ZIP64/encryption-aware central-directory reader.
         using var source = content.OpenRead();

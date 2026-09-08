@@ -9,6 +9,15 @@ namespace GhostShell.Previews.Tests;
 public sealed class ArchivePagingTests
 {
     [Fact]
+    public void Uncached_adapter_uses_the_unmodified_package()
+    {
+        // The old source fork added this public method. Keep the compatibility
+        // test from accidentally passing against a stale fork in build output.
+        Assert.Null(typeof(SharpCompress.Archives.Zip.ZipArchive).GetMethod("EnumerateEntriesUncached"));
+        Assert.Equal(new Version(0, 50, 3, 0), typeof(SharpCompress.Archives.Zip.ZipArchive).Assembly.GetName().Version);
+    }
+
+    [Fact]
     public async Task First_and_deep_pages_keep_only_requested_rows_and_do_not_read_bodies()
     {
         var bytes = CreateManyEntries(20_000);

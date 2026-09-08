@@ -1,9 +1,9 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
+using GhostShell.Application;
+using GhostShell.Files;
 using Renci.SshNet;
-using Renci.SshNet.Channels;
 
 namespace GhostShell.SshNet.Tests;
 
@@ -21,8 +21,7 @@ public sealed class AuthenticatedDynamicPortTests
         await stream.WriteAsync(Convert.FromHexString(request));
         await AssertReplyAsync(stream, reply);
         await AssertClosedAsync(stream, fixture.Timeout.Token);
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
     }
 
     [Theory]
@@ -41,8 +40,7 @@ public sealed class AuthenticatedDynamicPortTests
         await stream.WriteAsync(Convert.FromHexString(authentication));
         await AssertReplyAsync(stream, "0101");
         await AssertClosedAsync(stream, fixture.Timeout.Token);
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
     }
 
     [Fact]
@@ -55,12 +53,11 @@ public sealed class AuthenticatedDynamicPortTests
         await AssertReplyAsync(stream, "0502");
         await stream.WriteAsync(Convert.FromHexString("0101750170"));
         await AssertReplyAsync(stream, "0100");
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
 
         await stream.WriteAsync(Convert.FromHexString("05010001010203040050"));
         await AssertReplyAsync(stream, "05000001000000000000");
-        fixture.Channel.Verify(channel => channel.Open("1.2.3.4", 80, fixture.Port, It.IsAny<Socket>()), Times.Once);
+        Assert.Equal(("1.2.3.4", 80u, (IForwardedPort)fixture.Port), Assert.Single(fixture.Channel.OpenCalls));
     }
 
     [Fact]
@@ -72,8 +69,7 @@ public sealed class AuthenticatedDynamicPortTests
         await stream.WriteAsync(new byte[] { 5, 1, 2 });
         await AssertReplyAsync(stream, "0502");
         await AssertClosedAsync(stream, fixture.Timeout.Token);
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
     }
 
     [Fact]
@@ -93,8 +89,7 @@ public sealed class AuthenticatedDynamicPortTests
 
             using var excess = await fixture.ConnectAsync();
             await AssertClosedAsync(excess.GetStream(), fixture.Timeout.Token);
-            fixture.Channel.Verify(channel => channel.Open(
-                It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+            Assert.Empty(fixture.Channel.OpenCalls);
             var firstStream = clients[0].GetStream();
             await firstStream.WriteAsync(Convert.FromHexString("0101750170"));
             await AssertReplyAsync(firstStream, "0100");
@@ -123,21 +118,23 @@ public sealed class AuthenticatedDynamicPortTests
         await stream.WriteAsync(Convert.FromHexString("0101750270"));
         client.Client.Shutdown(SocketShutdown.Send);
         await AssertReplyAsync(stream, "0101");
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
     }
 
     [Fact]
-    public async Task Existing_constructor_retains_upstream_noauth_behavior()
+    public async Task Remote_open_refusal_never_returns_success()
     {
-        using var fixture = new ListenerFixture(requireCredentials: false);
+        using var fixture = new ListenerFixture(openSucceeds: false);
         using var client = await fixture.ConnectAsync();
         var stream = client.GetStream();
-        await stream.WriteAsync(new byte[] { 5, 1, 0 });
-        await AssertReplyAsync(stream, "0500");
+        await stream.WriteAsync(new byte[] { 5, 1, 2 });
+        await AssertReplyAsync(stream, "0502");
+        await stream.WriteAsync(Convert.FromHexString("0101750170"));
+        await AssertReplyAsync(stream, "0100");
         await stream.WriteAsync(Convert.FromHexString("05010001010203040050"));
-        await AssertReplyAsync(stream, "05000001000000000000");
-        fixture.Channel.Verify(channel => channel.Open("1.2.3.4", 80, fixture.Port, It.IsAny<Socket>()), Times.Once);
+        await AssertReplyAsync(stream, "05050001000000000000");
+        await AssertClosedAsync(stream, fixture.Timeout.Token);
+        Assert.Equal(("1.2.3.4", 80u, (IForwardedPort)fixture.Port), Assert.Single(fixture.Channel.OpenCalls));
     }
 
     [Fact]
@@ -150,8 +147,43 @@ public sealed class AuthenticatedDynamicPortTests
         await AssertReplyAsync(stream, "0502");
         fixture.Port.Dispose();
         await AssertClosedAsync(stream, fixture.Timeout.Token);
-        fixture.Channel.Verify(channel => channel.Open(
-            It.IsAny<string>(), It.IsAny<uint>(), It.IsAny<IForwardedPort>(), It.IsAny<Socket>()), Times.Never);
+        Assert.Empty(fixture.Channel.OpenCalls);
+    }
+
+    [Theory]
+    [InlineData("05020001010203040050", "05070001000000000000")]
+    [InlineData("05030001010203040050", "05070001000000000000")]
+    [InlineData("05010101010203040050", "05070001000000000000")]
+    [InlineData("04010001010203040050", "05070001000000000000")]
+    [InlineData("05010002010203040050", "05080001000000000000")]
+    [InlineData("0501000300", "05080001000000000000")]
+    [InlineData("05010001010203040000", "05080001000000000000")]
+    public async Task Malformed_or_unsupported_connect_does_not_open_channel(string request, string reply)
+    {
+        using var fixture = new ListenerFixture();
+        using var client = await fixture.ConnectAsync();
+        var stream = client.GetStream();
+        await stream.WriteAsync(Convert.FromHexString("0501020101750170"));
+        await AssertReplyAsync(stream, "05020100");
+        await stream.WriteAsync(Convert.FromHexString(request));
+        await AssertReplyAsync(stream, reply);
+        await AssertClosedAsync(stream, fixture.Timeout.Token);
+        Assert.Empty(fixture.Channel.OpenCalls);
+    }
+
+    [Theory]
+    [InlineData("050100030C746573742E696E76616C696401BB", "test.invalid", 443)]
+    [InlineData("05010004000000000000000000000000000000010050", "::1", 80)]
+    public async Task Domain_and_ipv6_targets_are_forwarded_without_local_resolution(string request, string host, uint port)
+    {
+        using var fixture = new ListenerFixture();
+        using var client = await fixture.ConnectAsync();
+        var stream = client.GetStream();
+        await stream.WriteAsync(Convert.FromHexString("0501020101750170"));
+        await AssertReplyAsync(stream, "05020100");
+        await stream.WriteAsync(Convert.FromHexString(request));
+        await AssertReplyAsync(stream, "05000001000000000000");
+        Assert.Equal((host, port, (IForwardedPort)fixture.Port), Assert.Single(fixture.Channel.OpenCalls));
     }
 
     private static async Task AssertClosedAsync(NetworkStream stream, CancellationToken cancellationToken)
@@ -166,6 +198,41 @@ public sealed class AuthenticatedDynamicPortTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stop_closes_active_bind_or_open_and_observes_worker_exit(bool blockDuringOpen)
+    {
+        using var fixture = new ListenerFixture(handshakeTimeout: TimeSpan.FromSeconds(30));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Block(Socket socket)
+        {
+            entered.SetResult();
+            _ = socket.Receive(new byte[1]);
+        }
+        if (blockDuringOpen)
+        {
+            fixture.Channel.OpenCallback = Block;
+        }
+        else
+        {
+            fixture.Channel.BindCallback = Block;
+        }
+        using var client = await fixture.ConnectAsync();
+        var stream = client.GetStream();
+        await stream.WriteAsync(Convert.FromHexString("050102010175017005010001010203040050"));
+        await AssertReplyAsync(stream, "05020100");
+        if (!blockDuringOpen)
+        {
+            await AssertReplyAsync(stream, "05000001000000000000");
+        }
+        await entered.Task.WaitAsync(fixture.Timeout.Token);
+        fixture.Port.Dispose();
+        await AssertClosedAsync(stream, fixture.Timeout.Token);
+        await fixture.Port.WaitForStoppedAsync(fixture.Timeout.Token);
+        Assert.Equal(1, fixture.Channel.DisposalCount);
+    }
+
     private static async Task AssertReplyAsync(NetworkStream stream, string expected)
     {
         var bytes = Convert.FromHexString(expected);
@@ -175,35 +242,53 @@ public sealed class AuthenticatedDynamicPortTests
         Assert.Equal(bytes, actual);
     }
 
-    private sealed class ListenerFixture : IDisposable
+    private sealed class TestChannel(bool openSucceeds) : ISshDirectTcpipChannel
     {
-        public ListenerFixture(bool requireCredentials = true, TimeSpan? handshakeTimeout = null)
+        private Socket? _socket;
+        private int _disposalCount;
+
+        public ConcurrentQueue<(string Host, uint Port, IForwardedPort Owner)> OpenCalls { get; } = new();
+
+        public Action<Socket>? OpenCallback { get; set; }
+
+        public Action<Socket>? BindCallback { get; set; }
+
+        public int DisposalCount => Volatile.Read(ref _disposalCount);
+
+        public bool Open(string host, uint port, IForwardedPort owner, Socket socket)
         {
-            var info = new Mock<IConnectionInfo>();
-            info.SetupGet(value => value.Timeout).Returns(handshakeTimeout ?? TimeSpan.FromSeconds(1));
-            var session = new Mock<ISession>();
-            session.SetupGet(value => value.ConnectionInfo).Returns(info.Object);
-            session.SetupGet(value => value.IsConnected).Returns(true);
-            session.SetupGet(value => value.SessionLoggerFactory).Returns(NullLoggerFactory.Instance);
-            session.Setup(value => value.CreateChannelDirectTcpip()).Returns(Channel.Object);
-            Channel.SetupGet(value => value.IsOpen).Returns(true);
-            Port = requireCredentials
-                ? new ForwardedPortDynamic("127.0.0.1", 0, "u", "p")
-                : new ForwardedPortDynamic("127.0.0.1", 0);
-            Port.Session = session.Object;
-            Port.Start();
+            OpenCalls.Enqueue((host, port, owner));
+            _socket = socket;
+            OpenCallback?.Invoke(socket);
+            return openSucceeds;
         }
 
-        public Mock<IChannelDirectTcpip> Channel { get; } = new();
+        public void Bind() => BindCallback?.Invoke(_socket!);
 
-        public ForwardedPortDynamic Port { get; }
+        public void Dispose() => Interlocked.Increment(ref _disposalCount);
+    }
+
+    private sealed class ListenerFixture : IDisposable
+    {
+        public ListenerFixture(bool openSucceeds = true, TimeSpan? handshakeTimeout = null)
+        {
+            Channel = new TestChannel(openSucceeds);
+            Port = new AuthenticatedSshSocksProxy(
+                new WorkspaceNetworkProxyCredentials("u", "p"),
+                () => Channel,
+                handshakeTimeout ?? TimeSpan.FromSeconds(1));
+        }
+
+        public TestChannel Channel { get; }
+
+        public AuthenticatedSshSocksProxy Port { get; }
 
         public CancellationTokenSource Timeout { get; } = new(TimeSpan.FromSeconds(45));
 
         public async Task<TcpClient> ConnectAsync()
         {
             var client = new TcpClient();
-            await client.ConnectAsync(IPAddress.Loopback, checked((int)Port.BoundPort), Timeout.Token);
+            await client.ConnectAsync(IPAddress.Loopback, Port.LocalPort, Timeout.Token);
             return client;
         }
 

@@ -199,8 +199,9 @@ public sealed class DatabaseConnectionRouteTests
 
     private sealed class Factory : IDatabaseTunnelFactory, IDisposable
     {
+        private int _leaseDisposals;
         public int Opens { get; private set; }
-        public int LeaseDisposals { get; private set; }
+        public int LeaseDisposals => Volatile.Read(ref _leaseDisposals);
         public int FactoryDisposals { get; private set; }
         public CancellationToken Generation { get; set; }
         public CancellationToken RouteLifetime => Generation;
@@ -238,7 +239,9 @@ public sealed class DatabaseConnectionRouteTests
             public bool IsClosed => Closed;
             public ValueTask DisposeAsync()
             {
-                ++owner.LeaseDisposals;
+                // The route drains leases concurrently; count every disposal
+                // without letting the test double lose increments.
+                Interlocked.Increment(ref owner._leaseDisposals);
                 owner.DisposalEntered.TrySetResult();
                 if (owner.FailDisposal && Closed) { return ValueTask.FromException(new IOException("synthetic cleanup failure")); }
                 return owner.DisposalGate is { } gate ? new(gate.Task) : ValueTask.CompletedTask;

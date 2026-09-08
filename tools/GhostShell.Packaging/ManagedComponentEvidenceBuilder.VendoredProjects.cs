@@ -15,12 +15,6 @@ internal static partial class ManagedComponentEvidenceBuilder
             ["Microsoft.Data.SqlClient.Routed/6.0.2"] = new("Microsoft.Data.SqlClient/6.0.2", "sqlclient", "Microsoft.Data.SqlClient.dll", new(6, 0, 0, 0),
                 "https://github.com/dotnet/SqlClient/archive/b16dec0a5622fd5b3d5311191bac4cafadc43e60.tar.gz",
                 "f4c2cfd1a7a48f5e4f0b6b97639e5c17730fca1eade31668732280b82df21870", "routed-transport.patch", "upstream/LICENSE"),
-            ["SSH.NET/2026.0.0"] = new("SSH.NET/2026.0.0", "sshnet", "Renci.SshNet.dll", new(2026, 0, 0, 1),
-                "https://github.com/sshnet/SSH.NET/archive/7b2fd3dbf2c86a80a7b06cea020aa5f821c9902e.tar.gz",
-                "e3c305e2bf41d00f7aba51b9cdd151567dfe32c616ad322561ac59e3d6a4593b", "rfc1929-authentication.patch", "upstream/LICENSE"),
-            ["SharpCompress/0.50.3"] = new("SharpCompress/0.50.3", "sharpcompress", "SharpCompress.dll", new(0, 50, 3, 1),
-                "https://codeload.github.com/adamhathcock/sharpcompress/tar.gz/67bd9289f99dc77e1b65730a08e8213405921488",
-                "9a3a4d57b279243ce24332fbb342c152b5c286172fa57881d9536e83c777afeb", "uncached-zip-enumeration.patch", "upstream/LICENSE.txt"),
         };
 
     private static void ValidateVendoredCatalogEntry(CatalogDependency component, VendoredProject vendor)
@@ -112,8 +106,7 @@ internal static partial class ManagedComponentEvidenceBuilder
 
     private static void ValidateVendorInputSet(string root, HashSet<string> expected, string vendorDirectory)
     {
-        // Match update-managed-vendor-inventory.mjs and
-        // update-sqlclient-provenance.mjs exclusions.
+        // Match update-sqlclient-provenance.mjs exclusions.
         // Rehashing listed inputs alone misses new files consumed by build globs.
         var remaining = new HashSet<string>(expected, StringComparer.Ordinal);
         var directories = new Stack<string>();

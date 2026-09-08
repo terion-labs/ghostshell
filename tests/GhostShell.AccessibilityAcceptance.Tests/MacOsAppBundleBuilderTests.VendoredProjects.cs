@@ -16,12 +16,6 @@ public sealed partial class MacOsAppBundleBuilderTests
         new("Microsoft.Data.SqlClient.Routed/6.0.2", "Microsoft.Data.SqlClient/6.0.2", "sqlclient", "Microsoft.Data.SqlClient", new(6, 0, 0, 0),
             "https://github.com/dotnet/SqlClient/archive/b16dec0a5622fd5b3d5311191bac4cafadc43e60.tar.gz",
             "f4c2cfd1a7a48f5e4f0b6b97639e5c17730fca1eade31668732280b82df21870", "routed-transport.patch", "upstream/LICENSE"),
-        new("SSH.NET/2026.0.0", "SSH.NET/2026.0.0", "sshnet", "Renci.SshNet", new(2026, 0, 0, 1),
-            "https://github.com/sshnet/SSH.NET/archive/7b2fd3dbf2c86a80a7b06cea020aa5f821c9902e.tar.gz",
-            "e3c305e2bf41d00f7aba51b9cdd151567dfe32c616ad322561ac59e3d6a4593b", "rfc1929-authentication.patch", "upstream/LICENSE"),
-        new("SharpCompress/0.50.3", "SharpCompress/0.50.3", "sharpcompress", "SharpCompress", new(0, 50, 3, 1),
-            "https://codeload.github.com/adamhathcock/sharpcompress/tar.gz/67bd9289f99dc77e1b65730a08e8213405921488",
-            "9a3a4d57b279243ce24332fbb342c152b5c286172fa57881d9536e83c777afeb", "uncached-zip-enumeration.patch", "upstream/LICENSE.txt"),
     ];
 
     private static void AddVendoredProjectFixtures(string publish, string sourceRoot,
@@ -86,6 +80,64 @@ public sealed partial class MacOsAppBundleBuilderTests
     }
 
     private static string HashFile(string path) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
+
+    [Theory]
+    [InlineData("SSH.NET", "2026.0.0")]
+    [InlineData("SharpCompress", "0.50.3")]
+    public void Unmodified_dependencies_use_nuget_package_provenance(string name, string version)
+    {
+        var publish = CreatePublishPayload();
+        var evidence = BuildVendorEvidence(publish);
+        using var spdx = JsonDocument.Parse(Assert.Single(evidence.Files, file => file.RelativePath == "SBOM.spdx.json").Content);
+        var package = Assert.Single(spdx.RootElement.GetProperty("packages").EnumerateArray(),
+            item => string.Equals(item.GetProperty("name").GetString(), name, StringComparison.Ordinal));
+        Assert.Equal(version, package.GetProperty("versionInfo").GetString());
+        Assert.Equal("MIT", package.GetProperty("licenseDeclared").GetString());
+        Assert.Contains("pkg:nuget/", package.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Patched source build", package.ToString(), StringComparison.Ordinal);
+        var checksum = Assert.Single(package.GetProperty("checksums").EnumerateArray());
+        Assert.Equal("SHA512", checksum.GetProperty("algorithm").GetString());
+        var archive = NuGetPackagePath(_evidenceInputs[publish].NuGetPackageRoot, name, version);
+        Assert.Equal(Convert.ToHexStringLower(SHA512.HashData(File.ReadAllBytes(archive))),
+            checksum.GetProperty("checksumValue").GetString());
+        Assert.DoesNotContain(evidence.Files, file => file.RelativePath.StartsWith("Sources/sshnet/", StringComparison.Ordinal)
+            || file.RelativePath.StartsWith("Sources/sharpcompress/", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("SSH.NET", "2026.0.0")]
+    [InlineData("SharpCompress", "0.50.3")]
+    public void Unmodified_dependencies_reject_changed_package_bytes(string name, string version)
+    {
+        var publish = CreatePublishPayload();
+        var archive = NuGetPackagePath(_evidenceInputs[publish].NuGetPackageRoot, name, version);
+        using (var stream = File.Open(archive, FileMode.Append, FileAccess.Write, FileShare.None))
+        {
+            stream.WriteByte(0);
+        }
+        var error = Assert.Throws<InvalidDataException>(() => BuildVendorEvidence(publish));
+        Assert.Contains("SHA-512 mismatch", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("SSH.NET/2026.0.0", "Renci.SshNet.dll")]
+    [InlineData("SharpCompress/0.50.3", "SharpCompress.dll")]
+    public void Removed_source_projects_cannot_replace_stock_package_catalog_entries(string identity, string file)
+    {
+        var publish = CreatePublishPayload();
+        var inputs = _evidenceInputs[publish];
+        var catalog = JsonNode.Parse(File.ReadAllText(inputs.CatalogPath))!.AsObject();
+        var entry = catalog["dependencies"]!.AsArray().Select(node => node!.AsObject())
+            .Single(node => string.Equals(node["identity"]!.GetValue<string>(), identity, StringComparison.Ordinal));
+        entry.Clear();
+        entry["identity"] = identity;
+        entry["kind"] = "project";
+        entry["depsType"] = "project";
+        entry["licenseDeclared"] = "MIT";
+        entry["file"] = file;
+        File.WriteAllText(inputs.CatalogPath, catalog.ToJsonString());
+        Assert.Throws<InvalidDataException>(() => BuildVendorEvidence(publish));
+    }
 
     [Fact]
     public void Vendored_projects_ship_reviewed_notices_source_hashes_and_actual_assembly_hashes()
@@ -154,8 +206,6 @@ public sealed partial class MacOsAppBundleBuilderTests
 
     [Theory]
     [InlineData("sqlclient")]
-    [InlineData("sshnet")]
-    [InlineData("sharpcompress")]
     public void Vendored_inventory_rejects_unlisted_build_inputs(string vendor)
     {
         var publish = CreatePublishPayload();
@@ -183,14 +233,10 @@ public sealed partial class MacOsAppBundleBuilderTests
     [Theory]
     [InlineData("sqlclient", "upstream/src/Microsoft.Data.SqlClient/src/bin/Unexpected.cs")]
     [InlineData("sqlclient", "upstream/src/Microsoft.Data.SqlClient/src/obj/Unexpected.cs")]
-    [InlineData("sshnet", "upstream/src/Renci.SshNet/bin/Unexpected.cs")]
-    [InlineData("sshnet", "upstream/src/Renci.SshNet/obj/Unexpected.cs")]
-    [InlineData("sharpcompress", "upstream/src/SharpCompress/bin/Unexpected.cs")]
-    [InlineData("sharpcompress", "upstream/src/SharpCompress/obj/Unexpected.cs")]
     [InlineData("sqlclient", "upstream/packages.lock.json")]
     [InlineData("sqlclient", "upstream/packages.linux-x64.lock.json")]
-    [InlineData("sshnet", "upstream/packages.osx-arm64.lock.json")]
-    [InlineData("sshnet", "upstream/SOURCE-SNAPSHOT.sha256")]
+    [InlineData("sqlclient", "upstream/packages.osx-arm64.lock.json")]
+    [InlineData("sqlclient", "upstream/SOURCE-SNAPSHOT.sha256")]
     public void Vendored_inventory_does_not_exclude_generated_names_in_source_directories(string vendor, string path)
     {
         var publish = CreatePublishPayload();
@@ -281,9 +327,6 @@ public sealed partial class MacOsAppBundleBuilderTests
     [InlineData("Microsoft.Data.SqlClient.Routed/6.0.2", "Microsoft.Data.SqlClient.Routed/0.0.1")]
     [InlineData("Microsoft.Data.SqlClient.Routed/6.0.2", "Microsoft.Data.SqlClient/6.0.2")]
     [InlineData("Microsoft.Data.SqlClient.Routed/6.0.2", "Microsoft.Data.SqlClient.Reference/6.0.0.0")]
-    [InlineData("SSH.NET/2026.0.0", "Renci.SshNet/0.0.1")]
-    [InlineData("SSH.NET/2026.0.0", "Renci.SshNet/2026.0.0.1")]
-    [InlineData("SharpCompress/0.50.3", "SharpCompress/0.0.1")]
     public void Stale_vendor_project_identity_cannot_fall_back_to_ordinary_project_rules(string identity, string staleIdentity)
     {
         var publish = CreatePublishPayload();

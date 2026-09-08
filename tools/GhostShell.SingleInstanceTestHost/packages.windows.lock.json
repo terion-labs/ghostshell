@@ -873,6 +873,7 @@
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
           "LiteDB": "[5.0.21, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "SMBLibrary": "[1.5.7.1, )",
           "SSH.NET": "[2026.0.0, )",
           "SshNet.Agent": "[2026.0.0, )"
@@ -891,6 +892,7 @@
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.10, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )",
           "SQLite3MC.PCLRaw.bundle": "[2.4.0, )",
           "SSH.NET": "[2026.0.0, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.10, )"
@@ -970,16 +972,6 @@
           "Microsoft.SqlServer.Server": "[1.0.0, )",
           "System.Configuration.ConfigurationManager": "[9.0.4, )",
           "System.Security.Cryptography.Pkcs": "[9.0.4, )"
-        }
-      },
-      "sharpcompress": {
-        "type": "Project"
-      },
-      "ssh.net": {
-        "type": "Project",
-        "dependencies": {
-          "BouncyCastle.Cryptography": "[2.7.0, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.7, )"
         }
       },
       "Avalonia": {
@@ -1383,6 +1375,12 @@
           "AngleSharp": "1.5.2"
         }
       },
+      "SharpCompress": {
+        "type": "CentralTransitive",
+        "requested": "[0.50.3, )",
+        "resolved": "0.50.3",
+        "contentHash": "xxpO3UQ7JTtl2CjsCLZqvThjGx7ETcgH93CuzOGnTrspG5C3NmMnTIvyUG3YRh3hSysQm3UQEiXBKF3zOmKPwQ=="
+      },
       "SMBLibrary": {
         "type": "CentralTransitive",
         "requested": "[1.5.7.1, )",
@@ -1397,6 +1395,16 @@
         "dependencies": {
           "SQLite3MC.PCLRaw.lib": "2.4.0",
           "SQLite3MC.PCLRaw.provider": "2.4.0"
+        }
+      },
+      "SSH.NET": {
+        "type": "CentralTransitive",
+        "requested": "[2026.0.0, )",
+        "resolved": "2026.0.0",
+        "contentHash": "Yu9dirPq8l3oaat0+OQ7K0nUf5MmYltpia5UGqsApTG4zTPvBC1cxbNnC3NERij26dUST0A3Ef1QdHSn5ArbWQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.7.0",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
         }
       },
       "SshNet.Agent": {

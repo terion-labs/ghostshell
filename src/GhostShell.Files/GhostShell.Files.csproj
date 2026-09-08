@@ -11,7 +11,9 @@
     <PackageReference Include="LiteDB" />
     <PackageReference Include="FluentFTP" />
     <PackageReference Include="SMBLibrary" />
-    <ProjectReference Include="../../vendor/sshnet/SSH.NET.csproj" />
+    <!-- Preserve the reviewed logging closure previously supplied by the SSH fork. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="SSH.NET" />
     <PackageReference Include="SshNet.Agent" />
   </ItemGroup>
 

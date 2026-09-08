@@ -28,7 +28,7 @@ internal sealed class DesktopProductComponentCatalog : IProductComponentCatalog
             "2.4.0",
             "Encrypted local durable storage",
             "MIT"),
-        new("SSH.NET", "2025.1.0", "SSH and SFTP connectivity", "MIT"),
+        new("SSH.NET", "2026.0.0", "SSH and SFTP connectivity", "MIT"),
         new("Fluent Icons", "2.1.333", "Interface iconography", "MIT"),
     ];
 }

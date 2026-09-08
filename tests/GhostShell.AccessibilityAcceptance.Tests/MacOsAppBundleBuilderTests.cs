@@ -286,7 +286,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 .GetProperty("packages")
                 .EnumerateArray()
                 .ToArray();
-            Assert.Equal(ProjectAssemblyNames.Length + VendorFixtures.Length + 4, packages.Length);
+            Assert.Equal(ProjectAssemblyNames.Length + VendorFixtures.Length + 6, packages.Length);
             AssertProjectPackage(
                 packages,
                 "Exclr8Cef",
@@ -354,7 +354,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 "DESCRIBES",
                 StringComparison.Ordinal));
             Assert.Equal(
-                ProjectAssemblyNames.Length + VendorFixtures.Length + 3,
+                ProjectAssemblyNames.Length + VendorFixtures.Length + 5,
                 relationships.Count(relationship =>
                     string.Equals(
                         relationship.GetProperty("relationshipType").GetString(),
@@ -1806,6 +1806,8 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
             "SkiaSharp.NativeAssets.macOS",
             "3.119.3-preview.1.1",
             includeNotices: true);
+        var sharpCompress = CreateNuGetPackage(packageRoot, "SharpCompress", "0.50.3", includeNotices: false);
+        var sshNet = CreateNuGetPackage(packageRoot, "SSH.NET", "2026.0.0", includeNotices: false);
         var runtime = CreateNuGetPackage(
             packageRoot,
             "Microsoft.NETCore.App.Runtime.osx-arm64",
@@ -1854,7 +1856,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
         AddVendoredProjectFixtures(publishDirectory, productIdentity.SourceRoot,
             libraries, selectedTarget, catalogDependencies);
 
-        foreach (var package in new[] { harfBuzz, skia })
+        foreach (var package in new[] { harfBuzz, skia, sharpCompress, sshNet })
         {
             libraries.Add(
                 package.Identity,

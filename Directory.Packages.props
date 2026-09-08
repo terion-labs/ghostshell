@@ -54,10 +54,11 @@
     <PackageVersion Include="Porta.Pty" Version="1.0.7" />
     <PackageVersion Include="ReverseMarkdown" Version="6.2.1" />
     <PackageVersion Include="SMBLibrary" Version="1.5.7.1" />
+    <PackageVersion Include="SharpCompress" Version="0.50.3" />
     <PackageVersion Include="SQLite3MC.PCLRaw.bundle" Version="2.4.0" />
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
-    <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="SshNet.Agent" Version="2026.0.0" />
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="StackExchange.Redis" Version="3.0.17" />
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.13" />
     <PackageVersion Include="Sylinko.CSharpMath.Avalonia" Version="12.0.0" />

@@ -50,6 +50,12 @@
           "bblanchon.PDFium.macOS": "152.0.7961"
         }
       },
+      "SharpCompress": {
+        "type": "Direct",
+        "requested": "[0.50.3, )",
+        "resolved": "0.50.3",
+        "contentHash": "xxpO3UQ7JTtl2CjsCLZqvThjGx7ETcgH93CuzOGnTrspG5C3NmMnTIvyUG3YRh3hSysQm3UQEiXBKF3zOmKPwQ=="
+      },
       "bblanchon.PDFium.Linux": {
         "type": "Transitive",
         "resolved": "152.0.7961",
@@ -101,9 +107,6 @@
         }
       },
       "ghostshell.core": {
-        "type": "Project"
-      },
-      "sharpcompress": {
         "type": "Project"
       }
     }
