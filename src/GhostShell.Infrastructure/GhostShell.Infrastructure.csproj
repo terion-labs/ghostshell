@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
-    <PackageReference Include="SSH.NET" />
+    <ProjectReference Include="../../vendor/sshnet/SSH.NET.csproj" />
     <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>

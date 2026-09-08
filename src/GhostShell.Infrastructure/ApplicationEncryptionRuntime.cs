@@ -308,8 +308,22 @@ public sealed class ApplicationEncryptionRuntime : IApplicationEncryption, IDisp
     /// Removes the keystore copies while keeping the keys in memory: from now
     /// on the sealed blob under the PIN is their only durable home.
     /// </summary>
-    internal ValueTask ForgetKeystoreCopiesAsync(CancellationToken cancellationToken) =>
-        ForgetAsync(cancellationToken);
+    internal async ValueTask<SecretVaultResult<Unit>> ForgetKeystoreCopiesAsync(CancellationToken cancellationToken)
+    {
+        SecretVaultResult<Unit>? failure = null;
+        foreach (var reference in new[] { ConfigKeyReference, CacheKeyReference })
+        {
+            var result = await _vault.DeleteAsync(
+                new DeleteSecretRequest(reference, SecretScope.Global, Purpose),
+                cancellationToken).ConfigureAwait(false);
+            if (result is SecretVaultResult<Unit>.Failure { Error.Code: not SecretVaultErrorCode.NotFound })
+            {
+                failure ??= result;
+            }
+        }
+
+        return failure ?? SecretVaultResult<Unit>.Succeed(Unit.Value);
+    }
 
     /// <summary>Puts the keys back into the keystore — protection turned off.</summary>
     internal async ValueTask<bool> RestoreKeystoreCopiesAsync(

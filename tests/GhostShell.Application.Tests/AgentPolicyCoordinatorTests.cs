@@ -58,15 +58,39 @@ public sealed class AgentPolicyCoordinatorTests
         Assert.Equal(0, changed);
     }
 
+    [Fact]
+    public async Task UnreadablePolicyDisablesCapabilitiesWithoutOverwritingUntilExplicitSave()
+    {
+        var store = new MemoryStore { ReadError = new(ApplicationRunErrorCode.StorageFailure, "Unreadable policy.") };
+        var coordinator = new AgentPolicyCoordinator(store);
+
+        await coordinator.InitializeAsync(CancellationToken.None);
+
+        Assert.NotNull(coordinator.InitializationError);
+        Assert.NotNull(coordinator.Policy);
+        Assert.All(coordinator.Policy.Permissions.Values, permission => Assert.Equal(AgentPermission.Off, permission));
+        Assert.Equal(0, store.WriteCount);
+
+        Assert.True((await coordinator.SaveAsync(AgentPolicy.Default, CancellationToken.None)).IsSuccess);
+        Assert.Null(coordinator.InitializationError);
+        Assert.Equal(1, store.WriteCount);
+    }
+
     private sealed class MemoryStore : IAgentPolicyPreferenceStore
     {
         public AgentPolicy? Policy { get; set; }
+
+        public ApplicationRunError? ReadError { get; init; }
+
+        public int WriteCount { get; private set; }
 
         public ValueTask<ApplicationRunResult<AgentPolicy?>> ReadAsync(
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult(ApplicationRunResult<AgentPolicy?>.Success(Policy));
+            return ValueTask.FromResult(ReadError is { } error
+                ? ApplicationRunResult<AgentPolicy?>.Failure(error)
+                : ApplicationRunResult<AgentPolicy?>.Success(Policy));
         }
 
         public ValueTask<ApplicationRunResult<Unit>> WriteAsync(
@@ -74,6 +98,7 @@ public sealed class AgentPolicyCoordinatorTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            WriteCount++;
             Policy = policy;
             return ValueTask.FromResult(ApplicationRunResult<Unit>.Success(Unit.Value));
         }

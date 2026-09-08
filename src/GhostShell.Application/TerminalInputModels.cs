@@ -530,7 +530,7 @@ public sealed record TerminalPasteInput
 {
     public const int MaximumCharacters = 4 * 1024 * 1024;
 
-    public TerminalPasteInput(string Text, bool ConfirmedUnsafe = false)
+    public TerminalPasteInput(string Text)
     {
         ArgumentNullException.ThrowIfNull(Text);
         if (Text.Length > MaximumCharacters)
@@ -541,16 +541,9 @@ public sealed record TerminalPasteInput
         }
 
         this.Text = Text;
-        this.ConfirmedUnsafe = ConfirmedUnsafe;
     }
 
     public string Text { get; }
-
-    public bool ConfirmedUnsafe { get; }
-
-    public bool ContainsUnsafeContent => Text.Any(character =>
-        character is '\r' or '\n'
-        || (char.IsControl(character) && character != '\t'));
 }
 
 public sealed record TerminalPasteResult(
@@ -563,7 +556,7 @@ public sealed record TerminalPasteResult(
         false,
         true,
         bracketed,
-        "The paste contains multiple lines or control characters and requires confirmation.");
+        "The terminal requires confirmation before accepting this paste.");
 
     public static TerminalPasteResult Completed(bool bracketed) => new(
         true,

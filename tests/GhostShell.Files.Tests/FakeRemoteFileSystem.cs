@@ -34,6 +34,12 @@ internal sealed class FakeRemoteSessionFactory : IRemoteHierarchicalFileSessionF
 
     public void SeedLink(string path) => _fileSystem.AddLink(path);
 
+    public void ReplaceFileWithLink(string path)
+    {
+        _fileSystem.DeleteFile(path, CancellationToken.None);
+        _fileSystem.AddLink(path);
+    }
+
     public void SeedDirectory(string path) =>
         _fileSystem.CreateDirectory(path, CancellationToken.None);
 

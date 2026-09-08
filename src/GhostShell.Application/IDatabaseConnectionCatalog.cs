@@ -11,6 +11,9 @@ public interface IDatabaseConnectionCatalog
 {
     IReadOnlyList<DatabaseDriverDescriptor> Drivers { get; }
 
+    /// <summary>Strict local parsing only; never opens a connection or resolves credentials.</summary>
+    bool IsConnectionStringValid(string driverId, string connectionString) => false;
+
     Task<DatabaseSessionInfo> DescribeSessionAsync(
         string driverId,
         string connectionString,

@@ -25,9 +25,13 @@ namespace GhostShell.Desktop;
 
 public static class DesktopComposition
 {
-    public static ServiceProvider CreateServiceProvider()
+    public static ServiceProvider CreateServiceProvider(DesktopProfileConfiguration? profile = null)
     {
+        profile ??= DesktopProfileConfiguration.CreateDefault();
+        var storage = new SqliteStorageOptions(profile.Data.DatabasePath);
         var services = new ServiceCollection();
+        services.AddSingleton(profile);
+        services.AddSingleton(profile.Data);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<DesktopUpdateShutdown>();
         services.AddSingleton<IApplicationUpdateService>(provider =>
@@ -47,12 +51,12 @@ public static class DesktopComposition
         services.AddSingleton(_ => new ApplicationSecurityVault(
             PlatformSecretVaultFactory.Create(new SecretVaultFactoryOptions
             {
-                DataDirectory = Path.GetDirectoryName(
-                    SqliteStorageOptions.CreateDefault().DatabasePath),
+                DataDirectory = profile.Data.DataDirectory,
+                ServiceName = profile.SecretServiceName,
             }).Vault));
         services.AddSingleton(provider => new ApplicationEncryptionRuntime(
             provider.GetRequiredService<ApplicationSecurityVault>().Vault,
-            SqliteStorageOptions.CreateDefault().DatabasePath,
+            storage.DatabasePath,
             // Resolved at re-key time, not construction time: the runtime is
             // built before the database so the very first open has its key
             // in hand.
@@ -63,7 +67,7 @@ public static class DesktopComposition
         }
         services.AddSingleton<IStartupProtection>(provider => new StartupProtectionRuntime(
             provider.GetRequiredService<ApplicationSecurityVault>().Vault,
-            Path.GetDirectoryName(SqliteStorageOptions.CreateDefault().DatabasePath)!,
+            profile.Data.DataDirectory,
             timeProvider: null,
             provider.GetRequiredService<ApplicationEncryptionRuntime>()));
         services.AddSingleton<IApplicationEncryption>(provider =>
@@ -74,13 +78,13 @@ public static class DesktopComposition
             // that delegate also runs while the container is tearing down,
             // when nothing may be resolved any more.
             var encryption = provider.GetRequiredService<ApplicationEncryptionRuntime>();
-            return SqliteStorageOptions.CreateDefault() with
+            return storage with
             {
                 PasswordProvider = () => encryption.ConfigDatabasePassword,
             };
         });
-        services.AddSingleton(_ => LocalArtifactPaths.CreateDefault());
-        services.AddSingleton(_ => BrowserProfileStoragePaths.CreateDefault());
+        services.AddSingleton(profile.Artifacts);
+        services.AddSingleton(profile.Browser);
         services.AddSingleton<GhostShellDatabase>();
         services.AddSingleton<IAuditStore, SqliteAuditStore>();
         services.AddSingleton<IAgentRunAuditReader, SqliteAgentRunAuditReader>();
@@ -114,6 +118,7 @@ public static class DesktopComposition
                 DataDirectory = Path.GetDirectoryName(
                     provider.GetRequiredService<SqliteStorageOptions>().DatabasePath),
                 AuditSink = provider.GetRequiredService<ISecretAccessAuditSink>(),
+                ServiceName = profile.SecretServiceName,
             }));
         services.AddSingleton(provider =>
             provider.GetRequiredService<SecretVaultFactoryResult>().Diagnostic);
@@ -138,7 +143,7 @@ public static class DesktopComposition
                 is { } runtimeExecutable)
             {
                 services.AddSingleton<IWorkspaceIsolationProvider>(_ =>
-                    isolationAdapter.CreateProvider(runtimeExecutable));
+                    isolationAdapter.CreateProvider(runtimeExecutable, Path.Combine(profile.Data.DataDirectory, "sdk-workspaces")));
                 hasWorkspaceIsolationProvider = true;
             }
         }
@@ -248,6 +253,15 @@ public static class DesktopComposition
             provider.GetRequiredService<WorkspaceSystemMonitorPanelSessionFactory>());
         services.AddSingleton<IDatabaseTunnelFactory, SshNetDatabaseTunnelFactory>();
         services.AddSingleton<SshNetBrowserTunnelFactory>();
+        services.AddSingleton<IDatabaseDiagramWorkerFactory, DatabaseDiagramWorker>();
+        services.AddSingleton<Func<DatabaseValueContentStore>>(provider =>
+        {
+            var directory = Path.Combine(
+                provider.GetRequiredService<LocalArtifactPaths>().CacheDirectory,
+                "database-results");
+            return () => new DatabaseResultContentStore(directory);
+        });
+        services.AddSingleton<IDatabaseOperationExecutor, DatabaseOperationWorker>();
         services.AddSingleton<IDatabasePanelClient, DatabasePanelClient>();
         services.AddSingleton<IRedisPanelSessionFactory>(provider =>
             new RedisPanelSessionFactory(
@@ -406,7 +420,8 @@ public static class DesktopComposition
                 kind,
                 provider.GetRequiredService<ISecretVault>(),
                 provider.GetService<IWorkspaceIsolationProvider>(),
-                provider.GetRequiredService<IConnectionExecutableLocator>()));
+                provider.GetRequiredService<IConnectionExecutableLocator>(),
+                Path.Combine(provider.GetRequiredService<GhostShellDataPaths>().DataDirectory, "vpn-state")));
     }
 
     private static HostOperatingSystem CurrentOperatingSystem() =>

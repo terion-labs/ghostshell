@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <SqlClientVendorRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)../../../../..'))</SqlClientVendorRoot>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Microsoft.Data.SqlClient</AssemblyName>
+    <PackageId>Microsoft.Data.SqlClient.Routed</PackageId>
+    <Version>6.0.2</Version>
+    <AssemblyVersion>6.0.0.0</AssemblyVersion>
+    <FileVersion>6.0.2.0</FileVersion>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign>true</PublicSign>
+    <AssemblyOriginatorKeyFile>$(SqlClientVendorRoot)sqlclient-public.snk</AssemblyOriginatorKeyFile>
+    <LangVersion>9.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <!-- Unchanged upstream source-boundary trim diagnostics. -->
+    <NoWarn>$(NoWarn);IL2026;IL2057;IL2072;IL2075</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace />
+    <OSGroup Condition="'$(RuntimeIdentifier)' != '' and $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">Windows_NT</OSGroup>
+    <OSGroup Condition="'$(RuntimeIdentifier)' != '' and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">Unix</OSGroup>
+    <OSGroup Condition="'$(OSGroup)' == ''">$(OS)</OSGroup>
+    <TargetsWindows Condition="'$(OSGroup)' == 'Windows_NT'">true</TargetsWindows>
+    <TargetsUnix Condition="'$(OSGroup)' == 'Unix'">true</TargetsUnix>
+    <CommonSourceRoot>$(SqlClientVendorRoot)upstream/src/Microsoft.Data.SqlClient/src/</CommonSourceRoot>
+    <SqlClientNetCoreRoot>$(MSBuildThisFileDirectory)</SqlClientNetCoreRoot>
+    <CommonPath>$(SqlClientNetCoreRoot)Common/src</CommonPath>
+    <NetCoreSource>$(SqlClientVendorRoot)upstream/src/Microsoft.Data.SqlClient/netcore/</NetCoreSource>
+    <ResxFileName>Strings</ResxFileName>
+  </PropertyGroup>
+  <Import Project="$(SqlClientVendorRoot)Upstream.Items.props" />
+  <ItemGroup>
+    <Compile Include="$(SqlClientVendorRoot)ThisAssembly.cs" />
+    <Compile Include="$(SqlClientVendorRoot)Strings.ResourceNames.cs" />
+    <PackageReference Include="Microsoft.Data.SqlClient.SNI.runtime" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" />
+    <PackageReference Include="Microsoft.SqlServer.Server" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <PackageReference Include="Microsoft.Bcl.Cryptography" />
+  </ItemGroup>
+</Project>

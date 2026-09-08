@@ -65,6 +65,7 @@ internal static class NativeTerminalTestProvenance
         {
             schemaVersion = 1,
             format = "ghostshell-native-terminal-component-catalog-v1",
+            pty = PtyTestProvenance.Catalog,
             component = new
             {
                 identity = "libghostty-vt/0.1.0-dev",
@@ -79,6 +80,7 @@ internal static class NativeTerminalTestProvenance
         {
             schemaVersion = 1,
             format = "ghostshell-native-terminal-build-receipt-v1",
+            pty = PtyTestProvenance.Create(publishDirectory, publishDirectory),
             catalogSha256 = Sha256(catalogPath),
             targetRid = "osx-arm64",
             source = new { commit = Commit },
@@ -101,6 +103,7 @@ internal static class NativeTerminalTestProvenance
                 path = "libghostty-vt.dylib",
                 bytes = new FileInfo(libraryPath).Length,
                 sha256 = Sha256(libraryPath),
+                signatureRemovedSha256 = new string('0', 64),
             },
             license = new
             {

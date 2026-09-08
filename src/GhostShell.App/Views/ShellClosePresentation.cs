@@ -12,6 +12,22 @@ internal sealed record ShellClosePresentation(
     Action FocusCurrentRoute,
     Action CloseWindow)
 {
+    public ShellClosePresentation WithPrivacyGuard(Func<bool> isLocked) => this with
+    {
+        ConfirmLayoutDiscardAsync = () => isLocked()
+            ? ConfirmDiscardAsync("Discard unsaved changes?", "Unsaved changes will be lost.")
+            : ConfirmLayoutDiscardAsync(),
+        ConfirmDiscardAsync = (title, detail) => isLocked()
+            ? ConfirmDiscardAsync("Discard unsaved changes?", "Unsaved changes will be lost.")
+            : ConfirmDiscardAsync(title, detail),
+        ConfirmScopeAsync = confirmation => ConfirmScopeAsync(isLocked()
+            ? confirmation with { TargetId = string.Empty, Sessions = [] }
+            : confirmation),
+        ShowErrorAsync = message => ShowErrorAsync(isLocked()
+            ? "The application could not finish closing. Unlock it to review the details."
+            : message),
+    };
+
     public static ShellClosePresentation ForWindow(
         Window owner,
         ShellFocusNavigator focus) => new(

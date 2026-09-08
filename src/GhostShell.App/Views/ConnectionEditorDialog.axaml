@@ -421,6 +421,17 @@
                   <TextBox Grid.Column="1" IsVisible="{Binding TunnelUsesPassword}" Text="{Binding TunnelPassword}" PasswordChar="•" PlaceholderText="password" AutomationProperties.Name="Tunnel password" />
                 </Grid>
               </controls:LabeledField>
+              <controls:LabeledField Label="Host-key policy" IsVisible="{Binding IsInlineTunnel}">
+                <ComboBox ItemsSource="{Binding TunnelHostKeyPolicies}" SelectedItem="{Binding TunnelHostKeyPolicy}" />
+              </controls:LabeledField>
+              <controls:SurfaceCard Tone="Notice" IsVisible="{Binding HasHostKeyReview}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                  <TextBlock Text="SSH server identity needs review" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding HostKeyReview.Endpoint}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding HostKeyReview.Presented.Sha256Fingerprint}" TextWrapping="Wrap" />
+                  <Button Content="Review host key…" Click="OnTrustDatabaseHostKeyClick" />
+                </StackPanel>
+              </controls:SurfaceCard>
             </StackPanel>
           </controls:SurfaceCard>
 

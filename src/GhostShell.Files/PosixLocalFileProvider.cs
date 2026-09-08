@@ -60,7 +60,7 @@ public sealed partial class PosixLocalFileProvider : LocalFileProvider, IFilePro
                     + "not by a list of grants.")));
         }
 
-        var resolved = ResolveLocation(request.Location, allowLeafLink: true);
+        var resolved = ResolveLocation(request.Location, allowLeafLink: false);
         if (!resolved.IsSuccess)
         {
             return ValueTask.FromResult(
@@ -84,7 +84,11 @@ public sealed partial class PosixLocalFileProvider : LocalFileProvider, IFilePro
             var path = resolved.Value!.Path;
             var current = (int)File.GetUnixFileMode(path);
             var replaced = (current & ~FilePanelPosixMode.PermissionMask) | mode.Permissions;
-            File.SetUnixFileMode(path, (UnixFileMode)replaced);
+            var error = SetModeNoFollow(resolved.Value.StructuredPath, (uint)replaced);
+            if (error is not null)
+            {
+                return ValueTask.FromResult(FileProviderResult<FileAccessControl>.Failure(error));
+            }
             return ValueTask.FromResult(Read(request.Location));
         }
         catch (Exception exception) when (IsExpectedFilesystemFailure(exception))
@@ -96,7 +100,7 @@ public sealed partial class PosixLocalFileProvider : LocalFileProvider, IFilePro
 
     private FileProviderResult<FileAccessControl> Read(FileLocation location)
     {
-        var resolved = ResolveLocation(location, allowLeafLink: true);
+        var resolved = ResolveLocation(location, allowLeafLink: false);
         if (!resolved.IsSuccess)
         {
             return FileProviderResult<FileAccessControl>.Failure(resolved.Error!);

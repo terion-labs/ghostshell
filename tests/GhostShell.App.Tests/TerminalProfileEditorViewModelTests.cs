@@ -34,7 +34,6 @@ public sealed class TerminalProfileEditorViewModelTests
             Selection = "#5A3B24",
             ClipboardRead = TerminalClipboardAccess.Deny,
             ClipboardWrite = TerminalClipboardAccess.Ask,
-            PasteSafety = TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed,
             LinkPolicy = TerminalLinkPolicy.Disabled,
             ImeEnabled = false,
             ShellIntegration = TerminalShellIntegrationMode.Zsh,
@@ -62,7 +61,7 @@ public sealed class TerminalProfileEditorViewModelTests
         Assert.Equal(TerminalClipboardAccess.Deny, request.Profile.ClipboardPolicy.ReadAccess);
         Assert.Equal(TerminalClipboardAccess.Ask, request.Profile.ClipboardPolicy.WriteAccess);
         Assert.Equal(
-            TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed,
+            original.ClipboardPolicy.PasteSafety,
             request.Profile.ClipboardPolicy.PasteSafety);
         Assert.Equal(TerminalLinkPolicy.Disabled, request.Profile.LinkPolicy);
         Assert.False(request.Profile.ImeEnabled);

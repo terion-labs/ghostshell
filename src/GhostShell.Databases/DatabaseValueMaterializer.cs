@@ -14,7 +14,7 @@ namespace GhostShell.Databases;
 /// text. Only known immutable values and explicit copies cross this boundary;
 /// provider-specific objects degrade to display-only text.
 /// </summary>
-internal static class DatabaseValueMaterializer
+internal static partial class DatabaseValueMaterializer
 {
     public const int DefaultMaxDisplayCharacters = 4_096;
 

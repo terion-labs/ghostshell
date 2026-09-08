@@ -348,9 +348,12 @@ internal static class Confirmations
             // Not "has active work" — that claims more than the signal
             // supports; idleness is inferred from prompt shape and can only be
             // confirmed, never refuted.
-            Detail = confirmation.Sessions.Count == 1
-                ? "This session could not be confirmed idle. Closing it ends the session."
-                : $"{confirmation.Sessions.Count} sessions could not be confirmed idle. Closing ends them.",
+            Detail = confirmation.Sessions.Count switch
+            {
+                0 => "Closing ends active sessions. Unsaved work may be lost.",
+                1 => "This session could not be confirmed idle. Closing it ends the session.",
+                _ => $"{confirmation.Sessions.Count} sessions could not be confirmed idle. Closing ends them.",
+            },
             Notice = string.Join(
                 Environment.NewLine,
                 confirmation.Sessions.Select(item => $"• {item.Title} — {item.Detail}")),

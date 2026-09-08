@@ -1117,6 +1117,18 @@ public sealed class GhosttyVtTerminalSessionTests
     }
 
     [Fact]
+    public async Task Shutdown_waits_until_owned_child_is_reaped_after_streams_close()
+    {
+        var harness = await CreateAsync();
+        await using var session = harness.Session;
+        harness.Pty.DelayExit = true;
+        var closing = session.CloseAsync(PanelCloseMode.Force, default).AsTask();
+        Assert.False(closing.IsCompleted);
+        harness.Pty.Exit(137);
+        Assert.Equal(PanelCloseOutcome.ForceTerminated, await closing.WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
     public async Task Shutdown_failure_still_releases_native_state_and_remains_observable()
     {
         var harness = await CreateAsync();
@@ -1163,7 +1175,31 @@ public sealed class GhosttyVtTerminalSessionTests
     }
 
     [Fact]
-    public async Task RealOpenSshProcessExitReportsAClassifiedConnectionFailureWithoutEndpointText()
+    public async Task Remote_screen_can_suggest_idle_but_cannot_close_or_spoof_local_exit_status()
+    {
+        var harness = await CreateAsync(new TerminalLaunchRequest(
+            Environment.CurrentDirectory,
+            connectionMetadata: new TerminalConnectionMetadata("SSH: user@host:22", null)));
+        await using var session = harness.Session;
+        await harness.Pty.WriteOutputAsync(
+            "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!\r\n"
+            + "Permission denied (publickey).\r\nuser@host:~$ ");
+        _ = await WaitForScreenAsync(session, screen => screen.PlainText.Contains("user@host:~$", StringComparison.Ordinal));
+
+        var beforeExit = await session.SnapshotAsync(default);
+        Assert.Equal(SessionLifecycle.Active, beforeExit.Lifecycle);
+        Assert.False(beforeExit.HasActiveWork); // Deliberately advisory prompt-shape UX, not authorization.
+        Assert.Equal(0, harness.Pty.KillCount);
+        harness.Pty.Exit(255);
+        var afterExit = await session.SnapshotAsync(default);
+        Assert.Equal(SessionLifecycle.Closed, afterExit.Lifecycle);
+        Assert.Equal("The OpenSSH process exited with code 255.", afterExit.StatusDetail);
+        var screenAfterExit = await session.ReadScreenAsync(default);
+        Assert.Contains("HOST IDENTIFICATION HAS CHANGED", screenAfterExit.PlainText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RealOpenSshProcessExitReportsLocalExitCodeWithoutEndpointText()
     {
         _ = GhosttyVtTestRuntime.RequireStagedRuntime();
         if (!OperatingSystem.IsMacOS() || !File.Exists("/usr/bin/ssh"))
@@ -1198,7 +1234,7 @@ public sealed class GhosttyVtTerminalSessionTests
             (await session.SnapshotAsync(default)).Lifecycle == SessionLifecycle.Closed);
         var snapshot = await session.SnapshotAsync(default);
 
-        Assert.Equal("The connection endpoint is offline or unreachable.", snapshot.StatusDetail);
+        Assert.Equal("The OpenSSH process exited with code 255.", snapshot.StatusDetail);
         Assert.DoesNotContain("127.0.0.1", snapshot.StatusDetail, StringComparison.Ordinal);
         Assert.DoesNotContain(port.ToString(System.Globalization.CultureInfo.InvariantCulture), snapshot.StatusDetail, StringComparison.Ordinal);
     }
@@ -1222,6 +1258,70 @@ public sealed class GhosttyVtTerminalSessionTests
         Assert.EndsWith("q", ptyFactory.Connection.WrittenText, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafe, false)]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed, false)]
+    [InlineData(TerminalPasteSafetyPolicy.AllowUnsafe, false)]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafe, true)]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed, true)]
+    [InlineData(TerminalPasteSafetyPolicy.AllowUnsafe, true)]
+    public async Task Legacy_paste_policies_do_not_block_multiline_input(
+        TerminalPasteSafetyPolicy legacyPolicy,
+        bool bracketed)
+    {
+        var harness = await CreateAsync(new TerminalLaunchRequest(
+            Environment.CurrentDirectory,
+            renderProfile: new TerminalRenderProfileSnapshot(
+                13,
+                TerminalCursorStyle.Block,
+                cursorBlink: false,
+                scrollbackLines: 10_000,
+                TerminalPalette.GhostShellDark,
+                clipboardPolicy: new TerminalClipboardPolicy(
+                    TerminalClipboardAccess.Ask,
+                    TerminalClipboardAccess.Allow,
+                    legacyPolicy))));
+        await using var session = harness.Session;
+        if (bracketed)
+        {
+            await harness.Pty.WriteOutputAsync("\u001b[?2004hREADY");
+            _ = await WaitForScreenAsync(session, snapshot => snapshot.IsBracketedPasteEnabled);
+        }
+
+        var result = await session.PasteAsync(
+            new TerminalPasteInput("first\n\tsecond"),
+            default);
+
+        Assert.Equal(TerminalPasteResult.Completed(bracketed), result);
+        Assert.Equal(
+            bracketed ? "\u001b[200~first\n\tsecond\u001b[201~" : "first\r\tsecond",
+            harness.Pty.WrittenText);
+        Assert.Equal(1, harness.Pty.InputWriteCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Paste_neutralizes_editing_controls_and_embedded_bracket_terminators(bool bracketed)
+    {
+        var harness = await CreateAsync();
+        await using var session = harness.Session;
+        if (bracketed)
+        {
+            await harness.Pty.WriteOutputAsync("\u001b[?2004hREADY");
+            _ = await WaitForScreenAsync(session, snapshot => snapshot.IsBracketedPasteEnabled);
+        }
+
+        const string text = "a\u0000\u0003\u0004\u0005\u0008\u000f\u0011\u0012\u0013\u0015\u0016\u0017\u001a\u001b\u001c\u007fb\u001b[201~tail";
+        var result = await session.PasteAsync(new TerminalPasteInput(text), default);
+        var neutralized = "a" + new string(' ', 16) + "b [201~tail";
+
+        Assert.Equal(TerminalPasteResult.Completed(bracketed), result);
+        Assert.Equal(
+            bracketed ? "\u001b[200~" + neutralized + "\u001b[201~" : neutralized,
+            harness.Pty.WrittenText);
+    }
+
     [Fact]
     public async Task Submit_text_delivers_paste_and_enter_in_one_pty_write()
     {
@@ -1229,7 +1329,7 @@ public sealed class GhosttyVtTerminalSessionTests
         await using var session = harness.Session;
 
         var result = await session.SubmitTextAsync(
-            new TerminalPasteInput("printf ATOMIC", ConfirmedUnsafe: true),
+            new TerminalPasteInput("printf ATOMIC"),
             default);
 
         Assert.Equal(

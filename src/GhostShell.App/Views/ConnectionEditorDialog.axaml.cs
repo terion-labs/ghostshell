@@ -124,6 +124,19 @@ public sealed partial class ConnectionEditorDialog : Window
         }
     }
 
+    private async void OnTrustDatabaseHostKeyClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Database is not { HostKeyReview: { } review } database)
+        {
+            return;
+        }
+        var confirmed = await new SshHostKeyReviewDialog(review).ShowDialog<bool>(this);
+        if (confirmed)
+        {
+            await database.TrustHostKeyAsync(review.Id, _lifetime.Token);
+        }
+    }
+
     private async void OnTrustFileHostKeyClick(object? sender, RoutedEventArgs e)
     {
         _ = sender;

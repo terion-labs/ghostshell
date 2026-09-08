@@ -36,6 +36,10 @@ public sealed class DefaultAgentPolicySettingsViewModel : ObservableObject, IDis
         if (_coordinator is { } activeCoordinator)
         {
             activeCoordinator.Changed += OnCoordinatorChanged;
+            if (activeCoordinator.InitializationError is { } error)
+            {
+                _setError($"{error.Message} Agent capabilities are disabled until you review and save the default AI configuration.");
+            }
         }
     }
 
@@ -107,6 +111,7 @@ public sealed class DefaultAgentPolicySettingsViewModel : ObservableObject, IDis
         ThrowIfDisposed();
         if (_sealed
             || _coordinator is null
+            || _coordinator.InitializationError is not null
             || onlyWhenMissing && _coordinator.Policy is not null
             || !Editor.IsValid)
         {

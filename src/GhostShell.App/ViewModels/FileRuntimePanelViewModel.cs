@@ -68,6 +68,16 @@ public sealed class FileRuntimePanelViewModel : RuntimePanelViewModel, IPanelNot
     private readonly object _initializationGate = new();
     private readonly object _initialSelectionGate = new();
     private readonly AsyncActionCommand _retryCommand;
+    private readonly AsyncActionCommand _nextPageCommand;
+    private readonly AsyncActionCommand _previousPageCommand;
+    private readonly List<string?> _listingPages = [null];
+    private int _listingPageIndex;
+    private TaskCompletionSource? _searchPageRequest;
+    private readonly AsyncActionCommand _nextArchivePageCommand;
+    private readonly AsyncActionCommand _previousArchivePageCommand;
+    private FilePanelLocation? _archiveLocation;
+    private int _archiveOffset;
+    private bool _archiveHasMore;
     private readonly List<FilePanelEntry> _allEntries = [];
     private readonly List<FilePanelEntry> _searchEntries = [];
     private readonly CancellationTokenSource _lifetime = new();
@@ -218,6 +228,10 @@ public sealed class FileRuntimePanelViewModel : RuntimePanelViewModel, IPanelNot
         _retryCommand = new AsyncActionCommand(
             () => RetryAsync(),
             () => CanRetryContentState);
+        _nextPageCommand = new AsyncActionCommand(() => NextPageAsync(), () => HasNextPage);
+        _previousPageCommand = new AsyncActionCommand(() => PreviousPageAsync(), () => HasPreviousPage && !IsLoading);
+        _nextArchivePageCommand = new AsyncActionCommand(() => ChangeArchivePageAsync(1), () => HasNextArchivePage && !IsPreviewLoading);
+        _previousArchivePageCommand = new AsyncActionCommand(() => ChangeArchivePageAsync(-1), () => HasPreviousArchivePage && !IsPreviewLoading);
         _hostedClient = client as IHostedFilePanelClient;
         _transferQueue = transferQueue;
         _profileRuntime = client as IFileProviderProfileRuntime;
@@ -612,6 +626,7 @@ public sealed class FileRuntimePanelViewModel : RuntimePanelViewModel, IPanelNot
         {
             if (SetProperty(ref _isLoading, value))
             {
+                NotifyPagingChanged();
                 NotifyFileInteractionStateChanged();
                 OnPropertyChanged(nameof(ShowEmptyState));
                 OnContentPresentationChanged();
@@ -626,6 +641,7 @@ public sealed class FileRuntimePanelViewModel : RuntimePanelViewModel, IPanelNot
         {
             if (SetProperty(ref _isSearchLoading, value))
             {
+                NotifyPagingChanged();
                 OnPropertyChanged(nameof(ShowNavigationProgress));
                 OnPropertyChanged(nameof(ShowSearchNoResultsState));
                 OnContentPresentationChanged();
@@ -1024,6 +1040,17 @@ public sealed class FileRuntimePanelViewModel : RuntimePanelViewModel, IPanelNot
     public bool ShowEmptyState => ShowEmptyLocationState || ShowSearchNoResultsState;
 
     public ICommand RetryCommand => _retryCommand;
+    public ICommand NextPageCommand => _nextPageCommand;
+    public ICommand PreviousPageCommand => _previousPageCommand;
+    public ICommand NextArchivePageCommand => _nextArchivePageCommand;
+    public ICommand PreviousArchivePageCommand => _previousArchivePageCommand;
+    public bool HasNextArchivePage => _archiveHasMore;
+    public bool HasPreviousArchivePage => _archiveOffset > 0;
+    private bool UsesProviderSearch => Filter.Trim().Length > 0
+        && SelectedProfile?.Capabilities.HasFlag(FilePanelCapability.Search) == true;
+    public bool HasPreviousPage => !UsesProviderSearch && _listingPageIndex > 0;
+    public bool HasNextPage => !IsLoading && !IsSearchLoading
+        && (UsesProviderSearch ? _searchPageRequest is not null : HasMore);
 
     public bool CanSelectProfile => !IsLoading && !IsInitialHostedBindingPending;
 
@@ -1309,8 +1336,56 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
         }
 
         CancelSearch(clearResults: true);
-        await LoadListingAsync(CurrentLocation, cancellationToken);
+        await LoadListingAsync(CurrentLocation, cancellationToken, _listingPages[_listingPageIndex]);
         ScheduleSearch();
+    }
+
+    public async Task NextPageAsync(CancellationToken cancellationToken = default)
+    {
+        if (!HasNextPage || CurrentLocation is null)
+        {
+            return;
+        }
+
+        if (_searchPageRequest is { } request)
+        {
+            _searchPageRequest = null;
+            IsSearchLoading = true;
+            NotifyPagingChanged();
+            request.TrySetResult();
+            return;
+        }
+
+        var next = _continuationToken!;
+        if (_listingPages.Take(_listingPageIndex + 1).Contains(next, StringComparer.Ordinal))
+        {
+            SetContentIssue(FileOperationIssue.Unexpected("The file provider repeated a continuation token."));
+            return;
+        }
+
+        _listingPages.RemoveRange(_listingPageIndex + 1, _listingPages.Count - _listingPageIndex - 1);
+        _listingPages.Add(next);
+        _listingPageIndex++;
+        await LoadListingAsync(CurrentLocation, cancellationToken, next);
+    }
+
+    public async Task PreviousPageAsync(CancellationToken cancellationToken = default)
+    {
+        if (!HasPreviousPage || IsLoading || CurrentLocation is null)
+        {
+            return;
+        }
+
+        _listingPageIndex--;
+        await LoadListingAsync(CurrentLocation, cancellationToken, _listingPages[_listingPageIndex]);
+    }
+
+    private void NotifyPagingChanged()
+    {
+        OnPropertyChanged(nameof(HasPreviousPage));
+        OnPropertyChanged(nameof(HasNextPage));
+        _nextPageCommand.RaiseCanExecuteChanged();
+        _previousPageCommand.RaiseCanExecuteChanged();
     }
 
     public Task RetryAsync(CancellationToken cancellationToken = default) =>
@@ -2207,6 +2282,9 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
 
         SelectedProfile = profile;
         CurrentLocation = normalizedLocation;
+        _listingPages.Clear();
+        _listingPages.Add(null);
+        _listingPageIndex = 0;
         CancelSearch(clearResults: true);
         StopObservation();
         SelectedEntry = null;
@@ -2215,8 +2293,8 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
         ScheduleSearch();
         StartObservation();
         if (_initialSelectionPending
-            && string.Equals(location.ProviderProfileId, _initialProfileId
-, StringComparison.Ordinal) && (_hostedClient is null || _hostedClient.IsInitialized))
+            && string.Equals(location.ProviderProfileId, _initialProfileId, StringComparison.Ordinal)
+            && (_hostedClient is null || _hostedClient.IsInitialized))
         {
             _initialSelectionPending = false;
             _pendingInitialBindingLocation = null;
@@ -2226,19 +2304,17 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
 
     private async Task LoadListingAsync(
         FilePanelLocation location,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? continuation = null)
     {
         var operation = ReplaceNavigation(cancellationToken);
         IsLoading = true;
         ClearError();
         Status = "Loading folder…";
-        var pageSize = SelectedProfile?.MaximumPageSize ?? 250;
+        var pageSize = Math.Min(500, SelectedProfile?.MaximumPageSize ?? 250);
         var firstPage = true;
-        string? continuation = null;
-        var usedContinuations = new HashSet<string>(StringComparer.Ordinal);
         try
         {
-            do
             {
                 var result = await _client.ListAsync(
                     new FilePanelListRequest(
@@ -2283,14 +2359,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
                 ShortStatus = $"{_allEntries.Count.ToString(CultureInfo.InvariantCulture)}+";
                 OnPropertyChanged(nameof(HasMore));
 
-                if (continuation is not null && !usedContinuations.Add(continuation))
-                {
-                    SetContentIssue(FileOperationIssue.Unexpected(
-                        "The file provider repeated a continuation token while listing this location."));
-                    return;
-                }
             }
-            while (continuation is not null);
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
@@ -2317,6 +2386,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
             {
                 IsLoading = false;
                 UpdateListingStatus();
+                NotifyPagingChanged();
             }
         }
     }
@@ -2731,6 +2801,9 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
     {
         try
         {
+            _listingPages.Clear();
+            _listingPages.Add(null);
+            _listingPageIndex = 0;
             await RefreshAsync(_lifetime.Token);
             RestartObservation();
         }
@@ -2777,6 +2850,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
                 FilePanelDiscoveryScope.Subtree,
                 ShowHidden);
             var pendingPresentation = 0;
+            var pageSize = Math.Min(500, SelectedProfile?.MaximumPageSize ?? 250);
             await foreach (var result in _client.SearchAsync(request, operation.Token))
             {
                 if (!ReferenceEquals(_search, operation) || operation.IsCancellationRequested)
@@ -2788,6 +2862,20 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
                 {
                     SetOperationIssue(FileOperationIssue.FromProvider(result.Error!));
                     return;
+                }
+
+                if (_searchEntries.Count >= pageSize)
+                {
+                    var demand = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    ApplyFilter();
+                    _searchPageRequest = demand;
+                    IsSearchLoading = false;
+                    UpdateListingStatus();
+                    NotifyPagingChanged();
+                    await demand.Task.WaitAsync(operation.Token);
+                    _searchEntries.Clear();
+                    SelectedEntry = null;
+                    IsSearchLoading = true;
                 }
 
                 _searchEntries.Add(result.Value!);
@@ -2818,9 +2906,11 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
             {
                 _search = null;
                 operation.Dispose();
-                IsSearchLoading = false;
+                _searchPageRequest = null;
                 ApplyFilter();
+                IsSearchLoading = false;
                 UpdateListingStatus();
+                NotifyPagingChanged();
             }
         }
     }
@@ -2832,7 +2922,9 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
         operation?.Cancel();
         operation?.Dispose();
         _searchCompletion = Task.CompletedTask;
+        _searchPageRequest = null;
         IsSearchLoading = false;
+        NotifyPagingChanged();
         if (clearResults)
         {
             _searchEntries.Clear();
@@ -3061,6 +3153,10 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
 
     private void ClearPreview()
     {
+        _archiveLocation = null;
+        _archiveOffset = 0;
+        _archiveHasMore = false;
+        NotifyArchivePagingChanged();
         PreviewImage = null;
         PreviewText = null;
         PreviewTable = null;
@@ -3098,11 +3194,30 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
     }
 
     /// <summary>
-    /// The most entries listed from an archive. A listing is a look inside;
-    /// an archive of a hundred thousand files must not become a hundred
-    /// thousand rows in a preview panel.
+    /// A demand page replaces the preceding tree; all remaining entries are
+    /// accessible without accumulating every archive node in the presentation.
     /// </summary>
-    private const int MaximumArchiveEntries = 5_000;
+    private const int ArchivePageSize = 250;
+
+    public Task ChangeArchivePageAsync(int direction)
+    {
+        if (_archiveLocation is null || IsPreviewLoading
+            || (direction > 0 ? !HasNextArchivePage : !HasPreviousArchivePage))
+        {
+            return Task.CompletedTask;
+        }
+
+        return OpenArchivePreviewAsync(_archiveLocation,
+            Math.Max(0, checked(_archiveOffset + (direction > 0 ? ArchivePageSize : -ArchivePageSize))));
+    }
+
+    private void NotifyArchivePagingChanged()
+    {
+        OnPropertyChanged(nameof(HasNextArchivePage));
+        OnPropertyChanged(nameof(HasPreviousArchivePage));
+        _nextArchivePageCommand.RaiseCanExecuteChanged();
+        _previousArchivePageCommand.RaiseCanExecuteChanged();
+    }
 
     /// <summary>
     /// The ceiling on an archive read for its listing. Nothing is unpacked —
@@ -3115,7 +3230,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
     /// <summary>
     /// Lists an archive's contents without extracting any of it.
     /// </summary>
-    private async Task OpenArchivePreviewAsync(FilePanelLocation location)
+    private async Task OpenArchivePreviewAsync(FilePanelLocation location, int offset = 0)
     {
         if (_archiveReader is null || _contentSource is null)
         {
@@ -3152,8 +3267,9 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
             var entries = await _archiveReader.ReadAsync(
                 content,
                 PreviewTitle,
-                MaximumArchiveEntries,
-                operation.Token);
+                ArchivePageSize + 1,
+                operation.Token,
+                offset);
             if (!ReferenceEquals(_preview, operation) || operation.IsCancellationRequested)
             {
                 return;
@@ -3165,9 +3281,13 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
                 return;
             }
 
+            _archiveLocation = location;
+            _archiveOffset = offset;
+            _archiveHasMore = entries.Count > ArchivePageSize;
+            var page = entries.Take(ArchivePageSize).ToArray();
             var listing = new PreviewTreeViewModel(
-                PreviewTreeBuilder.FromPaths(entries),
-                SummarizeArchive(entries));
+                PreviewTreeBuilder.FromPaths(page),
+                $"Page {(offset / ArchivePageSize) + 1}: {SummarizeArchive(page)}");
             PreviewTree = listing;
             // Attached in steps like every other reading; without this the
             // listing exists and nothing of it is on screen.
@@ -3188,6 +3308,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
             if (ReferenceEquals(_preview, operation))
             {
                 IsPreviewLoading = false;
+                NotifyArchivePagingChanged();
             }
         }
     }
@@ -3197,10 +3318,9 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
         var files = entries.Count(entry => !entry.IsDirectory);
         var bytes = entries.Sum(entry => entry.Size ?? 0);
         var counted = files == 1 ? "1 file" : $"{files} files";
-        var capped = entries.Count >= MaximumArchiveEntries ? " (listing capped)" : string.Empty;
         return bytes > 0
-            ? $"{counted}, {PreviewTreeBuilder.FormatSize(bytes)} unpacked{capped}"
-            : $"{counted}{capped}";
+            ? $"{counted}, {PreviewTreeBuilder.FormatSize(bytes)} unpacked"
+            : counted;
     }
 
     /// <summary>
@@ -3221,6 +3341,13 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
     /// where it is; a remote one is downloaded as bytes and served to the
     /// engine from memory — its content never becomes a file on this machine.
     /// </summary>
+    internal static string ReadOnlySqliteFileConnectionString(string path) =>
+        new System.Data.Common.DbConnectionStringBuilder
+        {
+            ["Data Source"] = path,
+            ["Mode"] = "ReadOnly",
+        }.ConnectionString;
+
     private async Task OpenDatabasePreviewAsync(FilePanelLocation location)
     {
         if (_databaseClient is null || _contentSource is null)
@@ -3252,7 +3379,7 @@ string.Equals(SelectedProfile?.Id, BuiltInFileProviders.HomeId.Value, StringComp
                 {
                     // Read-only: previewing a file must not write a journal
                     // beside the user's own database.
-                    connectionString = $"Data Source={path};Mode=ReadOnly";
+                    connectionString = ReadOnlySqliteFileConnectionString(path);
                 }
                 else if (_databaseRegistry is not null)
                 {

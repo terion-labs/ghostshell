@@ -156,6 +156,13 @@ public sealed partial class SqliteAgentSessionCheckpointStore : IAgentSessionChe
                     "The agent checkpoint write lost its revision fence.");
             }
 
+            // Checkpoints remain subject to retention even if the later,
+            // separate presentation-metadata write never commits.
+            var retention = await ReadRetentionAsync(connection, transaction, cancellationToken)
+                .ConfigureAwait(false);
+            await PruneHistoryAsync(connection, transaction, retention,
+                    checkpoint.RunId, checkpoint.UpdatedAt, cancellationToken)
+                .ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return AgentSessionCheckpointStoreResult<Unit>.Success(Unit.Value);
         }

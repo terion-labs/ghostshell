@@ -13,6 +13,8 @@ internal sealed class ShellCloseCoordinator(
     ShellClosePresentation presentation,
     CancellationToken lifetime)
 {
+    private readonly ShellClosePresentation _presentation = presentation.WithPrivacyGuard(
+        () => viewModel.ApplicationSecurityEditor.IsLocked);
     private bool _windowCloseApproved;
     private bool _windowCloseInProgress;
 
@@ -36,7 +38,7 @@ internal sealed class ShellCloseCoordinator(
         if (viewModel.IsLayoutDesignerVisible
             && viewModel.LayoutDesignerEditor?.RequestCancel()
                 == LayoutDesignerCancelDisposition.ConfirmDiscard
-            && !await presentation.ConfirmLayoutDiscardAsync())
+            && !await _presentation.ConfirmLayoutDiscardAsync())
         {
             return false;
         }
@@ -44,7 +46,7 @@ internal sealed class ShellCloseCoordinator(
         if (viewModel.IsDefinitionEditorVisible
             && viewModel.WorkspaceEditor?.RequestCancel()
                 == WorkspaceEditorCancelDisposition.ConfirmDiscard
-            && !await presentation.ConfirmDiscardAsync(
+            && !await _presentation.ConfirmDiscardAsync(
                 "Discard workspace changes?",
                 "The unsaved workspace order, tabs, panels, and startup settings will be lost."))
         {
@@ -64,7 +66,7 @@ internal sealed class ShellCloseCoordinator(
             viewModel.CloseOverlay();
         }
 
-        presentation.FocusCurrentRoute();
+        _presentation.FocusCurrentRoute();
         return true;
     }
 
@@ -72,9 +74,9 @@ internal sealed class ShellCloseCoordinator(
         Func<CloseDecision, CancellationToken, ValueTask<HostResult<CloseScopeResult>>> close) =>
         MainWindowCloseFlow.RunAsync(
             close,
-            presentation.ConfirmScopeAsync,
-            presentation.ShowErrorAsync,
-            presentation.RestoreFocus,
+            _presentation.ConfirmScopeAsync,
+            _presentation.ShowErrorAsync,
+            _presentation.RestoreFocus,
             lifetime);
 
     public async Task<bool> ConfirmDiscardDatabaseChangesAsync(
@@ -92,7 +94,7 @@ internal sealed class ShellCloseCoordinator(
         var detail = dirtyPanels.Length == 1
             ? $"The unsaved row changes in {dirtyPanels[0].SelectedObjectName} will be lost."
             : $"Unsaved row changes in {dirtyPanels.Length} database panels will be lost.";
-        return await presentation.ConfirmDiscardAsync(
+        return await _presentation.ConfirmDiscardAsync(
             "Discard database changes?",
             detail);
     }
@@ -103,13 +105,13 @@ internal sealed class ShellCloseCoordinator(
         {
             if (viewModel.LayoutDesignerEditor?.RequestCancel()
                     == LayoutDesignerCancelDisposition.ConfirmDiscard
-                && !await presentation.ConfirmLayoutDiscardAsync())
+                && !await _presentation.ConfirmLayoutDiscardAsync())
             {
                 return;
             }
 
             if (viewModel.KeybindingEditorSession?.IsDirty == true
-                && !await presentation.ConfirmDiscardAsync(
+                && !await _presentation.ConfirmDiscardAsync(
                     "Discard keybinding changes?",
                     "The unsaved shortcuts, prefix, and conflict resolutions will be lost when GhostShell closes."))
             {
@@ -118,7 +120,7 @@ internal sealed class ShellCloseCoordinator(
 
             if (viewModel.WorkspaceEditor?.RequestCancel()
                     == WorkspaceEditorCancelDisposition.ConfirmDiscard
-                && !await presentation.ConfirmDiscardAsync(
+                && !await _presentation.ConfirmDiscardAsync(
                     "Discard workspace changes?",
                     "The unsaved workspace order, tabs, panels, and startup settings will be lost when GhostShell closes."))
             {
@@ -136,7 +138,7 @@ internal sealed class ShellCloseCoordinator(
             {
                 await viewModel.QuiesceForShutdownAsync(CancellationToken.None);
                 _windowCloseApproved = true;
-                presentation.CloseWindow();
+                _presentation.CloseWindow();
             }
         }
         finally

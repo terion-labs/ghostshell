@@ -9,10 +9,11 @@ namespace GhostShell.Desktop;
 internal sealed class DesktopBrowserRendererViewFactory(
     BrowserPanelSessionFactory sessionFactory,
     SshNetBrowserTunnelFactory tunnelFactory,
-    CefBrowserProfileStore profileStore) : IBrowserRendererViewFactory, IDisposable
+    CefBrowserProfileStore profileStore) : IBrowserRendererViewFactory, IDisposable, IAsyncDisposable
 {
     private readonly object _routeGate = new();
     private readonly Dictionary<RemoteRouteKey, RemoteRoute> _remoteRoutes = [];
+    private readonly Dictionary<RemoteRoute, Task> _routeDrains = [];
     private bool _disposed;
 
     public BrowserRendererView Create()
@@ -86,12 +87,23 @@ internal sealed class DesktopBrowserRendererViewFactory(
         ArgumentNullException.ThrowIfNull(connection);
         if (connection.Endpoint is ConnectionEndpoint.Local)
         {
-            return networkConnector is null
-                ? CreateView(profileStore.AcquireLocal(profile))
-                : CreateView(profileStore.AcquireRouted(
+            var localLease = networkConnector is null
+                ? profileStore.AcquireLocal(profile)
+                : profileStore.AcquireRouted(
                     profile,
                     networkConnector.LocalProxyEndpoint.AbsoluteUri,
-                    networkConnector));
+                    networkConnector);
+            try
+            {
+                await localLease.Ready.WaitAsync(cancellationToken).ConfigureAwait(true);
+                cancellationToken.ThrowIfCancellationRequested();
+                return CreateView(localLease);
+            }
+            catch
+            {
+                localLease.Dispose();
+                throw;
+            }
         }
 
         if (connection.Endpoint is not ConnectionEndpoint.Ssh)
@@ -110,8 +122,11 @@ internal sealed class DesktopBrowserRendererViewFactory(
         {
             profileLease = profileStore.AcquireRouted(
                 profile,
-                connection.Id.Value,
-                route.LocalPort);
+                route.Tunnel.ProfileRouteIdentity,
+                route.Proxy,
+                BrowserHttpAuthentication.SshRouteIdentity(connection));
+            await profileLease.Ready.WaitAsync(cancellationToken).ConfigureAwait(true);
+            cancellationToken.ThrowIfCancellationRequested();
             var surface = new BrowserSurface(
                 sessionFactory.CapabilityProfile,
                 profileLease);
@@ -133,7 +148,7 @@ internal sealed class DesktopBrowserRendererViewFactory(
         }
     }
 
-    public ValueTask<BrowserRendererView> CreateThroughSocksProxyAsync(
+    public async ValueTask<BrowserRendererView> CreateThroughSocksProxyAsync(
         int socksProxyPort,
         string routeIdentity,
         BrowserProfileBinding profile,
@@ -146,7 +161,17 @@ internal sealed class DesktopBrowserRendererViewFactory(
             profile,
             routeIdentity,
             socksProxyPort);
-        return ValueTask.FromResult(CreateView(lease));
+        try
+        {
+            await lease.Ready.WaitAsync(cancellationToken).ConfigureAwait(true);
+            cancellationToken.ThrowIfCancellationRequested();
+            return CreateView(lease);
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     public void Dispose()
@@ -166,7 +191,53 @@ internal sealed class DesktopBrowserRendererViewFactory(
 
         foreach (var route in routes)
         {
+            DisposeRoute(route);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        Task[] drains;
+        lock (_routeGate)
+        {
+            drains = [.. _routeDrains.Values];
+        }
+
+        await Task.WhenAll(drains).ConfigureAwait(false);
+    }
+
+    private void DisposeRoute(RemoteRoute route)
+    {
+        lock (_routeGate)
+        {
+            route.Proxy.Stop();
             route.Tunnel.Dispose();
+            var drain = DrainRouteAsync(route);
+            if (!drain.IsCompleted)
+            {
+                _routeDrains[route] = drain;
+            }
+        }
+    }
+
+    private async Task DrainRouteAsync(RemoteRoute route)
+    {
+        try
+        {
+            await route.Proxy.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            SecretSafeDiagnosticProjection.WriteStandardError(
+                "browser.ssh-proxy.dispose-failed", SecretSafeDiagnosticKind.Unexpected);
+        }
+        finally
+        {
+            lock (_routeGate)
+            {
+                _routeDrains.Remove(route);
+            }
         }
     }
 
@@ -197,10 +268,7 @@ internal sealed class DesktopBrowserRendererViewFactory(
         IWorkspaceNetworkConnector? networkConnector,
         CancellationToken cancellationToken)
     {
-        var key = new RemoteRouteKey(
-            profile.Selection,
-            connection.Id,
-            networkConnector?.LocalProxyEndpoint.AbsoluteUri);
+        var key = CreateRemoteRouteKey(profile.Selection, connection, networkConnector);
         lock (_routeGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -229,10 +297,16 @@ internal sealed class DesktopBrowserRendererViewFactory(
                 return raced;
             }
 
-            var created = new RemoteRoute(key, tunnel)
+            RemoteRoute created;
+            try
             {
-                ActiveBrowsers = 1,
-            };
+                created = new RemoteRoute(key, tunnel) { ActiveBrowsers = 1 };
+            }
+            catch
+            {
+                tunnel.Dispose();
+                throw;
+            }
             _remoteRoutes.Add(key, created);
             return created;
         }
@@ -240,7 +314,6 @@ internal sealed class DesktopBrowserRendererViewFactory(
 
     private void ReleaseRemoteRoute(RemoteRoute route)
     {
-        var dispose = false;
         lock (_routeGate)
         {
             if (route.ActiveBrowsers <= 0)
@@ -252,13 +325,8 @@ internal sealed class DesktopBrowserRendererViewFactory(
             if (route.ActiveBrowsers == 0)
             {
                 _remoteRoutes.Remove(route.Key);
-                dispose = true;
+                DisposeRoute(route);
             }
-        }
-
-        if (dispose)
-        {
-            route.Tunnel.Dispose();
         }
     }
 
@@ -281,20 +349,41 @@ internal sealed class DesktopBrowserRendererViewFactory(
         }
     }
 
-    private readonly record struct RemoteRouteKey(
+    internal static RemoteRouteKey CreateRemoteRouteKey(
+        BrowserProfileSelection profile,
+        ConnectionProfile connection,
+        IWorkspaceNetworkConnector? networkConnector) => new(
+            profile,
+            connection.Id,
+            connection.Endpoint,
+            connection.Authentication,
+            connection.HostKeyPolicy,
+            networkConnector?.LocalProxyEndpoint.AbsoluteUri);
+
+    internal readonly record struct RemoteRouteKey(
         BrowserProfileSelection Profile,
         ConnectionId ConnectionId,
+        ConnectionEndpoint Endpoint,
+        ConnectionAuthentication Authentication,
+        SshHostKeyPolicy HostKeyPolicy,
         string? NetworkRouteIdentity);
 
-    private sealed class RemoteRoute(
-        RemoteRouteKey key,
-        SshNetBrowserTunnelFactory.SshBrowserTunnel tunnel)
+    private sealed class RemoteRoute
     {
-        public RemoteRouteKey Key { get; } = key;
+        public RemoteRoute(RemoteRouteKey key, SshNetBrowserTunnelFactory.SshBrowserTunnel tunnel)
+        {
+            Key = key;
+            Tunnel = tunnel;
+            Proxy = new HostWorkspaceSocksProxy(tunnel.ProfileRouteIdentity, tunnel.ProxyCredentials);
+            Proxy.Apply(WorkspaceNetworkEgress.ViaProxy(
+                new Uri($"socks5://127.0.0.1:{tunnel.LocalPort}", UriKind.Absolute)));
+        }
 
-        public SshNetBrowserTunnelFactory.SshBrowserTunnel Tunnel { get; } = tunnel;
+        public RemoteRouteKey Key { get; }
 
-        public int LocalPort => Tunnel.LocalPort;
+        public SshNetBrowserTunnelFactory.SshBrowserTunnel Tunnel { get; }
+
+        public HostWorkspaceSocksProxy Proxy { get; }
 
         public int ActiveBrowsers { get; set; }
     }

@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -57,6 +58,42 @@ public sealed class StateOverlayTests
         Assert.Equal(SurfaceTone.Warning, overlay.PresentationTone);
         Assert.Equal(AutomationLiveSetting.Assertive, overlay.AnnouncementMode);
     }
+
+    [Fact]
+    public Task Changing_state_templates_never_announces_an_empty_accessible_name() =>
+        RunHeadlessAsync(async () =>
+        {
+            var emptyAnnouncements = new List<string>();
+            using var subscription = AutomationProperties.NameProperty.Changed.AddClassHandler<Control>(
+                (control, _) =>
+                {
+                    if (AutomationProperties.GetLiveSetting(control) != AutomationLiveSetting.Off
+                        && string.IsNullOrEmpty(AutomationProperties.GetName(control)))
+                    {
+                        emptyAnnouncements.Add(control.GetType().Name);
+                    }
+                });
+            var overlay = new StateOverlay { Kind = StateOverlayKind.Loading, Heading = "Opening browser" };
+            var window = new Window { Content = overlay };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                foreach (var kind in Enum.GetValues<StateOverlayKind>())
+                {
+                    overlay.Kind = kind;
+                    window.UpdateLayout();
+                    await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                }
+
+                window.Content = null;
+                Assert.Empty(emptyAnnouncements);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
 
     [Fact]
     public Task Primary_action_raises_the_shared_event_and_receives_requested_focus() =>

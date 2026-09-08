@@ -14,6 +14,16 @@
     "licenseDeclared": "MIT",
     "licenseEvidenceFile": "GHOSTTY-LICENSE"
   },
+  "pty": {
+    "identity": "Porta.Pty-native/1.0.7-ghostshell.1",
+    "sourceRepository": "https://github.com/tomlm/Porta.Pty",
+    "sourceCommit": "54684ba55148ed6bcd0c827ad7e8841a3289a466",
+    "sourceSha256": "9331e2dff6af7dfd553dba94602321e10e45760ef510b437a27e5afb55c4ec6f",
+    "patchSha256": "6c5d5ddf2697d8c0cb39e65c7edbc245751203a45772024023e5f693675a0bd1",
+    "boundarySha256": "fd9f926ffada786af91925faca53f048ff5b69488ebc05d2652fa55170a4dbdf",
+    "licenseDeclared": "MIT",
+    "licenseEvidenceFile": "PORTA-PTY-LICENSE"
+  },
   "shellIntegration": {
     "identity": "ghostty-shell-integration/08f039fbb3dea9c6b1cdb5ff4550666598122346",
     "stagedShells": ["bash", "fish", "zsh"],

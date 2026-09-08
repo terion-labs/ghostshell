@@ -147,7 +147,7 @@ public sealed class WorkspaceRuntimeServices(
 
     public bool IsNetworkBlocked => NetworkEgress == WorkspaceNetworkEgress.Blocked;
 
-    public void ApplyNetworkEgress(WorkspaceNetworkEgress egress)
+    public void ApplyNetworkEgress(WorkspaceNetworkEgress egress, string? authenticationRouteIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(egress);
         lock (_networkGate)
@@ -155,7 +155,7 @@ public sealed class WorkspaceRuntimeServices(
             _networkEgress = egress;
         }
 
-        networkEgressSink?.Apply(egress);
+        networkEgressSink?.Apply(egress, authenticationRouteIdentity);
     }
 
     public ValueTask DisposeAsync() =>
@@ -165,6 +165,8 @@ public sealed class WorkspaceRuntimeServices(
 public interface IWorkspaceNetworkEgressSink
 {
     void Apply(WorkspaceNetworkEgress egress);
+
+    void Apply(WorkspaceNetworkEgress egress, string? authenticationRouteIdentity) => Apply(egress);
 }
 
 public sealed class WorkspaceNetworkEgressState : IWorkspaceNetworkEgressSink

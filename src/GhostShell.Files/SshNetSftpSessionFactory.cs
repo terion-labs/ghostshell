@@ -271,10 +271,6 @@ internal sealed class SshNetSftpSessionFactory(
         IReadOnlyList<IDisposable> ownedDisposables) : IRetainableRemoteFileSession
     {
         private const int MaximumMetadataScanEntries = 100_000;
-        private readonly SftpMetadataCache _metadata = new(
-            TimeProvider.System,
-            TimeSpan.FromSeconds(10),
-            maximumEntries: 4_096);
         private bool _healthy = true;
         private bool _disposed;
 
@@ -299,7 +295,6 @@ internal sealed class SshNetSftpSessionFactory(
                 }
 
                 var entries = snapshot.Complete(cancellationToken);
-                _metadata.StoreDirectory(path, entries);
                 return entries;
             }
             catch (Exception exception) when (ShouldMap(exception))
@@ -314,17 +309,13 @@ internal sealed class SshNetSftpSessionFactory(
         {
             try
             {
-                if (_metadata.TryGet(path, out var cached))
-                {
-                    return cached;
-                }
-
+                // Stat participates in root/link authorization. Listing metadata
+                // cannot authorize a later operation after the server path changes.
                 var entry = await client.GetAsync(path, cancellationToken).ConfigureAwait(false);
                 var result = ToRemoteEntry(
                     RemoteName(path),
                     entry.Attributes,
                     CanonicalPathChanged(path, entry.FullName));
-                _metadata.Store(path, result);
                 return result;
             }
             catch (SftpPathNotFoundException)
@@ -362,7 +353,6 @@ internal sealed class SshNetSftpSessionFactory(
         {
             try
             {
-                _metadata.Clear();
                 var stream = await client
                     .OpenAsync(path, FileMode.CreateNew, FileAccess.Write, cancellationToken)
                     .ConfigureAwait(false);
@@ -380,7 +370,6 @@ internal sealed class SshNetSftpSessionFactory(
         {
             await ExecuteAsync(() => client.CreateDirectoryAsync(path, cancellationToken))
                 .ConfigureAwait(false);
-            _metadata.Clear();
         }
 
         /// <summary>
@@ -414,7 +403,6 @@ internal sealed class SshNetSftpSessionFactory(
             try
             {
                 client.ChangePermissions(path, (short)(mode & 0x1FF));
-                _metadata.Clear();
                 return ValueTask.CompletedTask;
             }
             catch (Exception exception) when (ShouldMap(exception))
@@ -434,7 +422,6 @@ internal sealed class SshNetSftpSessionFactory(
                         destinationPath,
                         cancellationToken))
                 .ConfigureAwait(false);
-            _metadata.Clear();
         }
 
         public async ValueTask DeleteFileAsync(
@@ -454,7 +441,6 @@ internal sealed class SshNetSftpSessionFactory(
                 }
 
                 await entry.DeleteAsync(cancellationToken).ConfigureAwait(false);
-                _metadata.Clear();
             }
             catch (Exception exception) when (ShouldMap(exception))
             {
@@ -479,7 +465,6 @@ internal sealed class SshNetSftpSessionFactory(
                 }
 
                 await entry.DeleteAsync(cancellationToken).ConfigureAwait(false);
-                _metadata.Clear();
             }
             catch (Exception exception) when (ShouldMap(exception))
             {
@@ -495,7 +480,6 @@ internal sealed class SshNetSftpSessionFactory(
             }
 
             _disposed = true;
-            _metadata.Clear();
             try
             {
                 client.Dispose();
@@ -522,7 +506,6 @@ internal sealed class SshNetSftpSessionFactory(
             if (mapped.Retryable)
             {
                 _healthy = false;
-                _metadata.Clear();
             }
 
             return mapped;

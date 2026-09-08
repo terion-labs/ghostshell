@@ -682,7 +682,8 @@ public sealed partial class MainWindow : Window
         {
             var receipt = result.Value!;
             ViewModel.SetDefinitionBundleStatus(
-                $"Exported {receipt.DefinitionCount} definitions to {Path.GetFileName(receipt.Path)}.");
+                $"Exported {receipt.DefinitionCount} definitions to {Path.GetFileName(receipt.Path)}."
+                + (receipt.Warning is { } warning ? " " + warning : string.Empty));
         }
         else if (result.Error!.Code != DefinitionStoreErrorCode.Cancelled)
         {
@@ -731,7 +732,8 @@ public sealed partial class MainWindow : Window
 
         var applied = await _definitionBundles.ConfirmAndApplyImportAsync(
             plan,
-            _lifetime.Token);
+            _lifetime.Token,
+            plan.RequiresExecutionReview ? plan.AcknowledgeExecutionReview() : null);
         if (!applied.IsSuccess)
         {
             if (applied.Error!.Code != DefinitionStoreErrorCode.Cancelled)
@@ -874,6 +876,7 @@ public sealed partial class MainWindow : Window
     {
         _ = e;
         if (sender is not Control { DataContext: LauncherWorkspaceViewModel workspace }
+            || !workspace.CanClose
             || ViewModel.OpenWorkspaceInstance(workspace.Id) is not { } instanceId)
         {
             return;
@@ -1160,7 +1163,8 @@ public sealed partial class MainWindow : Window
                     database.Request.StorePassword,
                     database.Request.TunnelConnectionId,
                     database.Request.InlineTunnel,
-                    _lifetime.Token);
+                    _lifetime.Token,
+                    database.Request.DraftId);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(result), result, null);
@@ -1897,17 +1901,20 @@ public sealed partial class MainWindow : Window
             ApplicationKeyReplay? replay = replayTarget is null
                 ? null
                 : replayTarget.ReplayApplicationKeyStrokesAsync;
-            var handling = await ApplicationKeys.HandleAsync(
+            var profile = new ApplicationKeyProfileSnapshot(
+                ViewModel.ActiveApplicationKeymap,
+                ViewModel.ActiveApplicationKeymapRevision,
+                ViewModel.ActiveApplicationKeymapName,
+                ViewModel.ActiveCommandContexts);
+            var handling = ApplicationKeys.Resolve(
                 ApplicationKeyStrokeMapper.Map(e.Key, e.KeyModifiers, e.KeySymbol),
-                new ApplicationKeyProfileSnapshot(
-                    ViewModel.ActiveApplicationKeymap,
-                    ViewModel.ActiveApplicationKeymapRevision,
-                    ViewModel.ActiveApplicationKeymapName,
-                    ViewModel.ActiveCommandContexts),
-                replay);
-            if (handling.WasResolved)
+                profile);
+            if (handling.Kind != ApplicationKeyResolutionKind.NotHandled)
             {
+                // Routed input continues synchronously when an async handler
+                // yields. Claim the shortcut before command execution or replay.
                 e.Handled = handling.ShouldHandle;
+                await ApplicationKeys.ApplyAsync(handling, profile, replay);
                 return;
             }
         }
@@ -1918,8 +1925,8 @@ public sealed partial class MainWindow : Window
 
         if (e.Key == Key.Escape && ViewModel.HasOverlay)
         {
-            _ = await TryCloseOverlayAsync();
             e.Handled = true;
+            _ = await TryCloseOverlayAsync();
             return;
         }
 
@@ -1954,8 +1961,8 @@ public sealed partial class MainWindow : Window
         }
         else if (IsExactGlobalGesture(e.Key, e.KeyModifiers, Key.T, commandModifier))
         {
-            await RequestNewTerminalAsync();
             e.Handled = true;
+            await RequestNewTerminalAsync();
         }
         else if (ViewModel.ActivePanel is TerminalRuntimePanelViewModel { IsCopyMode: true }
             && !IsTerminalCopyGesture(e))

@@ -700,6 +700,23 @@ public class WebView : Control, IWebView, IDisposable
         return size;
     }
 
+    /// <summary>
+    /// Attach a native popup reserved by HostPopup without creating or navigating
+    /// a replacement browser, preserving its opener and WindowProxy identity.
+    /// </summary>
+    public void AdoptOffscreenBrowser(CefBrowser browser, int width = 640, int height = 480)
+    {
+        ArgumentNullException.ThrowIfNull(browser);
+        Dispatcher.UIThread.VerifyAccess();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_browser is not null || browser.IsClosed || width <= 0 || height <= 0)
+            throw new InvalidOperationException("The popup browser cannot be adopted.");
+        _browserWidth = width;
+        _browserHeight = height;
+        _renderScale = 1;
+        AttachBrowser(browser, Cef.OffscreenFlags.None);
+    }
+
     private bool TryCreateBrowser(
         int width,
         int height,
@@ -726,6 +743,12 @@ public class WebView : Control, IWebView, IDisposable
             return false;
         }
 
+        AttachBrowser(browser, flags);
+        return true;
+    }
+
+    private void AttachBrowser(CefBrowser browser, Cef.OffscreenFlags flags)
+    {
         _browser = browser;
         IsAcceleratedRenderingActive =
             (flags & Cef.OffscreenFlags.SharedTexture) != 0;
@@ -772,7 +795,6 @@ public class WebView : Control, IWebView, IDisposable
             StartPerformanceDiagnostics(browser);
             _browserReadyHandlers?.Invoke(this, EventArgs.Empty);
         };
-        return true;
     }
 
     internal static Cef.OffscreenFlags BrowserCreationFlags(

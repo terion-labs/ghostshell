@@ -51,6 +51,10 @@ cd "${repository_dir}"
     --verify-no-changes \
     --no-restore \
     --exclude vendor/exclr8cef \
+    --exclude vendor/sshnet/upstream \
+    --exclude vendor/sharpcompress/upstream \
+    --exclude vendor/sqlclient/upstream \
+    --exclude vendor/sqlclient/tests/upstream \
     --severity warn
 "${dotnet}" build GhostShell.slnx \
     --configuration Release \

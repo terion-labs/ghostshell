@@ -12,5 +12,6 @@ public interface IDefinitionBundleStore
 
     ValueTask<DefinitionStoreResult<DefinitionImportResult>> CommitImportAsync(
         DefinitionImportPreflight preflight,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        DefinitionImportExecutionApproval? executionApproval = null);
 }

@@ -10,6 +10,52 @@ namespace GhostShell.App.Tests;
 public sealed class DefinitionBundleControllerTests
 {
     [Fact]
+    public async Task Sanitized_legacy_database_export_surfaces_reconnect_warning_and_count()
+    {
+        using var temporary = TemporaryDirectory.Create();
+        var path = temporary.PathFor("definitions.json");
+        var store = new RecordingBundleStore
+        {
+            ExportedBundle = Bundle(Document("layout-one")) with { ReconnectRequiredDatabasePanelCount = 2 },
+        };
+        var controller = CreateController(store, new RecordingPathPicker { ExportPath = path });
+        var result = await controller.ExportAsync(CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.ReconnectRequiredDatabasePanelCount);
+        Assert.Contains("require reconnection", result.Value.Warning!, StringComparison.Ordinal);
+        Assert.Contains("unchanged", result.Value.Warning!, StringComparison.Ordinal);
+        Assert.DoesNotContain("reconnectRequiredDatabasePanelCount", await File.ReadAllTextAsync(path), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Executable_import_requires_approval_for_this_exact_plan_before_store_access()
+    {
+        using var temporary = TemporaryDirectory.Create();
+        var path = temporary.PathFor("review.json");
+        await WriteBundleAsync(path, Bundle(Document("layout-review")));
+        var store = new RecordingBundleStore
+        {
+            PreflightFactory = (bundle, mode) => DefinitionStoreResult<DefinitionImportPreflight>.Success(
+                new(bundle, mode, [])
+                {
+                    ExecutionReview = [new("Startup", "echo reviewed")],
+                    CatalogFingerprint = "reviewed-catalog",
+                }),
+        };
+        var controller = CreateController(store, new RecordingPathPicker { ImportPath = path });
+        var first = (await controller.PreflightImportAsync(DefinitionImportMode.ReplaceExisting, CancellationToken.None)).Value!;
+        var second = (await controller.PreflightImportAsync(DefinitionImportMode.ReplaceExisting, CancellationToken.None)).Value!;
+        Assert.True(first.RequiresExecutionReview);
+        Assert.Equal(DefinitionStoreErrorCode.InvalidDefinition,
+            (await controller.ConfirmAndApplyImportAsync(first, CancellationToken.None)).Error?.Code);
+        Assert.Equal(DefinitionStoreErrorCode.InvalidDefinition,
+            (await controller.ConfirmAndApplyImportAsync(second, CancellationToken.None, first.AcknowledgeExecutionReview())).Error?.Code);
+        Assert.Empty(store.Committed);
+        Assert.True((await controller.ConfirmAndApplyImportAsync(second, CancellationToken.None, second.AcknowledgeExecutionReview())).IsSuccess);
+        Assert.Single(store.Committed);
+    }
+
+    [Fact]
     public async Task Export_safety_preflights_then_atomically_writes_the_selected_file()
     {
         using var temporary = TemporaryDirectory.Create();
@@ -724,7 +770,8 @@ public sealed class DefinitionBundleControllerTests
 
         public async ValueTask<DefinitionStoreResult<DefinitionImportResult>> CommitImportAsync(
             DefinitionImportPreflight preflight,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            DefinitionImportExecutionApproval? executionApproval = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Committed.Enqueue(preflight);

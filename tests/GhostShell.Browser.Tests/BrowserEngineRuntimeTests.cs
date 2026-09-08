@@ -26,7 +26,7 @@ public sealed class BrowserEngineRuntimeTests
     {
         BrowserEngineRuntime.ValidateVersions(
             new CefVersions(
-                "0.8.0-ghostshell.7",
+                "0.8.0-ghostshell.10",
                 "150.0.9",
                 "150.0.7871.46"));
     }
@@ -41,7 +41,7 @@ public sealed class BrowserEngineRuntimeTests
         var error = Assert.Throws<InvalidOperationException>(() =>
             BrowserEngineRuntime.ValidateVersions(
                 new CefVersions(
-                    "0.8.0-ghostshell.7",
+                    "0.8.0-ghostshell.10",
                     cefVersion,
                     chromiumVersion)));
 
@@ -111,15 +111,6 @@ public sealed class BrowserEngineRuntimeTests
     }
 
     [Fact]
-    public void MacRuntimeUsesMockSafeStorageForTheAppEncryptedRuntimeTree()
-    {
-        Assert.Equal(
-            "use-mock-keychain",
-            BrowserEngineRuntime.GetMacOsSafeStorageSwitch(isMacOs: true));
-        Assert.Null(BrowserEngineRuntime.GetMacOsSafeStorageSwitch(isMacOs: false));
-    }
-
-    [Fact]
     public void StartupPreservesRecoveredGlobalStateAndRecoveryContexts()
     {
         var root = Path.Combine(
@@ -145,6 +136,11 @@ public sealed class BrowserEngineRuntimeTests
             BrowserEngineRuntime.PrepareProfileLayout(root);
 
             Assert.True(Directory.Exists(root));
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                    File.GetUnixFileMode(root));
+            }
             Assert.True(Directory.Exists(legacy));
             Assert.True(Directory.Exists(Path.Combine(root, "runtime")));
             Assert.True(Directory.Exists(Path.Combine(root, "profiles")));

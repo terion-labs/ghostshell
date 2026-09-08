@@ -9,6 +9,35 @@ namespace GhostShell.Databases.Tests;
 public sealed class DatabaseTunnelTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Diagram_worker_owns_the_forward_and_receives_the_original_TLS_identity(bool fail)
+    {
+        var tunnels = new RecordingTunnelFactory();
+        var workers = new RecordingDiagramWorkers { Fail = fail };
+        await using var client = new DatabasePanelClient(tunnels, diagramWorkers: workers);
+        const string target = "Host=db.internal;Database=app;SSL Mode=VerifyFull";
+        if (fail)
+        {
+            await Assert.ThrowsAsync<IOException>(() => client.OpenDatabaseDiagramAsync("postgres", target, SshProfile(), CancellationToken.None));
+        }
+        else
+        {
+            await using (var diagram = await client.OpenDatabaseDiagramAsync("postgres", target, SshProfile(), CancellationToken.None))
+            {
+                Assert.Equal(0, tunnels.DisposedCount);
+                Assert.Equal("db.internal", new NpgsqlConnectionStringBuilder(workers.Connection!.ConnectionString).Host);
+                Assert.Null(workers.Connection.LocalRoutePort);
+                Assert.NotNull(workers.Connection.Route);
+            }
+
+            Assert.True(workers.Session.Disposed);
+        }
+
+        Assert.Equal(1, tunnels.DisposedCount);
+    }
+
+    [Theory]
     [InlineData("postgres")]
     [InlineData("cockroach")]
     public void Postgres_relay_keeps_TLS_identity_and_strict_validation(string driverId)
@@ -201,6 +230,27 @@ public sealed class DatabaseTunnelTests
         Assert.Equal("Host=127.0.0.1;Port=45001;", driver.LastConnectionString);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProviderDisposedDuringConnectIsCancellationOnlyWhenRouteWasCanceled(bool canceled)
+    {
+        using var lifetime = new CancellationTokenSource();
+        var driver = new RecordingDriver
+        {
+            BeforeCreate = () =>
+            {
+                if (canceled) { lifetime.Cancel(); }
+                throw new ObjectDisposedException("synthetic-provider");
+            },
+        };
+        var factory = new RecordingTunnelFactory { RouteLifetime = lifetime.Token };
+        await using var client = new DatabasePanelClient([driver], factory);
+        var operation = client.ListTablesAsync("recording", "Host=db.internal;Port=9;", SshProfile(), CancellationToken.None);
+        if (canceled) { await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation); }
+        else { await Assert.ThrowsAsync<ObjectDisposedException>(() => operation); }
+    }
+
     private static IDatabaseDriver Driver(string id) =>
         BuiltInDatabaseDrivers.All.Single(driver => string.Equals(driver.Descriptor.Id, id, StringComparison.Ordinal));
 
@@ -216,7 +266,9 @@ public sealed class DatabaseTunnelTests
 
     private sealed class RecordingTunnelFactory : IDatabaseTunnelFactory
     {
+        public CancellationToken RouteLifetime { get; init; }
         public int OpenCount { get; private set; }
+        public int DisposedCount { get; private set; }
 
         public (string Host, int Port)? LastTarget { get; private set; }
 
@@ -228,19 +280,58 @@ public sealed class DatabaseTunnelTests
         {
             OpenCount++;
             LastTarget = (targetHost, targetPort);
-            return ValueTask.FromResult<IDatabaseTunnelLease>(new Lease());
+            return ValueTask.FromResult<IDatabaseTunnelLease>(new Lease(() => DisposedCount++));
         }
 
-        private sealed class Lease : IDatabaseTunnelLease
+        private sealed class Lease(Action onDispose) : IDatabaseTunnelLease
         {
             public int LocalPort => 45001;
 
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+            public ValueTask DisposeAsync()
+            {
+                onDispose();
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    private sealed class RecordingDiagramWorkers : IDatabaseDiagramWorkerFactory
+    {
+        public bool Fail { get; init; }
+        public DatabaseWorkerConnection? Connection { get; private set; }
+        public DiagramSession Session { get; } = new();
+        public async Task<IDatabaseDiagramSession> OpenAsync(DatabaseWorkerConnection connection, CancellationToken cancellationToken,
+            DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display)
+        {
+            Connection = connection;
+            var lease = await connection.Route!.OpenAsync("db.internal", 5432, cancellationToken);
+            if (Fail)
+            {
+                await lease.DisposeAsync();
+                throw new IOException("test worker failure");
+            }
+            Session.Route = lease;
+            return Session;
+        }
+    }
+
+    private sealed class DiagramSession : IDatabaseDiagramSession
+    {
+        public IDatabaseTunnelLease? Route { get; set; }
+        public bool Disposed { get; private set; }
+        public Task<byte[]> RenderViewportAsync(DatabaseDiagramViewport viewport, CancellationToken cancellationToken) =>
+            Task.FromResult(Array.Empty<byte>());
+        public Task ExportAsync(Stream destination, DatabaseDiagramExport format, CancellationToken cancellationToken) => Task.CompletedTask;
+        public async ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            if (Route is { } route) { await route.DisposeAsync(); }
         }
     }
 
     private sealed class RecordingDriver : IDatabaseDriver
     {
+        public Action? BeforeCreate { get; init; }
         public string? LastConnectionString { get; private set; }
 
         public DatabaseDriverDescriptor Descriptor { get; } = new(
@@ -250,6 +341,7 @@ public sealed class DatabaseTunnelTests
 
         public System.Data.Common.DbConnection CreateConnection(string connectionString)
         {
+            BeforeCreate?.Invoke();
             LastConnectionString = connectionString;
             // In-memory SQLite lets the client run its full pipeline without a
             // server; only the recorded connection string matters here.

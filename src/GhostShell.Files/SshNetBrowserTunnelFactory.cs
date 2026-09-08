@@ -67,6 +67,7 @@ public sealed class SshNetBrowserTunnelFactory(
             };
 
             string? hostKeyFailure = null;
+            SshHostKeyIdentity? acceptedHostKey = null;
             client.HostKeyReceived += (_, eventArgs) =>
             {
                 var candidate = new SshHostKeyCandidate(
@@ -86,6 +87,7 @@ public sealed class SshNetBrowserTunnelFactory(
                     _ => "The SSH server host key is not trusted. Review the connection before routing the browser.",
                 };
                 eventArgs.CanTrust = decision.Trusted;
+                acceptedHostKey = decision.Trusted ? candidate.Identity : null;
             };
 
             try
@@ -97,12 +99,20 @@ public sealed class SshNetBrowserTunnelFactory(
                 throw new InvalidOperationException(failure, exception);
             }
 
-            var forward = new ForwardedPortDynamic("127.0.0.1", 0);
+            var profileRouteIdentity = CreateProfileRouteIdentity(connection.Id, endpoint, acceptedHostKey
+                ?? throw new InvalidOperationException("The SSH server identity was not verified."));
+            var proxyCredentials = new WorkspaceNetworkProxyCredentials(
+                RandomNumberGenerator.GetHexString(16),
+                RandomNumberGenerator.GetHexString(64));
+            var forward = new ForwardedPortDynamic(
+                "127.0.0.1", 0, proxyCredentials.Username, proxyCredentials.Password);
             client.AddForwardedPort(forward);
             forward.Start();
             return new SshBrowserTunnel(
                 client,
                 forward,
+                proxyCredentials,
+                profileRouteIdentity,
                 ownedBuffers,
                 ownedDisposables);
         }
@@ -122,6 +132,27 @@ public sealed class SshNetBrowserTunnelFactory(
             DisposeAuthentication(ownedBuffers, ownedDisposables);
             throw;
         }
+    }
+
+    internal static string CreateProfileRouteIdentity(
+        ConnectionId connectionId,
+        ConnectionEndpoint.Ssh endpoint,
+        SshHostKeyIdentity hostKey)
+    {
+        // A saved connection ID is editable. Cookies belong to the verified
+        // destination/account, not whatever that ID happens to name next.
+        var fields = new[]
+        {
+            connectionId.Value,
+            endpoint.Host.TrimEnd('.').ToLowerInvariant(),
+            endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            endpoint.Username,
+            hostKey.Algorithm,
+            hostKey.Sha256Fingerprint,
+        };
+        var identity = Encoding.UTF8.GetBytes(string.Concat(fields.Select(value =>
+            (value?.Length ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + value)));
+        return "ssh-v2-" + Convert.ToHexString(SHA256.HashData(identity));
     }
 
     private async ValueTask<AuthenticationMethod> CreateAuthenticationAsync(
@@ -259,6 +290,8 @@ public sealed class SshNetBrowserTunnelFactory(
         internal SshBrowserTunnel(
             SshClient client,
             ForwardedPortDynamic forward,
+            WorkspaceNetworkProxyCredentials proxyCredentials,
+            string profileRouteIdentity,
             IReadOnlyList<byte[]> ownedBuffers,
             IReadOnlyList<IDisposable> ownedDisposables)
         {
@@ -267,9 +300,15 @@ public sealed class SshNetBrowserTunnelFactory(
             _ownedBuffers = ownedBuffers;
             _ownedDisposables = ownedDisposables;
             LocalPort = checked((int)forward.BoundPort);
+            ProxyCredentials = proxyCredentials;
+            ProfileRouteIdentity = profileRouteIdentity;
         }
 
         public int LocalPort { get; }
+
+        public WorkspaceNetworkProxyCredentials ProxyCredentials { get; }
+
+        public string ProfileRouteIdentity { get; }
 
         public void Dispose()
         {

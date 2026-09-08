@@ -519,5 +519,6 @@ public sealed partial class S3FileProvider : IFileProvider
         FilePath? HierarchicalPath,
         FileVersion Version);
 
-    private sealed record S3PageCursor(string Scope, string RemoteToken);
+    private sealed record S3PageCursor(string Scope, string RemoteToken,
+        System.Collections.Immutable.ImmutableHashSet<string> SeenTokens);
 }

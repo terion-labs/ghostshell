@@ -38,7 +38,7 @@
 
     <controls:PanelChrome.Actions>
       <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" VerticalAlignment="Center">
-        <TextBlock
+        <controls:LiveRegionTextBlock
             VerticalAlignment="Center"
             Classes="Muted"
             FontSize="{DynamicResource ShellFontSize9}"

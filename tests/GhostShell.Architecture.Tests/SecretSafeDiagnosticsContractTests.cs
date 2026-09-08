@@ -27,6 +27,28 @@ public sealed class SecretSafeDiagnosticsContractTests
     }
 
     [Theory]
+    [InlineData(0, "unexpected")]
+    [InlineData(1, "io")]
+    [InlineData(2, "access-denied")]
+    public void Profile_rejection_projection_does_not_retain_caller_paths_or_exception_text(
+        int errorIndex, string expectedKind)
+    {
+        const string canary = "/private/profile-secret-canary/throwaway-profile.txt";
+        Exception[] errors =
+        [
+            new ArgumentException(canary),
+            new IOException(canary),
+            new UnauthorizedAccessException(canary),
+        ];
+        var projection = GhostShell.Application.SecretSafeDiagnosticProjection.FromException(
+            "desktop.profile-selection.rejected", errors[errorIndex], new string('a', 32));
+
+        Assert.DoesNotContain(canary, projection, StringComparison.Ordinal);
+        Assert.Equal("[ghostshell:diagnostic] code=desktop.profile-selection.rejected correlation="
+            + new string('a', 32) + " type=" + expectedKind, projection);
+    }
+
+    [Theory]
     [InlineData(nameof(AdversarialDiagnosticFixtures.ExceptionAlias))]
     [InlineData(nameof(AdversarialDiagnosticFixtures.MessageAlias))]
     [InlineData(nameof(AdversarialDiagnosticFixtures.ToStringAlias))]

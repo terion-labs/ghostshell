@@ -16,4 +16,14 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <GhostShellPtyRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</GhostShellPtyRid>
+    <GhostShellPtyRid Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</GhostShellPtyRid>
+    <GhostShellPtyLibrary Condition="$(GhostShellPtyRid.StartsWith('osx-'))">libghostshell_pty.dylib</GhostShellPtyLibrary>
+    <GhostShellPtyLibrary Condition="$(GhostShellPtyRid.StartsWith('linux-'))">libghostshell_pty.so</GhostShellPtyLibrary>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GhostShellPtyLibrary)' != ''">
+    <Content Include="../../native/artifacts/$(GhostShellPtyRid)/$(GhostShellPtyLibrary)" Link="$(GhostShellPtyLibrary)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('../../native/artifacts/$(GhostShellPtyRid)/$(GhostShellPtyLibrary)')" />
+  </ItemGroup>
+
 </Project>

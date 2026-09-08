@@ -11,7 +11,7 @@
     <PackageReference Include="LiteDB" />
     <PackageReference Include="FluentFTP" />
     <PackageReference Include="SMBLibrary" />
-    <PackageReference Include="SSH.NET" />
+    <ProjectReference Include="../../vendor/sshnet/SSH.NET.csproj" />
     <PackageReference Include="SshNet.Agent" />
   </ItemGroup>
 

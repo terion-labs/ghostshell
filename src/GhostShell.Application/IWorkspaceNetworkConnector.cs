@@ -9,6 +9,16 @@ public interface IWorkspaceNetworkConnector
 {
     WorkspaceNetworkEgress Egress { get; }
 
+    /// <summary>Cancellation of the captured route, including connections borrowed from a pool.</summary>
+    CancellationToken RouteLifetime => CancellationToken.None;
+
+    /// <summary>
+    /// Captures immutable dialing authority. Dynamic connectors must override this
+    /// atomically; the default is only suitable for a genuinely static connector.
+    /// The result exposes no route-changing control.
+    /// </summary>
+    IWorkspaceNetworkConnector CaptureRoute() => this;
+
     /// <summary>
     /// Stable loopback SOCKS5 endpoint for libraries that own their socket
     /// creation but support a proxy. It remains stable when the selected route
@@ -35,6 +45,22 @@ public interface IWorkspaceNetworkConnector
     /// Null keeps the caller's explicit route identity for external connectors.
     /// </summary>
     string? BrowserProfileRouteIdentity => null;
+
+    /// <summary>Current credential authority, distinct from durable cookie storage identity.</summary>
+    string? BrowserAuthenticationRouteIdentity => Egress == WorkspaceNetworkEgress.Direct ? "local" : null;
+
+    /// <summary>Called while traffic is blocked, before a different credential authority is enabled.</summary>
+    event Func<CancellationToken, Task>? BrowserAuthenticationRouteChanging
+    {
+        add { }
+        remove { }
+    }
+
+    event EventHandler? BrowserAuthenticationRouteFailed
+    {
+        add { }
+        remove { }
+    }
 
     ValueTask<Stream> ConnectTcpAsync(
         string host,

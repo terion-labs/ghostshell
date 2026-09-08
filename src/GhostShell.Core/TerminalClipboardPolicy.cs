@@ -31,6 +31,8 @@ public sealed record TerminalClipboardPolicy
 
     public TerminalClipboardAccess WriteAccess { get; }
 
+    // Retained only for deserializing and round-tripping existing profiles.
+    // Human paste is explicit input; this retired setting has no runtime effect.
     public TerminalPasteSafetyPolicy PasteSafety { get; }
 
     public static TerminalClipboardPolicy Default { get; } = new(

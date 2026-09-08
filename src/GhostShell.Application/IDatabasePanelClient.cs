@@ -49,6 +49,9 @@ public sealed record DatabaseEndpoint(string Host, int Port);
 public interface IDatabaseTunnelLease : IAsyncDisposable
 {
     int LocalPort { get; }
+
+    /// <summary>True only for definitive owned closure; false is not a reachability guarantee.</summary>
+    bool IsClosed => false;
 }
 
 /// <summary>
@@ -58,6 +61,13 @@ public interface IDatabaseTunnelLease : IAsyncDisposable
 /// </summary>
 public interface IDatabaseTunnelFactory
 {
+    /// <summary>The lifetime of this factory's captured route authority, not an individual endpoint.</summary>
+    /// <remarks>Dynamic factories must expose their route lifetime; static factories have no invalidation token.</remarks>
+    CancellationToken RouteLifetime => CancellationToken.None;
+
+    /// <summary>Captures one immutable route for all endpoint opens, including server redirects.</summary>
+    IDatabaseTunnelFactory CaptureRoute() => this;
+
     ValueTask<IDatabaseTunnelLease> OpenAsync(
         ConnectionProfile connection,
         string targetHost,
@@ -108,8 +118,16 @@ public sealed record DatabaseQueryPage(
     bool Truncated,
     int RowsAffected,
     TimeSpan Elapsed,
-    IReadOnlyList<IReadOnlyList<DatabaseValue>>? TypedRows = null)
+    IReadOnlyList<IReadOnlyList<DatabaseValue>>? TypedRows = null,
+    DatabaseValueContentStore? ContentStore = null) : IDisposable
 {
+    /// <summary>
+    /// Releases detached cell storage. A record copy transfers the same result
+    /// ownership; it does not create another independently disposable snapshot.
+    /// Active content readers retain their storage until they close.
+    /// </summary>
+    public void Dispose() => ContentStore?.Dispose();
+
     /// <summary>
     /// Typed values when supplied by the provider client, otherwise a compatible
     /// text projection for lightweight clients and older saved test fixtures.
@@ -239,6 +257,22 @@ public interface IDatabasePanelClient : IDatabaseConnectionCatalog
         Task.FromException<DatabaseSchemaGraph>(new NotSupportedException(
             "This database client does not expose a database schema graph."));
 
+    Task<IDatabaseDiagramSession> OpenDatabaseDiagramAsync(
+        string driverId,
+        string connectionString,
+        ConnectionProfile? tunnel,
+        CancellationToken cancellationToken) =>
+        Task.FromException<IDatabaseDiagramSession>(new NotSupportedException(
+            "This database client does not expose an isolated schema renderer."));
+
+    Task ExportDatabaseSchemaSourceAsync(
+        string driverId,
+        string connectionString,
+        ConnectionProfile? tunnel,
+        Stream destination,
+        CancellationToken cancellationToken) =>
+        Task.FromException(new NotSupportedException("Schema source export is unavailable."));
+
     /// <summary>
     /// Reads the detached object and column catalog used by SQL completion and
     /// validation. Implementations must not expose credentials or live provider
@@ -302,7 +336,8 @@ public interface IDatabasePanelClient : IDatabaseConnectionCatalog
     string BuildInsertStatement(
         string driverId,
         DatabaseObjectDetails details,
-        DatabaseInsertedRow row) =>
+        DatabaseInsertedRow row,
+        int maximumUtf8Bytes = int.MaxValue) =>
         throw new NotSupportedException(
             "This database client does not expose INSERT script generation.");
 

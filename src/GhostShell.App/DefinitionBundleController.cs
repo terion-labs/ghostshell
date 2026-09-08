@@ -80,7 +80,8 @@ public sealed class DefinitionBundleController
             return DefinitionStoreResult<DefinitionBundleExportReceipt>.Success(new(
                 path,
                 bundle.Definitions.Count,
-                bundle.ExportedAt));
+                bundle.ExportedAt,
+                bundle.ReconnectRequiredDatabasePanelCount));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -176,9 +177,15 @@ public sealed class DefinitionBundleController
     public async ValueTask<DefinitionStoreResult<DefinitionBundleImportReceipt>>
         ConfirmAndApplyImportAsync(
             DefinitionBundleImportPlan plan,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            DefinitionImportExecutionApproval? executionApproval = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        if (plan.RequiresExecutionReview && executionApproval?.AppliesTo(plan.Preflight) != true)
+        {
+            return Invalid<DefinitionBundleImportReceipt>(
+                "Review and explicitly approve executable content and connection authority for this exact import plan.");
+        }
         if (!plan.CanApply)
         {
             var blockingIssue = plan.Issues.First(issue => issue.IsBlocking);
@@ -203,7 +210,7 @@ public sealed class DefinitionBundleController
         DefinitionStoreResult<DefinitionImportResult> committed;
         try
         {
-            committed = await _bundleStore.CommitImportAsync(plan.Preflight, cancellationToken)
+            committed = await _bundleStore.CommitImportAsync(plan.Preflight, cancellationToken, executionApproval)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

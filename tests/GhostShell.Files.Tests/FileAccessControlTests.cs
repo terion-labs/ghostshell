@@ -14,6 +14,81 @@ namespace GhostShell.Files.Tests;
 /// </summary>
 public sealed class FileAccessControlTests
 {
+    [Fact]
+    public async Task Native_chmod_rejects_a_link_even_if_it_appears_after_path_validation()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        using var root = TemporaryDirectory.Create();
+        using var outside = TemporaryDirectory.Create();
+        var target = Path.Combine(outside.Path, "private");
+        await File.WriteAllTextAsync(target, "private");
+        File.SetUnixFileMode(target, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        File.CreateSymbolicLink(Path.Combine(root.Path, "raced"), target);
+        var provider = new PosixLocalFileProvider(new LocalFileProviderOptions(LocalProfile, LocalAuthority, root.Path));
+        // Exercise the mutation sink directly, after the normal validation boundary.
+        _ = provider.SetModeNoFollow(FilePath.Root.Append(new FilePathSegment("raced")), 0x1FF);
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(target));
+    }
+
+    [Fact]
+    public async Task Owner_can_chmod_an_unreadable_leaf_in_a_search_only_parent()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        using var root = TemporaryDirectory.Create();
+        var directory = Directory.CreateDirectory(Path.Combine(root.Path, "search-only")).FullName;
+        var leaf = Path.Combine(directory, "unreadable");
+        await File.WriteAllTextAsync(leaf, "data");
+        File.SetUnixFileMode(leaf, UnixFileMode.None);
+        File.SetUnixFileMode(directory, UnixFileMode.UserExecute);
+        try
+        {
+            IFileProvider provider = new PosixLocalFileProvider(new LocalFileProviderOptions(LocalProfile, LocalAuthority, root.Path));
+            var location = new FileLocation(LocalProfile, LocalAuthority, FilePath.Root)
+                .Child(new FilePathSegment("search-only")).Child(new FilePathSegment("unreadable"));
+            var changed = await provider.SetAccessControlAsync(new FileSetAccessControlRequest(location,
+                new FilePanelPosixMode(0b110_000_000)), CancellationToken.None);
+            Assert.True(changed.IsSuccess, changed.Error?.Message);
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(leaf));
+        }
+        finally
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
+    public async Task A_listed_file_replaced_with_a_link_cannot_redirect_chmod()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        using var root = TemporaryDirectory.Create();
+        using var outside = TemporaryDirectory.Create();
+        var target = Path.Combine(outside.Path, "target");
+        await File.WriteAllTextAsync(target, "private");
+        File.SetUnixFileMode(target, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        var path = Path.Combine(root.Path, "listed");
+        await File.WriteAllTextAsync(path, "ordinary");
+        IFileProvider provider = LocalFileProvider.CreateForCurrentPlatform(new LocalFileProviderOptions(LocalProfile, LocalAuthority, root.Path));
+        var rootLocation = new FileLocation(LocalProfile, LocalAuthority, FilePath.Root);
+        Assert.True((await provider.ListAsync(new FileListRequest(rootLocation, 10), CancellationToken.None)).IsSuccess);
+        File.Delete(path);
+        File.CreateSymbolicLink(path, target);
+        var location = rootLocation.Child(new FilePathSegment("listed"));
+        var read = await provider.GetAccessControlAsync(new FileAccessControlRequest(location), CancellationToken.None);
+        var write = await provider.SetAccessControlAsync(new FileSetAccessControlRequest(location, new FilePanelPosixMode(0b111_111_111)), CancellationToken.None);
+        Assert.False(read.IsSuccess);
+        Assert.False(write.IsSuccess);
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(target));
+    }
+
     private static readonly FileProviderProfileId LocalProfile = new("access-local");
     private static readonly FileAuthority LocalAuthority = new("local");
 

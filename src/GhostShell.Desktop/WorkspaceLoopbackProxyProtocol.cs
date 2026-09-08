@@ -20,7 +20,8 @@ internal static class WorkspaceLoopbackProxyProtocol
     public static async ValueTask<Request?> AuthenticateAndReadAsync(
         Stream stream,
         WorkspaceNetworkProxyCredentials credentials,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        WorkspaceNetworkProxyCredentials? routeCredentials = null)
     {
         var first = new byte[1];
         if (!await ReadExactlyAsync(stream, first, cancellationToken).ConfigureAwait(false))
@@ -29,7 +30,7 @@ internal static class WorkspaceLoopbackProxyProtocol
         }
 
         return first[0] == 5
-            ? await ReadSocksAsync(stream, credentials, cancellationToken).ConfigureAwait(false)
+            ? await ReadSocksAsync(stream, credentials, routeCredentials, cancellationToken).ConfigureAwait(false)
             : await ReadHttpProxyAsync(
                     stream,
                     first[0],
@@ -56,6 +57,7 @@ internal static class WorkspaceLoopbackProxyProtocol
     private static async ValueTask<Request?> ReadSocksAsync(
         Stream stream,
         WorkspaceNetworkProxyCredentials credentials,
+        WorkspaceNetworkProxyCredentials? routeCredentials,
         CancellationToken cancellationToken)
     {
         var methodCount = new byte[1];
@@ -74,7 +76,7 @@ internal static class WorkspaceLoopbackProxyProtocol
         }
 
         await stream.WriteAsync(new byte[] { 5, 2 }, cancellationToken).ConfigureAwait(false);
-        if (!await AuthenticateSocksAsync(stream, credentials, cancellationToken)
+        if (!await AuthenticateSocksAsync(stream, credentials, routeCredentials, cancellationToken)
                 .ConfigureAwait(false))
         {
             return null;
@@ -106,6 +108,7 @@ internal static class WorkspaceLoopbackProxyProtocol
     private static async ValueTask<bool> AuthenticateSocksAsync(
         Stream stream,
         WorkspaceNetworkProxyCredentials credentials,
+        WorkspaceNetworkProxyCredentials? routeCredentials,
         CancellationToken cancellationToken)
     {
         var header = new byte[2];
@@ -136,17 +139,44 @@ internal static class WorkspaceLoopbackProxyProtocol
             return false;
         }
 
-        var expectedUsername = Encoding.UTF8.GetBytes(credentials.Username);
-        var expectedPassword = Encoding.UTF8.GetBytes(credentials.Password);
-        var authenticated = FixedTimeEquals(username, expectedUsername)
-            & FixedTimeEquals(password, expectedPassword);
-        CryptographicOperations.ZeroMemory(password);
-        CryptographicOperations.ZeroMemory(expectedPassword);
+        bool authenticated;
+        try
+        {
+            // Evaluate both pairs. A route-bound caller must never inherit a later
+            // generation merely because the browser's credentials remain stable.
+            authenticated = MatchesCredentials(username, password, credentials);
+            if (routeCredentials is not null)
+            {
+                authenticated |= MatchesCredentials(username, password, routeCredentials);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(password);
+        }
         await stream.WriteAsync(
                 authenticated ? (byte[])[1, 0] : [1, 1],
                 cancellationToken)
             .ConfigureAwait(false);
         return authenticated;
+    }
+
+    private static bool MatchesCredentials(
+        byte[] username,
+        byte[] password,
+        WorkspaceNetworkProxyCredentials credentials)
+    {
+        var expectedUsername = Encoding.UTF8.GetBytes(credentials.Username);
+        var expectedPassword = Encoding.UTF8.GetBytes(credentials.Password);
+        try
+        {
+            return FixedTimeEquals(username, expectedUsername)
+                & FixedTimeEquals(password, expectedPassword);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(expectedPassword);
+        }
     }
 
     private static async ValueTask<Request?> ReadHttpProxyAsync(

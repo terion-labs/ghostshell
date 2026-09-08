@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Keep release credentials in this coordinating shell, not in scanner, build,
+# or dependency-tool subprocess environments. Import them only at signing time.
+export -n APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD \
+    APPLE_DEVELOPER_ID_APPLICATION APPLE_NOTARY_ISSUER_ID \
+    APPLE_NOTARY_KEY_ID APPLE_NOTARY_PRIVATE_KEY_BASE64
+
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 dotnet="${repository_dir}/.dotnet/dotnet"
@@ -217,35 +223,39 @@ trap cleanup EXIT
 
 mkdir -p "${dotnet_cli_home}" "${signing_directory}"
 export DOTNET_CLI_HOME="${dotnet_cli_home}"
-printf '%s' "${APPLE_CERTIFICATE_P12_BASE64}" \
-    | /usr/bin/base64 -D > "${signing_directory}/certificate.p12"
-printf '%s' "${APPLE_NOTARY_PRIVATE_KEY_BASE64}" \
-    | /usr/bin/base64 -D > "${signing_directory}/AuthKey.p8"
-security create-keychain -p "${signing_password}" "${signing_keychain}"
-security set-keychain-settings "${signing_keychain}"
-security unlock-keychain -p "${signing_password}" "${signing_keychain}"
-security import "${signing_directory}/certificate.p12" \
-    -k "${signing_keychain}" \
-    -P "${APPLE_CERTIFICATE_PASSWORD}" \
-    -T /usr/bin/codesign
-security set-key-partition-list \
-    -S apple-tool:,apple: \
-    -s \
-    -k "${signing_password}" \
-    "${signing_keychain}"
-security list-keychains -d user -s \
-    "${signing_keychain}" \
-    ${previous_keychains[@]+"${previous_keychains[@]}"}
-# Signing and notarization receive this keychain explicitly. Never make it the
-# user's default: unrelated apps could store new keys here and lose them when
-# this disposable keychain is deleted at the end of the rehearsal.
-security find-identity -v -p codesigning "${signing_keychain}" \
-    | grep -Fq "${signing_identity}"
-xcrun notarytool store-credentials "${notary_profile}" \
-    --keychain "${signing_keychain}" \
-    --key "${signing_directory}/AuthKey.p8" \
-    --key-id "${APPLE_NOTARY_KEY_ID}" \
-    --issuer "${APPLE_NOTARY_ISSUER_ID}"
+prepare_signing_keychain() {
+    printf '%s' "${APPLE_CERTIFICATE_P12_BASE64}" \
+        | /usr/bin/base64 -D > "${signing_directory}/certificate.p12"
+    printf '%s' "${APPLE_NOTARY_PRIVATE_KEY_BASE64}" \
+        | /usr/bin/base64 -D > "${signing_directory}/AuthKey.p8"
+    security create-keychain -p "${signing_password}" "${signing_keychain}"
+    # Expire an unattended unlocked keychain, but do not lock on sleep: the build
+    # can sleep before signing and explicitly unlocks again at that boundary.
+    security set-keychain-settings -u -t 21600 "${signing_keychain}"
+    security unlock-keychain -p "${signing_password}" "${signing_keychain}"
+    security import "${signing_directory}/certificate.p12" \
+        -k "${signing_keychain}" \
+        -P "${APPLE_CERTIFICATE_PASSWORD}" \
+        -T /usr/bin/codesign
+    security set-key-partition-list \
+        -S apple-tool:,apple: \
+        -s \
+        -k "${signing_password}" \
+        "${signing_keychain}"
+    security list-keychains -d user -s \
+        "${signing_keychain}" \
+        ${previous_keychains[@]+"${previous_keychains[@]}"}
+    # Signing and notarization receive this keychain explicitly. Never make it the
+    # user's default: unrelated apps could store new keys here and lose them when
+    # this disposable keychain is deleted at the end of the rehearsal.
+    security find-identity -v -p codesigning "${signing_keychain}" \
+        | grep -Fq "${signing_identity}"
+    xcrun notarytool store-credentials "${notary_profile}" \
+        --keychain "${signing_keychain}" \
+        --key "${signing_directory}/AuthKey.p8" \
+        --key-id "${APPLE_NOTARY_KEY_ID}" \
+        --issuer "${APPLE_NOTARY_ISSUER_ID}"
+}
 
 mkdir -p \
     "${sealed_source}" \
@@ -293,7 +303,8 @@ NUGET_PACKAGES="${nuget_packages}" "${dotnet}" package list \
 
 grype_directory="${repository_dir}/.deps/tools/grype-0.117.0-darwin-arm64"
 grype_archive="${grype_directory}/grype_0.117.0_darwin_arm64.tar.gz"
-grype_executable="${grype_directory}/grype"
+grype_execution_directory="$(mktemp -d "${working_directory}/grype.XXXXXX")"
+grype_executable="${grype_execution_directory}/grype"
 mkdir -p "${grype_directory}"
 if [[ ! -f "${grype_archive}" ]]; then
     curl --fail --location --silent --show-error \
@@ -302,9 +313,9 @@ if [[ ! -f "${grype_archive}" ]]; then
 fi
 echo "bfcefa3f3b1690d9c77d847841b32ebd6106ab0e0e32f810924707e704d53584  ${grype_archive}" \
     | shasum -a 256 -c -
-if [[ ! -x "${grype_executable}" ]]; then
-    tar -xzf "${grype_archive}" -C "${grype_directory}" grype
-fi
+# Only the pinned archive is cached. Never execute a previously extracted
+# cache entry: its content is not covered by the archive checksum above.
+tar -xzf "${grype_archive}" -C "${grype_execution_directory}" grype
 GRYPE_DB_CACHE_DIR="${repository_dir}/.deps/tools/grype-cache" \
     "${grype_executable}" \
     "dir:${dependency_source}/native/sql-language-worker/target/runtime-jars" \
@@ -368,6 +379,7 @@ cd "${sealed_source}"
 ./scripts/build-macos-connection-engines.sh
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
 ./scripts/build-cef-runtime.sh --rid osx-arm64 --dotnet "${dotnet}"
+prepare_signing_keychain
 security unlock-keychain -p "${signing_password}" "${signing_keychain}"
 security find-identity -v -p codesigning "${signing_keychain}" \
     | grep -Fq "${signing_identity}"

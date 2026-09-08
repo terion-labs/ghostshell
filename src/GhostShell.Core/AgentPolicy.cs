@@ -261,7 +261,7 @@ public sealed record AgentPolicy(
 
     /// <summary>
     /// Durable policies are baseline configuration. YOLO is granted only as a
-    /// separately confirmed, scoped, and expiring run-local overlay.
+    /// explicitly selected, scoped run-local overlay that ends with the run.
     /// </summary>
     public bool IsValidForDurableStorage() =>
         IsStructurallyValid()

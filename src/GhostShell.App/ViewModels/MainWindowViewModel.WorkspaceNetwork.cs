@@ -53,8 +53,14 @@ public sealed partial class MainWindowViewModel
             update,
             session,
             _uiThreadDispatcher,
-            snapshot => WorkspaceRuntimeServicesFor(workspace.Id)?
-                .ApplyNetworkEgress(snapshot.Egress));
+            snapshot =>
+            {
+                var authenticationRoute = snapshot.Egress == WorkspaceNetworkEgress.Direct
+                    ? "local"
+                    : snapshot.AuthenticationRouteIdentity;
+                WorkspaceRuntimeServicesFor(workspace.Id)?.ApplyNetworkEgress(snapshot.Egress, authenticationRoute);
+            },
+            WorkspaceRuntimeServicesFor(workspace.Id)?.NetworkConnector);
         if (!_workspaceNetworkControls.TryAdd(workspace.Id, control))
         {
             await control.DisposeAsync().ConfigureAwait(false);

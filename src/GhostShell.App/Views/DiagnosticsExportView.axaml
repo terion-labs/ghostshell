@@ -67,7 +67,7 @@
     </controls:SurfaceCard>
 
     <controls:Callout Tone="Notice" Glyph="Info" IsVisible="{Binding HasStatus}">
-      <TextBlock
+      <controls:LiveRegionTextBlock
           Text="{Binding StatusMessage}"
           TextWrapping="Wrap"
           AutomationProperties.LiveSetting="Polite"

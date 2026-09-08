@@ -4,6 +4,16 @@ namespace GhostShell.App.Tests;
 
 public sealed class MarkdownPreviewDocumentTests
 {
+    [Fact]
+    public void ManyAdjacentEscapedLiteralsRetainAllTextWithoutGrowingRunConcatenation()
+    {
+        var markdown = string.Concat(Enumerable.Repeat("a\\*", 20_000));
+        var block = Assert.Single(MarkdownPreviewDocument.Parse(markdown));
+        Assert.Equal(string.Concat(Enumerable.Repeat("a*", 20_000)), string.Concat(block.Runs.Select(run => run.Text)));
+        Assert.All(block.Runs, run => Assert.InRange(run.Text.Length, 1, 4096));
+        Assert.Equal(markdown.Length, block.SourceLength);
+    }
+
     [Theory]
     [InlineData("README.md")]
     [InlineData("notes.MARKDOWN")]

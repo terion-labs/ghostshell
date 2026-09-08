@@ -1,0 +1,15 @@
+<Project>
+  <!-- Pinned SqlClient dependency boundary. The upstream transport patch is
+       recorded separately; GhostShell driver adapters and tests retain the
+       repository's first-party analyzers. -->
+  <PropertyGroup>
+    <GhostShellVendoredSourceProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj'))</GhostShellVendoredSourceProject>
+    <GhostShellVendoredTestProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'tests/Tds.TestSupport.csproj'))</GhostShellVendoredTestProject>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectFullPath)' == '$(GhostShellVendoredSourceProject)' or '$(MSBuildProjectFullPath)' == '$(GhostShellVendoredTestProject)'">
+    <!-- Share the repository's runtime-lock validation without first-party analyzers. -->
+    <GhostShellVendoredLockedProject>true</GhostShellVendoredLockedProject>
+    <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != ''">packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != ''">packages.$(RuntimeIdentifiers).lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+</Project>

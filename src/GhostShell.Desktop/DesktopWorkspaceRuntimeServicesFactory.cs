@@ -26,7 +26,10 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
     ISecretVault secretVault,
     ISshHostKeyTrustStore knownHosts,
     SshKnownHostStore hostKeyStore,
-    PreviewContentCache previewContentCache) : IWorkspaceRuntimeServicesFactory
+    PreviewContentCache previewContentCache,
+    IDatabaseDiagramWorkerFactory diagramWorkers,
+    Func<DatabaseValueContentStore> databaseContentStores,
+    IDatabaseOperationExecutor databaseOperations) : IWorkspaceRuntimeServicesFactory
 {
     public WorkspaceRuntimeServices Create(WorkspaceRuntimeServicesRequest request)
     {
@@ -52,17 +55,15 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
                 request.ConnectionRuntime,
                 previewContentCache,
                 gateway);
-            var hostSshTunnels = new SshNetDatabaseTunnelFactory(
-                secretVault,
-                knownHosts,
-                request.ConnectionRuntime,
-                gateway);
             var tunnels = new WorkspaceNetworkDatabaseTunnelFactory(
                 gateway,
-                hostSshTunnels);
+                route => new SshNetDatabaseTunnelFactory(secretVault, knownHosts, request.ConnectionRuntime, route));
             var hostDatabases = new DatabasePanelClient(
                 tunnels,
-                GhostShell.Core.BuiltInConnections.Local);
+                GhostShell.Core.BuiltInConnections.Local,
+                diagramWorkers,
+                databaseContentStores,
+                databaseOperations);
             var hostDocker = new DockerEngineClient(hostExecutor, timeProvider);
             var hostGit = new GitRepositoryClient(hostExecutor, timeProvider, gateway);
             var hostRedis = new RedisPanelSessionFactory(
@@ -125,17 +126,15 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
             $"workspace:{binding.WorkspaceId.Value}");
         var workspaceSecurity = new ConnectionSecurityRuntime(
             request.ConnectionRuntime, secretVault, hostKeyStore, timeProvider, socksProxy);
-        var sshTunnels = new SshNetDatabaseTunnelFactory(
-            secretVault,
-            knownHosts,
-            request.ConnectionRuntime,
-            socksProxy);
         var tunnelFactory = new WorkspaceNetworkDatabaseTunnelFactory(
             socksProxy,
-            sshTunnels);
+            route => new SshNetDatabaseTunnelFactory(secretVault, knownHosts, request.ConnectionRuntime, route));
         var databases = new DatabasePanelClient(
             tunnelFactory,
-            GhostShell.Core.BuiltInConnections.Local);
+            GhostShell.Core.BuiltInConnections.Local,
+            diagramWorkers,
+            databaseContentStores,
+            databaseOperations);
         var docker = new DockerEngineClient(executor, timeProvider);
         var git = new GitRepositoryClient(executor, timeProvider);
         var redis = new RedisPanelSessionFactory(
@@ -424,6 +423,14 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
     private sealed class WorkspaceNetworkEgressFanout(
         params IWorkspaceNetworkEgressSink[] targets) : IWorkspaceNetworkEgressSink
     {
+        public void Apply(WorkspaceNetworkEgress egress, string? authenticationRouteIdentity)
+        {
+            foreach (var target in targets)
+            {
+                target.Apply(egress, authenticationRouteIdentity);
+            }
+        }
+
         public void Apply(WorkspaceNetworkEgress egress)
         {
             foreach (var target in targets)

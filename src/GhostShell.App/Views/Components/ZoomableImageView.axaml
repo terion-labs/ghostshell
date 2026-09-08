@@ -44,7 +44,7 @@
             Click="OnFitClick"
             ToolTip.Tip="Fit to the preview area"
             AutomationProperties.Name="Fit image to the preview area">
-          <TextBlock
+          <controls:LiveRegionTextBlock
               x:Name="ZoomLevelText"
               Classes="Muted"
               FontSize="{DynamicResource ShellFontSize10}"

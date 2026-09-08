@@ -4,7 +4,7 @@ namespace GhostShell.App;
 
 /// <summary>
 /// A preflighted, immutable import proposal. Payload JSON remains internal; presentation code gets
-/// only bounded counts and structured issues to display before explicit confirmation.
+/// only structured issues and explicit execution-review details before confirmation.
 /// </summary>
 public sealed class DefinitionBundleImportPlan
 {
@@ -36,4 +36,10 @@ public sealed class DefinitionBundleImportPlan
     public IReadOnlyList<DefinitionImportIssue> Conflicts { get; }
 
     public bool CanApply { get; }
+
+    public IReadOnlyList<DefinitionExecutionReviewItem> ExecutionReview => Preflight.ExecutionReview;
+
+    public bool RequiresExecutionReview => ExecutionReview.Count > 0;
+
+    public DefinitionImportExecutionApproval AcknowledgeExecutionReview() => Preflight.AcknowledgeExecutionReview();
 }

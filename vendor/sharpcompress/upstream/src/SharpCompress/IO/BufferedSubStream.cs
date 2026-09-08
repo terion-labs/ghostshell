@@ -1,0 +1,131 @@
+using System;
+using System.Buffers;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace SharpCompress.IO;
+
+internal partial class BufferedSubStream : Stream, IStreamStack
+{
+    Stream IStreamStack.BaseStream() => _stream;
+
+    private readonly Stream _stream;
+
+    public BufferedSubStream(Stream stream, long origin, long bytesToRead)
+    {
+        _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+        this.origin = origin;
+        this.BytesLeftToRead = bytesToRead;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+        _isDisposed = true;
+
+        if (disposing && _cache is not null)
+        {
+            ArrayPool<byte>.Shared.Return(_cache);
+            _cache = null;
+        }
+        base.Dispose(disposing);
+    }
+
+    private int _cacheOffset;
+    private int _cacheLength;
+    private byte[]? _cache = ArrayPool<byte>.Shared.Rent(81920);
+    private long origin;
+    private bool _isDisposed;
+
+    private long BytesLeftToRead { get; set; }
+
+    public override bool CanRead => true;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => false;
+
+    public override void Flush() { }
+
+    public override long Length => BytesLeftToRead + _cacheLength - _cacheOffset;
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    private void RefillCache()
+    {
+        if (_isDisposed)
+        {
+            throw new ObjectDisposedException(nameof(BufferedSubStream));
+        }
+
+        var count = (int)Math.Min(BytesLeftToRead, _cache!.Length);
+        _cacheOffset = 0;
+        if (count == 0)
+        {
+            _cacheLength = 0;
+            return;
+        }
+
+        // Only seek if we're not already at the correct position
+        // This avoids expensive seek operations when reading sequentially
+        if (_stream.CanSeek && _stream.Position != origin)
+        {
+            _stream.Position = origin;
+        }
+
+        _cacheLength = _stream.Read(_cache, 0, count);
+        origin += _cacheLength;
+        BytesLeftToRead -= _cacheLength;
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        if (count > Length)
+        {
+            count = (int)Length;
+        }
+
+        if (count > 0)
+        {
+            if (_cacheOffset == _cacheLength)
+            {
+                RefillCache();
+            }
+
+            count = Math.Min(count, _cacheLength - _cacheOffset);
+            Buffer.BlockCopy(_cache!, _cacheOffset, buffer, offset, count);
+            _cacheOffset += count;
+        }
+
+        return count;
+    }
+
+    public override int ReadByte()
+    {
+        if (_cacheOffset == _cacheLength)
+        {
+            RefillCache();
+            if (_cacheLength == 0)
+            {
+                return -1;
+            }
+        }
+
+        return _cache![_cacheOffset++];
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count) =>
+        throw new NotSupportedException();
+}

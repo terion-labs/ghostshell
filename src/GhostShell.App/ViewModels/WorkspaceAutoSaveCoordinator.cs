@@ -18,6 +18,10 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
     private readonly Func<RuntimeHistorySource?> _historySource;
     private readonly Func<bool> _isShutdown;
     private readonly TimeProvider _timeProvider;
+    private readonly ISecretVault? _secretVault;
+    private readonly Action<string>? _reportCaptureError;
+    private readonly ConditionalWeakTable<RuntimePanelViewModel, DatabaseRecoveryState> _unavailableDatabaseRecovery = [];
+    private string? _captureError;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _debounce;
     private bool _sealed;
@@ -48,10 +52,10 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         {
             var stored = _catalog.Snapshot.Workspaces.Single(item => item.Value.Id == workspaceId);
             var shape = CaptureLayoutShape(runtime);
-            var capture = CaptureWorkspaceAutoSave(runtime, stored.Value, stored.Revision);
+            var capture = await CaptureWorkspaceAutoSaveAsync(runtime, stored.Value, stored.Revision, cancellationToken);
             if (capture is null)
             {
-                return "The workspace layout is not ready to save. Wait for its panels to finish opening and try again.";
+                return _captureError ?? "The workspace layout is not ready to save. Wait for its panels to finish opening and try again.";
             }
 
             var error = await _catalog.SaveWorkspaceWithLayoutsAsync(capture.Workspace,
@@ -80,7 +84,9 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         Func<RuntimeWorkspaceViewModel?> runtimeWorkspace,
         Func<RuntimeHistorySource?> historySource,
         Func<bool> isShutdown,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ISecretVault? secretVault = null,
+        Action<string>? reportCaptureError = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _runtimeWorkspace = runtimeWorkspace
@@ -89,6 +95,8 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             ?? throw new ArgumentNullException(nameof(historySource));
         _isShutdown = isShutdown ?? throw new ArgumentNullException(nameof(isShutdown));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _secretVault = secretVault;
+        _reportCaptureError = reportCaptureError;
     }
 
     private sealed record WorkspaceAutoSaveCapture(
@@ -190,7 +198,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         WorkspaceAutoSaveCapture? capture;
         try
         {
-            capture = CaptureWorkspaceAutoSave(runtime, stored.Value, stored.Revision);
+            capture = await CaptureWorkspaceAutoSaveAsync(runtime, stored.Value, stored.Revision, _lifetime.Token);
         }
         catch (Exception exception) when (exception is
             ArgumentException or InvalidOperationException or FormatException)
@@ -200,6 +208,7 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
                 exception);
             return;
         }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
 
         if (capture is null)
         {
@@ -253,11 +262,15 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
     /// which also breaks the save→refresh→save loop, since a save's own catalog
     /// refresh re-queues an identical capture.
     /// </summary>
-    private WorkspaceAutoSaveCapture? CaptureWorkspaceAutoSave(
+    private async Task<WorkspaceAutoSaveCapture?> CaptureWorkspaceAutoSaveAsync(
         RuntimeWorkspaceViewModel runtime,
         WorkspaceDefinition storedDefinition,
-        long storedRevision)
+        long storedRevision,
+        CancellationToken cancellationToken)
     {
+        _captureError = null;
+        using var captureCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        var initialShape = CaptureLayoutShape(runtime);
         if (runtime.Tabs.Count == 0)
         {
             return null;
@@ -267,11 +280,13 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         var storedLayouts = _catalog.Snapshot.Layouts
             .ToDictionary(item => item.Value.Id.Value, StringComparer.Ordinal);
         var usedStoredTabs = new HashSet<WorkspaceEntryId>();
+        var capturedDatabaseRoutes = new Dictionary<ConnectionId, ConnectionProfile>();
         var layouts = new List<(LayoutDefinition Definition, long? ExpectedRevision)>();
         var entries = new List<WorkspaceEntry>();
-        for (var index = 0; index < runtime.Tabs.Count; index++)
+        var tabs = runtime.Tabs.ToArray();
+        for (var index = 0; index < tabs.Length; index++)
         {
-            var tab = runtime.Tabs[index];
+            var tab = tabs[index];
             if (IsLauncherTab(tab))
             {
                 // A launcher tab is a question, not content: there is nothing
@@ -349,16 +364,35 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             }
 
             var usedStoredPanels = new HashSet<ScreenPanelId>();
+            var capturedPanels = new List<ScreenPanelDefinition>();
+            foreach (var slot in slots)
+            {
+                var panel = panelsBySlot[slot.Id.Value];
+                var protectedTarget = _unavailableDatabaseRecovery.TryGetValue(panel, out var recovery) ? recovery.Target : null;
+                var captured = CaptureAutoSavePanel(panel, slot.Id, storedTab, storedTabs, usedStoredPanels, protectedTarget);
+                if (panel is UnavailableRuntimePanelViewModel and not PendingDatabaseRecoveryPanelViewModel
+                    && captured.Kind == ScreenPanelKind.DatabaseViewer)
+                {
+                    captured = await ProtectUnavailableDatabaseTargetAsync(panel, captured, capturedDatabaseRoutes, captureCancellation.Token);
+                    if (captured is null) { return null; }
+                }
+                if (_sealed || _isShutdown() || !runtime.Tabs.Contains(tab) || !tab.Panels.Contains(panel)) { return null; }
+                capturedPanels.Add(captured);
+            }
             entries.Add(new WorkspaceEntry.Tab(
                 storedTab?.Id ?? WorkspaceEntryId.New(),
                 tab.Title,
                 layoutId,
-                [.. slots
-                .Select(slot => CaptureAutoSavePanel(
-                    panelsBySlot[slot.Id.Value],
-                    slot.Id,
-                    storedTab,
-                    usedStoredPanels))]));
+                capturedPanels));
+        }
+
+        captureCancellation.Token.ThrowIfCancellationRequested();
+        if (!initialShape.SequenceEqual(CaptureLayoutShape(runtime))) { return null; }
+        if (capturedDatabaseRoutes.Any(captured =>
+            _catalog.Snapshot.Connections.SingleOrDefault(item => item.Value.Id == captured.Key)?.Value != captured.Value))
+        {
+            _ = CannotProtectDatabaseTarget();
+            return null;
         }
 
         // Every tab is the launcher, so nothing durable is open and the
@@ -397,6 +431,57 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         return unchanged
             ? null
             : new WorkspaceAutoSaveCapture(definition, storedRevision, layouts);
+    }
+
+    private async Task<ScreenPanelDefinition?> ProtectUnavailableDatabaseTargetAsync(
+        RuntimePanelViewModel panel, ScreenPanelDefinition captured,
+        Dictionary<ConnectionId, ConnectionProfile> capturedRoutes, CancellationToken cancellationToken)
+    {
+        var target = captured.Startup.Location;
+        if (target is null || SafeDatabaseTarget(target) is not null
+            || string.Equals(target, DatabaseRecoveryToken.ReconnectTarget, StringComparison.Ordinal))
+        {
+            return DatabaseRecoveryToken.TryParse(target) is not null ? captured with { ConnectionId = null } : captured;
+        }
+        var parsed = DatabasePanelTarget.TryParse(target);
+        var tunnel = captured.ConnectionId is { } routeId
+            ? _catalog.Snapshot.Connections.SingleOrDefault(item => item.Value.Id == routeId)?.Value
+            : null;
+        if (_secretVault is null || parsed is null || captured.ConnectionId is not null && tunnel is null)
+        {
+            return CannotProtectDatabaseTarget();
+        }
+        if (tunnel is not null && !capturedRoutes.TryAdd(tunnel.Id, tunnel) && capturedRoutes[tunnel.Id] != tunnel)
+        {
+            return CannotProtectDatabaseTarget();
+        }
+        var recovery = _unavailableDatabaseRecovery.GetValue(panel, _ => new DatabaseRecoveryState(_secretVault));
+        try
+        {
+            if (!await recovery.SaveAsync(new(parsed.DriverId, parsed.ConnectionString, null, tunnel, null), cancellationToken))
+            {
+                return CannotProtectDatabaseTarget();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception) { return CannotProtectDatabaseTarget(); }
+        if (captured.ConnectionId is { } connectionId
+            && _catalog.Snapshot.Connections.SingleOrDefault(item => item.Value.Id == connectionId)?.Value != tunnel)
+        {
+            return CannotProtectDatabaseTarget();
+        }
+        return captured with
+        {
+            ConnectionId = null,
+            Startup = new PanelStartupBehavior(recovery.Target, captured.Startup.Commands, captured.Startup.DeliveryFailurePolicy),
+        };
+    }
+
+    private ScreenPanelDefinition? CannotProtectDatabaseTarget()
+    {
+        _captureError = "The workspace layout was not saved because an unavailable database target could not be protected. Unlock the credential store or restore its connection, then retry. The previous workspace is unchanged.";
+        _reportCaptureError?.Invoke(_captureError);
+        return null;
     }
 
     private static bool DefinitionPayloadEquals(
@@ -450,7 +535,9 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         RuntimePanelViewModel panel,
         LayoutSlotId slotId,
         WorkspaceEntry.Tab? storedTab,
-        HashSet<ScreenPanelId> usedStoredPanels)
+        IReadOnlyList<WorkspaceEntry.Tab> storedTabs,
+        HashSet<ScreenPanelId> usedStoredPanels,
+        string? protectedUnavailableTarget = null)
     {
         var kind = PanelKindForAutoSave(panel)!.Value;
         ConnectionId? connectionId = panel switch
@@ -460,23 +547,54 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
             FileRuntimePanelViewModel file => file.ConnectionId,
             StatisticsRuntimePanelViewModel statistics => statistics.ConnectionId,
             ProcessMonitorRuntimePanelViewModel processes => processes.ConnectionId,
-            DatabaseRuntimePanelViewModel database => database.TunnelConnectionId,
-            RedisRuntimePanelViewModel redis => redis.TunnelConnectionId,
+            DatabaseRuntimePanelViewModel or RedisRuntimePanelViewModel or PendingDatabaseRecoveryPanelViewModel => null,
             DockerRuntimePanelViewModel docker => docker.ConnectionId,
             GitRuntimePanelViewModel git => git.ConnectionId,
+            UnavailableRuntimePanelViewModel unavailable => unavailable.SourceDefinition?.ConnectionId,
             _ => null,
         };
+        var preservesInitialDatabaseBinding = panel switch
+        {
+            DatabaseRuntimePanelViewModel database => database.CanPreserveInitialSourceConnection,
+            RedisRuntimePanelViewModel redis => redis.CanPreserveInitialSourceConnection,
+            _ => false,
+        };
+        bool MatchesConnection(ScreenPanelDefinition candidate) => protectedUnavailableTarget is not null
+            && candidate.ConnectionId is null
+            && string.Equals(candidate.Startup.Location, protectedUnavailableTarget, StringComparison.Ordinal)
+            || (panel is DatabaseRuntimePanelViewModel or RedisRuntimePanelViewModel
+            ? preservesInitialDatabaseBinding
+                && (candidate.ConnectionId is null || candidate.ConnectionId == panel.SourceDefinition?.ConnectionId)
+                && (string.Equals(candidate.Startup.Location, panel.SourceDefinition?.Startup.Location, StringComparison.Ordinal)
+                    || string.Equals(candidate.Startup.Location, panel is DatabaseRuntimePanelViewModel database
+                        ? database.RecoveryTarget : ((RedisRuntimePanelViewModel)panel).RecoveryTarget, StringComparison.Ordinal))
+            : candidate.ConnectionId == connectionId);
         var stored = storedTab?.Panels.FirstOrDefault(candidate =>
             !usedStoredPanels.Contains(candidate.Id)
+            && (candidate.SlotId == slotId || candidate.SlotId == panel.SourceDefinition?.SlotId)
             && candidate.Kind == kind
-            && (connectionId is null || candidate.ConnectionId == connectionId));
+            && MatchesConnection(candidate)
+            && (panel.SourceDefinition is null || candidate.Id == panel.SourceDefinition.Id));
+        if (stored is null && panel.SourceDefinition is { } source)
+        {
+            // A renamed tab still resolves the current persisted source, not a
+            // stale startup command which the user may since have edited away.
+            var candidates = storedTabs.SelectMany(tab => tab.Panels)
+                .Where(candidate => candidate.Id == source.Id).ToArray();
+            if (candidates.Length == 1 && (candidates[0].SlotId == slotId || candidates[0].SlotId == source.SlotId)
+                && candidates[0].Kind == kind && MatchesConnection(candidates[0])
+                && !usedStoredPanels.Contains(source.Id))
+            {
+                stored = candidates[0];
+            }
+        }
         if (stored is not null)
         {
             usedStoredPanels.Add(stored.Id);
         }
 
         string? location;
-        if (panel is UnavailableRuntimePanelViewModel)
+        if (panel is UnavailableRuntimePanelViewModel and not PendingDatabaseRecoveryPanelViewModel)
         {
             // The live panel cannot express its configuration, so the stored
             // definition keeps everything it already knows.
@@ -490,9 +608,10 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
                 TerminalRuntimePanelViewModel terminal => terminal.RecoveryStartupLocation,
                 BrowserRuntimePanelViewModel browser => browser.CurrentAddress.ToString(),
                 DatabaseRuntimePanelViewModel database =>
-                    database.RecoveryTarget ?? stored?.Startup.Location,
+                    database.RecoveryTarget ?? SafeDatabaseTarget(stored?.Startup.Location),
                 RedisRuntimePanelViewModel redis =>
-                    redis.RecoveryTarget ?? stored?.Startup.Location,
+                    redis.RecoveryTarget ?? SafeDatabaseTarget(stored?.Startup.Location),
+                PendingDatabaseRecoveryPanelViewModel pending => pending.Target,
                 GitRuntimePanelViewModel { IsRepositoryOpen: true } git =>
                     git.RepositoryRoot,
                 _ => stored?.Startup.Location,
@@ -504,8 +623,8 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
                 && fileViewer.RecoveryProfileId is { } profileId
                 ? profileId
                 : stored?.FileProviderProfileId;
-        // Startup commands cannot be read back from a live panel, so a matched
-        // stored panel keeps the commands the user configured for this tab.
+        // Executable startup belongs to the exact source panel/slot/connection,
+        // not another same-kind panel which happens to appear first in a tab.
         return new ScreenPanelDefinition(
             stored?.Id ?? new ScreenPanelId(panel.Id.Value),
             slotId,
@@ -560,6 +679,12 @@ public sealed class WorkspaceAutoSaveCoordinator : IDisposable
         pending?.Cancel();
         _lifetime.Cancel();
     }
+
+    private static string? SafeDatabaseTarget(string? target) =>
+        target?.StartsWith("saved:", StringComparison.Ordinal) == true
+        || DatabaseRecoveryToken.TryParse(target) is not null
+            ? target
+            : null;
 
     public void Dispose()
     {

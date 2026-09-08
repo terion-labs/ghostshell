@@ -158,6 +158,7 @@ public sealed class EncryptedBrowserProfileStateStore :
     public long Seal(BrowserProfileStateKey key, string sourceDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
+        var stage = "validate";
         try
         {
             lock (_gate)
@@ -166,6 +167,7 @@ public sealed class EncryptedBrowserProfileStateStore :
                 RequireAvailable();
                 ValidateSourceRoot(sourceDirectory);
 
+                stage = "open-container";
                 using var database = OpenDatabase(create: true);
                 var storageId = StorageId(key);
                 var blobId = $"browser-state/{storageId}/{Guid.NewGuid():n}";
@@ -173,6 +175,7 @@ public sealed class EncryptedBrowserProfileStateStore :
                 long contentBytes;
                 try
                 {
+                    stage = "open-archive";
                     using (var destination = storage.OpenWrite(blobId, blobId))
                     using (var archive = new ZipArchive(
                                destination,
@@ -180,9 +183,11 @@ public sealed class EncryptedBrowserProfileStateStore :
                                leaveOpen: false,
                                entryNameEncoding: Encoding.UTF8))
                     {
-                        contentBytes = WriteArchive(archive, sourceDirectory);
+                        contentBytes = WriteArchive(archive, sourceDirectory, ref stage);
+                        stage = "close-archive";
                     }
 
+                    stage = "write-metadata";
                     storage.SetMetadata(blobId, new BsonDocument
                     {
                         ["schema"] = ArchiveSchemaVersion,
@@ -190,6 +195,7 @@ public sealed class EncryptedBrowserProfileStateStore :
                         ["complete"] = true,
                     });
 
+                    stage = "write-manifest";
                     var manifests = database.GetCollection<BsonDocument>(ManifestCollection);
                     var previous = manifests.FindById(storageId);
                     manifests.Upsert(new BsonDocument
@@ -205,11 +211,15 @@ public sealed class EncryptedBrowserProfileStateStore :
                     });
                     if (previous is not null)
                     {
+                        stage = "delete-previous";
                         storage.Delete(previous["blobId"].AsString);
                     }
 
+                    stage = "remove-unused";
                     RemoveUnreferencedBlobs(database);
+                    stage = "harden-container";
                     HardenGeneratedFiles();
+                    stage = "close-container";
                     return contentBytes;
                 }
                 catch
@@ -222,6 +232,11 @@ public sealed class EncryptedBrowserProfileStateStore :
         catch (LiteException exception)
         {
             throw InvalidContainer(exception);
+        }
+        catch (IOException exception)
+        {
+            exception.Data["GhostShell.BrowserSealStage"] = stage;
+            throw;
         }
     }
 
@@ -414,7 +429,7 @@ public sealed class EncryptedBrowserProfileStateStore :
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
-    private static long WriteArchive(ZipArchive archive, string sourceDirectory)
+    private static long WriteArchive(ZipArchive archive, string sourceDirectory, ref string stage)
     {
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourceDirectory));
         var pending = new Stack<string>();
@@ -423,6 +438,7 @@ public sealed class EncryptedBrowserProfileStateStore :
         long contentBytes = 0;
         while (pending.Count > 0)
         {
+            stage = "enumerate-source";
             var directory = pending.Pop();
             foreach (var path in Directory.EnumerateFileSystemEntries(directory))
             {
@@ -457,18 +473,42 @@ public sealed class EncryptedBrowserProfileStateStore :
                     throw new IOException("The browser profile exceeds the supported encrypted size.");
                 }
 
+                stage = "create-entry";
                 var entry = archive.CreateEntry(relative, CompressionLevel.NoCompression);
-                using var source = new FileStream(
-                    path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read);
+                stage = "open-source";
+                using var source = OpenArchiveSource(path);
+                stage = "open-entry";
                 using var destination = entry.Open();
+                stage = "copy-source";
                 source.CopyTo(destination);
+                stage = "close-entry";
             }
         }
 
         return contentBytes;
+    }
+
+    private static FileStream OpenArchiveSource(string path)
+    {
+        try
+        {
+            return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (IOException exception)
+        {
+            exception.Data["GhostShell.BrowserSealSourceCategory"] = Path.GetFileName(path) switch
+            {
+                "LOCK" => "leveldb-lock",
+                "first_party_sets.db" or "first_party_sets.db-journal" => "first-party-sets",
+                "Ruleset Data" => "ruleset",
+                "ranked_dicts" => "password-dictionary",
+                "Cookies" or "Cookies-journal" => "cookies",
+                "History" or "History-journal" => "history",
+                "BrowserMetrics-spare.pma" => "metrics",
+                _ => "other",
+            };
+            throw;
+        }
     }
 
     private static void RestoreArchive(Stream source, string destinationDirectory)

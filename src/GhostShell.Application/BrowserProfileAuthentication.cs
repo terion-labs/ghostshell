@@ -5,7 +5,9 @@ public sealed record BrowserAuthenticationChallenge(
     string Host,
     int Port,
     string Realm,
-    string Scheme);
+    string Scheme,
+    string? OriginUrl = null,
+    string? RouteIdentity = null);
 
 public sealed record BrowserAuthenticationCredentials(
     string Username,

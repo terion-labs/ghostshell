@@ -70,7 +70,6 @@ public sealed class TerminalProfileEditorViewModel : ObservableObject
     private string _selection;
     private TerminalClipboardAccess _clipboardRead;
     private TerminalClipboardAccess _clipboardWrite;
-    private TerminalPasteSafetyPolicy _pasteSafety;
     private TerminalLinkPolicy _linkPolicy;
     private bool _imeEnabled;
     private TerminalShellIntegrationMode _shellIntegration;
@@ -101,7 +100,6 @@ public sealed class TerminalProfileEditorViewModel : ObservableObject
         _selection = profile.Palette.SelectionBackground.ToString();
         _clipboardRead = profile.ClipboardPolicy.ReadAccess;
         _clipboardWrite = profile.ClipboardPolicy.WriteAccess;
-        _pasteSafety = profile.ClipboardPolicy.PasteSafety;
         _linkPolicy = profile.LinkPolicy;
         _imeEnabled = profile.ImeEnabled;
         _shellIntegration = profile.ShellIntegration;
@@ -371,8 +369,6 @@ public sealed class TerminalProfileEditorViewModel : ObservableObject
 
     public IReadOnlyList<TerminalClipboardAccess> ClipboardAccessOptions { get; } = Enum.GetValues<TerminalClipboardAccess>();
 
-    public IReadOnlyList<TerminalPasteSafetyPolicy> PasteSafetyOptions { get; } = Enum.GetValues<TerminalPasteSafetyPolicy>();
-
     public IReadOnlyList<TerminalLinkPolicy> LinkPolicies { get; } = Enum.GetValues<TerminalLinkPolicy>();
 
     public IReadOnlyList<TerminalShellIntegrationMode> ShellIntegrationModes { get; } = Enum.GetValues<TerminalShellIntegrationMode>();
@@ -447,8 +443,6 @@ public sealed class TerminalProfileEditorViewModel : ObservableObject
 
     public TerminalClipboardAccess ClipboardWrite { get => _clipboardWrite; set => SetProperty(ref _clipboardWrite, value); }
 
-    public TerminalPasteSafetyPolicy PasteSafety { get => _pasteSafety; set => SetProperty(ref _pasteSafety, value); }
-
     public TerminalLinkPolicy LinkPolicy { get => _linkPolicy; set => SetProperty(ref _linkPolicy, value); }
 
     public bool ImeEnabled { get => _imeEnabled; set => SetProperty(ref _imeEnabled, value); }
@@ -494,7 +488,7 @@ public sealed class TerminalProfileEditorViewModel : ObservableObject
                 ScrollbackLines,
                 palette,
                 SelectedKeymap.Id,
-                new TerminalClipboardPolicy(ClipboardRead, ClipboardWrite, PasteSafety),
+                new TerminalClipboardPolicy(ClipboardRead, ClipboardWrite, _original.ClipboardPolicy.PasteSafety),
                 LinkPolicy,
                 ImeEnabled,
                 ShellIntegration,

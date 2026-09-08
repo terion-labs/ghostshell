@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using GhostShell.Core;
 
 namespace GhostShell.Application;
@@ -16,13 +17,26 @@ public sealed class AgentPolicyCoordinator
 
     public AgentPolicy? Policy => _policy;
 
+    public ApplicationRunError? InitializationError { get; private set; }
+
     public async ValueTask InitializeAsync(CancellationToken cancellationToken)
     {
         var result = await _store.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (result is { IsSuccess: true })
         {
             _policy = result.Value;
+            InitializationError = null;
+            return;
         }
+
+        // Missing and unreadable are different states. A failed read must not
+        // seed permissive defaults or overwrite the original preference row.
+        InitializationError = result.Error;
+        _policy = AgentPolicy.Default with
+        {
+            Permissions = AgentPolicy.Capabilities.ToImmutableDictionary(
+                capability => capability, _ => AgentPermission.Off),
+        };
     }
 
     public async ValueTask<ApplicationRunResult<Unit>> SaveAsync(
@@ -46,6 +60,7 @@ public sealed class AgentPolicyCoordinator
         }
 
         _policy = normalized;
+        InitializationError = null;
         Changed?.Invoke(this, EventArgs.Empty);
         return result;
     }

@@ -264,7 +264,7 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
 
     private readonly IRedisPanelSessionFactory _sessions;
     private readonly IDatabaseConnectionCatalog _connections;
-    private readonly Func<SecretRef, CancellationToken, Task<string?>>? _passwordResolver;
+    private readonly Func<DatabaseConnectionProfile, CancellationToken, Task<string?>>? _passwordResolver;
     private readonly Func<DatabaseConnectionProfileId, string, CancellationToken,
         Task<DatabaseConnectionProfile?>>? _passwordPersister;
     private readonly CancellationTokenSource _lifetime = new();
@@ -279,6 +279,13 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
     private DatabaseConnectionProfile? _savedConnection;
     private ConnectionProfile? _tunnelConnection;
     private string? _sessionPassword;
+    private readonly DatabaseRecoveryPayload _initialRecoveryInput;
+    private DatabaseRecoveryPayload? _acceptedInitialRecoveryBinding;
+    private DatabaseRecoveryPayload? _latestResolvedRecoveryBinding;
+    private readonly DatabaseRecoveryState? _recovery;
+    private ConnectionProfile? _savedTunnel;
+    private readonly bool _deferStoredCredentialAccess;
+    private bool _initializationStarted;
     private bool _persistedConnection;
     private bool _isBusy;
     private string _statusText = "Disconnected";
@@ -323,12 +330,15 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
         string? connectionString = null,
         ConnectionProfile? tunnelConnection = null,
         DatabaseConnectionProfile? savedConnection = null,
-        Func<SecretRef, CancellationToken, Task<string?>>? passwordResolver = null,
+        Func<DatabaseConnectionProfile, CancellationToken, Task<string?>>? passwordResolver = null,
         Func<DatabaseConnectionProfileId, string, CancellationToken,
             Task<DatabaseConnectionProfile?>>? passwordPersister = null,
         string passwordStoreLabel = "Save in system credential store",
         TimeProvider? timeProvider = null,
-        bool deferStoredCredentialAccess = false)
+        bool deferStoredCredentialAccess = false,
+        string? sessionPassword = null,
+        DatabaseRecoveryState? recovery = null,
+        bool persistedConnection = true)
         : base(id, PanelKind.DatabaseViewer, title, "Database")
     {
         _time = timeProvider ?? TimeProvider.System;
@@ -337,9 +347,13 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
         _passwordResolver = passwordResolver;
         _passwordPersister = passwordPersister;
         _savedConnection = savedConnection;
-        _persistedConnection = savedConnection is not null;
+        _persistedConnection = savedConnection is not null && persistedConnection;
         _tunnelConnection = tunnelConnection;
-        ConnectionString = savedConnection?.ConnectionString ?? connectionString ?? string.Empty;
+        _savedTunnel = tunnelConnection;
+        _sessionPassword = sessionPassword;
+        _recovery = recovery;
+        _deferStoredCredentialAccess = deferStoredCredentialAccess;
+        ConnectionString = connectionString ?? savedConnection?.ConnectionString ?? string.Empty;
         PasswordStoreLabel = passwordStoreLabel;
 
         ConnectCommand = new AsyncActionCommand(ConnectAsync, () => !IsBusy && HasConnectionTarget);
@@ -400,7 +414,8 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
 
         // Session recovery runs during startup. Keep a credential-backed
         // restored panel disconnected until Connect supplies user intent.
-        Initialization = HasConnectionTarget
+        _initialRecoveryInput = CaptureRecoveryInput();
+        Initialization = recovery is null && HasConnectionTarget
             && !(deferStoredCredentialAccess && RequiresStoredCredentialAccess)
             ? ConnectAsync()
             : Task.CompletedTask;
@@ -438,7 +453,20 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
         return _hostInitialization;
     }
 
-    public Task Initialization { get; }
+    public Task Initialization { get; private set; }
+
+    public void StartInitialization()
+    {
+        if (_initializationStarted || _recovery is null || _disposed)
+        {
+            return;
+        }
+        _initializationStarted = true;
+        if (HasConnectionTarget && !(_deferStoredCredentialAccess && RequiresStoredCredentialAccess))
+        {
+            Initialization = ConnectAsync();
+        }
+    }
 
     private bool RequiresStoredCredentialAccess =>
         _savedConnection?.PasswordSecret is not null
@@ -506,11 +534,53 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
 
     public string ConnectionDisplayName => _savedConnection?.Name ?? (HasConnectionTarget ? "Redis" : "Select connection");
 
-    public string? RecoveryTarget => _savedConnection is { } saved && _persistedConnection
+    private bool UsesUnmodifiedSavedTarget => _savedConnection is { } saved && _persistedConnection
+        && string.Equals(ConnectionString, saved.ConnectionString, StringComparison.Ordinal)
+        && _tunnelConnection == _savedTunnel
+        && _sessionPassword is null;
+
+    public string? RecoveryTarget => UsesUnmodifiedSavedTarget && _savedConnection is { } saved
         ? $"saved:{saved.Id.Value}"
-        : HasConnectionTarget
-            ? new DatabasePanelTarget(RedisDatabase.DriverId, ConnectionString).Serialize()
-            : null;
+        : _recovery?.Target;
+
+    internal bool CanPreserveInitialSourceConnection => _acceptedInitialRecoveryBinding is not null
+        && _latestResolvedRecoveryBinding == _acceptedInitialRecoveryBinding
+        && CaptureRecoveryInput() == _initialRecoveryInput
+        && SourceDefinition is { } source
+        && _initialRecoveryInput.MatchesSourceTarget(source, RecoveryTarget);
+
+    private DatabaseRecoveryPayload CaptureRecoveryInput() =>
+        new(RedisDatabase.DriverId, ConnectionString, _sessionPassword, _tunnelConnection, _savedConnection);
+
+    public Task RecoveryPersistence { get; private set; } = Task.CompletedTask;
+
+    private async Task PersistRecoveryAsync(string effectiveConnectionString)
+    {
+        if (_recovery is null || UsesUnmodifiedSavedTarget || !HasConnectionTarget || _disposed)
+        {
+            return;
+        }
+        try
+        {
+            var saved = await _recovery.SaveAsync(new(RedisDatabase.DriverId, effectiveConnectionString,
+                _sessionPassword, _tunnelConnection, _savedConnection), _lifetime.Token);
+            if (!_disposed)
+            {
+                if (!saved)
+                {
+                    ErrorMessage = "The database target could not be saved in the credential store. The previous saved target is unchanged.";
+                    if (_recovery.CleanupIncomplete)
+                    {
+                        ErrorMessage += " An unused recovery credential may need removal in Security & secrets.";
+                    }
+                }
+                OnPropertyChanged(nameof(RecoveryTarget));
+            }
+        }
+        catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
+        {
+        }
+    }
 
     public ConnectionId? TunnelConnectionId => _tunnelConnection?.Id;
 
@@ -828,7 +898,9 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
         StatusText = "Connecting";
         try
         {
+            _latestResolvedRecoveryBinding = null;
             await DisconnectCoreAsync().ConfigureAwait(true);
+            var input = CaptureRecoveryInput();
             var connectionString = await ResolveConnectionStringAsync(_lifetime.Token).ConfigureAwait(true);
             if (connectionString is null)
             {
@@ -837,8 +909,15 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
                 return;
             }
 
+            RecoveryPersistence = PersistRecoveryAsync(connectionString);
+            await RecoveryPersistence;
             _session = await _sessions.OpenAsync(connectionString, _tunnelConnection, _lifetime.Token)
                 .ConfigureAwait(true);
+            _latestResolvedRecoveryBinding = input with { ConnectionString = connectionString };
+            if (input == _initialRecoveryInput && CaptureRecoveryInput() == input)
+            {
+                _acceptedInitialRecoveryBinding ??= _latestResolvedRecoveryBinding;
+            }
             _session.MessageReceived += OnMessageReceived;
             Facts = _session.Facts;
             BuildDatabaseOptions();
@@ -903,6 +982,7 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
 
         InvalidateHostedBinding();
         _savedConnection = saved;
+        _sessionPassword = null;
         OnPropertyChanged(nameof(CanStorePassword));
         return true;
     }
@@ -918,6 +998,7 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
         _savedConnection = profile;
         _persistedConnection = persisted;
         _sessionPassword = string.IsNullOrEmpty(sessionPassword) ? null : sessionPassword;
+        _savedTunnel = tunnel;
         _tunnelConnection = tunnel;
         ConnectionString = profile.ConnectionString;
         OnPropertyChanged(nameof(IsSavedConnection));
@@ -1046,17 +1127,21 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
 
     private async Task<string?> ResolveConnectionStringAsync(CancellationToken cancellationToken)
     {
+        if (_connections.ParseConnectionDetails(RedisDatabase.DriverId, ConnectionString).Password is not null)
+        {
+            return ConnectionString;
+        }
         if (_sessionPassword is not null)
         {
             return WithPassword(_sessionPassword);
         }
 
-        if (_savedConnection?.PasswordSecret is not { } secret || _passwordResolver is null)
+        if (_savedConnection?.PasswordSecret is null || _passwordResolver is null)
         {
             return ConnectionString;
         }
 
-        var password = await _passwordResolver(secret, cancellationToken).ConfigureAwait(false);
+        var password = await _passwordResolver(_savedConnection, cancellationToken).ConfigureAwait(false);
         return password is null ? null : WithPassword(password);
     }
 
@@ -1125,8 +1210,11 @@ public sealed class RedisRuntimePanelViewModel : RuntimePanelViewModel
                 .ConfigureAwait(true);
             if (connectionString is not null)
             {
+                ConnectionString = WithSelectedDatabase(connectionString, database);
+                RecoveryPersistence = PersistRecoveryAsync(ConnectionString);
+                await RecoveryPersistence;
                 QueueHostedSessionEnsure(
-                    WithSelectedDatabase(connectionString, database));
+                    ConnectionString);
             }
         }).ConfigureAwait(true);
     }

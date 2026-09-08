@@ -6,6 +6,29 @@ namespace GhostShell.Files.Tests;
 public sealed class SftpFileProviderTests
 {
     [Fact]
+    public async Task A_listed_remote_file_replaced_with_a_link_is_rechecked_for_read_and_permissions()
+    {
+        var sessions = new FakeRemoteSessionFactory();
+        var provider = new SftpFileProvider(sessions, RemoteProviderTestProfiles.SftpOptions());
+        var root = new FileLocation(provider.ProfileId, provider.Authority, FilePath.Root);
+        var location = root.Child(new FilePathSegment("listed"));
+        await using var source = new MemoryStream("ordinary"u8.ToArray());
+        var created = await provider.WriteAsync(new FileWriteRequest(location, source.Length, 1024, new FileMutationPrecondition.MustNotExist()), source, null, CancellationToken.None);
+        Assert.True(created.IsSuccess, created.Error?.Message);
+        Assert.True((await provider.ListAsync(new FileListRequest(root, 10), CancellationToken.None)).IsSuccess);
+        sessions.ReplaceFileWithLink("/listed");
+        await using var destination = new MemoryStream();
+        var read = await provider.ReadAsync(new FileReadRequest(location, 0, 100, 100), destination, null, CancellationToken.None);
+        var acl = await provider.GetAccessControlAsync(new FileAccessControlRequest(location), CancellationToken.None);
+        var chmod = await provider.SetAccessControlAsync(new FileSetAccessControlRequest(location, new FilePanelPosixMode(0b111_111_111)), CancellationToken.None);
+        Assert.False(read.IsSuccess);
+        Assert.False(acl.IsSuccess);
+        Assert.False(chmod.IsSuccess);
+        Assert.Empty(destination.ToArray());
+        Assert.True(sessions.StatPaths.Count(path => path == "/listed") >= 3);
+    }
+
+    [Fact]
     public void ProviderReusesConnectionIdentityAndDoesNotClaimUnsafeCapabilities()
     {
         var options = RemoteProviderTestProfiles.SftpOptions();

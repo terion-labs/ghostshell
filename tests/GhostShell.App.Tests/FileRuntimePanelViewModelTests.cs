@@ -502,7 +502,7 @@ public sealed class FileRuntimePanelViewModelTests
     }
 
     [Fact]
-    public async Task InitializationAutomaticallyConsumesEveryListingPage()
+    public async Task ListingPagesAreFetchedOnDemandAndReplacePriorRows()
     {
         var client = new StubFilePanelClient();
         for (var index = 0; index < 501; index++)
@@ -521,11 +521,48 @@ public sealed class FileRuntimePanelViewModelTests
 
         await panel.Initialization;
 
-        Assert.Equal(501, panel.Entries.Count);
+        Assert.Equal(500, panel.Entries.Count);
+        Assert.Equal(1, client.ListCallCount);
+        Assert.True(panel.HasNextPage);
+        Assert.False(panel.HasPreviousPage);
+        await panel.NextPageAsync();
+        Assert.Single(panel.Entries);
         Assert.Equal(2, client.ListCallCount);
         Assert.False(panel.HasMore);
         Assert.Contains(panel.Entries, entry => string.Equals(entry.Name, "file-500.txt", StringComparison.Ordinal));
-        Assert.Equal("501 item(s)", panel.Status);
+        Assert.True(panel.HasPreviousPage);
+        await panel.RefreshAsync();
+        Assert.Equal("file-500.txt", Assert.Single(panel.Entries).Name);
+        await panel.PreviousPageAsync();
+        Assert.Equal(500, panel.Entries.Count);
+        await panel.NextPageAsync();
+        Assert.Equal("file-500.txt", Assert.Single(panel.Entries).Name);
+    }
+
+    [Fact]
+    public async Task SearchPausesAtOnePageUntilRequestedAndCancelsPendingDemandOnQueryChange()
+    {
+        var client = new StubFilePanelClient();
+        client.EnableCapabilities(FilePanelCapability.Search);
+        for (var index = 0; index < 1001; index++)
+        {
+            client.SearchEntries.Add(Entry(client.Root, $"match-{index:D4}", FilePanelEntryKind.File, index));
+        }
+
+        using var panel = new FileRuntimePanelViewModel(PanelInstanceId.New(), "Files", client);
+        await panel.Initialization;
+        panel.Filter = "match";
+        await WaitUntilAsync(() => panel.HasNextPage);
+        Assert.Equal(500, panel.Entries.Count);
+        Assert.False(panel.SearchCompletion.IsCompleted);
+        await panel.NextPageAsync();
+        await WaitUntilAsync(() => panel.HasNextPage);
+        Assert.Equal(500, panel.Entries.Count);
+        Assert.All(panel.Entries, entry => Assert.DoesNotContain("match-00", entry.Name, StringComparison.Ordinal));
+        panel.Filter = "match-1000";
+        await panel.SearchCompletion;
+        Assert.Equal("match-1000", Assert.Single(panel.Entries).Name);
+        Assert.False(panel.HasNextPage);
     }
 
     [Fact]
@@ -1951,14 +1988,52 @@ public sealed class FileRuntimePanelViewModelTests
     private sealed class StubArchiveReader(IReadOnlyList<ArchiveEntryDescriptor> entries)
         : IArchiveTableOfContents
     {
+        public List<(int Offset, int MaximumEntries)> Requests { get; } = [];
+
         public bool Claims(string fileName) => true;
 
         public ValueTask<IReadOnlyList<ArchiveEntryDescriptor>?> ReadAsync(
             FilePreviewContent content,
             string fileName,
             int maximumEntries,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlyList<ArchiveEntryDescriptor>?>(entries);
+            CancellationToken cancellationToken,
+            int offset = 0)
+        {
+            Requests.Add((offset, maximumEntries));
+            return ValueTask.FromResult<IReadOnlyList<ArchiveEntryDescriptor>?>([.. entries.Skip(offset).Take(maximumEntries)]);
+        }
+    }
+
+    [Fact]
+    public async Task ArchivePagesKeepAllEntriesAccessibleWithoutAccumulatingTrees()
+    {
+        var client = new StubFilePanelClient();
+        client.Entries.Add(Entry(client.Root, "bundle.zip", FilePanelEntryKind.File, 512));
+        client.Preview = new FilePanelPreview(
+            client.Root.Child(new FilePanelPathSegment("bundle.zip")), FilePanelPreviewKind.Hex,
+            "application/octet-stream", [0x50, 0x4B, 0x03, 0x04], isTruncated: true);
+        client.MaterializedPath = Path.Combine(Path.GetTempPath(), "bundle.zip");
+        var reader = new StubArchiveReader([.. Enumerable.Range(0, 501)
+            .Select(index => new ArchiveEntryDescriptor($"entry-{index:D3}.txt", false, 1, 1))]);
+        using var panel = new FileRuntimePanelViewModel(PanelInstanceId.New(), "Files", client, archiveReader: reader);
+        await panel.Initialization;
+        panel.SelectedEntry = Assert.Single(panel.Entries);
+        await panel.PreviewSelectedAsync();
+        Assert.Equal(250, panel.PreviewTree!.Nodes.Count);
+        Assert.True(panel.HasNextArchivePage);
+        await panel.ChangeArchivePageAsync(1);
+        Assert.Equal(250, panel.PreviewTree!.Nodes.Count);
+        Assert.True(panel.HasPreviousArchivePage);
+        await panel.ChangeArchivePageAsync(1);
+        Assert.Equal("entry-500.txt", Assert.Single(panel.PreviewTree!.Nodes).Name);
+        Assert.False(panel.HasNextArchivePage);
+        await panel.ChangeArchivePageAsync(-1);
+        Assert.Equal(250, panel.PreviewTree!.Nodes.Count);
+        Assert.Equal([0, 250, 500, 250], reader.Requests.Select(request => request.Offset));
+        Assert.All(reader.Requests, request => Assert.Equal(251, request.MaximumEntries));
+        await panel.RefreshAsync();
+        Assert.False(panel.HasPreviousArchivePage);
+        Assert.False(panel.HasNextArchivePage);
     }
 
     [Fact]

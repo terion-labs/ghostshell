@@ -236,7 +236,7 @@
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
         <!-- No LineHeight: the status line carries ↑/↓ arrows beside digits,
              and only an uninflated line box keeps them on one centerline. -->
-        <TextBlock
+        <controls:LiveRegionTextBlock
             VerticalAlignment="Center"
             Classes="Muted"
             FontSize="{DynamicResource ShellFontSize9}"

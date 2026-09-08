@@ -106,7 +106,9 @@ public sealed record BrowserHttpAuthentication
         string? realm,
         BrowserAuthenticationScheme scheme,
         string username,
-        SecretRef passwordSecret)
+        SecretRef passwordSecret,
+        string originScheme = "https",
+        string routeIdentity = "local")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
         var normalizedHost = host.Trim().TrimEnd('.').ToLowerInvariant();
@@ -148,12 +150,19 @@ public sealed record BrowserHttpAuthentication
         }
 
         RuntimeId.Require(passwordSecret.Value, nameof(passwordSecret));
+        if (originScheme is not ("https" or "http"))
+        {
+            throw new ArgumentException("Authentication requires an explicit HTTP or HTTPS origin.", nameof(originScheme));
+        }
+        RuntimeId.Require(routeIdentity, nameof(routeIdentity));
         Host = normalizedHost;
         Port = port;
         Realm = normalizedRealm;
         Scheme = scheme;
         Username = normalizedUsername;
         PasswordSecret = passwordSecret;
+        OriginScheme = originScheme;
+        RouteIdentity = routeIdentity;
     }
 
     public string Host { get; }
@@ -167,6 +176,41 @@ public sealed record BrowserHttpAuthentication
     public string Username { get; }
 
     public SecretRef PasswordSecret { get; }
+
+    public string OriginScheme { get; }
+
+    public string RouteIdentity { get; }
+
+    public static string SshRouteIdentity(ConnectionProfile connection)
+    {
+        if (connection.Endpoint is not ConnectionEndpoint.Ssh endpoint)
+        {
+            throw new ArgumentException("An SSH authentication route requires an SSH endpoint.", nameof(connection));
+        }
+
+        var fields = new[] { connection.Id.Value, endpoint.Host.TrimEnd('.').ToLowerInvariant(),
+            endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), endpoint.Username };
+        var identity = System.Text.Encoding.UTF8.GetBytes(string.Concat(fields.Select(value =>
+            (value?.Length ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + value)));
+        return "ssh-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(identity));
+    }
+
+    public static string NetworkRouteIdentity(NetworkConnectionProfile connection)
+    {
+        string?[] route = connection.Configuration switch
+        {
+            NetworkConnectionConfiguration.Proxy proxy => ["proxy", proxy.Endpoint.AbsoluteUri, proxy.Username],
+            NetworkConnectionConfiguration.AnyConnect vpn => ["anyconnect", vpn.Gateway.AbsoluteUri, vpn.Username, vpn.AuthenticationGroup, vpn.ClientCertificateSecret?.Value],
+            NetworkConnectionConfiguration.OpenVpn vpn => ["openvpn", vpn.ConfigurationSecret.Value, vpn.Username],
+            NetworkConnectionConfiguration.WireGuard vpn => ["wireguard", vpn.ConfigurationSecret.Value],
+            NetworkConnectionConfiguration.Tailscale vpn => ["tailscale", vpn.ControlServer?.AbsoluteUri, vpn.ExitNode, vpn.AuthKeySecret?.Value],
+            _ => throw new ArgumentException("Unsupported browser authentication route.", nameof(connection)),
+        };
+        var fields = route.Prepend(connection.Id.Value);
+        var identity = System.Text.Encoding.UTF8.GetBytes(string.Concat(fields.Select(value =>
+            (value?.Length ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + value)));
+        return "network-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(identity));
+    }
 }
 
 /// <summary>

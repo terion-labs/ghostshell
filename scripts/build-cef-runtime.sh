@@ -573,18 +573,11 @@ fi
 
 if [[ "${target_rid}" == osx-arm64 && "${host_rid}" == osx-arm64 ]]; then
     bash "${script_dir}/test-browser-session-cookies.sh" "${cef_artifact_dir}"
+    bash "${script_dir}/test-browser-authentication-origin.sh" "${cef_artifact_dir}"
+    bash "${script_dir}/test-browser-hosted-popups.sh" "${cef_artifact_dir}"
 fi
 
 existing_artifact_dir="${artifact_parent_dir}/${target_rid}"
-if [[ -d "${existing_artifact_dir}" ]]; then
-    shopt -s dotglob nullglob
-    for existing in "${existing_artifact_dir}"/*; do
-        if [[ "$(basename -- "${existing}")" != "cef" ]]; then
-            cp -R "${existing}" "${artifact_dir}/"
-        fi
-    done
-    shopt -u dotglob nullglob
-fi
 
 "${dotnet}" run \
     --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
@@ -592,6 +585,7 @@ fi
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
     native-publish-artifacts \
+    --component cef \
     --staged-directory "${artifact_dir}" \
     --destination "${existing_artifact_dir}"
 

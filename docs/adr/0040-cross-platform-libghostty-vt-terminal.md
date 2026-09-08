@@ -67,6 +67,27 @@ focus, docking overlays, and floating-window composition on every desktop OS.
 Native child views may still exist for unrelated product surfaces such as the
 browser; they are not part of this terminal decision.
 
+### Human paste and agent authorization
+
+A human paste gesture sends ordinary text immediately, including multiline
+text; it does not open a second confirmation dialog. Bracketed-paste framing
+follows the live terminal mode. The engine neutralizes terminal editing and
+escape controls, including an embedded bracketed-paste terminator, before
+encoding the text. Without bracketed paste, line feeds become carriage returns
+as expected by the receiving terminal application, so pasted newlines can
+execute commands. This is normal terminal behavior, not a promise of command
+inspection or sandboxing.
+
+The retired `TerminalPasteSafetyPolicy` values remain readable only to preserve
+existing serialized profiles. They have no runtime effect and are not offered
+in Settings. This supersedes the unsafe-paste confirmation clauses in ADR 0001
+and ADR 0013; their dated acceptance evidence describes the older UI.
+
+Agent paste and atomic text submission still require their independent,
+one-use capability authorization and current input lease. A paste request has
+no self-approval flag. Removing the human dialog does not grant a model human
+authority or bypass the agent approval broker.
+
 ### Separate renderer and automation projections
 
 The renderer consumes `TerminalRenderFrame`, not the bounded text snapshot used

@@ -610,14 +610,11 @@ public sealed partial class GitRepositoryClient
                     cancellationToken)
                 .ConfigureAwait(false)
             : null;
-        var expectedWorktreeObject = expectedArea == GitChangeArea.Unstaged
+        var expectedWorktree = expectedArea == GitChangeArea.Unstaged
             && expectedChange.Kind != GitChangeKind.Deleted
-                ? await ReadWorktreeObjectIdAsync(
-                        repository,
-                        expectedChange.Path,
-                        cancellationToken)
-                    .ConfigureAwait(false)
+                ? ObservedWorktreeCapture(expectedState, expectedChange.Path)
                 : null;
+        var expectedWorktreeObject = expectedWorktree?.RawObjectId;
         if (beforeIndex is null
             || expectedArea == GitChangeArea.Staged && desiredPathEntries is null
             || expectedArea == GitChangeArea.Unstaged
@@ -625,6 +622,30 @@ public sealed partial class GitRepositoryClient
                 && expectedWorktreeObject is null)
         {
             return Rejected(failureCode);
+        }
+
+        WorktreeCapture? captured = null;
+        if (expectedArea == GitChangeArea.Unstaged)
+        {
+            if (expectedChange.Kind == GitChangeKind.Deleted)
+            {
+                arguments = ["update-index", "--force-remove", "--", expectedChange.Path];
+            }
+            else
+            {
+                captured = await CaptureWorktreeAsync(
+                        repository, expectedChange.Path, writeObjects: true, cancellationToken, expectedWorktree)
+                    .ConfigureAwait(false);
+                if (captured is null || !string.Equals(
+                        captured.RawObjectId, expectedWorktreeObject, StringComparison.Ordinal)
+                    || !string.Equals(captured.Mode, expectedWorktree?.Mode, StringComparison.Ordinal)
+                    || !string.Equals(captured.NormalizationIdentity, expectedWorktree?.NormalizationIdentity, StringComparison.Ordinal))
+                {
+                    return Rejected("git_state_changed");
+                }
+
+                arguments = ["update-index", "--add", "--cacheinfo", $"{captured.Mode},{captured.IndexObjectId},{expectedChange.Path}"];
+            }
         }
 
         if (await ReadExactStateAsync(repository, expectedState, cancellationToken)
@@ -678,6 +699,7 @@ public sealed partial class GitRepositoryClient
                 after,
                 expectedChange,
                 expectedWorktreeObject,
+                captured?.IndexObjectId,
                 afterWorktreeObject,
                 selectedEntries)
             : UnstageResultMatchesHead(
@@ -754,20 +776,9 @@ public sealed partial class GitRepositoryClient
         string path,
         CancellationToken cancellationToken)
     {
-        var result = await ExecuteGovernedAsync(
-                repository,
-                ["hash-object", $"--path={path}", "--", path],
-                ReadTimeout,
-                GovernedStateOutputLimit,
-                cancellationToken)
+        var capture = await CaptureWorktreeAsync(repository, path, writeObjects: false, cancellationToken)
             .ConfigureAwait(false);
-        if (result is not GitResult<CommandOutput>.Success success)
-        {
-            return null;
-        }
-
-        var objectId = success.Value.Text.Trim();
-        return IsObjectId(objectId) ? objectId : null;
+        return capture?.RawObjectId;
     }
 
     private async ValueTask<string?> WriteIndexTreeAsync(
@@ -837,6 +848,7 @@ public sealed partial class GitRepositoryClient
         GitGovernedState after,
         GitFileChange expectedChange,
         string? expectedWorktreeObject,
+        string? expectedIndexObject,
         string? afterWorktreeObject,
         IReadOnlyList<GitIndexEntry> selectedEntries)
     {
@@ -859,7 +871,7 @@ public sealed partial class GitRepositoryClient
             && selectedEntries is [{ Stage: 0 } selected]
             && string.Equals(
                 selected.ObjectId,
-                expectedWorktreeObject,
+                expectedIndexObject,
                 StringComparison.Ordinal);
     }
 
@@ -1249,6 +1261,19 @@ public sealed partial class GitRepositoryClient
         CancellationToken cancellationToken,
         bool acceptExitOne,
         bool allowTruncated) =>
+        ExecuteIsolatedCommandAsync(repository, environmentArguments, GitExecutable, gitArguments,
+            timeout, outputLimit, cancellationToken, acceptExitOne, allowTruncated);
+
+    private ValueTask<GitResult<CommandOutput>> ExecuteIsolatedCommandAsync(
+        GitRepositoryHandle repository,
+        IReadOnlyList<string> environmentArguments,
+        string executable,
+        IReadOnlyList<string> arguments,
+        TimeSpan timeout,
+        int outputLimit,
+        CancellationToken cancellationToken,
+        bool acceptExitOne = false,
+        bool allowTruncated = false) =>
         repository.RunAsUser is { } owner
             ? ExecuteCoreAsync(
                 repository.Connection,
@@ -1257,8 +1282,8 @@ public sealed partial class GitRepositoryClient
                     "-n", "-u", owner, "-H", .. WorkspaceSudoEnvironment(repository),
                     "--", "env",
                     .. environmentArguments,
-                    GitExecutable,
-                    .. gitArguments,
+                    executable,
+                    .. arguments,
                 ],
                 timeout,
                 outputLimit,
@@ -1268,7 +1293,7 @@ public sealed partial class GitRepositoryClient
             : ExecuteCoreAsync(
                 repository.Connection,
                 "env",
-                [.. environmentArguments, GitExecutable, .. gitArguments],
+                [.. environmentArguments, executable, .. arguments],
                 timeout,
                 outputLimit,
                 cancellationToken,
@@ -1460,7 +1485,46 @@ public sealed partial class GitRepositoryClient
                 "Git returned an invalid HEAD object ID.");
         }
 
-        var statusDigest = Digest(Value(status).Text);
+        GitStatusParser.Result parsedStatus;
+        try
+        {
+            parsedStatus = GitStatusParser.Parse(Value(status).Text);
+        }
+        catch (FormatException exception)
+        {
+            return Failure<GitRepositoryGuard>(GitErrorCode.InvalidResponse, exception.Message);
+        }
+
+        // Porcelain records describe change kinds, not the bytes an agent saw.
+        // Git streams raw bytes and binds their built-in normalization inputs;
+        // only object IDs are retained here. An unreadable/racing file makes the
+        // observation invalid rather than weakening it to a status-only guard.
+        var worktreeIdentity = new StringBuilder();
+        foreach (var change in parsedStatus.UnstagedChanges.OrderBy(
+                     change => change.Path, StringComparer.Ordinal))
+        {
+            if (change.Kind == GitChangeKind.Deleted)
+            {
+                continue;
+            }
+
+            var capture = await CaptureWorktreeAsync(
+                    repository, change.Path, writeObjects: false, cancellationToken)
+                .ConfigureAwait(false);
+            if (capture is null)
+            {
+                return Failure<GitRepositoryGuard>(
+                    GitErrorCode.InvalidResponse,
+                    "The working file changed or could not be read while capturing its content identity.");
+            }
+
+            worktreeIdentity.Append(change.Path).Append('\0')
+                .Append(capture.Mode).Append('\0').Append(capture.RawObjectId).Append('\0')
+                .Append(capture.NormalizationIdentity).Append('\0');
+        }
+
+        var worktreeContent = worktreeIdentity.ToString();
+        var statusDigest = Digest(Value(status).Text + '\0' + worktreeContent);
         var indexDigest = Digest(Value(index).Text);
         var refsDigest = Digest(Value(refs).Text);
         var digest = Digest(string.Join(
@@ -1469,14 +1533,16 @@ public sealed partial class GitRepositoryClient
             headShaValue ?? string.Empty,
             statusDigest,
             indexDigest,
-            refsDigest));
+            refsDigest,
+            worktreeContent));
         return new GitResult<GitRepositoryGuard>.Success(new GitRepositoryGuard(
             digest,
             headNameValue,
             headShaValue,
             indexDigest,
             statusDigest,
-            refsDigest));
+            refsDigest,
+            worktreeContent));
     }
 
     private static GitGovernedMutationReceipt CompleteMutation(

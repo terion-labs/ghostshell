@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:GhostShell.App.Views"
     xmlns:controls="using:GhostShell.App.Controls"
+    xmlns:application="using:GhostShell.Application"
     Title="Review definition import"
     Width="680"
     MaxHeight="720"
@@ -12,7 +13,7 @@
     CanResize="False"
     ShowInTaskbar="False"
     WindowStartupLocation="CenterOwner">
-  <Grid Margin="{controls:Inset Xl}" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="{DynamicResource ShellSpaceLg}">
+  <Grid Margin="{controls:Inset Xl}" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="{DynamicResource ShellSpaceLg}">
     <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
       <TextBlock FontSize="{DynamicResource ShellFontSize17}" FontWeight="SemiBold" Text="Review definition import" />
       <TextBlock Classes="Muted" Text="Preflight is complete. Nothing has been imported yet." />
@@ -27,7 +28,7 @@
       </Grid>
     </controls:SurfaceCard>
 
-    <Grid Grid.Row="2" MaxHeight="330">
+    <Grid Grid.Row="2" MaxHeight="{Binding IssuesMaximumHeight}">
       <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}" IsVisible="{Binding HasNoIssues}">
         <TextBlock Text="No conflicts or compatibility issues were found." />
       </controls:SurfaceCard>
@@ -50,11 +51,29 @@
       </ScrollViewer>
     </Grid>
 
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+    <StackPanel Grid.Row="3" IsVisible="{Binding HasExecutionReview}" Spacing="{DynamicResource ShellSpaceSm}">
+      <TextBlock FontWeight="SemiBold" Text="Executable content and connection authority" />
+      <ListBox ItemsSource="{Binding ExecutionReview}" MaxHeight="220">
+        <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="application:DefinitionExecutionReviewItem">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBox Text="{Binding Details}" IsReadOnly="True" AcceptsReturn="True" MaxHeight="160" TextWrapping="Wrap" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <CheckBox x:Name="ExecutionAcknowledgement" IsChecked="False" IsCheckedChanged="OnExecutionAcknowledged">
+        <TextBlock Text="I reviewed and trust these commands, images, host mounts and connection destinations. Opening imported workspaces or panels may run code or connect using the displayed authority." TextWrapping="Wrap" />
+      </CheckBox>
+    </StackPanel>
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
       <TextBlock VerticalAlignment="Center" Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding CommitHint}" TextWrapping="Wrap" />
       <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
         <Button MinWidth="88" Click="OnCancelClick" Content="Cancel" IsCancel="True" />
-        <Button MinWidth="112" Classes="PrimaryButton" Click="OnImportClick" Content="Import definitions" IsEnabled="{Binding CanApply}" />
+        <Button x:Name="ImportButton" MinWidth="112" Classes="PrimaryButton" Click="OnImportClick" Content="Import definitions" IsEnabled="{Binding CanApply}" />
       </StackPanel>
     </Grid>
   </Grid>

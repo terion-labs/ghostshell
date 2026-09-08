@@ -108,6 +108,51 @@ public sealed class CefBrowserProfileStoreTests
     }
 
     [Fact]
+    public async Task Routed_surface_cannot_be_created_until_all_preferences_are_accepted()
+    {
+        var accepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = new RecordingRequestContext(null) { PreferenceCompletion = accepted.Task };
+        using var store = new CefBrowserProfileStore(null, _ => context);
+        using var lease = store.AcquireRouted(Binding("profile.pending", revision: 1), "route", 41001);
+        Assert.False(lease.Ready.IsCompleted);
+        Assert.Empty(context.Preferences);
+        Assert.Throws<InvalidOperationException>(() => lease.CreateView());
+        accepted.SetResult(true);
+        await lease.Ready;
+        Assert.Equal(2, context.Preferences.Count);
+        Assert.Throws<NotSupportedException>(() => lease.CreateView());
+    }
+
+    [Fact]
+    public async Task Rejected_preference_never_publishes_a_surface()
+    {
+        var context = new RecordingRequestContext(null) { PreferenceCompletion = Task.FromResult(false) };
+        using var store = new CefBrowserProfileStore(null, _ => context);
+        using var lease = store.AcquireRouted(Binding("profile.rejected", revision: 1), "route", 41001);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => lease.Ready);
+        Assert.Throws<InvalidOperationException>(() => lease.CreateView());
+    }
+
+    [Fact]
+    public async Task Canceled_owner_can_release_pending_context_without_late_surface_publication()
+    {
+        var accepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = new RecordingRequestContext(null) { PreferenceCompletion = accepted.Task };
+        using var store = new CefBrowserProfileStore(null, _ => context);
+        var lease = store.AcquireRouted(Binding("profile.canceled", revision: 1), "route", 41001);
+        using var cancellation = new CancellationTokenSource();
+        var wait = lease.Ready.WaitAsync(cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
+        lease.Dispose();
+        accepted.SetResult(true);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => lease.Ready);
+        Assert.Empty(context.Preferences);
+        Assert.Equal(1, context.DisposeCount);
+        Assert.Throws<ObjectDisposedException>(() => lease.CreateView());
+    }
+
+    [Fact]
     public void RoutedLeasesShareOnlyTheExactRevisionRouteAndProxyEndpoint()
     {
         var contexts = new RecordingRequestContextFactory();
@@ -129,8 +174,11 @@ public sealed class CefBrowserProfileStoreTests
         Assert.Equal(1, context.DisposeCount);
     }
 
-    [Fact]
-    public void AuthenticatedWorkspaceRoutePassesItsCredentialsToEveryCreatedView()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("https://destination.example/private")]
+    public void AuthenticatedWorkspaceRoutePassesItsCredentialsToEveryCreatedView(string? origin)
     {
         var contexts = new RecordingRequestContextFactory();
         using var store = new CefBrowserProfileStore(null, contexts.Create);
@@ -152,7 +200,84 @@ public sealed class CefBrowserProfileStoreTests
                 "127.0.0.1",
                 connector.BrowserProxyEndpoint.Port,
                 "GhostSHELL workspace",
-                "basic")));
+                "basic",
+                origin)));
+        Assert.Null(resolver.Resolve(new BrowserAuthenticationChallenge(
+            false, "127.0.0.1", connector.BrowserProxyEndpoint.Port,
+            "GhostSHELL workspace", "basic", origin)));
+        Assert.Null(resolver.Resolve(new BrowserAuthenticationChallenge(
+            true, "destination.example", connector.BrowserProxyEndpoint.Port,
+            "GhostSHELL workspace", "basic", origin)));
+        Assert.Null(resolver.Resolve(new BrowserAuthenticationChallenge(
+            true, "127.0.0.1", connector.BrowserProxyEndpoint.Port + 1,
+            "GhostSHELL workspace", "basic", origin)));
+    }
+
+    [Theory]
+    [InlineData(false, "local")]
+    [InlineData(true, "ssh-selected-authority")]
+    public async Task Server_authentication_uses_the_owned_route_not_caller_supplied_route(bool routed, string expectedRoute)
+    {
+        var contexts = new RecordingRequestContextFactory();
+        var resolver = new RecordingAuthenticationResolver();
+        using var store = new CefBrowserProfileStore(resolver, contexts.Create);
+        var binding = Binding("profile.route-auth", revision: 1);
+        using var lease = routed
+            ? store.AcquireRouted(binding, "persistent-route", 41001, expectedRoute)
+            : store.AcquireLocal(binding);
+        Assert.Throws<NotSupportedException>(() => lease.CreateView());
+        var bound = Assert.Single(contexts.Created).AuthenticationResolver;
+        Assert.NotNull(bound);
+
+        await bound.ResolveAsync(binding, new(false, "internal.example", 443, "realm", "basic",
+            "https://internal.example/private", "forged-route"), CancellationToken.None);
+
+        Assert.Equal(expectedRoute, resolver.Challenge?.RouteIdentity);
+        Assert.Equal("https://internal.example/private", resolver.Challenge?.OriginUrl);
+    }
+
+    private sealed class RecordingAuthenticationResolver : IBrowserProfileAuthenticationResolver
+    {
+        public BrowserAuthenticationChallenge? Challenge { get; private set; }
+        public TaskCompletionSource<BrowserAuthenticationCredentials?>? Completion { get; set; }
+
+        public ValueTask<BrowserAuthenticationCredentials?> ResolveAsync(BrowserProfileBinding profile,
+            BrowserAuthenticationChallenge challenge, CancellationToken cancellationToken)
+        {
+            Challenge = challenge;
+            return Completion is null
+                ? ValueTask.FromResult<BrowserAuthenticationCredentials?>(null)
+                : new ValueTask<BrowserAuthenticationCredentials?>(Completion.Task);
+        }
+    }
+
+    [Fact]
+    public async Task Workspace_authority_switch_clears_http_credentials_without_deleting_cookies_and_rechecks_inflight_resolution()
+    {
+        var contexts = new RecordingRequestContextFactory();
+        var resolver = new RecordingAuthenticationResolver
+        {
+            Completion = new(TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        using var store = new CefBrowserProfileStore(resolver, contexts.Create);
+        var connector = new AuthenticatedConnector(new("workspace", "password"));
+        var binding = Binding("profile.network-auth", revision: 1);
+        using var lease = store.AcquireRouted(binding, "stable-cookie-route", connector);
+        Assert.Throws<NotSupportedException>(() => lease.CreateView());
+        var context = Assert.Single(contexts.Created);
+        var pending = context.AuthenticationResolver!.ResolveAsync(binding,
+            new(false, "internal.example", 443, "realm", "basic", "https://internal.example"), CancellationToken.None);
+
+        await connector.ChangeAuthorityAsync("network-one", CancellationToken.None);
+        resolver.Completion.SetResult(new("operator", "old-direct-password"));
+
+        Assert.Null(await pending);
+        Assert.Equal(1, context.ClearHttpAuthCredentialsCount);
+        Assert.Equal(1, context.CloseAllConnectionsCount);
+        Assert.Equal(0, context.DeleteCookiesCount);
+        Assert.Equal(0, context.DisposeCount);
+        using var reacquired = store.AcquireRouted(binding, "stable-cookie-route", connector);
+        Assert.Single(contexts.Created);
     }
 
     [Fact]
@@ -372,7 +497,7 @@ public sealed class CefBrowserProfileStoreTests
     }
 
     [Fact]
-    public void DurableProfileSealsAndRestoresTheCompleteRuntimeTree()
+    public async Task DurableProfileSealsAndRestoresTheCompleteRuntimeTree()
     {
         var root = TemporaryRoot();
         var state = new RecordingStateStore();
@@ -394,6 +519,11 @@ public sealed class CefBrowserProfileStoreTests
                     var cachePath = Assert.Single(firstContexts.Created).CachePath;
                     Assert.NotNull(cachePath);
                     Assert.Equal(root, Path.GetDirectoryName(cachePath));
+                    if (!OperatingSystem.IsWindows())
+                    {
+                        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                            File.GetUnixFileMode(cachePath));
+                    }
                     Directory.CreateDirectory(Path.Combine(cachePath, "Default"));
                     File.WriteAllText(
                         Path.Combine(cachePath, "Default", "Cookies"),
@@ -405,7 +535,7 @@ public sealed class CefBrowserProfileStoreTests
 
                 Assert.Equal(0, Assert.Single(firstContexts.Created).DisposeCount);
                 first.ReleaseContextsForEngineShutdown();
-                Assert.True(first.SealRuntimeStateAfterEngineShutdown());
+                Assert.True(await first.SealRuntimeStateAfterEngineShutdownAsync());
             }
 
             var secondContexts = new RecordingRequestContextFactory();
@@ -449,7 +579,7 @@ public sealed class CefBrowserProfileStoreTests
                 }
 
                 first.ReleaseContextsForEngineShutdown();
-                Assert.True(first.SealRuntimeStateAfterEngineShutdown());
+                Assert.True(await first.SealRuntimeStateAfterEngineShutdownAsync());
             }
 
             var secondContexts = new RecordingRequestContextFactory();
@@ -480,7 +610,7 @@ public sealed class CefBrowserProfileStoreTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void HostProfileRestoresAfterRuntimeInstanceChangesWithoutSharingLiveRoutes(bool isolated)
+    public async Task HostProfileRestoresAfterRuntimeInstanceChangesWithoutSharingLiveRoutes(bool isolated)
     {
         var root = TemporaryRoot();
         var state = new RecordingStateStore();
@@ -501,7 +631,7 @@ public sealed class CefBrowserProfileStoreTests
                 }
 
                 first.ReleaseContextsForEngineShutdown();
-                Assert.True(first.SealRuntimeStateAfterEngineShutdown());
+                Assert.True(await first.SealRuntimeStateAfterEngineShutdownAsync());
             }
 
             var contexts = new RecordingRequestContextFactory();
@@ -703,6 +833,161 @@ public sealed class CefBrowserProfileStoreTests
             revision);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_or_cancelled_engine_snapshot_preserves_source_and_cleans_owned_destination(bool cancel)
+    {
+        var root = TemporaryRoot();
+        string? snapshot = null;
+        var state = new RecordingStateStore();
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "first_party_sets.db"), "retain");
+            using var store = new CefBrowserProfileStore(null, state, root, new RecordingRequestContextFactory().Create);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SealRuntimeStateAfterEngineShutdownAsync());
+            store.ReleaseContextsForEngineShutdown();
+            Task Copy(string source, string destination, CancellationToken token)
+            {
+                Assert.Equal(root, source);
+                snapshot = destination;
+                File.WriteAllText(Path.Combine(destination, "partial"), "partial");
+                return cancel
+                    ? Task.FromCanceled(new CancellationToken(canceled: true))
+                    : Task.FromException(new IOException("synthetic copy failure"));
+            }
+
+            if (cancel)
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.SealRuntimeStateAfterEngineShutdownAsync(Copy));
+            }
+            else
+            {
+                Assert.False(await store.SealRuntimeStateAfterEngineShutdownAsync(Copy));
+            }
+            Assert.NotNull(snapshot);
+            Assert.False(Directory.Exists(snapshot));
+            Assert.Equal("retain", File.ReadAllText(Path.Combine(root, "first_party_sets.db")));
+            Assert.Equal(0, state.SealCount);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Engine_archive_reads_complete_snapshot_after_context_archives_finish()
+    {
+        var root = TemporaryRoot();
+        string? snapshot = null;
+        var state = new RecordingStateStore();
+        try
+        {
+            using var store = new CefBrowserProfileStore(null, state, root, new RecordingRequestContextFactory().Create);
+            using (store.AcquireLocal(Binding("snapshot", 1, BrowserProfilePersistence.DurableMetadata))) { }
+            File.WriteAllText(Path.Combine(root, "first_party_sets.db"), "database");
+            File.WriteAllText(Path.Combine(root, "first_party_sets.db-journal"), "journal");
+            store.ReleaseContextsForEngineShutdown();
+            Assert.True(await store.SealRuntimeStateAfterEngineShutdownAsync((source, destination, _) =>
+            {
+                Assert.Equal(1, state.SealCount);
+                Assert.Empty(Directory.EnumerateDirectories(source));
+                snapshot = destination;
+                foreach (var file in Directory.EnumerateFiles(source))
+                {
+                    File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
+                }
+                return Task.CompletedTask;
+            }));
+            Assert.Equal(2, state.SealCount);
+            Assert.False(Directory.Exists(snapshot));
+            Assert.False(Directory.Exists(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("during-copy")]
+    [InlineData("after-copy")]
+    [InlineData("after-seal")]
+    public async Task Startup_discards_exact_crash_snapshot_without_restoring_it(string crashPoint)
+    {
+        var root = TemporaryRoot();
+        var snapshot = root + ".shutdown-snapshot";
+        var unrelated = root + ".shutdown-snapshot-unrelated";
+        var state = new RecordingStateStore();
+        try
+        {
+            Directory.CreateDirectory(unrelated);
+            File.WriteAllText(Path.Combine(unrelated, "keep"), "unrelated");
+            File.WriteAllText(Path.Combine(root, "Local State"), "authoritative");
+            if (string.Equals(crashPoint, "after-seal", StringComparison.Ordinal))
+            {
+                using var first = new CefBrowserProfileStore(null, state, root, new RecordingRequestContextFactory().Create);
+                first.ReleaseContextsForEngineShutdown();
+                Assert.True(await first.SealRuntimeStateAfterEngineShutdownAsync());
+            }
+            Directory.CreateDirectory(snapshot);
+            File.WriteAllText(Path.Combine(snapshot, "Local State"), "never-authoritative");
+            if (!string.Equals(crashPoint, "during-copy", StringComparison.Ordinal))
+            {
+                File.WriteAllText(Path.Combine(snapshot, "first_party_sets.db-journal"), "untrusted-copy");
+            }
+            using var recovered = new CefBrowserProfileStore(null, state, root, new RecordingRequestContextFactory().Create);
+            Assert.True(recovered.RecoverOrphanedRuntimeState());
+            Assert.False(Directory.Exists(snapshot));
+            Assert.Equal("unrelated", File.ReadAllText(Path.Combine(unrelated, "keep")));
+            Assert.Equal("authoritative", File.ReadAllText(Path.Combine(root, "Local State")));
+            Assert.False(File.Exists(Path.Combine(root, "first_party_sets.db-journal")));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            if (Directory.Exists(snapshot))
+            {
+                Directory.Delete(snapshot, recursive: true);
+            }
+            Directory.Delete(unrelated, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Startup_rejects_linked_crash_snapshot_without_touching_target()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var root = TemporaryRoot();
+        var target = TemporaryRoot();
+        var snapshot = root + ".shutdown-snapshot";
+        try
+        {
+            File.WriteAllText(Path.Combine(target, "keep"), "unrelated");
+            Directory.CreateSymbolicLink(snapshot, target);
+            using var store = new CefBrowserProfileStore(null, new RecordingStateStore(), root, new RecordingRequestContextFactory().Create);
+            Assert.Throws<IOException>(() => store.RecoverOrphanedRuntimeState());
+            Assert.Equal("unrelated", File.ReadAllText(Path.Combine(target, "keep")));
+            Assert.NotNull(new DirectoryInfo(snapshot).LinkTarget);
+        }
+        finally
+        {
+            Directory.Delete(snapshot);
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(target, recursive: true);
+        }
+    }
+
     private static string TemporaryRoot()
     {
         var root = Path.Combine(
@@ -754,6 +1039,17 @@ public sealed class CefBrowserProfileStoreTests
             private set;
         }
 
+        public IBrowserProfileAuthenticationResolver? AuthenticationResolver { get; private set; }
+
+        public Task<bool>? PreferenceCompletion { get; init; }
+
+        public async Task<bool> SetPreferenceAsync(string name, string value)
+        {
+            var accepted = PreferenceCompletion is null || await PreferenceCompletion;
+            ObjectDisposedException.ThrowIf(DisposeCount != 0, this);
+            return accepted && SetPreference(name, value);
+        }
+
         public bool SetPreference(string name, string value)
         {
             Preferences.Add(name, value);
@@ -791,6 +1087,7 @@ public sealed class CefBrowserProfileStoreTests
             IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver)
         {
             ProxyAuthenticationResolver = proxyAuthenticationResolver;
+            AuthenticationResolver = authenticationResolver;
             throw new NotSupportedException(
                 "The profile-store tests do not create native browser views.");
         }
@@ -816,6 +1113,20 @@ public sealed class CefBrowserProfileStoreTests
             UriKind.Absolute);
 
         public string? BrowserProfileRouteIdentity => profileRouteIdentity;
+
+        public string? BrowserAuthenticationRouteIdentity { get; private set; } = "local";
+
+        public event Func<CancellationToken, Task>? BrowserAuthenticationRouteChanging;
+
+        public async Task ChangeAuthorityAsync(string identity, CancellationToken cancellationToken)
+        {
+            BrowserAuthenticationRouteIdentity = null;
+            if (BrowserAuthenticationRouteChanging is { } callback)
+            {
+                await callback(cancellationToken);
+            }
+            BrowserAuthenticationRouteIdentity = identity;
+        }
 
         public ValueTask<Stream> ConnectTcpAsync(
             string host,

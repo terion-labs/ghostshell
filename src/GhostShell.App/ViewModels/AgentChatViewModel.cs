@@ -3205,7 +3205,7 @@ public sealed class AgentChatViewModel : ObservableObject, IDisposable
         {
             return new AgentYoloAuthorityViewModel(
                 FormatTarget(authority.Target),
-                "Until changed",
+                "Until changed or the run ends",
                 string.Empty);
         }
 

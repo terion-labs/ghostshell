@@ -70,8 +70,8 @@ recorded provenance exception for the exact macOS SQL worker closure.
 
 SPDX license texts are available from <https://spdx.org/licenses/>.
 The table below is the conservative managed third-party inventory in the
-current `osx-arm64` release catalog. It contains 128 NuGet packages and the two
-separately licensed vendored Exclr8CEF projects.
+current `osx-arm64` release catalog. It contains 127 NuGet packages and five
+separately licensed vendored projects, including the two Exclr8CEF bindings.
 First-party GhostSHELL project assemblies are omitted; the self-contained
 .NET runtimepack is indexed by the retained .NET license and notice files
 rather than duplicated here.
@@ -81,6 +81,13 @@ validate its own exact managed-component catalog and SBOM against its publish
 output before distribution. This table does not claim a cross-target inventory
 and does not substitute for the release's exact native software bill of
 materials and platform-specific owner decision.
+
+The three patched source builds, SqlClient, SSH.NET and SharpCompress, are
+identified separately from stock NuGet binaries. Their complete MIT notices and
+reviewed source inventories/runtime patches are included under `Licenses` and
+`Licenses/Sources`. The managed SPDX record hashes the actual published assembly,
+records the pinned upstream archive, and binds the reviewed source inputs. Public
+strong-name identity compatibility is not an upstream private-signature claim.
 
 | Package | Version | License |
 |---|---:|---|
@@ -139,7 +146,7 @@ materials and platform-specific owner decision.
 | `MicroCom.Runtime` | `0.11.4` | MIT |
 | `Microsoft.Bcl.AsyncInterfaces` | `1.1.1` | MIT |
 | `Microsoft.Bcl.Cryptography` | `9.0.4` | MIT |
-| `Microsoft.Data.SqlClient` | `6.0.2` | MIT |
+| `Microsoft.Data.SqlClient` | `6.0.2` | MIT, patched source build; local project identity `Microsoft.Data.SqlClient.Routed/6.0.2`; `sqlclient-MIT.txt` |
 | `Microsoft.Data.Sqlite.Core` | `10.0.10` | MIT |
 | `Microsoft.Extensions.AI.Abstractions` | `10.5.2` | MIT |
 | `Microsoft.Extensions.Caching.Abstractions` | `9.0.4` | MIT |
@@ -183,7 +190,8 @@ materials and platform-specific owner decision.
 | `SQLite3MC.PCLRaw.lib` | `2.4.0` | MIT |
 | `SQLite3MC.PCLRaw.provider` | `2.4.0` | MIT |
 | `SQLitePCLRaw.core` | `3.0.2` | Apache-2.0 |
-| `SSH.NET` | `2026.0.0` | MIT |
+| `SSH.NET` | `2026.0.0` | MIT, patched source build; `sshnet-MIT.txt` |
+| `SharpCompress` | `0.50.3` | MIT, patched source build; `sharpcompress-MIT.txt` |
 | `ShimSkiaSharp` | `5.1.1` | MIT |
 | `SkiaSharp.NativeAssets.macOS` | `4.150.1` | MIT |
 | `SkiaSharp` | `4.150.1` | MIT |

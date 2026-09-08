@@ -6,6 +6,8 @@ namespace GhostShell.App.Views;
 
 public sealed partial class DefinitionImportPreflightDialog : Window
 {
+    private readonly bool _canCommit;
+    private bool _executionReviewed;
     public DefinitionImportPreflightDialog()
     {
         InitializeComponent();
@@ -25,7 +27,8 @@ public sealed partial class DefinitionImportPreflightDialog : Window
                 ? "Matching identities will be replaced in one transaction. Bundles never import secret values; AI credential bindings are detached, and AI/MCP profiles are disabled for review."
                 : "The bundle will be committed in one transaction. Existing definitions remain unchanged. AI credential bindings are detached, and AI/MCP profiles are disabled for review."
             : "Resolve blocking issues or choose a different file. This import cannot be applied.";
-        CanApply = plan.CanApply;
+        _canCommit = plan.CanApply;
+        ExecutionReview = plan.ExecutionReview;
         Issues = [.. plan.Issues.Select(DefinitionImportIssueItem.From)];
         HasIssues = Issues.Count > 0;
         HasNoIssues = !HasIssues;
@@ -43,7 +46,19 @@ public sealed partial class DefinitionImportPreflightDialog : Window
 
     public string CommitHint { get; } = string.Empty;
 
-    public bool CanApply { get; }
+    public bool CanApply => _canCommit && (!HasExecutionReview || _executionReviewed);
+
+    public IReadOnlyList<DefinitionExecutionReviewItem> ExecutionReview { get; } = [];
+
+    public bool HasExecutionReview => ExecutionReview.Count > 0;
+
+    public double IssuesMaximumHeight => HasExecutionReview ? 120 : 330;
+
+    private void OnExecutionAcknowledged(object? sender, RoutedEventArgs e)
+    {
+        _executionReviewed = ExecutionAcknowledgement.IsChecked == true;
+        ImportButton.IsEnabled = CanApply;
+    }
 
     public bool HasIssues { get; }
 

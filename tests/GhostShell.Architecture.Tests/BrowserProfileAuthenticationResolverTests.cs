@@ -32,7 +32,9 @@ public sealed class BrowserProfileAuthenticationResolverTests
                 Host: "INTERNAL.EXAMPLE.",
                 Port: 8443,
                 Realm: "Operations",
-                Scheme: "DIGEST"),
+                Scheme: "DIGEST",
+                OriginUrl: "https://internal.example:8443/private",
+                RouteIdentity: "local"),
             CancellationToken.None);
 
         Assert.NotNull(credentials);
@@ -74,11 +76,48 @@ public sealed class BrowserProfileAuthenticationResolverTests
         {
             Assert.Null(await resolver.ResolveAsync(
                 binding,
-                challenge,
+                challenge with { OriginUrl = "https://internal.example:8443/private", RouteIdentity = "local" },
                 CancellationToken.None));
         }
 
         Assert.Equal(0, vault.Proxy.ResolveCount);
+    }
+
+    [Theory]
+    [InlineData(null, "local")]
+    [InlineData("http://internal.example:8443/private", "local")]
+    [InlineData("https://other.example:8443/private", "local")]
+    [InlineData("https://internal.example:443/private", "local")]
+    [InlineData("https://internal.example:8443/private", null)]
+    [InlineData("https://internal.example:8443/private", "ssh-other-route")]
+    public async Task Origin_and_route_mismatches_never_resolve_the_password(string? origin, string? route)
+    {
+        var binding = Binding(new BrowserProfileId("origin-bound"),
+            new BrowserHttpAuthentication("internal.example", 8443, null,
+                BrowserAuthenticationScheme.Basic, "operator", new SecretRef("bound-password")));
+        var vault = Vault("must not be read");
+        var resolver = new BrowserProfileAuthenticationResolver(vault.Vault);
+
+        Assert.Null(await resolver.ResolveAsync(binding,
+            new(false, "internal.example", 8443, "realm", "basic", origin, route), CancellationToken.None));
+        Assert.Equal(0, vault.Proxy.ResolveCount);
+    }
+
+    [Fact]
+    public async Task Explicit_http_and_ssh_binding_is_supported_without_authorizing_local_or_https()
+    {
+        var binding = Binding(new BrowserProfileId("explicit-http"),
+            new BrowserHttpAuthentication("internal.example", null, null,
+                BrowserAuthenticationScheme.Basic, "operator", new SecretRef("bound-password"), "http", "ssh-selected"));
+        var vault = Vault("password");
+        var resolver = new BrowserProfileAuthenticationResolver(vault.Vault);
+        var challenge = new BrowserAuthenticationChallenge(false, "internal.example", 80, "realm", "basic",
+            "http://internal.example/private", "ssh-selected");
+
+        Assert.NotNull(await resolver.ResolveAsync(binding, challenge, CancellationToken.None));
+        Assert.Null(await resolver.ResolveAsync(binding, challenge with { RouteIdentity = "local" }, CancellationToken.None));
+        Assert.Null(await resolver.ResolveAsync(binding, challenge with { OriginUrl = "https://internal.example", Port = 443 }, CancellationToken.None));
+        Assert.Equal(1, vault.Proxy.ResolveCount);
     }
 
     private static BrowserProfileBinding Binding(

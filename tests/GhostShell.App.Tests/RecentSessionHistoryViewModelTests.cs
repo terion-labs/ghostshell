@@ -164,6 +164,67 @@ public sealed class RecentSessionHistoryViewModelTests
         Assert.False(refreshed.CanOpen);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_queued_before_shutdown_persists_without_publishing_after_shutdown(bool failWrite)
+    {
+        var store = new TestStore { BlockCompletionWrite = true, FailCompletionWrites = failWrite };
+        using var viewModel = CreateViewModel(store, new MutableTimeProvider(DateTimeOffset.UnixEpoch));
+        var snapshots = 0;
+        viewModel.SnapshotChanged += (_, _) => snapshots++;
+        var queued = viewModel.RecordCompletionsAsync(
+            [(new SessionId("ending"), RecentSessionOutcome.GracefullyClosed)]);
+        await store.CompletionWriteEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        viewModel.StopPresentationUpdates();
+        store.ReleaseCompletionWrite.TrySetResult();
+        await queued.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, store.CompletionWrites);
+        Assert.Equal(0, store.ListReads);
+        Assert.Equal(0, snapshots);
+        Assert.False(viewModel.HasFailure);
+        Assert.Equal(!failWrite, (await viewModel.DrainAsync(CancellationToken.None)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task Completion_refreshes_history_while_the_presentation_is_alive()
+    {
+        var store = new TestStore();
+        using var viewModel = CreateViewModel(store, new MutableTimeProvider(DateTimeOffset.UnixEpoch));
+        var snapshots = 0;
+        viewModel.SnapshotChanged += (_, _) => snapshots++;
+
+        await viewModel.RecordCompletionsAsync(
+            [(new SessionId("ending"), RecentSessionOutcome.GracefullyClosed)]);
+
+        Assert.Equal(1, store.CompletionWrites);
+        Assert.Equal(1, store.ListReads);
+        Assert.Equal(1, snapshots);
+    }
+
+    [Fact]
+    public async Task Shutdown_during_history_refresh_does_not_publish_the_delayed_read()
+    {
+        var store = new TestStore { BlockListRead = true };
+        using var viewModel = CreateViewModel(store, new MutableTimeProvider(DateTimeOffset.UnixEpoch));
+        var snapshots = 0;
+        viewModel.SnapshotChanged += (_, _) => snapshots++;
+        var queued = viewModel.RecordCompletionsAsync(
+            [(new SessionId("ending"), RecentSessionOutcome.GracefullyClosed)]);
+        await store.ListReadEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        viewModel.StopPresentationUpdates();
+        store.ReleaseListRead.TrySetResult();
+        await queued.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, store.CompletionWrites);
+        Assert.Equal(1, store.ListReads);
+        Assert.Equal(0, snapshots);
+        Assert.True((await viewModel.DrainAsync(CancellationToken.None)).IsSuccess);
+    }
+
     private static RecentSessionHistoryViewModel CreateViewModel(
         TestStore store,
         TimeProvider clock) =>
@@ -200,6 +261,28 @@ public sealed class RecentSessionHistoryViewModelTests
 
         public bool FailReadsUntilCleared { get; set; }
 
+        public bool BlockCompletionWrite { get; init; }
+
+        public bool FailCompletionWrites { get; init; }
+
+        public bool BlockListRead { get; init; }
+
+        public int CompletionWrites { get; private set; }
+
+        public int ListReads { get; private set; }
+
+        public TaskCompletionSource CompletionWriteEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseCompletionWrite { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ListReadEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseListRead { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public TaskCompletionSource FirstStartedWriteEntered { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -235,24 +318,29 @@ public sealed class RecentSessionHistoryViewModelTests
                     new RecentSessionRetentionUpdateResult(_retention, 0)));
         }
 
-        public ValueTask<RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>>
+        public async ValueTask<RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>>
             ListRecentAsync(RecentSessionQuery query, CancellationToken cancellationToken)
         {
+            ListReads++;
+            if (BlockListRead)
+            {
+                ListReadEntered.TrySetResult();
+                await ReleaseListRead.Task.WaitAsync(cancellationToken);
+            }
+
             if (FailReadsUntilCleared)
             {
-                return ValueTask.FromResult(
-                    RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>.Failure(
+                return RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>.Failure(
                         new RecentSessionStoreError(
                             RecentSessionStoreErrorCode.InvalidHistoryData,
-                            "Unreadable history.")));
+                            "Unreadable history."));
             }
 
             lock (_gate)
             {
                 IReadOnlyList<RecentSessionRecord> snapshot =
                     [.. _records.OrderByDescending(item => item.LastUsedAt).Take(query.Limit)];
-                return ValueTask.FromResult(
-                    RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>.Success(snapshot));
+                return RecentSessionStoreResult<IReadOnlyList<RecentSessionRecord>>.Success(snapshot);
             }
         }
 
@@ -281,10 +369,22 @@ public sealed class RecentSessionHistoryViewModelTests
             return RecentSessionStoreResult<Unit>.Success(Unit.Value);
         }
 
-        public ValueTask<RecentSessionStoreResult<Unit>> RecordCompletedAsync(
+        public async ValueTask<RecentSessionStoreResult<Unit>> RecordCompletedAsync(
             RecentSessionCompletion completion,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(RecentSessionStoreResult<Unit>.Success(Unit.Value));
+            CancellationToken cancellationToken)
+        {
+            if (BlockCompletionWrite)
+            {
+                CompletionWriteEntered.TrySetResult();
+                await ReleaseCompletionWrite.Task.WaitAsync(cancellationToken);
+            }
+
+            CompletionWrites++;
+            return FailCompletionWrites
+                ? RecentSessionStoreResult<Unit>.Failure(new RecentSessionStoreError(
+                    RecentSessionStoreErrorCode.StorageFailure, "Completion write failed."))
+                : RecentSessionStoreResult<Unit>.Success(Unit.Value);
+        }
 
         public ValueTask<RecentSessionStoreResult<int>> MarkActiveSessionsInterruptedAsync(
             CancellationToken cancellationToken) =>

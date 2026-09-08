@@ -4,8 +4,12 @@ namespace GhostShell.Core.Tests;
 
 public sealed class ProfileSerializationTests
 {
-    [Fact]
-    public void Theme_terminal_and_keymap_profiles_round_trip_without_losing_unknown_commands()
+    [Theory]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafe)]
+    [InlineData(TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed)]
+    [InlineData(TerminalPasteSafetyPolicy.AllowUnsafe)]
+    public void Theme_terminal_and_keymap_profiles_round_trip_without_losing_unknown_commands(
+        TerminalPasteSafetyPolicy legacyPolicy)
     {
         var theme = new ThemePreference(
             new ThemePreferenceId("custom"),
@@ -28,7 +32,7 @@ public sealed class ProfileSerializationTests
             new TerminalClipboardPolicy(
                 TerminalClipboardAccess.Deny,
                 TerminalClipboardAccess.Ask,
-                TerminalPasteSafetyPolicy.ProtectUnsafeIncludingBracketed),
+                legacyPolicy),
             TerminalLinkPolicy.Disabled,
             imeEnabled: false,
             TerminalShellIntegrationMode.Fish,

@@ -217,7 +217,8 @@ public sealed record AgentRunCancellation
 
 /// <summary>
 /// Evidence that the local user explicitly enabled high-risk YOLO authority
-/// for one run, one target scope, one policy generation, and one short window.
+/// for one run, one target scope, and one policy generation. Authority ends
+/// with the run or an explicitly requested earlier expiry.
 /// </summary>
 public sealed record AgentYoloConfirmation
 {

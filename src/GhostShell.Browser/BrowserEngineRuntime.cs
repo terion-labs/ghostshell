@@ -13,7 +13,7 @@ public static class BrowserEngineRuntime
 {
     private const string ExpectedCefVersion = "150.0.9";
     private const string ExpectedChromiumVersion = "150.0.7871.46";
-    private const string ExpectedShimVersion = "0.8.0-ghostshell.7";
+    private const string ExpectedShimVersion = "0.8.0-ghostshell.10";
     internal const string DisabledChromiumFeatures =
         "OptimizationGuideOnDeviceModel,LogOnDeviceMetricsOnStartup";
     internal const string DisableChromeLoginPromptSwitch =
@@ -88,11 +88,11 @@ public static class BrowserEngineRuntime
             // GhostSHELL answers that hook only for an authenticated workspace
             // proxy at the exact configured loopback endpoint.
             Cef.AddCommandLineSwitch(DisableChromeLoginPromptSwitch);
-            if (GetMacOsSafeStorageSwitch(
-                    OperatingSystem.IsMacOS()) is { } safeStorageSwitch)
-            {
-                Cef.AddCommandLineSwitch(safeStorageSwitch);
-            }
+            // Use Chromium's real platform cookie encryption. The stock macOS
+            // framework uses its shared Chromium Safe Storage Keychain item;
+            // our separately keyed encrypted profile snapshot still protects
+            // browser storage that OSCrypt does not encrypt. Never substitute
+            // Chromium's public test key to suppress a Keychain prompt.
 
             Cef.SetInitSettings(settings);
 
@@ -174,29 +174,52 @@ public static class BrowserEngineRuntime
                 _initialized = false;
             }
 
-            try
+            return succeeded;
+        }
+    }
+
+    /// <summary>
+    /// Archives only after synchronous CEF shutdown has drained browser work.
+    /// Snapshot preparation may await a bounded platform copy process without
+    /// holding the CEF state lock or moving CEF shutdown off its owning thread.
+    /// </summary>
+    public static async Task<bool> SealStateAfterShutdownAsync(
+        CefBrowserProfileStore profileStore,
+        Func<string, string, CancellationToken, Task>? copyEngineSnapshot = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profileStore);
+        lock (StateGate)
+        {
+            if (!_shutdown || _initialized)
             {
-                if (profileStore?.SealRuntimeStateAfterEngineShutdown() == false)
-                {
-                    SecretSafeDiagnosticProjection.WriteStandardError(
-                        "browser.shutdown.state-seal-failed",
-                        SecretSafeDiagnosticKind.Unexpected);
-                    succeeded = false;
-                }
+                throw new InvalidOperationException("Browser state cannot be sealed before CEF shutdown.");
             }
-            catch (Exception exception)
-                when (exception is IOException
-                    or InvalidDataException
-                    or InvalidOperationException)
+        }
+
+        try
+        {
+            if (!await profileStore.SealRuntimeStateAfterEngineShutdownAsync(copyEngineSnapshot, cancellationToken).ConfigureAwait(false))
             {
                 SecretSafeDiagnosticProjection.WriteStandardError(
                     "browser.shutdown.state-seal-failed",
-                    exception);
-                succeeded = false;
+                    SecretSafeDiagnosticKind.Unexpected);
+                return false;
             }
-
-            return succeeded;
         }
+        catch (Exception exception)
+            when (exception is IOException
+                or InvalidDataException
+                or InvalidOperationException
+                or OperationCanceledException)
+        {
+            SecretSafeDiagnosticProjection.WriteStandardError(
+                "browser.shutdown.state-seal-failed",
+                exception);
+            return false;
+        }
+
+        return true;
     }
 
     internal static void ValidateVersions(CefVersions versions)
@@ -243,20 +266,6 @@ public static class BrowserEngineRuntime
             PersistSessionCookies = true,
             RemoteDebuggingPort = 0,
         };
-    }
-
-    internal static string? GetMacOsSafeStorageSwitch(bool isMacOs)
-    {
-        if (!isMacOs)
-        {
-            return null;
-        }
-
-        // GhostSHELL restores Chromium into an owner-only runtime directory and
-        // seals the complete tree with its application-encryption key after CEF
-        // shuts down. Chromium's separate Safe Storage integration adds login-
-        // keychain prompts without adding at-rest protection to the sealed blob.
-        return "use-mock-keychain";
     }
 
     private static void PreparePrivateDirectory(string path)

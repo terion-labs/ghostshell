@@ -70,6 +70,8 @@ public sealed class MacOsAppBundleBuilder
     [
         "GhostShell",
         "libghostty-vt.dylib",
+        "libghostshell_pty.dylib",
+        "PORTA-PTY-LICENSE",
         "GHOSTTY-LICENSE",
         "ghostty-vt-required-exports.txt",
         "THIRD-PARTY-NOTICES.md",
@@ -92,6 +94,7 @@ public sealed class MacOsAppBundleBuilder
         LicenseDestinations = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["GHOSTTY-LICENSE"] = "GHOSTTY-LICENSE",
+            ["PORTA-PTY-LICENSE"] = "PORTA-PTY-LICENSE",
             ["THIRD-PARTY-NOTICES.md"] = "THIRD-PARTY-NOTICES.md",
             ["DOTNET-LICENSE.txt"] = "DOTNET-LICENSE.txt",
             ["DOTNET-THIRD-PARTY-NOTICES.txt"] =
@@ -210,7 +213,8 @@ public sealed class MacOsAppBundleBuilder
                 request.ComponentCatalogPath,
                 request.NuGetPackageRoot,
                 request.ProductVersion,
-                evidenceLimits);
+                evidenceLimits,
+                request.ProductIdentitySourceRoot);
             EnsureEvidenceDestinationsAreAvailable(
                 licenseDirectory,
                 managedEvidence.Files);

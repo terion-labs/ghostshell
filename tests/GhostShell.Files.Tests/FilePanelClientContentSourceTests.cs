@@ -9,6 +9,22 @@ namespace GhostShell.Files.Tests;
 /// </summary>
 public sealed class FilePanelClientContentSourceTests : IDisposable
 {
+    [Fact]
+    public async Task An_understated_size_hint_spills_actual_bytes_without_truncation()
+    {
+        using var cache = new PreviewContentCache(KeepBetweenRuns(false), _cacheDirectory);
+        using var pending = cache.BeginPut("understated", 1);
+        var destination = pending.Destination;
+        var bytes = new byte[3 * 1024 * 1024];
+        Random.Shared.NextBytes(bytes);
+        await destination.WriteAsync(bytes.AsMemory(0, 1024));
+        await destination.WriteAsync(bytes.AsMemory(1024));
+        Assert.Same(destination, pending.Destination);
+        Assert.NotEmpty(Directory.GetFiles(_cacheDirectory));
+        using var content = pending.Commit();
+        Assert.Equal(bytes, await content.ReadAllBytesAsync(CancellationToken.None));
+    }
+
     private readonly string _root =
         Directory.CreateTempSubdirectory("ghostshell-content-source").FullName;
 

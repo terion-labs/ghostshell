@@ -6,6 +6,7 @@ namespace GhostShell.Browser;
 internal sealed partial class CefBrowserView
 {
     private const int MaximumProductTextLength = 512;
+    private readonly BrowserProductEventDispatch _productEvents;
     private string? _activeFindText;
     private readonly Dictionary<int, string> _downloadFileNames = [];
 
@@ -207,23 +208,7 @@ internal sealed partial class CefBrowserView
     }
 
     private void PublishProductEvent(BrowserProductEvent productEvent) =>
-        RunOnUiThread(() =>
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            try
-            {
-                ProductEvent?.Invoke(this, productEvent);
-            }
-            catch
-            {
-                // Product presentation is observational and must never escape
-                // into a native CEF callback.
-            }
-        });
+        _productEvents.Publish(productEvent);
 
     internal static NativeBrowserLoadFailureKind MapLoadFailure(
         Cef.CefErrorCode errorCode) => errorCode switch

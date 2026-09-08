@@ -269,7 +269,7 @@
           </Grid>
         </controls:SurfaceCard>
       </Grid>
-      <TextBlock
+      <controls:LiveRegionTextBlock
           Classes="Muted"
           AutomationProperties.Name="Terminal contrast status"
           AutomationProperties.LiveSetting="Polite"
@@ -697,12 +697,12 @@
           <TextBlock Text="{Binding ThemeMode, StringFormat={}Mode: {0}}" />
           <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding ThemeProfile, StringFormat={}Platform: {0}}" />
           <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding ThemeTextScale, StringFormat={}Text size: {0}}" />
-          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellAppearanceStatus}" AutomationProperties.Name="Effective appearance status" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellAccentStatus}" AutomationProperties.Name="Effective accent status" AutomationProperties.LiveSetting="Polite" />
-          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellMaterialStatus}" AutomationProperties.Name="Effective material status" AutomationProperties.LiveSetting="Polite" />
+          <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellAppearanceStatus}" AutomationProperties.Name="Effective appearance status" AutomationProperties.LiveSetting="Polite" />
+          <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellAccentStatus}" AutomationProperties.Name="Effective accent status" AutomationProperties.LiveSetting="Polite" />
+          <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{DynamicResource ShellMaterialStatus}" AutomationProperties.Name="Effective material status" AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
         <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="{DynamicResource ShellSpaceSm}">
-          <TextBlock
+          <controls:LiveRegionTextBlock
               x:Name="AppearanceValidationStatus"
               AutomationProperties.Name="Appearance validation status"
               AutomationProperties.LiveSetting="Polite"

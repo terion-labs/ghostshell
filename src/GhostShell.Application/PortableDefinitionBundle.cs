@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using GhostShell.Core;
 
 namespace GhostShell.Application;
@@ -15,6 +16,9 @@ public sealed record PortableDefinitionBundle(
     IReadOnlyList<PortableDefinitionDocument> Definitions)
 {
     public const int CurrentFormatVersion = 1;
+
+    [JsonIgnore]
+    public int ReconnectRequiredDatabasePanelCount { get; init; }
 }
 
 public enum DefinitionImportMode
@@ -38,6 +42,7 @@ public enum DefinitionImportIssueCode
     ImportedBrowserProfileDisabled,
     ImportedNetworkCredentialsDetached,
     ImportedNetworkPolicyDisabled,
+    ImportedDatabaseRecoveryDetached,
 }
 
 public sealed record DefinitionImportIssue(
@@ -51,7 +56,31 @@ public sealed record DefinitionImportPreflight(
     DefinitionImportMode Mode,
     IReadOnlyList<DefinitionImportIssue> Issues)
 {
+    public PortableDefinitionBundle Bundle { get; } = Bundle with
+    {
+        Definitions = Array.AsReadOnly(Bundle.Definitions.ToArray()),
+    };
+
+    public IReadOnlyList<DefinitionExecutionReviewItem> ExecutionReview { get; init; } = [];
+
+    public string? CatalogFingerprint { get; init; }
+
     public bool CanCommit => Issues.All(issue => !issue.IsBlocking);
+
+    /// <summary>Called only after an explicit user review, never from portable payload data.</summary>
+    public DefinitionImportExecutionApproval AcknowledgeExecutionReview() => new(this);
+}
+
+public sealed record DefinitionExecutionReviewItem(string Heading, string Details);
+
+/// <summary>In-process approval for one exact frozen preflight; not serializable import state.</summary>
+public sealed class DefinitionImportExecutionApproval
+{
+    private readonly DefinitionImportPreflight _preflight;
+
+    internal DefinitionImportExecutionApproval(DefinitionImportPreflight preflight) => _preflight = preflight;
+
+    public bool AppliesTo(DefinitionImportPreflight preflight) => ReferenceEquals(_preflight, preflight);
 }
 
 public sealed record DefinitionImportResult(int Inserted, int Replaced);

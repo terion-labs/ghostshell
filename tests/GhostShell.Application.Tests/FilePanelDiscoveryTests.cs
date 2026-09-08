@@ -6,6 +6,40 @@ namespace GhostShell.Application.Tests;
 public sealed class FilePanelDiscoveryTests
 {
     [Fact]
+    public async Task SearchDescendsOnDemandWithoutBufferingEverySiblingPage()
+    {
+        var client = new DiscoveryFilePanelClient(pageSize: 2);
+        var nested = client.Root.Child(new FilePanelPathSegment("nested"));
+        client.Add(client.Root, "nested", FilePanelEntryKind.Directory);
+        client.Add(nested, "first-match.md", FilePanelEntryKind.File);
+        for (var index = 0; index < 2000; index++)
+        {
+            client.Add(client.Root, $"sibling-{index}", FilePanelEntryKind.Directory);
+        }
+
+        await using var matches = ((IFilePanelClient)client).SearchAsync(
+            new FilePanelSearchRequest(client.Root, ".md", FilePanelDiscoveryScope.Subtree, false),
+            CancellationToken.None).GetAsyncEnumerator();
+        Assert.True(await matches.MoveNextAsync());
+        Assert.Equal("first-match.md", matches.Current.Value!.Name);
+        Assert.Equal(2, client.ListCallCount);
+    }
+
+    [Fact]
+    public async Task TraversalDetectsNonAdjacentContinuationCyclesWithBoundedCheckpoints()
+    {
+        var client = new DiscoveryFilePanelClient(pageSize: 2) { CycleContinuations = true };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await using var matches = ((IFilePanelClient)client).SearchAsync(
+            new FilePanelSearchRequest(client.Root, "match", FilePanelDiscoveryScope.Subtree, false),
+            timeout.Token).GetAsyncEnumerator(timeout.Token);
+        Assert.True(await matches.MoveNextAsync());
+        Assert.False(matches.Current.IsSuccess);
+        Assert.Equal("file_list_continuation_cycle", matches.Current.Error!.StableCode);
+        Assert.InRange(client.ListCallCount, 3, 8);
+    }
+
+    [Fact]
     public async Task SearchTraversesEveryPageAndNestedDirectory()
     {
         var client = new DiscoveryFilePanelClient(pageSize: 2);
@@ -90,6 +124,7 @@ public sealed class FilePanelDiscoveryTests
         public FilePanelLocation Root { get; }
 
         public int ListCallCount { get; private set; }
+        public bool CycleContinuations { get; init; }
 
         public IReadOnlyList<FileProviderProfileDescriptor> Profiles { get; }
 
@@ -121,6 +156,11 @@ public sealed class FilePanelDiscoveryTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             ListCallCount++;
+            if (CycleContinuations)
+            {
+                return ValueTask.FromResult(FilePanelResult<FilePanelPage>.Success(
+                    new FilePanelPage([], request.ContinuationToken == "a" ? "b" : "a")));
+            }
             var offset = request.ContinuationToken is null
                 ? 0
                 : int.Parse(request.ContinuationToken, CultureInfo.InvariantCulture);

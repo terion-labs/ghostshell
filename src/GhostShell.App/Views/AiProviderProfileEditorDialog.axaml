@@ -154,7 +154,7 @@
                 IsEnabled="{Binding CanStoreCredential}"
                 AutomationProperties.Name="Store API key in system keychain" />
             <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Store, Test, or Save writes the entered key to the system keychain and selects it here. Stored keys remain in the keychain if you cancel; existing keys are not overwritten." TextWrapping="Wrap" />
-            <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            <controls:LiveRegionTextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
           </StackPanel>
           <StackPanel
               IsVisible="{Binding UsesInteractiveAuthentication}"
@@ -165,7 +165,7 @@
                 Click="OnAuthenticateClick"
                 Content="{Binding AuthenticationButtonLabel}"
                 IsEnabled="{Binding CanAuthenticate}" />
-            <TextBlock
+            <controls:LiveRegionTextBlock
                 FontSize="{DynamicResource ShellFontSize10}"
                 Text="{Binding AuthenticationStatus}"
                 TextWrapping="Wrap"
@@ -188,7 +188,7 @@
       <controls:SurfaceCard Tone="Notice" Padding="{DynamicResource ShellCardPaddingCompact}">
         <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
           <TextBlock FontWeight="SemiBold" Text="{Binding TestStatus}" />
-          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding TestDetail}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding TestDetail}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
           <ItemsControl ItemsSource="{Binding Models}">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
@@ -202,7 +202,7 @@
         </StackPanel>
       </controls:SurfaceCard>
 
-      <TextBlock x:Name="ValidationError" Foreground="{DynamicResource ShellDangerBrush}" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+      <controls:LiveRegionTextBlock x:Name="ValidationError" Foreground="{DynamicResource ShellDangerBrush}" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
     </StackPanel>
   </controls:DialogShell>
 </Window>

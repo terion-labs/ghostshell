@@ -38,6 +38,10 @@ public sealed class CefPresentationShutdownContractTests
             program,
             "BrowserEngineRuntime.Shutdown(",
             quiescenceFallback);
+        var engineSeal = RequiredIndexOf(program,
+            "BrowserEngineRuntime.SealStateAfterShutdownAsync(", cefShutdown);
+        var serviceDisposal = RequiredIndexOf(program,
+            "services.DisposeAsync()", engineSeal);
 
         Assert.True(exitRegistration < lifetimeStart);
         Assert.True(lifetimeStart < mainThreadFallback);
@@ -45,6 +49,8 @@ public sealed class CefPresentationShutdownContractTests
         Assert.True(finalization < failureFallback);
         Assert.True(failureFallback < quiescenceFallback);
         Assert.True(quiescenceFallback < cefShutdown);
+        Assert.True(cefShutdown < engineSeal);
+        Assert.True(engineSeal < serviceDisposal);
     }
 
     [Fact]

@@ -33,7 +33,7 @@
         CornerRadius="{DynamicResource ShellInnerCornerRadius}"
         Focusable="False"
         IsVisible="False">
-      <TextBlock
+      <controls:LiveRegionTextBlock
           x:Name="DiagnosticStatusText"
           Classes="Eyebrow"
           FontSize="{DynamicResource ShellFontSize9}"

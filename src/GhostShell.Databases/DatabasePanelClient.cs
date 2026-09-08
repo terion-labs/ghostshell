@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
@@ -14,9 +13,10 @@ namespace GhostShell.Databases;
 /// server drivers, and it keeps a panel from pinning a file lock or a socket
 /// while idle. SSH tunnels are the exception: a handshake per statement would
 /// dominate every query, so opened forwards are cached per connection and
-/// target, and evicted on the first failure so a dropped tunnel reopens.
+/// target. Only definitively closed forwards are released and reopened; a
+/// query error or canceled caller does not invalidate another pooled user.
 /// </summary>
-public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
+public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
 {
     private const int MaximumTablePageSize = 5000;
     private const int MaximumSqlCatalogObjects = 1000;
@@ -34,21 +34,30 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
     private readonly IReadOnlyDictionary<string, IDatabaseDriver> _drivers;
     private readonly IDatabaseTunnelFactory? _tunnelFactory;
     private readonly ConnectionProfile? _defaultTunnel;
-    private readonly ConcurrentDictionary<
-        (string ConnectionId, string Host, int Port),
-        Task<IDatabaseTunnelLease>> _tunnels = new();
+    private readonly IDatabaseDiagramWorkerFactory? _diagramWorkers;
+    private readonly Func<DatabaseValueContentStore>? _contentStoreFactory;
+    private readonly IDatabaseOperationExecutor? _operationExecutor;
+    private readonly object _routeGate = new();
+    private readonly Dictionary<(ConnectionProfile Profile, CancellationToken Generation, string Driver, DatabaseEndpoint Target), DatabaseConnectionRoute> _routes = [];
+    private bool _disposed;
 
     public DatabasePanelClient(
         IDatabaseTunnelFactory? tunnelFactory = null,
-        ConnectionProfile? defaultTunnel = null)
-        : this(BuiltInDatabaseDrivers.All, tunnelFactory, defaultTunnel)
+        ConnectionProfile? defaultTunnel = null,
+        IDatabaseDiagramWorkerFactory? diagramWorkers = null,
+        Func<DatabaseValueContentStore>? contentStoreFactory = null,
+        IDatabaseOperationExecutor? operationExecutor = null)
+        : this(BuiltInDatabaseDrivers.All, tunnelFactory, defaultTunnel, diagramWorkers, contentStoreFactory, operationExecutor)
     {
     }
 
     public DatabasePanelClient(
         IReadOnlyList<IDatabaseDriver> drivers,
         IDatabaseTunnelFactory? tunnelFactory = null,
-        ConnectionProfile? defaultTunnel = null)
+        ConnectionProfile? defaultTunnel = null,
+        IDatabaseDiagramWorkerFactory? diagramWorkers = null,
+        Func<DatabaseValueContentStore>? contentStoreFactory = null,
+        IDatabaseOperationExecutor? operationExecutor = null)
     {
         ArgumentNullException.ThrowIfNull(drivers);
         _drivers = drivers.ToDictionary(
@@ -56,6 +65,9 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             StringComparer.Ordinal);
         _tunnelFactory = tunnelFactory;
         _defaultTunnel = defaultTunnel;
+        _diagramWorkers = diagramWorkers;
+        _contentStoreFactory = contentStoreFactory;
+        _operationExecutor = operationExecutor;
         Drivers = [.. drivers.Select(driver => driver.Descriptor)];
     }
 
@@ -1073,6 +1085,13 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxRows, 1);
         var driver = Resolve(driverId);
+        if (_operationExecutor is not null)
+        {
+            return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
+                (target, token) => _operationExecutor.QueryAsync(target, sql, maxRows, requestKeyInfo, token),
+                cancellationToken).ConfigureAwait(false);
+        }
+
         return await ExecuteThroughTunnelAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
@@ -1089,20 +1108,28 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
                         token,
                         requestKeyInfo)
                     .ConfigureAwait(false);
-                if (requestKeyInfo
-                    && string.Equals(driverId, "duckdb", StringComparison.Ordinal))
+                try
                 {
-                    result = await DuckDbQueryProvenance.EnrichAsync(
-                            connection,
-                            sql,
-                            result,
-                            token)
-                        .ConfigureAwait(false);
-                }
+                    if (requestKeyInfo
+                        && string.Equals(driverId, "duckdb", StringComparison.Ordinal))
+                    {
+                        result = await DuckDbQueryProvenance.EnrichAsync(
+                                connection,
+                                sql,
+                                result,
+                                token)
+                            .ConfigureAwait(false);
+                    }
 
-                return requestKeyInfo
-                    ? NormalizeProviderProvenance(driverId, result)
-                    : result;
+                    return requestKeyInfo
+                        ? NormalizeProviderProvenance(driverId, result)
+                        : result;
+                }
+                catch
+                {
+                    result.Dispose();
+                    throw;
+                }
             },
             cancellationToken).ConfigureAwait(false);
     }
@@ -1148,6 +1175,13 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(query.Limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(query.Limit, MaximumTablePageSize);
         var driver = Resolve(driverId);
+        if (_operationExecutor is not null)
+        {
+            return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
+                (target, token) => _operationExecutor.ReadQueryAsync(target, sourceSql, sourceColumns, query, token),
+                cancellationToken).ConfigureAwait(false);
+        }
+
         var dialect = DatabaseSqlDialect.For(driverId);
         return await ExecuteThroughTunnelAsync(
             driver,
@@ -1168,35 +1202,43 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
                         schema: null,
                         token)
                     .ConfigureAwait(false);
-                result = PreserveQueryColumnContext(result, projectedColumns);
-                var hasLookAheadRow = result.ValueRows.Count > requestedLimit;
-                var pageResult = hasLookAheadRow
-                    ? result with
-                    {
-                        Rows = [.. result.Rows.Take(requestedLimit)],
-                        TypedRows = [.. result.ValueRows.Take(requestedLimit)],
-                        Truncated = true,
-                    }
-                    : result;
-                var filteredRows = await ExecuteCountAsync(
-                        connection,
-                        dialect.BuildQueryCount(sourceSql, sourceColumns, query.Filters),
-                        token)
-                    .ConfigureAwait(false);
-                var sourceRows = query.Filters.Count == 0
-                    ? filteredRows
-                    : await ExecuteCountAsync(
+                try
+                {
+                    result = PreserveQueryColumnContext(result, projectedColumns);
+                    var hasLookAheadRow = result.ValueRows.Count > requestedLimit;
+                    var pageResult = hasLookAheadRow
+                        ? result with
+                        {
+                            Rows = [.. result.Rows.Take(requestedLimit)],
+                            TypedRows = [.. result.ValueRows.Take(requestedLimit)],
+                            Truncated = true,
+                        }
+                        : result;
+                    var filteredRows = await ExecuteCountAsync(
                             connection,
-                            dialect.BuildQueryCount(sourceSql, sourceColumns, []),
+                            dialect.BuildQueryCount(sourceSql, sourceColumns, query.Filters),
                             token)
                         .ConfigureAwait(false);
-                return new DatabaseTablePage(
-                    pageResult,
-                    query.Offset,
-                    requestedLimit,
-                    hasLookAheadRow,
-                    filteredRows,
-                    sourceRows);
+                    var sourceRows = query.Filters.Count == 0
+                        ? filteredRows
+                        : await ExecuteCountAsync(
+                                connection,
+                                dialect.BuildQueryCount(sourceSql, sourceColumns, []),
+                                token)
+                            .ConfigureAwait(false);
+                    return new DatabaseTablePage(
+                        pageResult,
+                        query.Offset,
+                        requestedLimit,
+                        hasLookAheadRow,
+                        filteredRows,
+                        sourceRows);
+                }
+                catch
+                {
+                    result.Dispose();
+                    throw;
+                }
             },
             cancellationToken).ConfigureAwait(false);
     }
@@ -1246,6 +1288,13 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(query.Limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(query.Limit, MaximumTablePageSize);
         var driver = Resolve(driverId);
+        if (_operationExecutor is not null)
+        {
+            return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
+                (target, token) => _operationExecutor.ReadTableAsync(target, table, query, token),
+                cancellationToken).ConfigureAwait(false);
+        }
+
         var dialect = DatabaseSqlDialect.For(driverId);
         return await ExecuteThroughTunnelAsync(
             driver,
@@ -1279,34 +1328,42 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
                         projectedColumns,
                         token)
                     .ConfigureAwait(false);
-                var hasLookAheadRow = result.ValueRows.Count > requestedLimit;
-                var pageResult = hasLookAheadRow
-                    ? result with
-                    {
-                        Rows = [.. result.Rows.Take(requestedLimit)],
-                        TypedRows = [.. result.ValueRows.Take(requestedLimit)],
-                        Truncated = true,
-                    }
-                    : result;
-                var filteredRows = await ExecuteCountAsync(
-                        connection,
-                        dialect.BuildCount(table.Id, details.Columns, query.Filters),
-                        token)
-                    .ConfigureAwait(false);
-                var tableRows = query.Filters.Count == 0
-                    ? filteredRows
-                    : await ExecuteCountAsync(
+                try
+                {
+                    var hasLookAheadRow = result.ValueRows.Count > requestedLimit;
+                    var pageResult = hasLookAheadRow
+                        ? result with
+                        {
+                            Rows = [.. result.Rows.Take(requestedLimit)],
+                            TypedRows = [.. result.ValueRows.Take(requestedLimit)],
+                            Truncated = true,
+                        }
+                        : result;
+                    var filteredRows = await ExecuteCountAsync(
                             connection,
-                            dialect.BuildCount(table.Id, details.Columns, []),
+                            dialect.BuildCount(table.Id, details.Columns, query.Filters),
                             token)
                         .ConfigureAwait(false);
-                return new DatabaseTablePage(
-                    pageResult,
-                    query.Offset,
-                    requestedLimit,
-                    hasLookAheadRow && canPage,
-                    filteredRows,
-                    tableRows);
+                    var tableRows = query.Filters.Count == 0
+                        ? filteredRows
+                        : await ExecuteCountAsync(
+                                connection,
+                                dialect.BuildCount(table.Id, details.Columns, []),
+                                token)
+                            .ConfigureAwait(false);
+                    return new DatabaseTablePage(
+                        pageResult,
+                        query.Offset,
+                        requestedLimit,
+                        hasLookAheadRow && canPage,
+                        filteredRows,
+                        tableRows);
+                }
+                catch
+                {
+                    result.Dispose();
+                    throw;
+                }
             },
             cancellationToken).ConfigureAwait(false);
     }
@@ -1327,6 +1384,13 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         }
 
         var driver = Resolve(driverId);
+        if (_operationExecutor is not null)
+        {
+            return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
+                (target, token) => _operationExecutor.ApplyTableChangesAsync(target, table, changes, token),
+                cancellationToken).ConfigureAwait(false);
+        }
+
         var dialect = DatabaseSqlDialect.For(driverId);
         return await ExecuteThroughTunnelAsync(
             driver,
@@ -1360,7 +1424,8 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
     public string BuildInsertStatement(
         string driverId,
         DatabaseObjectDetails details,
-        DatabaseInsertedRow row)
+        DatabaseInsertedRow row,
+        int maximumUtf8Bytes = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(row);
@@ -1370,7 +1435,7 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         }
 
         return DatabaseSqlDialect.For(driverId)
-            .BuildInsertStatement(details.Object.Id, details, row);
+            .BuildInsertStatement(details.Object.Id, details, row, maximumUtf8Bytes);
     }
 
     public string BuildTablePreviewQuery(string driverId, DatabaseObjectId table, int limit)
@@ -1386,6 +1451,23 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         string driverId,
         string connectionString) =>
         ResolveDetails(Resolve(driverId), connectionString ?? string.Empty);
+
+    public bool IsConnectionStringValid(string driverId, string connectionString)
+    {
+        try
+        {
+            var driver = Resolve(driverId);
+            // Provider constructors parse supported options. Do not use the
+            // editor's permissive fallback, Open, or a routed connection here.
+            using var connection = driver.CreateConnection(driver.NormalizeConnectionString(connectionString));
+            return connection.State == ConnectionState.Closed;
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException
+            or NotSupportedException or InvalidOperationException or DbException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// A URL pasted into the connection box fills the host, port, database and
@@ -1417,27 +1499,53 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var pending in _tunnels.Values)
+        DatabaseConnectionRoute[] routes;
+        lock (_routeGate)
         {
-            try
-            {
-                var lease = await pending.ConfigureAwait(false);
-                await lease.DisposeAsync().ConfigureAwait(false);
-            }
-            catch
-            {
-                // Teardown must reach every forward; a dead one is already down.
-            }
+            if (_disposed) { return; }
+            _disposed = true;
+            routes = [.. _routes.Values];
+            _routes.Clear();
         }
-
-        _tunnels.Clear();
+        await Task.WhenAll(routes.Select(route => route.DisposeAsync().AsTask())).ConfigureAwait(false);
     }
 
-    private async Task<TResult> ExecuteThroughTunnelAsync<TResult>(
+    private Task<TResult> ExecuteInWorkerAsync<TResult>(
+        IDatabaseDriver driver,
+        string connectionString,
+        ConnectionProfile? tunnel,
+        Func<DatabaseWorkerConnection, CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        var normalized = driver.NormalizeConnectionString(connectionString);
+        return ExecuteThroughRouteAsync(driver, normalized, tunnel,
+            (route, token) => operation(new DatabaseWorkerConnection(driver.Descriptor.Id, normalized)
+            { Route = route?.WorkerCapability }, token),
+            cancellationToken);
+    }
+
+    private Task<TResult> ExecuteThroughTunnelAsync<TResult>(
         IDatabaseDriver driver,
         string connectionString,
         ConnectionProfile? tunnel,
         Func<Func<DbConnection>, CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken) =>
+        ExecuteThroughRouteAsync(driver, connectionString, tunnel,
+            async (route, token) =>
+            {
+                if (route is null) { return await operation(() => driver.CreateConnection(connectionString), token).ConfigureAwait(false); }
+                var endpoint = driver.GetEndpoint(connectionString)
+                    ?? throw new InvalidOperationException("The database has no routeable endpoint.");
+                var port = await route.GetLocalPortAsync(endpoint.Host, endpoint.Port, token).ConfigureAwait(false);
+                return await operation(() => driver.CreateRoutedConnection(connectionString, "127.0.0.1", port, route), token).ConfigureAwait(false);
+            },
+            cancellationToken);
+
+    private async Task<TResult> ExecuteThroughRouteAsync<TResult>(
+        IDatabaseDriver driver,
+        string connectionString,
+        ConnectionProfile? tunnel,
+        Func<DatabaseConnectionRoute?, CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken)
     {
         tunnel ??= driver.Descriptor.DefaultPort is null
@@ -1445,7 +1553,7 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             : _defaultTunnel;
         if (tunnel is null)
         {
-            return await operation(() => driver.CreateConnection(connectionString), cancellationToken).ConfigureAwait(false);
+            return await operation(null, cancellationToken).ConfigureAwait(false);
         }
 
         if (_tunnelFactory is null)
@@ -1458,52 +1566,62 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
             ?? throw new InvalidOperationException(
                 $"{driver.Descriptor.DisplayName} connections cannot be tunneled: "
                 + "the connection string has no network endpoint.");
-        var key = (tunnel.Id.Value, endpoint.Host, endpoint.Port);
+        var route = await GetRouteAsync(tunnel, driver.Descriptor.Id, endpoint).ConfigureAwait(false);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, route.Lifetime);
         try
         {
-            var lease = await _tunnels.GetOrAdd(
-                    key,
-                    _ => OpenTunnelAsync(tunnel, endpoint, cancellationToken))
-                .ConfigureAwait(false);
-            return await operation(
-                    () => driver.CreateRoutedConnection(connectionString, "127.0.0.1", lease.LocalPort),
-                    cancellationToken)
-                .ConfigureAwait(false);
+            return await operation(route, cancellation.Token).ConfigureAwait(false);
         }
-        catch
+        catch (Exception exception) when (exception is not DatabaseMutationOutcomeUnknownException
+            && DatabaseRouteEndpointBudgetException.IsCauseOf(exception))
         {
-            // A failure may mean the forward died; drop it so the next attempt
-            // opens a fresh one instead of failing forever.
-            if (_tunnels.TryRemove(key, out var stale))
-            {
-                _ = DisposeQuietlyAsync(stale);
-            }
-
-            throw;
+            throw new DatabaseRouteEndpointBudgetException("This database target retained 32 route endpoints. Restart GhostShell to release retained forwards before opening another endpoint.");
+        }
+        catch (ObjectDisposedException) when (cancellation.IsCancellationRequested)
+        {
+            // Provider login may observe route socket disposal before its
+            // cancellation callback. Preserve ordinary cancellation UX, never
+            // normalize the worker's post-dispatch outcome-unknown exception.
+            throw new OperationCanceledException("The database route was canceled.", cancellation.Token);
         }
     }
 
-    private async Task<IDatabaseTunnelLease> OpenTunnelAsync(
-        ConnectionProfile connection,
-        DatabaseEndpoint endpoint,
-        CancellationToken cancellationToken) =>
-        await _tunnelFactory!.OpenAsync(
-                connection,
-                endpoint.Host,
-                endpoint.Port,
-                cancellationToken)
-            .ConfigureAwait(false);
-
-    private static async Task DisposeQuietlyAsync(Task<IDatabaseTunnelLease> pending)
+    private async Task<DatabaseConnectionRoute> GetRouteAsync(ConnectionProfile profile, string driverId, DatabaseEndpoint target)
     {
+        var captured = _tunnelFactory!.CaptureRoute();
+        DatabaseConnectionRoute route;
+        List<DatabaseConnectionRoute> stale = [];
+        var usedCapture = false;
         try
         {
-            var lease = await pending.ConfigureAwait(false);
-            await lease.DisposeAsync().ConfigureAwait(false);
+            lock (_routeGate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                captured.RouteLifetime.ThrowIfCancellationRequested();
+                var key = (profile, captured.RouteLifetime, driverId, target);
+                if (!_routes.TryGetValue(key, out route!))
+                {
+                    foreach (var previous in _routes.Where(pair => pair.Key.Profile.Id == profile.Id
+                        && (pair.Key.Profile != profile || pair.Key.Generation != captured.RouteLifetime)).ToArray())
+                    {
+                        _routes.Remove(previous.Key);
+                        stale.Add(previous.Value);
+                    }
+                    route = new DatabaseConnectionRoute(captured, !ReferenceEquals(captured, _tunnelFactory), profile);
+                    _routes.Add(key, route);
+                    usedCapture = true;
+                }
+            }
+            await Task.WhenAll(stale.Select(previous => previous.DisposeAsync().AsTask())).ConfigureAwait(false);
+            return route;
         }
-        catch
+        finally
         {
-            // The forward is gone either way.
+            if (!usedCapture && !ReferenceEquals(captured, _tunnelFactory))
+            {
+                if (captured is IAsyncDisposable asyncDisposable) { await asyncDisposable.DisposeAsync().ConfigureAwait(false); }
+                else if (captured is IDisposable disposable) { disposable.Dispose(); }
+            }
         }
     }
 
@@ -1517,7 +1635,7 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
                 nameof(driverId));
     }
 
-    private static async Task<DatabaseQueryPage> ExecuteQueryAsync(
+    private async Task<DatabaseQueryPage> ExecuteQueryAsync(
         DbConnection connection,
         DatabaseSqlCommand statement,
         int maxRows,
@@ -1528,6 +1646,10 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         var stopwatch = Stopwatch.StartNew();
         await using var command = CreateCommand(connection, statement);
         var behavior = requestKeyInfo ? CommandBehavior.KeyInfo : CommandBehavior.Default;
+        if (_contentStoreFactory is not null)
+        {
+            behavior |= CommandBehavior.SequentialAccess;
+        }
         await using var reader = await command.ExecuteReaderAsync(behavior, cancellationToken)
             .ConfigureAwait(false);
         var described = DatabaseValueMaterializer.DescribeColumns(reader);
@@ -1541,40 +1663,58 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         var values = new List<IReadOnlyList<DatabaseValue>>();
         var displayRows = new List<IReadOnlyList<string?>>();
         var truncated = false;
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        DatabaseValueContentStore? contentStore = null;
+        var completed = false;
+        try
         {
-            if (values.Count >= maxRows)
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                truncated = true;
-                break;
+                if (values.Count >= maxRows)
+                {
+                    truncated = true;
+                    break;
+                }
+
+                var typedRow = new DatabaseValue[columns.Length];
+                var displayRow = new string?[columns.Length];
+                for (var ordinal = 0; ordinal < columns.Length; ordinal++)
+                {
+                    var readerOrdinal = visibleOrdinals[ordinal].ordinal;
+                    var value = _contentStoreFactory is null
+                        ? DatabaseValueMaterializer.Materialize(reader, readerOrdinal, columns[ordinal])
+                        : await DatabaseValueMaterializer.MaterializeAsync(
+                            reader,
+                            readerOrdinal,
+                            columns[ordinal],
+                            () => contentStore ??= _contentStoreFactory(),
+                            cancellationToken).ConfigureAwait(false);
+                    typedRow[ordinal] = value;
+                    displayRow[ordinal] = value.IsNull ? null : value.DisplayText;
+                }
+
+                values.Add(typedRow);
+                displayRows.Add(displayRow);
             }
 
-            var typedRow = new DatabaseValue[columns.Length];
-            var displayRow = new string?[columns.Length];
-            for (var ordinal = 0; ordinal < columns.Length; ordinal++)
-            {
-                var readerOrdinal = visibleOrdinals[ordinal].ordinal;
-                var value = DatabaseValueMaterializer.Materialize(
-                    reader,
-                    readerOrdinal,
-                    columns[ordinal]);
-                typedRow[ordinal] = value;
-                displayRow[ordinal] = value.IsNull ? null : value.DisplayText;
-            }
-
-            values.Add(typedRow);
-            displayRows.Add(displayRow);
+            stopwatch.Stop();
+            var safeColumns = DatabaseValueMaterializer.ReconcileColumnSafety(columns, values);
+            completed = true;
+            return new DatabaseQueryPage(
+                safeColumns,
+                displayRows,
+                truncated,
+                Math.Max(0, reader.RecordsAffected),
+                stopwatch.Elapsed,
+                values,
+                contentStore);
         }
-
-        stopwatch.Stop();
-        var safeColumns = DatabaseValueMaterializer.ReconcileColumnSafety(columns, values);
-        return new DatabaseQueryPage(
-            safeColumns,
-            displayRows,
-            truncated,
-            Math.Max(0, reader.RecordsAffected),
-            stopwatch.Elapsed,
-            values);
+        finally
+        {
+            if (!completed)
+            {
+                contentStore?.Dispose();
+            }
+        }
     }
 
     private static bool IsResultQuery(string sql)
@@ -1667,6 +1807,11 @@ public sealed class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
         DatabaseSqlCommand statement,
         DbTransaction? transaction = null)
     {
+        if (statement.Parameters.Any(parameter => parameter.Value is DatabaseValueContent))
+        {
+            throw new InvalidOperationException("Detached database parameters must be decoded by the owned operation worker before provider dispatch.");
+        }
+
         var command = connection.CreateCommand();
         command.CommandText = statement.Sql;
         command.Transaction = transaction;

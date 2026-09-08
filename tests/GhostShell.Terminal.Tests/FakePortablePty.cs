@@ -38,6 +38,11 @@ internal sealed class FakePortablePtyConnection : IPortablePtyConnection
     private bool _disposed;
     private bool _exited;
     private int _exitCode;
+    private readonly TaskCompletionSource _exitCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public bool DelayExit { get; set; }
+
+    public Task WaitForExitAsync(CancellationToken cancellationToken) => _exitCompletion.Task.WaitAsync(cancellationToken);
 
     public FakePortablePtyConnection()
     {
@@ -101,6 +106,7 @@ internal sealed class FakePortablePtyConnection : IPortablePtyConnection
     {
         _exited = true;
         _exitCode = exitCode;
+        _exitCompletion.TrySetResult();
         ProcessExited?.Invoke(this, new PortablePtyExit(exitCode));
     }
 
@@ -109,7 +115,10 @@ internal sealed class FakePortablePtyConnection : IPortablePtyConnection
     public void Kill()
     {
         KillCount++;
-        Exit(137);
+        if (!DelayExit)
+        {
+            Exit(137);
+        }
     }
 
     public void Dispose()
@@ -123,6 +132,10 @@ internal sealed class FakePortablePtyConnection : IPortablePtyConnection
         _outputReader.Dispose();
         _outputWriter.Dispose();
         _input.Dispose();
+        if (!DelayExit && !_exited)
+        {
+            Exit(0);
+        }
         var failure = DisposeFailure;
         DisposeFailure = null;
         if (failure is not null)

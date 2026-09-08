@@ -128,7 +128,7 @@
          remain visible without taking width from the address editor. -->
     <controls:PanelChrome.Footer>
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
-        <TextBlock
+        <controls:LiveRegionTextBlock
             VerticalAlignment="Center"
             AutomationProperties.LiveSetting="Polite"
             AutomationProperties.Name="Browser session status"
@@ -253,7 +253,7 @@
               Text="{Binding FindText, ElementName=RuntimeBrowser, Mode=TwoWay}"
               TextChanged="OnFindTextChanged"
               PlaceholderText="Find in page" />
-          <TextBlock
+          <controls:LiveRegionTextBlock
               Grid.Column="1"
               MinWidth="56"
               VerticalAlignment="Center"

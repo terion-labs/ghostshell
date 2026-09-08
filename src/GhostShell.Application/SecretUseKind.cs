@@ -13,4 +13,5 @@ public enum SecretUseKind
     PlatformMaintenance,
     DatabaseConnectionAuthentication,
     NetworkConnectionAuthentication,
+    DatabaseRecovery,
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -39,8 +40,12 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     private const int MaximumFilterListCharacters = 64 * 1024;
 
     private readonly IDatabasePanelClient _client;
+    private DatabaseValueContentStore? _resultContent;
+    private IDisposable? _resultContentLease;
+    private CancellationTokenSource? _clipboardBuildCancellation;
+    private long _clipboardRevision;
     private readonly ISqlLanguageService? _sqlLanguageService;
-    private readonly Func<SecretRef, CancellationToken, Task<string?>>? _passwordResolver;
+    private readonly Func<DatabaseConnectionProfile, CancellationToken, Task<string?>>? _passwordResolver;
     private readonly Func<DatabaseConnectionProfileId, string, CancellationToken,
         Task<DatabaseConnectionProfile?>>? _passwordPersister;
     private readonly string? _forcedReadOnlyReason;
@@ -59,12 +64,21 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     private bool _isPersistedConnection = true;
     private DatabaseConnectionProfile? _savedConnection;
     private string? _sessionPassword;
+    private readonly DatabaseRecoveryPayload _initialRecoveryInput;
+    private DatabaseRecoveryPayload? _acceptedInitialRecoveryBinding;
+    private DatabaseRecoveryPayload? _latestResolvedRecoveryBinding;
+    private readonly DatabaseRecoveryState? _recovery;
+    private ConnectionProfile? _savedTunnel;
+    private readonly bool _deferStoredCredentialAccess;
+    private bool _initializationStarted;
+    private bool _importedConnectionRequired;
     private DatabaseDriverOptionViewModel _selectedDriver;
     private string _connectionString = string.Empty;
     private string _queryText = string.Empty;
     private bool _isBusy;
     private bool _isConnected;
     private string? _errorMessage;
+    private string? _interchangeNotice;
     private string _resultSummary = string.Empty;
     private IReadOnlyList<DatabaseTableItemViewModel> _allTables = [];
     private string _tableFilter = string.Empty;
@@ -126,14 +140,17 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         string? connectionString = null,
         ConnectionProfile? tunnelConnection = null,
         DatabaseConnectionProfile? savedConnection = null,
-        Func<SecretRef, CancellationToken, Task<string?>>? passwordResolver = null,
+        Func<DatabaseConnectionProfile, CancellationToken, Task<string?>>? passwordResolver = null,
         string? forcedReadOnlyReason = null,
         DatabaseObjectId? initialObject = null,
         ISqlLanguageService? sqlLanguageService = null,
         Func<DatabaseConnectionProfileId, string, CancellationToken,
             Task<DatabaseConnectionProfile?>>? passwordPersister = null,
         string passwordStoreLabel = "Save in system credential store",
-        bool deferStoredCredentialAccess = false)
+        bool deferStoredCredentialAccess = false,
+        string? sessionPassword = null,
+        DatabaseRecoveryState? recovery = null,
+        bool persistedConnection = true)
         : base(id, PanelKind.DatabaseViewer, title, "Database")
     {
         _pendingInitialObject = initialObject;
@@ -143,6 +160,11 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _sqlLanguageService = sqlLanguageService;
         _passwordResolver = passwordResolver;
+        _sessionPassword = sessionPassword;
+        _recovery = recovery;
+        _savedTunnel = tunnelConnection;
+        _isPersistedConnection = persistedConnection;
+        _deferStoredCredentialAccess = deferStoredCredentialAccess;
         _passwordPersister = passwordPersister;
         PasswordStoreLabel = string.IsNullOrWhiteSpace(passwordStoreLabel)
             ? "Save in system credential store"
@@ -159,11 +181,12 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         }
 
         _savedConnection = savedConnection;
-        var effectiveDriverId = savedConnection?.DriverId ?? driverId;
+        var effectiveDriverId = driverId ?? savedConnection?.DriverId;
         _selectedDriver = DriverOptions.FirstOrDefault(option =>
                 string.Equals(option.Id, effectiveDriverId, StringComparison.Ordinal))
             ?? DriverOptions[0];
-        _connectionString = savedConnection?.ConnectionString ?? connectionString ?? string.Empty;
+        _connectionString = connectionString ?? savedConnection?.ConnectionString ?? string.Empty;
+        _initialRecoveryInput = CaptureRecoveryInput();
         ConnectCommand = new AsyncActionCommand(
             ConnectAsync,
             () => CanChangeConnection && HasConnectionTarget);
@@ -180,7 +203,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         // Recovery may construct this panel during application startup. A
         // stored database or tunnel credential must not make that construction
         // open the OS credential store before the user presses Connect.
-        Initialization = !string.IsNullOrWhiteSpace(_connectionString)
+        Initialization = recovery is null && !string.IsNullOrWhiteSpace(_connectionString)
             && (savedConnection is not null || driverId is not null)
             && !NeedsPasswordPrompt
             && !(deferStoredCredentialAccess && RequiresStoredCredentialAccess)
@@ -265,6 +288,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         InvalidateHostedBinding();
         _savedConnection = profile;
         _isPersistedConnection = persisted;
+        _savedTunnel = tunnel;
         _sessionPassword = string.IsNullOrEmpty(sessionPassword) ? null : sessionPassword;
         _tunnelConnection = tunnel?.Endpoint is ConnectionEndpoint.Ssh ? tunnel : null;
         var driver = DriverOptions.FirstOrDefault(option =>
@@ -314,6 +338,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
         InvalidateHostedBinding();
         _savedConnection = saved;
+        _sessionPassword = null;
         OnPropertyChanged(nameof(CanStorePassword));
         return true;
     }
@@ -337,17 +362,23 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     private async Task<string> ResolveEffectiveConnectionStringAsync(
         CancellationToken cancellationToken)
     {
-        if (_savedConnection is null || SelectedDriver.IsFileBased)
+        if (SelectedDriver.IsFileBased)
+        {
+            return ConnectionString;
+        }
+
+        var details = _client.ParseConnectionDetails(SelectedDriver.Id, ConnectionString);
+        if (details.Password is not null)
         {
             return ConnectionString;
         }
 
         var password = _sessionPassword;
         if (string.IsNullOrEmpty(password)
-            && _savedConnection.PasswordSecret is { } secret
+            && _savedConnection?.PasswordSecret is not null
             && _passwordResolver is not null)
         {
-            password = await _passwordResolver(secret, cancellationToken);
+            password = await _passwordResolver(_savedConnection, cancellationToken);
         }
 
         if (string.IsNullOrEmpty(password))
@@ -355,10 +386,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
             return ConnectionString;
         }
 
-        var details = _client.ParseConnectionDetails(SelectedDriver.Id, ConnectionString);
-        return details.Password is null
-            ? _client.BuildConnectionString(SelectedDriver.Id, details with { Password = password })
-            : ConnectionString;
+        return _client.BuildConnectionString(SelectedDriver.Id, details with { Password = password });
     }
 
     public IReadOnlyList<DatabaseDriverOptionViewModel> DriverOptions { get; }
@@ -366,7 +394,21 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     public ObservableCollection<DatabaseTableItemViewModel> Tables { get; } = [];
 
     /// <summary>Lets tests and restore await the initial automatic connection.</summary>
-    public Task Initialization { get; }
+    public Task Initialization { get; private set; }
+
+    public void StartInitialization()
+    {
+        if (_initializationStarted || _recovery is null || _disposed)
+        {
+            return;
+        }
+        _initializationStarted = true;
+        if (HasConnectionTarget && !NeedsPasswordPrompt
+            && !(_deferStoredCredentialAccess && RequiresStoredCredentialAccess))
+        {
+            Initialization = ConnectAsync();
+        }
+    }
 
     public ICommand ConnectCommand { get; }
 
@@ -435,7 +477,37 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         private set => SetProperty(ref _mermaidDiagramText, value);
     }
 
-    public bool HasMermaidDiagram => !string.IsNullOrWhiteSpace(MermaidDiagramText);
+    private IDatabaseDiagramSession? _diagramSession;
+    private CancellationTokenSource? _diagramCancellation;
+
+    public IDatabaseDiagramSession? DiagramSession => _diagramSession;
+
+    public bool HasMermaidDiagram => _diagramSession is not null;
+
+    public void SuspendDatabaseDiagram()
+    {
+        var mode = SelectedDatabaseOverviewMode;
+        ResetDatabaseDiagram();
+        SelectedDatabaseOverviewMode = mode;
+    }
+
+    public async Task ExportDatabaseDiagramAsync(Stream destination, DatabaseDiagramExport format, CancellationToken cancellationToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        if (_diagramSession is { } session)
+        {
+            await session.ExportAsync(destination, format, linked.Token);
+            return;
+        }
+
+        if (format != DatabaseDiagramExport.MermaidMarkdown)
+        {
+            throw new InvalidOperationException("The diagram must render before SVG can be exported. Choose Mermaid Markdown to export the complete schema without rendering.");
+        }
+
+        await _client.ExportDatabaseSchemaSourceAsync(SelectedDriver.Id,
+            await ResolveEffectiveConnectionStringAsync(linked.Token), _tunnelConnection, destination, linked.Token);
+    }
 
     /// <summary>
     /// The optional, credential-free Calcite session consumed directly by the
@@ -898,6 +970,20 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
     public bool HasError => ErrorMessage is not null;
 
+    public string? InterchangeNotice
+    {
+        get => _interchangeNotice;
+        private set
+        {
+            if (SetProperty(ref _interchangeNotice, value))
+            {
+                OnPropertyChanged(nameof(HasInterchangeNotice));
+            }
+        }
+    }
+
+    public bool HasInterchangeNotice => InterchangeNotice is not null;
+
     public string StatusText => IsBusy
         ? "Working…"
         : IsConnected
@@ -992,14 +1078,66 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     }
 
     /// <summary>
-    /// The durable "driverId:connection string" address, or null while the
-    /// panel has no usable target. Recovery and workspace autosave persist it.
+    /// An unchanged saved profile can retain its catalog address. Any live target
+    /// change needs an immutable confidential recovery entry instead.
     /// </summary>
-    public string? RecoveryTarget => _savedConnection is { } saved && _isPersistedConnection
+    private bool UsesUnmodifiedSavedTarget => _savedConnection is { } saved && _isPersistedConnection
+        && string.Equals(SelectedDriver.Id, saved.DriverId, StringComparison.Ordinal)
+        && string.Equals(ConnectionString, saved.ConnectionString, StringComparison.Ordinal)
+        && _tunnelConnection == _savedTunnel
+        && _sessionPassword is null;
+
+    public string? RecoveryTarget => UsesUnmodifiedSavedTarget && _savedConnection is { } saved
         ? $"saved:{saved.Id.Value}"
-        : string.IsNullOrWhiteSpace(ConnectionString)
-            ? null
-            : new DatabasePanelTarget(SelectedDriver.Id, ConnectionString).Serialize();
+        : _importedConnectionRequired && !HasConnectionTarget
+            ? DatabaseRecoveryToken.ReconnectTarget
+            : _recovery?.Target;
+
+    internal bool CanPreserveInitialSourceConnection => _acceptedInitialRecoveryBinding is not null
+        && _latestResolvedRecoveryBinding == _acceptedInitialRecoveryBinding
+        && CaptureRecoveryInput() == _initialRecoveryInput
+        && SourceDefinition is { } source
+        && _initialRecoveryInput.MatchesSourceTarget(source, RecoveryTarget);
+
+    private DatabaseRecoveryPayload CaptureRecoveryInput() =>
+        new(SelectedDriver.Id, ConnectionString, _sessionPassword, _tunnelConnection, _savedConnection);
+
+    internal void RequireImportedConnection()
+    {
+        _importedConnectionRequired = true;
+        ErrorMessage = "This imported database panel needs a connection. Its device-local target and credentials were not imported.";
+        OnPropertyChanged(nameof(RecoveryTarget));
+    }
+
+    public Task RecoveryPersistence { get; private set; } = Task.CompletedTask;
+
+    private async Task PersistRecoveryAsync(string? effectiveConnectionString = null)
+    {
+        if (_recovery is null || UsesUnmodifiedSavedTarget || !HasConnectionTarget || _disposed)
+        {
+            return;
+        }
+        try
+        {
+            var saved = await _recovery.SaveAsync(new(SelectedDriver.Id, effectiveConnectionString ?? ConnectionString,
+                _sessionPassword, _tunnelConnection, _savedConnection), _lifetime.Token);
+            if (!_disposed)
+            {
+                if (!saved)
+                {
+                    ErrorMessage = "The database target could not be saved in the credential store. The previous saved target is unchanged.";
+                    if (_recovery.CleanupIncomplete)
+                    {
+                        ErrorMessage += " An unused recovery credential may need removal in Security & secrets.";
+                    }
+                }
+                OnPropertyChanged(nameof(RecoveryTarget));
+            }
+        }
+        catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
+        {
+        }
+    }
 
     /// <summary>The SSH connection queries tunnel through, or null for direct.</summary>
     public ConnectionId? TunnelConnectionId => _tunnelConnection?.Id;
@@ -1009,6 +1147,10 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     /// the profile, because an inline tunnel is not in any catalog.
     /// </summary>
     public ConnectionProfile? TunnelConnection => _tunnelConnection;
+
+    internal DatabaseConnectionProfile? BoundConnectionProfile => _savedConnection;
+
+    internal string? SessionPassword => _sessionPassword;
 
     /// <summary>
     /// The connection pill's label: the profile this panel is bound to, or an
@@ -1199,8 +1341,8 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
             return;
         }
 
-        // The saved profile stays bound: the switch is session state, and
-        // recovery returns to the profile's own database.
+        // Keep the saved profile unchanged; persist the selected database as a
+        // separate confidential session target.
         ConnectionString = _client.BuildConnectionString(
             SelectedDriver.Id,
             details with { Database = database });
@@ -1271,6 +1413,11 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     /// </summary>
     public void ShowDatabaseOverview()
     {
+        if (IsDatabaseDiagramOverview)
+        {
+            ResetDatabaseDiagram();
+        }
+
         if (IsBusy || !IsConnected)
         {
             return;
@@ -1340,13 +1487,32 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
         await RunGuardedAsync(async cancellationToken =>
         {
-            var graph = await _client.GetDatabaseSchemaGraphAsync(
-                SelectedDriver.Id,
-                await ResolveEffectiveConnectionStringAsync(cancellationToken),
-                _tunnelConnection,
-                cancellationToken);
-            MermaidDiagramSource = DatabaseMermaidErDiagram.CreateSource(graph);
-            MermaidDiagramText = DatabaseMermaidErDiagram.Create(graph);
+            _diagramCancellation?.Cancel();
+            _diagramCancellation?.Dispose();
+            _diagramCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var diagramToken = _diagramCancellation.Token;
+            IDatabaseDiagramSession session;
+            try
+            {
+                session = await _client.OpenDatabaseDiagramAsync(
+                    SelectedDriver.Id,
+                    await ResolveEffectiveConnectionStringAsync(diagramToken),
+                    _tunnelConnection,
+                    diagramToken);
+            }
+            catch (OperationCanceledException) when (diagramToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (diagramToken.IsCancellationRequested || !IsDatabaseDiagramOverview)
+            {
+                await session.DisposeAsync();
+                return;
+            }
+
+            _diagramSession = session;
+            OnPropertyChanged(nameof(DiagramSession));
             OnPropertyChanged(nameof(HasMermaidDiagram));
         });
     }
@@ -1382,7 +1548,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     public void SetTunnel(ConnectionProfile? connection)
     {
         var tunnel = connection?.Endpoint is ConnectionEndpoint.Ssh ? connection : null;
-        if (tunnel?.Id == _tunnelConnection?.Id)
+        if (tunnel == _tunnelConnection)
         {
             return;
         }
@@ -1427,13 +1593,22 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
         await RunGuardedAsync(async cancellationToken =>
         {
+            _latestResolvedRecoveryBinding = null;
+            var input = CaptureRecoveryInput();
             var connectionString =
                 await ResolveEffectiveConnectionStringAsync(cancellationToken);
+            RecoveryPersistence = PersistRecoveryAsync(connectionString);
+            await RecoveryPersistence;
             var tables = await _client.ListTablesAsync(
                 SelectedDriver.Id,
                 connectionString,
                 _tunnelConnection,
                 cancellationToken);
+            _latestResolvedRecoveryBinding = input with { ConnectionString = connectionString };
+            if (input == _initialRecoveryInput && CaptureRecoveryInput() == input)
+            {
+                _acceptedInitialRecoveryBinding ??= _latestResolvedRecoveryBinding;
+            }
             ResetDatabaseDiagram();
             _allTables = [.. tables.Select(table => new DatabaseTableItemViewModel(table))];
             RefreshTables();
@@ -2134,6 +2309,8 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         if (!_disposed)
         {
             _disposed = true;
+            RetainResultContent(null);
+            ResetDatabaseDiagram();
             _hostedSession?.Dispose();
             _tableLoadCancellation?.Cancel();
             _tableLoadCancellation?.Dispose();
@@ -2369,7 +2546,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         {
             var connectionString = await ResolveEffectiveConnectionStringAsync(cancellationToken);
             var canBrowse = IsBrowsableResultQuery(sql);
-            var page = _queryProvenanceCandidate is null || !canBrowse
+            using var page = _queryProvenanceCandidate is null || !canBrowse
                 ? await _client.QueryAsync(
                     SelectedDriver.Id,
                     connectionString,
@@ -2401,6 +2578,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
                     query.Filters,
                     cancellationToken)
                 : page.ValueRows.Count;
+            cancellationToken.ThrowIfCancellationRequested();
             ApplyRawQueryPage(
                 new DatabaseTablePage(
                     page,
@@ -2459,6 +2637,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         try
         {
             var page = await ReadRawQueryPageAsync(requestedQuery, cancellationToken);
+            using var pageContent = page.Result;
             if (generation == _tableLoadGeneration && !cancellationToken.IsCancellationRequested)
             {
                 ApplyRawQueryPage(page, _selectedObjectDetails, _rawQuerySql, requestedQuery);
@@ -2528,6 +2707,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
                 selectedObject.Descriptor,
                 requestedQuery,
                 cancellationToken);
+            using var pageContent = page.Result;
             if (generation == _tableLoadGeneration && !cancellationToken.IsCancellationRequested)
             {
                 ApplyTablePage(details, page, requestedQuery);
@@ -2568,6 +2748,8 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
             }
 
             var rawPage = await ReadRawQueryPageAsync(_tableQuery, cancellationToken);
+            using var pageContent = rawPage.Result;
+            cancellationToken.ThrowIfCancellationRequested();
             ApplyRawQueryPage(rawPage, _selectedObjectDetails, _rawQuerySql, _tableQuery);
             return;
         }
@@ -2593,6 +2775,8 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
             selectedObject.Descriptor,
             _tableQuery,
             cancellationToken);
+        using var resultContent = page.Result;
+        cancellationToken.ThrowIfCancellationRequested();
         ApplyTablePage(details, page, _tableQuery);
     }
 
@@ -2612,20 +2796,28 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
                 sourceSql,
                 query.Limit,
                 cancellationToken);
-            var totalRows = await _client.CountQueryRowsAsync(
-                SelectedDriver.Id,
-                connectionString,
-                _tunnelConnection,
-                sourceSql,
-                _rawQueryColumns,
-                query.Filters,
-                cancellationToken);
-            return new DatabaseTablePage(
-                PreserveRawQueryColumnContext(result),
-                0,
-                query.Limit,
-                result.Truncated,
-                totalRows);
+            try
+            {
+                var totalRows = await _client.CountQueryRowsAsync(
+                    SelectedDriver.Id,
+                    connectionString,
+                    _tunnelConnection,
+                    sourceSql,
+                    _rawQueryColumns,
+                    query.Filters,
+                    cancellationToken);
+                return new DatabaseTablePage(
+                    PreserveRawQueryColumnContext(result),
+                    0,
+                    query.Limit,
+                    result.Truncated,
+                    totalRows);
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
         }
 
         var page = await _client.ReadQueryAsync(
@@ -2722,6 +2914,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
         SetSelectedObjectItem(null);
         _selectedObjectDetails = null;
+        RetainResultContent(result.ContentStore);
         StructureColumns = [];
         Indexes = [];
         _deletedRows.Clear();
@@ -2798,6 +2991,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         DatabaseResultSource resultSource = DatabaseResultSource.StructuredTable)
     {
         var result = page.Result;
+        RetainResultContent(result.ContentStore);
         var valueRows = result.ValueRows;
         var normalizedColumns = details.Columns.Select(column =>
         {
@@ -3007,6 +3201,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
     private void ClearSelectedObject()
     {
+        RetainResultContent(null);
         Interlocked.Increment(ref _tableLoadGeneration);
         var activeLoad = _tableLoadCancellation;
         _tableLoadCancellation = null;
@@ -3052,6 +3247,40 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
     private void ObserveRow(DatabaseResultRowViewModel row) =>
         row.DirtyStateChanged += OnRowDirtyStateChanged;
+
+    private void RetainResultContent(DatabaseValueContentStore? content)
+    {
+        // Acquire the replacement before releasing the old lease; record
+        // projections may legitimately share the same result store.
+        var retained = content?.Retain();
+        _resultContentLease?.Dispose();
+        _resultContent = content;
+        _resultContentLease = retained;
+    }
+
+    internal async Task<bool> PrepareCellForEditingAsync(DatabaseResultCellViewModel cell)
+    {
+        if (!cell.NeedsFullTextForEditing)
+        {
+            return true;
+        }
+
+        var loaded = false;
+        await RunGuardedAsync(async cancellationToken =>
+        {
+            var memory = GC.GetGCMemoryInfo();
+            using var process = Process.GetCurrentProcess();
+            await cell.LoadFullTextForEditingAsync(EditorMemoryHeadroom(
+                memory.TotalAvailableMemoryBytes, memory.MemoryLoadBytes, process.WorkingSet64), cancellationToken);
+            loaded = !cell.NeedsFullTextForEditing;
+        });
+        return loaded;
+    }
+
+    // Samples are not reservations. System load already includes this process;
+    // use the larger observation rather than count its working set twice.
+    internal static long EditorMemoryHeadroom(long available, long systemLoad, long workingSet) =>
+        Math.Max(0, available - Math.Max(0, Math.Max(systemLoad, workingSet)));
 
     private DatabaseResultRowViewModel CreateNewRow(int number)
     {
@@ -3282,8 +3511,195 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
         ValidateRowWidth(row);
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, row.Cells.Count);
+        ReportSpreadsheetRisk([row.Cells[ordinal]]);
         return DatabaseGridExport.BuildClipboardText(writer =>
             DatabaseGridExport.WriteCellText(writer, row.Cells[ordinal]));
+    }
+
+    internal Task<(string Text, long Revision)> BuildCellValueAsync(DatabaseResultRowViewModel row, int ordinal)
+    {
+        ValidateRowWidth(row);
+        ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, row.Cells.Count);
+        var cell = row.Cells[ordinal];
+        return BuildClipboardSnapshotAsync((writer, _) => DatabaseGridExport.WriteCellText(writer, cell), [cell]);
+    }
+
+    internal Task<(string Text, long Revision)> BuildRowTsvAsync(DatabaseResultRowViewModel row)
+    {
+        ValidateRowWidth(row);
+        return BuildClipboardSnapshotAsync((writer, _) => DatabaseGridExport.WriteRowTsv(writer, row), [.. row.Cells]);
+    }
+
+    internal Task<(string Text, long Revision)> BuildColumnValuesAsync(int ordinal)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, ResultColumns.Count);
+        var rows = ResultRows.ToArray();
+        return BuildClipboardSnapshotAsync((writer, _) => DatabaseGridExport.WriteColumnValues(writer, rows, ordinal),
+            [.. rows.Select(row => row.Cells[ordinal])]);
+    }
+
+    internal Task<(string Text, long Revision)> BuildRowCsvAsync(DatabaseResultRowViewModel row)
+    {
+        ValidateRowWidth(row);
+        var columns = ResultColumns.ToArray();
+        return BuildClipboardSnapshotAsync((writer, _) => DatabaseGridExport.WriteCsv(writer, columns, [row]),
+            [.. row.Cells], [.. columns.Select(column => column.Name)]);
+    }
+
+    internal Task<(string Text, long Revision)> BuildRowJsonAsync(DatabaseResultRowViewModel row)
+    {
+        ValidateRowWidth(row);
+        var columns = ResultColumns.ToArray();
+        return BuildClipboardSnapshotAsync((writer, _) => DatabaseGridExport.WriteJsonRow(writer, columns, row), null);
+    }
+
+    internal Task<(string Text, long Revision)> BuildRowSqlInsertAsync(DatabaseResultRowViewModel row)
+    {
+        ValidateRowWidth(row);
+        var details = _selectedObjectDetails;
+        if (details?.Object.Kind != DatabaseTableKind.Table)
+        {
+            throw new InvalidOperationException("INSERT copy is only available for a physical table result.");
+        }
+        var driver = SelectedDriver.Id;
+        var insert = row.BuildInsert();
+        return BuildClipboardSnapshotAsync((writer, token) =>
+        {
+            var values = new List<DatabaseColumnEdit>(insert.Values.Count);
+            var remaining = MaximumClipboardUtf8Bytes;
+            foreach (var edit in insert.Values)
+            {
+                token.ThrowIfCancellationRequested();
+                if (edit.Value is not DatabaseValueContent content)
+                {
+                    var size = edit.Value switch
+                    {
+                        string text => Encoding.UTF8.GetByteCount(text),
+                        byte[] bytes => bytes.Length,
+                        ReadOnlyMemory<byte> bytes => bytes.Length,
+                        Memory<byte> bytes => bytes.Length,
+                        _ => 0,
+                    };
+                    if (size > remaining)
+                    {
+                        throw new InvalidDataException("Clipboard output exceeds the 16 MiB UTF-8 limit. Export the current page to a file instead.");
+                    }
+                    remaining -= size;
+                    values.Add(edit);
+                    continue;
+                }
+                if (content.Kind is not (DatabaseValueKind.Text or DatabaseValueKind.Json or DatabaseValueKind.Binary))
+                {
+                    throw new InvalidOperationException($"Column '{edit.ColumnName}' uses a value that cannot be represented safely in an INSERT script.");
+                }
+                using var source = content.OpenRead();
+                using var complete = new MemoryStream();
+                var buffer = new byte[8192];
+                int count;
+                while ((count = source.Read(buffer)) != 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (count > remaining)
+                    {
+                        throw new InvalidDataException("Clipboard output exceeds the 16 MiB UTF-8 limit. Export the current page to a file instead.");
+                    }
+                    remaining -= count;
+                    complete.Write(buffer, 0, count);
+                }
+                var completeBytes = complete.ToArray();
+                object value = content.Kind == DatabaseValueKind.Binary ? completeBytes : new UTF8Encoding(false, true).GetString(completeBytes);
+                values.Add(edit with { Value = value });
+            }
+            // Preserve driver-specific escaping. The shared writer checks the
+            // final expanded SQL against the same existing clipboard budget.
+            writer.Write(_client.BuildInsertStatement(driver, details, new DatabaseInsertedRow(values), MaximumClipboardUtf8Bytes));
+        }, null);
+    }
+
+    internal bool IsClipboardRequestCurrent(long revision) => !_disposed && revision == _clipboardRevision;
+
+    internal async Task<(string Text, long Revision)> BuildDiagramClipboardAsync(
+        IDatabaseDiagramSession session, DatabaseDiagramExport format)
+    {
+        if (!ReferenceEquals(session, _diagramSession))
+        {
+            throw new OperationCanceledException("The database diagram changed.");
+        }
+
+        var snapshot = await BuildClipboardSnapshotAsync(async token =>
+        {
+            using var destination = new DiagramClipboardBuffer();
+            await session.ExportAsync(destination, format, token);
+            token.ThrowIfCancellationRequested();
+            return (Encoding.UTF8.GetString(destination.GetBuffer(), 0, checked((int)destination.Length)), false);
+        });
+        if (!ReferenceEquals(session, _diagramSession))
+        {
+            throw new OperationCanceledException("The database diagram changed.");
+        }
+        return snapshot;
+    }
+
+    private Task<(string Text, long Revision)> BuildClipboardSnapshotAsync(
+        Action<TextWriter, CancellationToken> write, IReadOnlyList<DatabaseResultCellViewModel>? cells,
+        IReadOnlyList<string>? headings = null) => BuildClipboardSnapshotAsync(token => Task.Run(() =>
+        {
+            // Enforce the clipboard budget before scanning formula risk.
+            var text = DatabaseGridExport.BuildClipboardText(writer => write(writer, token), token);
+            var risk = cells is not null && DatabaseSpreadsheetRisk.ContainsFormula(cells, headings, token);
+            token.ThrowIfCancellationRequested();
+            return (text, risk);
+        }, token));
+
+    private async Task<(string Text, long Revision)> BuildClipboardSnapshotAsync(
+        Func<CancellationToken, Task<(string Text, bool Risk)>> build)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (IsBusy && _clipboardBuildCancellation is null)
+        {
+            throw new InvalidOperationException("Another database operation is already running.");
+        }
+        _clipboardBuildCancellation?.Cancel();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _clipboardBuildCancellation = cancellation;
+        var revision = ++_clipboardRevision;
+        using var retainedContent = _resultContent?.Retain();
+        IsBusy = true;
+        try
+        {
+            var result = await build(cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            InterchangeNotice = result.Risk ? DatabaseSpreadsheetRisk.Notice : null;
+            return (result.Text, revision);
+        }
+        catch (Exception) when (cancellation.IsCancellationRequested)
+        {
+            // Obsolete work must not publish a late error over its successor.
+            throw new OperationCanceledException(cancellation.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(_clipboardBuildCancellation, cancellation))
+            {
+                _clipboardBuildCancellation = null;
+                IsBusy = false;
+            }
+        }
+    }
+
+    private sealed class DiagramClipboardBuffer : MemoryStream
+    {
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Length + buffer.Length > MaximumClipboardUtf8Bytes)
+            {
+                throw new InvalidOperationException("This diagram is too large for the clipboard. Save it to a file to retain the complete diagram.");
+            }
+            return base.WriteAsync(buffer, cancellationToken);
+        }
     }
 
     /// <summary>Every value in one column on the current page, one per line.</summary>
@@ -3291,20 +3707,23 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ordinal);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(ordinal, ResultColumns.Count);
+        ReportSpreadsheetRisk(ResultRows.Select(row => row.Cells[ordinal]));
         return DatabaseGridExport.BuildClipboardText(writer =>
             DatabaseGridExport.WriteColumnValues(writer, ResultRows, ordinal));
     }
 
-    /// <summary>One selected row as spreadsheet-friendly tab-separated text.</summary>
+    /// <summary>One selected row as exact tab-separated interchange text.</summary>
     public string BuildRowTsv(DatabaseResultRowViewModel row)
     {
         ValidateRowWidth(row);
+        ReportSpreadsheetRisk(row.Cells);
         return DatabaseGridExport.BuildClipboardText(writer =>
             DatabaseGridExport.WriteRowTsv(writer, row));
     }
 
     public string BuildCurrentPageTsv()
     {
+        ReportSpreadsheetRisk(ResultRows.SelectMany(row => row.Cells), includeHeadings: true);
         return DatabaseGridExport.BuildClipboardText(writer =>
             DatabaseGridExport.WriteCurrentPageTsv(writer, ResultColumns, ResultRows));
     }
@@ -3324,12 +3743,23 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     public string BuildRowCsv(DatabaseResultRowViewModel row)
     {
         ValidateRowWidth(row);
+        ReportSpreadsheetRisk(row.Cells, includeHeadings: true);
         return DatabaseGridExport.BuildClipboardText(writer =>
             DatabaseGridExport.WriteCsv(writer, ResultColumns, [row]));
     }
 
-    public string BuildCurrentPageCsv() => DatabaseGridExport.BuildClipboardText(writer =>
-        DatabaseGridExport.WriteCsv(writer, ResultColumns, ResultRows));
+    public string BuildCurrentPageCsv()
+    {
+        ReportSpreadsheetRisk(ResultRows.SelectMany(row => row.Cells), includeHeadings: true);
+        return DatabaseGridExport.BuildClipboardText(writer =>
+            DatabaseGridExport.WriteCsv(writer, ResultColumns, ResultRows));
+    }
+
+    private void ReportSpreadsheetRisk(IEnumerable<DatabaseResultCellViewModel> cells, bool includeHeadings = false) =>
+        InterchangeNotice = DatabaseSpreadsheetRisk.ContainsFormula(
+            cells, includeHeadings ? ResultColumns.Select(column => column.Name) : null)
+                ? DatabaseSpreadsheetRisk.Notice
+                : null;
 
     /// <summary>One row as an executable INSERT for the active database driver.</summary>
     internal string BuildRowSqlInsert(DatabaseResultRowViewModel row)
@@ -3366,6 +3796,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
     public void WriteCurrentPageCsv(TextWriter destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
+        ReportSpreadsheetRisk(ResultRows.SelectMany(row => row.Cells), includeHeadings: true);
         DatabaseGridExport.WriteCsv(destination, ResultColumns, ResultRows);
     }
 
@@ -3462,9 +3893,11 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
         var columns = ResultColumns.ToArray();
         var rows = ResultRows.ToArray();
+        using var retainedContent = _resultContent?.Retain();
         var table = format == DatabaseGridExportFormat.Sql
             ? RequireSqlExportTable()
             : null;
+        var spreadsheetRisk = false;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             _lifetime.Token,
             cancellationToken);
@@ -3480,11 +3913,9 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
                     switch (format)
                     {
                         case DatabaseGridExportFormat.Csv:
-                            using (var writer = new StreamWriter(
-                                       destination,
-                                       new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                                       bufferSize: 16 * 1024,
-                                       leaveOpen: true))
+                            spreadsheetRisk = DatabaseSpreadsheetRisk.ContainsFormula(
+                                rows.SelectMany(row => row.Cells), columns.Select(column => column.Name), linked.Token);
+                            using (var writer = DatabaseGridExport.CreateFileWriter(destination, linked.Token))
                             {
                                 DatabaseGridExport.WriteCsv(writer, columns, rows);
                                 writer.Flush();
@@ -3492,9 +3923,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
                             break;
                         case DatabaseGridExportFormat.Json:
-                            using (var writer = new Utf8JsonWriter(
-                                       destination,
-                                       new JsonWriterOptions { Indented = true }))
+                            using (var writer = DatabaseGridExport.CreateFileWriter(destination, linked.Token))
                             {
                                 DatabaseGridExport.WriteCurrentPageJson(writer, columns, rows);
                                 writer.Flush();
@@ -3502,11 +3931,7 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
                             break;
                         case DatabaseGridExportFormat.Sql:
-                            using (var writer = new StreamWriter(
-                                       destination,
-                                       new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                                       bufferSize: 16 * 1024,
-                                       leaveOpen: true))
+                            using (var writer = DatabaseGridExport.CreateFileWriter(destination, linked.Token))
                             {
                                 DatabaseGridExport.WriteCurrentPageSql(
                                     writer,
@@ -3524,6 +3949,10 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
                     linked.Token.ThrowIfCancellationRequested();
                 },
                 linked.Token);
+            if (format == DatabaseGridExportFormat.Csv)
+            {
+                InterchangeNotice = spreadsheetRisk ? DatabaseSpreadsheetRisk.Notice : null;
+            }
         }
         finally
         {
@@ -3846,6 +4275,19 @@ public sealed class DatabaseRuntimePanelViewModel : RuntimePanelViewModel
 
     private void ResetDatabaseDiagram()
     {
+        _diagramCancellation?.Cancel();
+        _diagramCancellation?.Dispose();
+        _diagramCancellation = null;
+        var previous = _diagramSession;
+        _diagramSession = null;
+        if (previous is not null)
+        {
+            _clipboardBuildCancellation?.Cancel();
+            ++_clipboardRevision;
+            _ = previous.DisposeAsync().AsTask();
+        }
+
+        OnPropertyChanged(nameof(DiagramSession));
         MermaidDiagramSource = string.Empty;
         MermaidDiagramText = string.Empty;
         SelectedDatabaseOverviewMode = DatabaseOverviewMode.Objects;

@@ -31,6 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\vendor\sqlclient\tests\Tds.TestSupport.csproj" />
     <ProjectReference Include="..\..\src\GhostShell.Agent\GhostShell.Agent.csproj" />
     <ProjectReference Include="..\..\src\GhostShell.Agent.Providers\GhostShell.Agent.Providers.csproj" />
     <ProjectReference Include="..\..\src\GhostShell.Agent.Runtime\GhostShell.Agent.Runtime.csproj" />

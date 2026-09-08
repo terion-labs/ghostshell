@@ -13,8 +13,13 @@ namespace GhostShell.Desktop;
 /// </summary>
 internal sealed class WorkspaceNetworkDatabaseTunnelFactory(
     IWorkspaceNetworkConnector networkConnector,
-    IDatabaseTunnelFactory sshTunnelFactory) : IDatabaseTunnelFactory
+    Func<IWorkspaceNetworkConnector, IDatabaseTunnelFactory> createSshTunnelFactory) : IDatabaseTunnelFactory
 {
+    public CancellationToken RouteLifetime => networkConnector.RouteLifetime;
+
+    public IDatabaseTunnelFactory CaptureRoute() =>
+        new WorkspaceNetworkDatabaseTunnelFactory(networkConnector.CaptureRoute(), createSshTunnelFactory);
+
     public ValueTask<IDatabaseTunnelLease> OpenAsync(
         ConnectionProfile connection,
         string targetHost,
@@ -23,14 +28,16 @@ internal sealed class WorkspaceNetworkDatabaseTunnelFactory(
     {
         ArgumentNullException.ThrowIfNull(connection);
         cancellationToken.ThrowIfCancellationRequested();
+        var route = networkConnector.CaptureRoute();
+        route.RouteLifetime.ThrowIfCancellationRequested();
         return connection.Endpoint switch
         {
             ConnectionEndpoint.Local => ValueTask.FromResult<IDatabaseTunnelLease>(
                 new WorkspaceNetworkDatabaseTunnel(
-                    networkConnector,
+                    route,
                     targetHost,
                     targetPort)),
-            ConnectionEndpoint.Ssh => sshTunnelFactory.OpenAsync(
+            ConnectionEndpoint.Ssh => createSshTunnelFactory(route).OpenAsync(
                 connection,
                 targetHost,
                 targetPort,
@@ -47,7 +54,7 @@ internal sealed class WorkspaceNetworkDatabaseTunnelFactory(
         private readonly IWorkspaceNetworkConnector _networkConnector;
         private readonly string _targetHost;
         private readonly int _targetPort;
-        private readonly CancellationTokenSource _lifetime = new();
+        private readonly CancellationTokenSource _lifetime;
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         private readonly Task _acceptLoop;
         private long _sequence;
@@ -65,12 +72,14 @@ internal sealed class WorkspaceNetworkDatabaseTunnelFactory(
             ArgumentOutOfRangeException.ThrowIfGreaterThan(targetPort, 65_535);
             _targetHost = targetHost;
             _targetPort = targetPort;
+            _lifetime = CancellationTokenSource.CreateLinkedTokenSource(networkConnector.RouteLifetime);
             _listener.Start();
             LocalPort = ((IPEndPoint)_listener.LocalEndpoint).Port;
             _acceptLoop = AcceptLoopAsync();
         }
 
         public int LocalPort { get; }
+        public bool IsClosed => Volatile.Read(ref _disposed) != 0 || _lifetime.IsCancellationRequested || _acceptLoop.IsCompleted;
 
         public async ValueTask DisposeAsync()
         {

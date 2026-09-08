@@ -12,23 +12,23 @@
     "status": "accepted-by-project-owner",
     "basis": "documented-engineering-evidence-without-independent-legal-review",
     "reviewedBy": "Terion Labs project owner",
-    "reviewedAtUtc": "2026-08-25T14:18:59Z"
+    "reviewedAtUtc": "2026-09-08T08:28:23Z"
   },
   "dispositions": {
     "managedComponents": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the documented SMBLibrary Native AOT replacement path and the remaining Inter package provenance uncertainty for this exact macOS closure."
+      "comment": "The project owner accepts the documented SMBLibrary Native AOT replacement path and the remaining Inter package provenance uncertainty for this exact macOS closure, including the pinned patched MIT source builds of Microsoft.Data.SqlClient 6.0.2, SSH.NET 2026.0.0 and SharpCompress 0.50.3 with their retained source, patch, license and assembly evidence."
     },
     "nativeTerminalAndShell": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the pinned libghostty-vt closure and retained GPL-covered shell resources for this exact macOS closure."
+      "comment": "The project owner accepts the pinned libghostty-vt closure and retained GPL-covered shell resources for this exact macOS closure, including the pinned MIT Porta.Pty-native 1.0.7-ghostshell.1 descriptor-boundary patch and its retained source, license and build evidence."
     },
     "cefMacos": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits and owns the security-update decision."
+      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits, including CEF 150.0.9+g81b0088+chromium-150.0.7871.46 and the 0.8.0-ghostshell.10 binding source and patch evidence, and owns the security-update decision."
     },
     "sqlLanguageWorker": {
       "status": "accepted-by-owner-for-macos",
@@ -63,19 +63,19 @@
     },
     {
       "path": "licenses/THIRD-PARTY-NOTICES.md",
-      "sha256": "4599159d58ed8ff25ee8c33941a21aa86a2d6349b32ee40f51b541ffe6d7b86d"
+      "sha256": "7f1d240207a569fd5dc94df54a56ff8e736f51704b456854bf9a89329885fefd"
     },
     {
       "path": "licenses/cef-runtime-components.json",
-      "sha256": "6c4b9a39683f0097dfe5baf94dc8dd4d54b0b1f7c230c021c238c7f9ce70c0c9"
+      "sha256": "a144d9b709052d7e44010c7936af8ac46f91c8329543a8070aeec597529476d2"
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "94e7b2a8986252ba697aa4f39a69d1103db2b6e7dc7a47e3c7a0554917532857"
+      "sha256": "e63b77713053b35d409bc168c1086fad2ef9b3e1afc0d290cde3f93488a60411"
     },
     {
       "path": "licenses/native-terminal-components.json",
-      "sha256": "a7cfc02a3f667d5f49e5dc4db8204e8b8ab5fc5d3db0f6d8007ce14d9ff1f48e"
+      "sha256": "d7a0d0ae744e940f1d8d9b22d4eeca5ee8f0164e2cd6cb04a2a655632d6419cf"
     },
     {
       "path": "licenses/terminal-font-assets.json",

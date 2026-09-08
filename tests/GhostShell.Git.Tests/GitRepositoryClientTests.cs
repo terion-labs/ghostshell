@@ -90,7 +90,7 @@ public sealed class GitRepositoryClientTests
         Assert.Equal("git", command.Executable);
         Assert.Equal(
             [
-                "--literal-pathspecs", "-C", "/repo", "--no-optional-locks", "status",
+                "--literal-pathspecs", "-C", "/repo", "-c", "core.fsmonitor=false", "--no-optional-locks", "status",
                 "--porcelain=v2", "-z", "--branch", "--untracked-files=all",
             ],
             command.Arguments,
@@ -193,7 +193,7 @@ public sealed class GitRepositoryClientTests
         Assert.IsType<GitResult<GitDiffDocument>.Success>(result);
         var command = Assert.Single(executor.Commands);
         Assert.Equal(
-            ["--literal-pathspecs", "-C", "/repo", "diff", "-w", "--no-color", "--", "src/a.cs"],
+            ["--literal-pathspecs", "-C", "/repo", "-c", "core.fsmonitor=false", "diff", "-w", "--no-color", "--", "src/a.cs"],
             command.Arguments,
             StringComparer.Ordinal);
     }

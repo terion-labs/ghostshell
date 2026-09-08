@@ -460,7 +460,28 @@ public sealed partial class DatabaseWorkspaceView
         }
     }
 
-    private void ShowQuickLook(DatabaseGridCellTarget target)
+    private void ShowQuickLook(DatabaseGridCellTarget target) => _ = ShowQuickLookAsync(target);
+
+    private async Task ShowQuickLookAsync(DatabaseGridCellTarget target)
+    {
+        if (Panel is not { } panel || !IsTargetCurrent(panel, target))
+        {
+            return;
+        }
+
+        if (target.Cell.NeedsFullTextForEditing
+            && !await panel.PrepareCellForEditingAsync(target.Cell))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(Panel, panel) && IsTargetCurrent(panel, target))
+        {
+            ShowLoadedQuickLook(target);
+        }
+    }
+
+    private void ShowLoadedQuickLook(DatabaseGridCellTarget target)
     {
         var canEdit = Panel is { CanMutateRows: true }
             && target.Cell.CanSetText;
@@ -834,7 +855,7 @@ public sealed partial class DatabaseWorkspaceView
         var target = _contextCellTarget ?? ResolveCurrentCellTarget();
         await CopyTargetTextAsync(
             target,
-            static (panel, cellTarget) => panel.BuildRowTsv(cellTarget.Row));
+            static (panel, cellTarget) => panel.BuildRowTsvAsync(cellTarget.Row));
     }
 
     private async void OnCopyCellClick(object? sender, RoutedEventArgs e)
@@ -848,7 +869,7 @@ public sealed partial class DatabaseWorkspaceView
     private async Task CopyCellAsync(DatabaseGridCellTarget? target)
         => await CopyTargetTextAsync(
             target,
-            static (panel, cellTarget) => panel.BuildCellValue(
+            static (panel, cellTarget) => panel.BuildCellValueAsync(
                 cellTarget.Row,
                 cellTarget.Ordinal));
 
@@ -859,12 +880,12 @@ public sealed partial class DatabaseWorkspaceView
         var target = _contextCellTarget ?? ResolveCurrentCellTarget();
         await CopyTargetTextAsync(
             target,
-            static (panel, cellTarget) => panel.BuildColumnValues(cellTarget.Ordinal));
+            static (panel, cellTarget) => panel.BuildColumnValuesAsync(cellTarget.Ordinal));
     }
 
     private async Task CopyTargetTextAsync(
         DatabaseGridCellTarget? target,
-        Func<DatabaseRuntimePanelViewModel, DatabaseGridCellTarget, string> build)
+        Func<DatabaseRuntimePanelViewModel, DatabaseGridCellTarget, Task<(string Text, long Revision)>> build)
     {
         var panel = Panel;
         if (target is null || panel is null)
@@ -880,8 +901,11 @@ public sealed partial class DatabaseWorkspaceView
                 return;
             }
 
-            var text = build(panel, target);
-            await CopyTextAsync(text, panel);
+            var snapshot = await build(panel, target);
+            if (ReferenceEquals(Panel, panel) && panel.IsClipboardRequestCurrent(snapshot.Revision))
+            {
+                await CopyTextAsync(snapshot.Text, panel);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -1149,7 +1173,7 @@ public sealed partial class DatabaseWorkspaceView
             {
                 await CopyTargetTextAsync(
                     target,
-                    static (panel, cellTarget) => panel.BuildRowTsv(cellTarget.Row));
+                    static (panel, cellTarget) => panel.BuildRowTsvAsync(cellTarget.Row));
             }
 
             return;

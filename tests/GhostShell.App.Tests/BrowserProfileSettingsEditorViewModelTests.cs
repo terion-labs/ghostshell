@@ -163,6 +163,8 @@ public sealed class BrowserProfileSettingsEditorViewModelTests
         Assert.Equal(BrowserAuthenticationScheme.Digest, authentication.Scheme);
         Assert.Equal("operator", authentication.Username);
         Assert.Equal(request.Reference, authentication.PasswordSecret);
+        Assert.Equal("https", authentication.OriginScheme);
+        Assert.Equal("local", authentication.RouteIdentity);
         Assert.Equal(string.Empty, editor.AuthenticationPassword);
     }
 
@@ -206,6 +208,42 @@ public sealed class BrowserProfileSettingsEditorViewModelTests
             new[] { "create", "save", "delete" }.SequenceEqual(
                 operations,
                 StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Http_authentication_editor_saves_explicit_transport_and_ssh_authority()
+    {
+        var profile = Profile("browser.route", BrowserProfilePersistence.DurableMetadata);
+        var connection = new ConnectionProfile(new ConnectionId("ssh"), 1, "Work SSH",
+            new ConnectionEndpoint.Ssh("bastion.example", 22, "alice"), new ConnectionAuthentication.SshAgent(),
+            ConnectionStartup.Default, ConnectionKeepAlive.Disabled, SshHostKeyPolicy.Strict);
+        var fixture = Catalog(Store(profile, 1));
+        var network = new NetworkConnectionProfile(new NetworkConnectionId("vpn"), 1, "Work VPN",
+            new NetworkConnectionConfiguration.AnyConnect(new Uri("https://vpn.example")));
+        fixture.Proxy.CurrentSnapshot = fixture.Proxy.CurrentSnapshot with
+        {
+            Connections = [Store(connection, 1)],
+            NetworkConnections = [Store(network, 1)],
+        };
+        var vault = Vault();
+        var editor = new BrowserProfileSettingsEditorViewModel(new InMemoryBrowserProfilePreferences(),
+            catalog: fixture.Catalog, secretVault: vault.Vault);
+        editor.SelectedProfile = Assert.Single(editor.Profiles, item => item.Id == profile.Id);
+        Assert.Contains(editor.AuthenticationRoutes, route => route.DisplayName == "Workspace network · Work VPN"
+            && string.Equals(route.Identity, BrowserHttpAuthentication.NetworkRouteIdentity(network), StringComparison.Ordinal));
+        editor.AuthenticationOriginScheme = "http";
+        editor.AuthenticationRoute = Assert.Single(editor.AuthenticationRoutes, route => route.DisplayName == "SSH · Work SSH");
+        editor.AuthenticationHost = "internal.example";
+        editor.AuthenticationUsername = "operator";
+        editor.AuthenticationPassword = "password";
+
+        editor.SaveAuthenticationCommand.Execute(null);
+        await fixture.Proxy.Saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var saved = Assert.IsType<BrowserHttpAuthentication>(fixture.Proxy.LastSaved!.Authentication);
+        Assert.Equal("http", saved.OriginScheme);
+        Assert.Equal(BrowserHttpAuthentication.SshRouteIdentity(connection), saved.RouteIdentity);
+        Assert.NotEqual("local", saved.RouteIdentity, StringComparer.Ordinal);
     }
 
     [Fact]

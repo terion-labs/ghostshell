@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace GhostShell.Application;
 
@@ -35,7 +38,7 @@ public static class FilePanelWatch
                 continue;
             }
 
-            if (!baseline.Value!.SequenceEqual(current.Value!))
+            if (!baseline.Value!.AsSpan().SequenceEqual(current.Value!))
             {
                 baseline = current;
                 yield return Changed(request, FilePanelChangeKind.Changed);
@@ -43,13 +46,13 @@ public static class FilePanelWatch
         }
     }
 
-    private static async ValueTask<FilePanelResult<IReadOnlyList<FilePanelEntrySignature>>>
+    private static async ValueTask<FilePanelResult<byte[]>>
         CaptureAsync(
             IFilePanelClient client,
             FilePanelWatchRequest request,
             CancellationToken cancellationToken)
     {
-        var entries = new List<FilePanelEntrySignature>();
+        using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await foreach (var result in FilePanelTree.EnumerateAsync(
             client,
             request.Location,
@@ -59,15 +62,28 @@ public static class FilePanelWatch
         {
             if (!result.IsSuccess)
             {
-                return FilePanelResult<IReadOnlyList<FilePanelEntrySignature>>.Failure(
+                return FilePanelResult<byte[]>.Failure(
                     result.Error!);
             }
 
-            entries.Add(FilePanelEntrySignature.From(result.Value!));
+            var entry = result.Value!;
+            Append(entry.Location.ToString());
+            Append(entry.Kind.ToString());
+            Append(entry.Size?.ToString(CultureInfo.InvariantCulture));
+            Append(entry.LastModifiedAt?.ToString("O", CultureInfo.InvariantCulture));
+            Append(entry.IsHidden ? "1" : "0");
         }
 
-        entries.Sort((left, right) => StringComparer.Ordinal.Compare(left.Identity, right.Identity));
-        return FilePanelResult<IReadOnlyList<FilePanelEntrySignature>>.Success(entries);
+        // Enumeration-order changes may request an extra refresh, but no complete
+        // directory/subtree snapshot remains resident between observations.
+        return FilePanelResult<byte[]>.Success(digest.GetHashAndReset());
+
+        void Append(string? value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value ?? string.Empty);
+            digest.AppendData(BitConverter.GetBytes(bytes.Length));
+            digest.AppendData(bytes);
+        }
     }
 
     private static FilePanelResult<FilePanelChange> Changed(
@@ -75,18 +91,4 @@ public static class FilePanelWatch
         FilePanelChangeKind kind) =>
         FilePanelResult<FilePanelChange>.Success(new FilePanelChange(request.Location, kind));
 
-    private sealed record FilePanelEntrySignature(
-        string Identity,
-        FilePanelEntryKind Kind,
-        long? Size,
-        DateTimeOffset? LastModifiedAt,
-        bool IsHidden)
-    {
-        public static FilePanelEntrySignature From(FilePanelEntry entry) => new(
-            entry.Location.ToString(),
-            entry.Kind,
-            entry.Size,
-            entry.LastModifiedAt,
-            entry.IsHidden);
-    }
 }

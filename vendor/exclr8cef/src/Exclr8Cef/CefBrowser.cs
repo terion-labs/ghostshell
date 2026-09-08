@@ -330,6 +330,7 @@ public sealed partial class CefBrowser : IDisposable
     /// (mostly unusable in OSR).
     /// </summary>
     public event EventHandler<BeforePopupEventArgs>? BeforePopup;
+    public event EventHandler<HostPopupEventArgs>? HostPopup;
 
     /// <summary>
     /// TLS verification failed (self-signed, expired, hostname mismatch).
@@ -1431,6 +1432,12 @@ public sealed partial class CefBrowser : IDisposable
     internal void RaiseInitialized()
     {
         _initialized = true;
+        var closeState = Volatile.Read(ref _closeRequestState);
+        if (closeState != 0)
+        {
+            Excef.excef_close_browser(Id, closeState == 2 ? 1 : 0);
+            return;
+        }
         _initializedHandlers?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1468,8 +1475,8 @@ public sealed partial class CefBrowser : IDisposable
 
     internal bool HasAuthRequestSubscriber => AuthRequest is not null;
 
-    internal void RaiseAuthRequest(ulong token, bool isProxy, string host, int port, string realm, string scheme)
-        => AuthRequest?.Invoke(this, new AuthRequestEventArgs(token, isProxy, host, port, realm, scheme));
+    internal void RaiseAuthRequest(ulong token, bool isProxy, string host, int port, string realm, string scheme, string originUrl)
+        => AuthRequest?.Invoke(this, new AuthRequestEventArgs(token, isProxy, host, port, realm, scheme, originUrl));
 
     internal void RaiseFindResult(int identifier, int count, int activeMatchOrdinal, bool finalUpdate)
         => FindResult?.Invoke(this, new FindResultEventArgs(identifier, count, activeMatchOrdinal, finalUpdate));
@@ -1545,6 +1552,9 @@ public sealed partial class CefBrowser : IDisposable
 
     internal void RaiseBeforePopup(BeforePopupEventArgs args)
         => BeforePopup?.Invoke(this, args);
+
+    internal void RaiseHostPopup(HostPopupEventArgs args)
+        => HostPopup?.Invoke(this, args);
 
     internal bool HasCertErrorSubscriber => CertError is not null;
     internal void RaiseCertError(CertErrorEventArgs args)

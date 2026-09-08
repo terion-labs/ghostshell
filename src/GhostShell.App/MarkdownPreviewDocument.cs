@@ -60,6 +60,10 @@ public sealed record MarkdownBlock
     public ImmutableArray<ImmutableArray<MarkdownRun>> HeaderCells { get; init; } = [];
 
     public ImmutableArray<ImmutableArray<ImmutableArray<MarkdownRun>>> Rows { get; init; } = [];
+
+    public int SourceStart { get; init; } = -1;
+
+    public int SourceLength { get; init; }
 }
 
 /// <summary>
@@ -115,6 +119,27 @@ public static class MarkdownPreviewDocument
         Block block,
         int depth,
         string? bullet = null)
+    {
+        var first = blocks.Count;
+        AppendBlockCore(blocks, block, depth, bullet);
+        for (var index = first; index < blocks.Count; index++)
+        {
+            if (blocks[index].SourceStart < 0)
+            {
+                blocks[index] = blocks[index] with
+                {
+                    SourceStart = block.Span.Start,
+                    SourceLength = block.Span.Length,
+                };
+            }
+        }
+    }
+
+    private static void AppendBlockCore(
+        ImmutableArray<MarkdownBlock>.Builder blocks,
+        Block block,
+        int depth,
+        string? bullet)
     {
         switch (block)
         {
@@ -392,8 +417,11 @@ public static class MarkdownPreviewDocument
 
         if (runs.Count > 0
             && runs[^1].Style == style
-            && string.Equals(runs[^1].LinkTarget, link, StringComparison.Ordinal))
+            && string.Equals(runs[^1].LinkTarget, link, StringComparison.Ordinal)
+            && runs[^1].Text.Length <= 4096 - text.Length)
         {
+            // Keep coalescing linear in source size: many tiny escaped literals
+            // must not repeatedly copy an ever-growing paragraph string.
             runs[^1] = runs[^1] with { Text = runs[^1].Text + text };
             return;
         }

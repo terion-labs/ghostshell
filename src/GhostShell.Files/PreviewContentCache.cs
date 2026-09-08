@@ -183,7 +183,8 @@ public sealed class PreviewContentCache : IPreviewCacheControl, IDisposable
     /// <see cref="PendingContent.Commit"/> says every byte did arrive. A
     /// pending put dropped without committing leaves nothing readable.
     ///
-    /// Small content (by the size hint) goes to the in-memory tier. Large
+    /// Small content starts in memory; actual writes spill beyond its threshold.
+    /// The size hint only avoids an unnecessary initial buffer. Large
     /// content goes to the persistent container when previews are kept
     /// between runs, else to the encrypted session container. Content with no
     /// key — no version identity to cache under — is never kept: small stays
@@ -225,10 +226,12 @@ public sealed class PreviewContentCache : IPreviewCacheControl, IDisposable
     {
         private readonly PreviewContentCache _cache;
         private readonly string? _key;
-        private readonly LiteDatabase? _container;
-        private readonly string? _blobId;
-        private readonly MemoryStream? _buffer;
+        private LiteDatabase? _container;
+        private string? _blobId;
+        private MemoryStream? _buffer;
+        private readonly Stream _destination;
         private Stream? _upload;
+        private DiskWriteHeadroom? _headroom;
         private bool _committed;
 
         internal PendingContent(
@@ -242,9 +245,65 @@ public sealed class PreviewContentCache : IPreviewCacheControl, IDisposable
             _container = container;
             _blobId = blobId;
             _buffer = container is null ? new MemoryStream() : null;
+            _destination = new PendingWriteStream(this);
         }
 
-        public Stream Destination => _buffer ?? OpenUpload();
+        public Stream Destination => _destination;
+
+        private Stream PrepareWrite(int count)
+        {
+            if (_buffer is not null
+                && count > Math.Min(_cache.MemoryThreshold, MemoryBudgetBytes) - _buffer.Length)
+            {
+                lock (_cache._gate)
+                {
+                    ObjectDisposedException.ThrowIf(_cache._disposed, _cache);
+                    _headroom ??= new DiskWriteHeadroom(_cache._directory, _buffer.Length + count);
+                    _container = _key is not null && _cache.Keep ? _cache.Persistent() : _cache.Session();
+                    _blobId = _key ?? $"transient-{Guid.NewGuid():n}";
+                    var upload = OpenUpload();
+                    _buffer.Position = 0;
+                    _buffer.CopyTo(upload);
+                    _buffer.Dispose();
+                    _buffer = null;
+                }
+            }
+
+            if (_buffer is null)
+            {
+                (_headroom ??= new DiskWriteHeadroom(_cache._directory)).BeforeWrite(count);
+            }
+            return _buffer ?? OpenUpload();
+        }
+
+        private sealed class PendingWriteStream(PendingContent owner) : Stream
+        {
+            public override bool CanRead => false;
+            public override bool CanSeek => false;
+            public override bool CanWrite => true;
+            public override long Length => (owner._buffer ?? owner.OpenUpload()).Length;
+            public override long Position
+            {
+                get => Length;
+                set => throw new NotSupportedException();
+            }
+            public override void Flush() => (owner._buffer ?? owner.OpenUpload()).Flush();
+            public override Task FlushAsync(CancellationToken cancellationToken) =>
+                (owner._buffer ?? owner.OpenUpload()).FlushAsync(cancellationToken);
+            public override void Write(byte[] buffer, int offset, int count) =>
+                Write(buffer.AsSpan(offset, count));
+            public override void Write(ReadOnlySpan<byte> buffer) => owner.PrepareWrite(buffer.Length).Write(buffer);
+            public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return owner.PrepareWrite(buffer.Length).WriteAsync(buffer, cancellationToken);
+            }
+            public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+                WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+        }
 
         private Stream OpenUpload()
         {

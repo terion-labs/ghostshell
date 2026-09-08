@@ -42,7 +42,25 @@ public sealed partial class DatabaseWorkspaceView : UserControl
                 mode: Avalonia.Data.BindingMode.TwoWay,
                 updateSourceTrigger: Avalonia.Data.UpdateSourceTrigger.PropertyChanged));
         ResultDataGrid.PreparingCellForEdit += OnPreparingCellForEdit;
+        ResultDataGrid.BeginningEdit += OnBeginningCellEdit;
         ObservePanel();
+    }
+
+    private async void OnBeginningCellEdit(object? sender, DataGridBeginningEditEventArgs e)
+    {
+        _ = sender;
+        if (!TryCreateCellTarget(e.Row, e.Column, out var target)
+            || !target.Cell.NeedsFullTextForEditing || Panel is not { } panel)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (await panel.PrepareCellForEditingAsync(target.Cell)
+            && ReferenceEquals(Panel, panel) && IsTargetCurrent(panel, target))
+        {
+            ResultDataGrid.BeginEdit();
+        }
     }
 
     /// <summary>
@@ -584,7 +602,7 @@ public sealed partial class DatabaseWorkspaceView : UserControl
     {
         _ = e;
         await CopySelectedRowAsync(
-            static (panel, row) => panel.BuildRowJson(row),
+            static (panel, row) => panel.BuildRowJsonAsync(row),
             sender as Button);
     }
 
@@ -592,7 +610,7 @@ public sealed partial class DatabaseWorkspaceView : UserControl
     {
         _ = e;
         await CopySelectedRowAsync(
-            static (panel, row) => panel.BuildRowCsv(row),
+            static (panel, row) => panel.BuildRowCsvAsync(row),
             sender as Button);
     }
 
@@ -600,12 +618,12 @@ public sealed partial class DatabaseWorkspaceView : UserControl
     {
         _ = e;
         await CopySelectedRowAsync(
-            static (panel, row) => panel.BuildRowSqlInsert(row),
+            static (panel, row) => panel.BuildRowSqlInsertAsync(row),
             sender as Button);
     }
 
     private async Task CopySelectedRowAsync(
-        Func<DatabaseRuntimePanelViewModel, DatabaseResultRowViewModel, string> build,
+        Func<DatabaseRuntimePanelViewModel, DatabaseResultRowViewModel, Task<(string Text, long Revision)>> build,
         Button? source = null)
     {
         var panel = Panel;
@@ -615,8 +633,9 @@ public sealed partial class DatabaseWorkspaceView : UserControl
         {
             try
             {
-                var text = build(panel, row);
-                if (await CopyTextAsync(text, panel))
+                var snapshot = await build(panel, row);
+                if (ReferenceEquals(Panel, panel) && panel.IsClipboardRequestCurrent(snapshot.Revision)
+                    && await CopyTextAsync(snapshot.Text, panel))
                 {
                     ShowCopyFeedback(source);
                 }
@@ -651,10 +670,12 @@ public sealed partial class DatabaseWorkspaceView : UserControl
             TimeSpan.FromSeconds(1.2));
     }
 
-    private void OnFieldEditClick(object? sender, RoutedEventArgs e)
+    private async void OnFieldEditClick(object? sender, RoutedEventArgs e)
     {
         _ = e;
-        if (sender is Control { DataContext: DatabaseRowFieldViewModel field })
+        if (sender is Control { DataContext: DatabaseRowFieldViewModel field } && Panel is { } panel
+            && await panel.PrepareCellForEditingAsync(field.Cell)
+            && ReferenceEquals(Panel, panel) && panel.SelectedRowFields.Contains(field))
         {
             field.BeginEdit();
         }

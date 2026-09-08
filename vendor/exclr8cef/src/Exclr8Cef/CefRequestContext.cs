@@ -25,6 +25,7 @@ public sealed class CefRequestContext : IDisposable
     private const int Disposed = -1;
 
     private int _handle;
+    private readonly CancellationTokenSource _closed = new();
 
     internal int Handle
     {
@@ -51,6 +52,8 @@ public sealed class CefRequestContext : IDisposable
         // transition to the disposed state).
         if (ReferenceEquals(this, Global)) return;
         int h = System.Threading.Interlocked.Exchange(ref _handle, Disposed);
+        if (h == Disposed) return;
+        _closed.Cancel();
         if (h > 0) Excef.excef_release_request_context(h);
     }
 
@@ -74,6 +77,17 @@ public sealed class CefRequestContext : IDisposable
                 if (v != null) Marshal.FreeCoTaskMem((IntPtr)v);
             }
         }
+    }
+
+    /// <summary>Waits for context initialization and actual preference acceptance.</summary>
+    public async Task<bool> SetPreferenceAsync(string name, string valueJson)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(valueJson);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_closed.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        return await Cef.SetPreferenceAsyncInContext(Handle, name, valueJson, timeout.Token)
+            .ConfigureAwait(false) == 1;
     }
 
     /// <summary>Read a preference as JSON, or null if unset.</summary>

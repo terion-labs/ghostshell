@@ -163,9 +163,16 @@ public sealed partial class StartupProtectionRuntime : IStartupProtection
 
         if (file.WrappedKeys is not null)
         {
-            // The sealed blob is now the keys' only durable home.
-            await _encryption!.ForgetKeystoreCopiesAsync(cancellationToken)
+            // Keep the sealed copy even if deletion partially fails: otherwise
+            // a deleted key could become unrecoverable on the next startup.
+            var deletion = await _encryption!.ForgetKeystoreCopiesAsync(cancellationToken)
                 .ConfigureAwait(false);
+            if (deletion is SecretVaultResult<Unit>.Failure)
+            {
+                Changed?.Invoke(this, EventArgs.Empty);
+                return "The PIN was saved, but the OS keystore could not remove all unsealed encryption-key copies. "
+                    + "PIN-only key protection is incomplete; retry saving the PIN when the keystore is available.";
+            }
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -214,9 +221,12 @@ public sealed partial class StartupProtectionRuntime : IStartupProtection
             Write(_state);
         }
 
-        await _encryption.ForgetKeystoreCopiesAsync(cancellationToken).ConfigureAwait(false);
+        var deletion = await _encryption.ForgetKeystoreCopiesAsync(cancellationToken).ConfigureAwait(false);
         Changed?.Invoke(this, EventArgs.Empty);
-        return null;
+        return deletion is SecretVaultResult<Unit>.Failure
+            ? "The encryption keys were sealed, but the OS keystore could not remove all unsealed copies. "
+                + "PIN-only key protection is incomplete; retry when the keystore is available."
+            : null;
     }
 
     /// <summary>AES-GCM over "config\ncache", or null with nothing to seal.</summary>

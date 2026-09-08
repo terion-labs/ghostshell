@@ -679,6 +679,8 @@ internal sealed partial class GhosttyVtTerminalSession : ITerminalPanelSession
             try
             {
                 _pty.Dispose();
+                using var exitDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await _pty.WaitForExitAsync(exitDeadline.Token).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -792,22 +794,8 @@ internal sealed partial class GhosttyVtTerminalSession : ITerminalPanelSession
         }
     }
 
-    private string DescribeProcessExitUnsafe()
-    {
-        string screen;
-        try
-        {
-            screen = BuildScreenSnapshotUnsafe(BuildRenderFrameUnsafe()).PlainText;
-        }
-        catch
-        {
-            // Exit reporting must remain available even if the renderer cannot produce a final
-            // frame. No renderer exception or terminal content crosses this presentation boundary.
-            screen = string.Empty;
-        }
-
-        return TerminalProcessExitDescription.Describe(_launch, screen, _exitCode);
-    }
+    private string DescribeProcessExitUnsafe() =>
+        TerminalProcessExitDescription.Describe(_launch, _exitCode);
 
     private void Fail(string stableCode, Exception exception)
     {

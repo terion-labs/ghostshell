@@ -11,6 +11,28 @@ namespace GhostShell.Databases.Tests;
 /// </summary>
 public sealed class SqliteInMemoryDatabasesTests
 {
+    [Fact]
+    public async Task SnapshotBorrowRemainsReadableAfterPreviewUnregisterWithoutAParentCopy()
+    {
+        var image = BuildDatabaseImage();
+        var target = SqliteInMemoryDatabases.Register(image);
+        await using var snapshot = Assert.IsAssignableFrom<Stream>(SqliteInMemoryDatabases.OpenSnapshot(target));
+        SqliteInMemoryDatabases.Unregister(target);
+        Assert.False(snapshot.CanWrite);
+        Assert.Equal(image.Length, snapshot.Length);
+        Assert.Throws<InvalidOperationException>(() => SqliteInMemoryDatabases.OpenSnapshot(target));
+        var restored = new byte[image.Length];
+        await snapshot.ReadExactlyAsync(restored, CancellationToken.None);
+        Assert.Equal(image, restored);
+    }
+
+    [Fact]
+    public void SnapshotBorrowDistinguishesOrdinaryFilesFromUnknownTokens()
+    {
+        Assert.Null(SqliteInMemoryDatabases.OpenSnapshot("Data Source=ordinary.db"));
+        Assert.Throws<InvalidOperationException>(() => SqliteInMemoryDatabases.OpenSnapshot("Data Source=ghostshell-memory:unknown"));
+    }
+
     private static byte[] BuildDatabaseImage()
     {
         var path = Path.Combine(

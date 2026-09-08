@@ -4,6 +4,30 @@ namespace GhostShell.Files.Tests;
 
 public sealed class S3FileProviderTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Repeated_remote_tokens_are_rejected_even_when_local_tokens_are_unique(bool cycle)
+    {
+        var store = new FakeS3ObjectStore
+        {
+            ListingOverride = token => new S3ObjectPage([], [], true,
+                token is null || !cycle || token == "second" ? "first" : "second"),
+        };
+        var provider = CreateProvider(store);
+        var root = new FileLocation(ProfileId, Authority, FilePath.Root);
+        var page = await provider.ListAsync(new FileListRequest(root, 1), CancellationToken.None);
+        Assert.True(page.IsSuccess);
+        if (cycle)
+        {
+            page = await provider.ListAsync(new FileListRequest(root, 1, page.Value!.ContinuationToken), CancellationToken.None);
+            Assert.True(page.IsSuccess);
+        }
+        var repeated = await provider.ListAsync(new FileListRequest(root, 1, page.Value!.ContinuationToken), CancellationToken.None);
+        Assert.False(repeated.IsSuccess);
+        Assert.Equal(FileProviderErrorCode.IoFailure, repeated.Error!.Code);
+    }
+
     private static readonly FileProviderProfileId ProfileId = new("s3-tests");
     private static readonly FileAuthority Authority = new("bucket");
 

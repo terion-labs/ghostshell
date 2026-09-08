@@ -37,6 +37,7 @@
     <Project Path="tests/GhostShell.Databases.IntegrationTests/GhostShell.Databases.IntegrationTests.csproj" />
     <Project Path="tests/GhostShell.Docker.Tests/GhostShell.Docker.Tests.csproj" />
     <Project Path="tests/GhostShell.Files.Tests/GhostShell.Files.Tests.csproj" />
+    <Project Path="tests/GhostShell.SshNet.Tests/GhostShell.SshNet.Tests.csproj" />
     <Project Path="tests/GhostShell.Git.Tests/GhostShell.Git.Tests.csproj" />
     <Project Path="tests/GhostShell.Infrastructure.Tests/GhostShell.Infrastructure.Tests.csproj" />
     <Project Path="tests/GhostShell.Mcp.Tests/GhostShell.Mcp.Tests.csproj" />
@@ -49,6 +50,14 @@
     <Project Path="tests/GhostShell.Terminal.Tests/GhostShell.Terminal.Tests.csproj" />
     <Project Path="tests/GhostShell.TerminalAcceptance.Tests/GhostShell.TerminalAcceptance.Tests.csproj" />
     <Project Path="tests/GhostShell.Updates.Tests/GhostShell.Updates.Tests.csproj" />
+  </Folder>
+  <Folder Name="/vendor/">
+    <Project Path="vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj" />
+    <Project Path="vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj" />
+    <Project Path="vendor/sshnet/SSH.NET.csproj" />
+    <Project Path="vendor/sharpcompress/SharpCompress.csproj" />
+    <Project Path="vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj" />
+    <Project Path="vendor/sqlclient/tests/Tds.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/GhostShell.AccessibilityAcceptance/GhostShell.AccessibilityAcceptance.csproj" />

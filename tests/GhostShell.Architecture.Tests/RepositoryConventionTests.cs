@@ -334,10 +334,28 @@ public sealed partial class RepositoryConventionTests
                     StringComparison.Ordinal)
                 || component.GetProperty("identity").GetString()!.StartsWith(
                     "Exclr8Cef",
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal)
+                || component.TryGetProperty("vendorSource", out _))
             .Select(component =>
             {
                 var identity = component.GetProperty("identity").GetString()!;
+                if (component.TryGetProperty("vendorSource", out var vendorSource))
+                {
+                    var upstream = vendorSource.GetProperty("upstreamIdentity").GetString()!;
+                    var notice = identity switch
+                    {
+                        "Microsoft.Data.SqlClient.Routed/6.0.2" => "sqlclient-MIT.txt",
+                        "SSH.NET/2026.0.0" => "sshnet-MIT.txt",
+                        "SharpCompress/0.50.3" => "sharpcompress-MIT.txt",
+                        _ => throw new InvalidOperationException("Unreviewed source-built notice identity."),
+                    };
+                    var upstreamSeparator = upstream.LastIndexOf('/');
+                    var localIdentity = string.Equals(identity, upstream, StringComparison.Ordinal)
+                        ? string.Empty
+                        : $" local project identity `{identity}`;";
+                    return $"| `{upstream[..upstreamSeparator]}` | `{upstream[(upstreamSeparator + 1)..]}` | "
+                        + $"MIT, patched source build;{localIdentity} `{notice}` |";
+                }
                 var separator = identity.LastIndexOf('/');
                 var name = identity[..separator];
                 var version = identity[(separator + 1)..];
@@ -362,7 +380,11 @@ public sealed partial class RepositoryConventionTests
             expectedRows,
             noticeLines[(tableStart + 2)..tableEnd],
             StringComparer.Ordinal);
-        Assert.Equal(129, expectedRows.Count(row => !row.Contains("Exclr8Cef", StringComparison.Ordinal)));
+        Assert.Equal(132, expectedRows.Length);
+        Assert.Equal(127, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+            .Count(component => string.Equals(component.GetProperty("kind").GetString(), "nuget", StringComparison.Ordinal)));
+        Assert.Equal(3, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+            .Count(component => component.TryGetProperty("vendorSource", out _)));
         Assert.Contains(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.5.5` | MIT", StringComparison.Ordinal));
         Assert.DoesNotContain(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.2.1`", StringComparison.Ordinal));
     }
@@ -969,8 +991,7 @@ public sealed partial class RepositoryConventionTests
 
         var status = Assert.Single(
             workspace.Descendants(),
-            element => string.Equals(element.Name.LocalName, "TextBlock"
-, StringComparison.Ordinal) && string.Equals(
+            element => element.Name == XName.Get("LiveRegionTextBlock", "using:GhostShell.App.Controls") && string.Equals(
                     AttributeValue(element, "Text"),
                     "{Binding TabReorderStatus}",
                     StringComparison.Ordinal));

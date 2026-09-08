@@ -22,7 +22,9 @@
       Title="{Binding Title}">
     <controls:StateOverlay
         Kind="Unsupported"
-        Heading="Adapter unavailable"
+        Heading="{Binding StateHeading}"
+        ActionLabel="{Binding StateActionLabel}"
+        ActionCommand="{Binding StateActionCommand}"
         Body="{Binding CapabilityMessage}" />
   </controls:PanelChrome>
 </UserControl>

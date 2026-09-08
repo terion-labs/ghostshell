@@ -15,6 +15,8 @@ internal interface IPortablePtyConnection : IDisposable
 
     bool TryGetExitCode(out int exitCode);
 
+    Task WaitForExitAsync(CancellationToken cancellationToken);
+
     void Resize(int columns, int rows);
 
     void Kill();
@@ -38,6 +40,7 @@ internal sealed class PortaPtyFactory : IPortablePtyFactory
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(launch);
+        PortablePtyRuntime.EnsureInitialized();
         var executable = launch.Executable ?? ResolveDefaultShell();
         var workingDirectory = launch.WorkingDirectory ?? Environment.CurrentDirectory;
         if (!Directory.Exists(workingDirectory))
@@ -105,11 +108,16 @@ internal sealed class PortaPtyFactory : IPortablePtyFactory
 internal sealed class PortaPtyConnection : IPortablePtyConnection
 {
     private readonly IPtyConnection _connection;
+    private readonly TaskCompletionSource _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public PortaPtyConnection(IPtyConnection connection)
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _connection.ProcessExited += OnProcessExited;
+        if (_connection.WaitForExit(0))
+        {
+            _exited.TrySetResult();
+        }
     }
 
     public event EventHandler<PortablePtyExit>? ProcessExited;
@@ -134,12 +142,21 @@ internal sealed class PortaPtyConnection : IPortablePtyConnection
 
     public void Kill() => _connection.Kill();
 
+    public Task WaitForExitAsync(CancellationToken cancellationToken) => _exited.Task.WaitAsync(cancellationToken);
+
     public void Dispose()
     {
-        _connection.ProcessExited -= OnProcessExited;
         _connection.Dispose();
+        if (_exited.Task.IsCompleted)
+        {
+            _connection.ProcessExited -= OnProcessExited;
+        }
     }
 
-    private void OnProcessExited(object? sender, PtyExitedEventArgs eventArgs) =>
+    private void OnProcessExited(object? sender, PtyExitedEventArgs eventArgs)
+    {
+        _exited.TrySetResult();
+        _connection.ProcessExited -= OnProcessExited;
         ProcessExited?.Invoke(this, new PortablePtyExit(eventArgs.ExitCode));
+    }
 }

@@ -45,7 +45,8 @@ public sealed class DatabaseConnectionSettingsCoordinator
         bool storePassword,
         ConnectionId? tunnelConnectionId,
         DatabaseInlineTunnelRequest? inlineTunnel = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DatabaseConnectionProfileId? draftId = null)
     {
         if (_databaseConnectionCatalog is null || string.IsNullOrWhiteSpace(name))
         {
@@ -57,7 +58,19 @@ public sealed class DatabaseConnectionSettingsCoordinator
             ? _catalog.Snapshot.DatabaseConnections
                 .SingleOrDefault(item => item.Value.Id == id)
             : null;
-        var profileId = existing?.Value.Id ?? DatabaseConnectionProfileId.New();
+        if (existingId is not null && existing is null)
+        {
+            _setError("That database connection no longer exists.");
+            return null;
+        }
+        // Draft identity is distinct from edit intent: a create still uses a
+        // null expected revision and cannot overwrite a concurrent definition.
+        var profileId = existing?.Value.Id ?? draftId ?? DatabaseConnectionProfileId.New();
+        if (existingId is null && _catalog.Snapshot.DatabaseConnections.Any(item => item.Value.Id == profileId))
+        {
+            _setError("That database draft was already saved. Reopen it before editing.");
+            return null;
+        }
         var secret = existing?.Value.PasswordSecret;
         if (storePassword && !string.IsNullOrEmpty(details.Password))
         {
@@ -293,12 +306,18 @@ public sealed class DatabaseConnectionSettingsCoordinator
 
     /// <summary>Resolves a stored database password from the OS vault.</summary>
     public async Task<string?> ResolveDatabasePasswordAsync(
-        SecretRef secret,
+        DatabaseConnectionProfile requestedProfile,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(requestedProfile);
         var owner = _catalog.Snapshot.DatabaseConnections
-            .FirstOrDefault(item => item.Value.PasswordSecret == secret)?.Value;
-        if (owner is null)
+            .SingleOrDefault(item => item.Value.Id == requestedProfile.Id)?.Value;
+        if (owner is null || owner.PasswordSecret is not { } secret
+            || owner.PasswordSecret != requestedProfile.PasswordSecret
+            || !string.Equals(owner.DriverId, requestedProfile.DriverId, StringComparison.Ordinal)
+            || !string.Equals(owner.ConnectionString, requestedProfile.ConnectionString, StringComparison.Ordinal)
+            || owner.TunnelConnectionId != requestedProfile.TunnelConnectionId
+            || owner.InlineTunnel != requestedProfile.InlineTunnel)
         {
             return null;
         }

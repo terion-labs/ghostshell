@@ -1,0 +1,16 @@
+--- a/src/SharpCompress/Archives/Zip/ZipArchive.cs
++++ b/src/SharpCompress/Archives/Zip/ZipArchive.cs
+@@ -23,6 +23,13 @@
+ {
+     private readonly SeekableZipHeaderFactory? headerFactory;
+ 
++    /// <summary>
++    /// Enumerates central-directory entries without retaining traversed entries.
++    /// Consume once within this archive's lifetime; do not enumerate concurrently
++    /// or mutate the archive while enumerating.
++    /// </summary>
++    public IEnumerable<ZipArchiveEntry> EnumerateEntriesUncached() => LoadEntries(Volumes);
++
+     public CompressionLevel DeflateCompressionLevel { get; set; }
+ 
+     internal ZipArchive(SourceStream sourceStream)

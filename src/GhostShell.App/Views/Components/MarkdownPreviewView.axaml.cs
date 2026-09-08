@@ -6,7 +6,10 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
 using CSharpMath.Avalonia;
 using GhostShell.Application;
@@ -20,6 +23,7 @@ namespace GhostShell.App.Views.Components;
 /// </summary>
 public sealed partial class MarkdownPreviewView : UserControl
 {
+    private static readonly SemaphoreSlim ParseGate = new(1, 1);
     public static readonly StyledProperty<string?> TextProperty =
         AvaloniaProperty.Register<MarkdownPreviewView, string?>(nameof(Text));
 
@@ -228,10 +232,25 @@ public sealed partial class MarkdownPreviewView : UserControl
             // in one frame. Parse only the latest value, away from Avalonia's
             // UI thread, then build native controls in short UI-thread steps.
             await Task.Delay(TimeSpan.FromMilliseconds(24), token);
-            var blocks = await Task.Run(
-                () => MarkdownPreviewDocument.Parse(markdown),
-                token);
+            ImmutableArray<MarkdownBlock> blocks;
+            await ParseGate.WaitAsync(token);
+            try
+            {
+                // Markdig cannot abort a parse already running. Serial admission
+                // prevents rapid streamed revisions accumulating parallel ASTs;
+                // canceled waiting revisions never start another parse.
+                blocks = await Task.Run(() => MarkdownPreviewDocument.Parse(markdown), token);
+            }
+            finally
+            {
+                ParseGate.Release();
+            }
             token.ThrowIfCancellationRequested();
+            if (blocks.Length > 32 || markdown?.Length > 64 * 1024 || blocks.Any(RequiresSourceViewport))
+            {
+                CommitDemandDocument(blocks, markdown!, generation, token);
+                return;
+            }
             if (continuousSelection)
             {
                 CommitContinuousDocument(blocks, generation, token);
@@ -269,6 +288,120 @@ public sealed partial class MarkdownPreviewView : UserControl
         generation == _buildGeneration
         && !token.IsCancellationRequested
         && VisualRoot is not null;
+
+    private void CommitDemandDocument(
+        ImmutableArray<MarkdownBlock> blocks, string markdown, int generation, CancellationToken token)
+    {
+        if (!IsCurrentBuild(generation, token))
+        {
+            return;
+        }
+
+        var copy = new Button { Content = "Copy all Markdown", HorizontalAlignment = HorizontalAlignment.Right };
+        copy.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(markdown);
+            }
+        };
+        var list = new ListBox
+        {
+            ItemsSource = blocks,
+            MaxHeight = 560,
+            ItemTemplate = new FuncDataTemplate<MarkdownBlock>((block, _) =>
+                block is null ? null : DemandBlock(block, markdown)),
+            ItemsPanel = new FuncTemplate<Panel?>(() => new VirtualizingStackPanel()),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+        };
+        AutomationProperties.SetName(list, "Markdown document, scroll to read all blocks");
+        var document = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), MaxHeight = 600 };
+        document.Children.Add(copy);
+        Grid.SetRow(list, 1);
+        document.Children.Add(list);
+        Blocks.Children.Clear();
+        Blocks.Children.Add(document);
+        CompleteBuild(generation, token);
+    }
+
+    private Control? DemandBlock(MarkdownBlock block, string markdown)
+    {
+        if (RequiresSourceViewport(block))
+        {
+            if (block.Kind == MarkdownBlockKind.Table)
+            {
+                return PagedTable(block);
+            }
+
+            var start = Math.Clamp(block.SourceStart, 0, markdown.Length);
+            var length = Math.Clamp(block.SourceLength, 0, markdown.Length - start);
+            var source = new CodePreviewView
+            {
+                Text = markdown.Substring(start, length),
+                FitsContent = false,
+                Height = 320,
+            };
+            var surface = new StackPanel();
+            surface.Children.Add(new TextBlock { Text = "Large block shown as scrollable source. All text is retained.", TextWrapping = TextWrapping.Wrap });
+            surface.Children.Add(source);
+            return surface;
+        }
+
+        return Build(block);
+    }
+
+    private static bool RequiresSourceViewport(MarkdownBlock block) =>
+        block.SourceLength > 16 * 1024
+        || block.Runs.Length > 256
+        || block.HeaderCells.Length > 32
+        || block.Rows.Length > 64
+        || block.Rows.Sum(row => row.Length) > 128;
+
+    private Control PagedTable(MarkdownBlock block)
+    {
+        const int rowsPerPage = 16;
+        const int columnsPerPage = 8;
+        var rowOffset = 0;
+        var columnOffset = 0;
+        var columnCount = Math.Max(block.HeaderCells.Length, block.Rows.IsEmpty ? 0 : block.Rows.Max(row => row.Length));
+        var surface = new StackPanel();
+        var navigation = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var previousRows = new Button { Content = "Previous rows" };
+        var nextRows = new Button { Content = "Next rows" };
+        var previousColumns = new Button { Content = "Previous columns" };
+        var nextColumns = new Button { Content = "Next columns" };
+        var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var content = new ContentControl();
+        navigation.Children.Add(previousRows);
+        navigation.Children.Add(nextRows);
+        navigation.Children.Add(previousColumns);
+        navigation.Children.Add(nextColumns);
+        surface.Children.Add(summary);
+        surface.Children.Add(navigation);
+        surface.Children.Add(content);
+        previousRows.Click += (_, _) => { rowOffset = Math.Max(0, rowOffset - rowsPerPage); RenderPage(); };
+        nextRows.Click += (_, _) => { rowOffset += rowsPerPage; RenderPage(); };
+        previousColumns.Click += (_, _) => { columnOffset = Math.Max(0, columnOffset - columnsPerPage); RenderPage(); };
+        nextColumns.Click += (_, _) => { columnOffset += columnsPerPage; RenderPage(); };
+        RenderPage();
+        return surface;
+
+        void RenderPage()
+        {
+            previousRows.IsEnabled = rowOffset > 0;
+            nextRows.IsEnabled = rowOffset + rowsPerPage < block.Rows.Length;
+            previousColumns.IsEnabled = columnOffset > 0;
+            nextColumns.IsEnabled = columnOffset + columnsPerPage < columnCount;
+            summary.Text = $"Table rows {rowOffset + 1}–{Math.Min(rowOffset + rowsPerPage, block.Rows.Length)} of {block.Rows.Length}; columns {columnOffset + 1}–{Math.Min(columnOffset + columnsPerPage, columnCount)} of {columnCount}.";
+            content.Content = Table(block with
+            {
+                HeaderCells = [.. block.HeaderCells.Skip(columnOffset).Take(columnsPerPage)],
+                Rows = [.. block.Rows.Skip(rowOffset).Take(rowsPerPage)
+                    .Select(row => row.Skip(columnOffset).Take(columnsPerPage).ToImmutableArray())],
+            });
+        }
+    }
 
     private void CommitContinuousDocument(
         ImmutableArray<MarkdownBlock> blocks,
@@ -672,6 +805,16 @@ public sealed partial class MarkdownPreviewView : UserControl
 
     private Control Cell(ImmutableArray<MarkdownRun> runs, bool isHeader)
     {
+        if (runs.Length > 128 || runs.Sum(run => run.Text.Length) > 16 * 1024)
+        {
+            return new CodePreviewView
+            {
+                Text = string.Concat(runs.Select(run => run.Text)),
+                FitsContent = false,
+                Height = 160,
+            };
+        }
+
         var content = Prose(runs);
         content.Margin = new Thickness(10, 5);
         if (isHeader)

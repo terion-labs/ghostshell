@@ -19,7 +19,7 @@ internal enum DatabaseGridExportFormat
 /// writers behind a strict UTF-8 byte budget; file exports write directly to
 /// their destination.
 /// </summary>
-internal static class DatabaseGridExport
+internal static partial class DatabaseGridExport
 {
     public const int MaximumClipboardUtf8Bytes = 16 * 1024 * 1024;
 
@@ -27,10 +27,23 @@ internal static class DatabaseGridExport
     private const int Base64ChunkBytes = 4095;
     private static readonly UTF8Encoding Utf8WithoutBom = new(false);
 
-    public static string BuildClipboardText(Action<TextWriter> write)
+    internal static TextWriter CreateFileWriter(Stream destination, CancellationToken token) =>
+        new CancellableFileWriter(destination, token);
+
+    private sealed class CancellableFileWriter(Stream destination, CancellationToken token)
+        : StreamWriter(destination, new UTF8Encoding(false), 16 * 1024, leaveOpen: true)
+    {
+        public override void Write(char value) { token.ThrowIfCancellationRequested(); base.Write(value); }
+        public override void Write(string? value) { token.ThrowIfCancellationRequested(); base.Write(value); }
+        public override void Write(ReadOnlySpan<char> buffer) { token.ThrowIfCancellationRequested(); base.Write(buffer); }
+        public override void Write(char[] buffer, int index, int count) { token.ThrowIfCancellationRequested(); base.Write(buffer, index, count); }
+        public override void Flush() { token.ThrowIfCancellationRequested(); base.Flush(); }
+    }
+
+    public static string BuildClipboardText(Action<TextWriter> write, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(write);
-        using var writer = new BoundedUtf8StringWriter(MaximumClipboardUtf8Bytes);
+        using var writer = new BoundedUtf8StringWriter(MaximumClipboardUtf8Bytes, token);
         write(writer);
         return writer.ToString();
     }
@@ -52,7 +65,7 @@ internal static class DatabaseGridExport
                 return;
         }
 
-        if (cell.Column.ValueKind == DatabaseValueKind.Other)
+        if (cell.Column.ValueKind == DatabaseValueKind.Other && cell.RawValue is not DatabaseValueContent)
         {
             writer.Write(cell.Text);
             return;
@@ -364,7 +377,7 @@ internal static class DatabaseGridExport
             return ContainsDelimitedSpecial("DEFAULT", delimiter);
         }
 
-        if (cell.Column.ValueKind == DatabaseValueKind.Other)
+        if (cell.Column.ValueKind == DatabaseValueKind.Other && cell.RawValue is not DatabaseValueContent)
         {
             return ContainsDelimitedSpecial(cell.Text, delimiter);
         }
@@ -376,6 +389,13 @@ internal static class DatabaseGridExport
 
     private static bool FullValueContainsDelimitedSpecial(object value, char delimiter)
     {
+        if (value is DatabaseValueContent content)
+        {
+            // Legal CSV quoting preserves the decoded value and avoids a
+            // complete pre-scan of a potentially huge detached field.
+            return content.Kind != DatabaseValueKind.Binary;
+        }
+
         if (value is byte[])
         {
             return false;
@@ -416,6 +436,9 @@ internal static class DatabaseGridExport
     {
         switch (value)
         {
+            case DatabaseValueContent content:
+                WriteContent(writer, content);
+                return;
             case byte[] bytes:
                 writer.Write("0x");
                 WriteHex(writer, bytes);
@@ -538,6 +561,12 @@ internal static class DatabaseGridExport
             return;
         }
 
+        if (cell.RawValue is DatabaseValueContent content)
+        {
+            WriteJsonContent(writer, content, depth);
+            return;
+        }
+
         if (column.ValueKind == DatabaseValueKind.Json
             && cell.RawValue is string json)
         {
@@ -605,6 +634,9 @@ internal static class DatabaseGridExport
     {
         switch (value)
         {
+            case DatabaseValueContent content:
+                WriteJsonContent(writer, content, depth);
+                return;
             case null:
                 writer.Write("null");
                 return;
@@ -888,6 +920,11 @@ internal static class DatabaseGridExport
             return;
         }
 
+        if (cell.RawValue is DatabaseValueContent)
+        {
+            throw new NotSupportedException("Detached database values require the streaming TextWriter JSON export.");
+        }
+
         if (column.ValueKind == DatabaseValueKind.Json
             && cell.RawValue is string json)
         {
@@ -955,6 +992,8 @@ internal static class DatabaseGridExport
     {
         switch (value)
         {
+            case DatabaseValueContent:
+                throw new NotSupportedException("Detached database values require the streaming TextWriter JSON export.");
             case null:
                 writer.WriteNullValue();
                 return;
@@ -1085,6 +1124,17 @@ internal static class DatabaseGridExport
 
         switch (value)
         {
+            case DatabaseValueContent { Kind: DatabaseValueKind.Binary } content:
+                writer.Write("X'");
+                using (var source = content.OpenRead())
+                {
+                    WriteBinaryContent(writer, source, asBase64: false);
+                }
+                writer.Write('\'');
+                return;
+            case DatabaseValueContent { ScalarType: not null } content:
+                WriteContent(writer, content);
+                return;
             case bool flag:
                 writer.Write(flag ? "TRUE" : "FALSE");
                 return;
@@ -1188,7 +1238,7 @@ internal static class DatabaseGridExport
         }
     }
 
-    private sealed class BoundedUtf8StringWriter(int maximumBytes) : TextWriter
+    private sealed class BoundedUtf8StringWriter(int maximumBytes, CancellationToken token) : TextWriter
     {
         private readonly StringBuilder _content = new();
         private int _utf8Bytes;
@@ -1228,6 +1278,7 @@ internal static class DatabaseGridExport
 
         private void AddBytes(int count)
         {
+            token.ThrowIfCancellationRequested();
             if (count > maximumBytes - _utf8Bytes)
             {
                 throw ClipboardLimitExceeded();

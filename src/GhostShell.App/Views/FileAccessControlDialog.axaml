@@ -81,7 +81,7 @@
       <StackPanel Grid.Row="2" Margin="{controls:Inset Top=Md}" Spacing="{DynamicResource ShellSpaceXs}">
         <!-- The number, because it is what anybody working at a shell reads,
              and because the privileges above cannot express every mode. -->
-        <TextBlock
+        <controls:LiveRegionTextBlock
             Classes="Muted"
             FontFamily="{DynamicResource ShellDataFontFamily}"
             FontSize="{DynamicResource ShellFontSize10}"

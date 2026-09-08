@@ -7,6 +7,84 @@ namespace GhostShell.App.Tests;
 public sealed class UnifiedConnectionEditorViewModelTests
 {
     [Fact]
+    public async Task Inline_database_tunnel_requires_exact_host_key_review_and_keeps_its_draft_identity()
+    {
+        var client = new StructuralDatabaseClient();
+        var security = new DatabaseHostKeyRuntime();
+        var editor = new DatabaseConnectionEditorViewModel(client, [], securityRuntime: security)
+        {
+            Name = "Database",
+            Host = "db.test",
+            TunnelHost = "bastion.test",
+            TunnelUsername = "user",
+        };
+        editor.SelectedTunnel = editor.TunnelOptions.Single(option => option.IsInline);
+        Assert.Equal(SshHostKeyPolicy.Strict, editor.TunnelHostKeyPolicy);
+        await editor.TestAsync(CancellationToken.None);
+        Assert.True(editor.HasHostKeyReview);
+        Assert.Null(client.LastProbeConnectionString);
+        var review = Assert.IsType<SshHostKeyReview>(editor.HostKeyReview);
+        await editor.TrustHostKeyAsync(SshHostKeyReviewId.New(), CancellationToken.None);
+        Assert.Null(security.Confirmed);
+        await editor.TrustHostKeyAsync(review.Id, CancellationToken.None);
+        Assert.Equal(review.Id, security.Confirmed!.ReviewId);
+        Assert.NotNull(client.LastProbeConnectionString);
+        var request = editor.CreateSaveRequest();
+        Assert.Null(request.ExistingId);
+        var id = request.DraftId!.Value;
+        Assert.Equal(DatabaseConnectionProfile.InlineTunnelId(id), review.ConnectionId);
+        var inline = DatabaseConnectionEditorViewModel.BuildInlineTunnelProfile(review.ConnectionId,
+            "Tunnel", request.InlineTunnel!, new ConnectionAuthentication.SshAgent());
+        var saved = new DatabaseConnectionProfile(id, 1, "Saved", "postgres", "Host=db.test", inlineTunnel: inline);
+        var reopened = new DatabaseConnectionEditorViewModel(client, [], saved, securityRuntime: security);
+        await reopened.TestAsync(CancellationToken.None);
+        Assert.False(reopened.HasHostKeyReview);
+        Assert.Equal(id, reopened.CreateSaveRequest().ExistingId);
+        var otherDraft = new DatabaseConnectionEditorViewModel(client, [], securityRuntime: security)
+        {
+            Name = "New draft",
+            Host = "db.test",
+            TunnelHost = "bastion.test",
+            TunnelUsername = "user",
+        };
+        otherDraft.SelectedTunnel = otherDraft.TunnelOptions.Single(option => option.IsInline);
+        await otherDraft.TestAsync(CancellationToken.None);
+        Assert.True(otherDraft.HasHostKeyReview);
+        Assert.NotEqual(id, otherDraft.CreateSaveRequest().DraftId);
+    }
+
+    private sealed class DatabaseHostKeyRuntime : IConnectionSecurityRuntime
+    {
+        private readonly HashSet<ConnectionId> _trusted = [];
+        public SshHostKeyTrustRequest? Confirmed { get; private set; }
+        public ValueTask<ConnectionRuntimeResult<SshHostKeyReview>> PrepareSshHostKeyAsync(ConnectionProfile profile,
+            IProgress<ConnectionProgress>? progress, CancellationToken cancellationToken)
+        {
+            var identity = new SshHostKeyIdentity("ssh-ed25519", "SHA256:" + new string('A', 43));
+            var trusted = _trusted.Contains(profile.Id);
+            return ValueTask.FromResult(ConnectionRuntimeResult<SshHostKeyReview>.Succeed(new SshHostKeyReview(
+                SshHostKeyReviewId.New(), profile.Id, "bastion.test:22",
+                trusted ? SshHostKeyDisposition.Trusted : SshHostKeyDisposition.Unknown,
+                identity, trusted ? identity : null, DateTimeOffset.UtcNow.AddMinutes(1))));
+        }
+        public ValueTask<ConnectionRuntimeResult<SshHostKeyReview>> InspectSshHostKeyAsync(ConnectionProfile profile,
+            IProgress<ConnectionProgress>? progress, CancellationToken cancellationToken) =>
+            PrepareSshHostKeyAsync(profile, progress, cancellationToken);
+        public ValueTask<ConnectionRuntimeResult<SshHostKeyReview>> TrustSshHostKeyAsync(SshHostKeyTrustRequest request,
+            CancellationToken cancellationToken)
+        {
+            Confirmed = request;
+            _trusted.Add(request.ConnectionId);
+            var identity = new SshHostKeyIdentity("ssh-ed25519", "SHA256:" + new string('A', 43));
+            return ValueTask.FromResult(ConnectionRuntimeResult<SshHostKeyReview>.Succeed(new SshHostKeyReview(
+                request.ReviewId, request.ConnectionId, "bastion.test:22", SshHostKeyDisposition.Trusted,
+                identity, identity, DateTimeOffset.UtcNow.AddMinutes(1))));
+        }
+        public ValueTask<ConnectionRuntimeResult<ConnectionDiagnosticsReport>> DiagnoseAsync(ConnectionProfile profile,
+            IProgress<ConnectionProgress>? progress, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void Type_options_span_every_available_family()
     {
         var editor = CreateEditor();

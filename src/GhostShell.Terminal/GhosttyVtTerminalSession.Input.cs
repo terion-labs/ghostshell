@@ -233,12 +233,6 @@ internal sealed partial class GhosttyVtTerminalSession
             ObjectDisposedException.ThrowIf(_closed, this);
             PrepareForTerminalInputUnsafe();
             bracketed = ModeEnabledUnsafe(2004);
-            var policy = _renderProfile.ClipboardPolicy.PasteSafety;
-            if (TerminalPasteSafety.RequiresConfirmation(pasteInput, policy, bracketed))
-            {
-                return TerminalPasteResult.ConfirmationRequired(bracketed);
-            }
-
             var normalized = PreparePasteText(pasteInput.Text, bracketed);
             encoded = EncodePasteUnsafe(Encoding.UTF8.GetBytes(normalized), bracketed);
         }
@@ -259,12 +253,6 @@ internal sealed partial class GhosttyVtTerminalSession
             ObjectDisposedException.ThrowIf(_closed, this);
             PrepareForTerminalInputUnsafe();
             bracketed = ModeEnabledUnsafe(2004);
-            var policy = _renderProfile.ClipboardPolicy.PasteSafety;
-            if (TerminalPasteSafety.RequiresConfirmation(pasteInput, policy, bracketed))
-            {
-                return TerminalPasteResult.ConfirmationRequired(bracketed);
-            }
-
             var normalized = PreparePasteText(pasteInput.Text, bracketed);
             var paste = EncodePasteUnsafe(
                 Encoding.UTF8.GetBytes(normalized),
@@ -863,6 +851,9 @@ internal sealed partial class GhosttyVtTerminalSession
 
     private static string PreparePasteText(string text, bool bracketed)
     {
+        // Preserve ordinary multiline paste without a confirmation dialog. Keep
+        // terminal editing/escape controls inert, including embedded bracketed-
+        // paste terminators; never pass these clipboard bytes as key presses.
         var characters = text.ToCharArray();
         for (var index = 0; index < characters.Length; index++)
         {

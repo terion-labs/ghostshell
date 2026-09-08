@@ -1343,7 +1343,7 @@ public static partial class Cef
                 Excef.excef_set_context_menu_callback(&ContextMenuTrampoline);
                 Excef.excef_set_download_starting_callback(&DownloadStartingTrampoline);
                 Excef.excef_set_download_progress_callback(&DownloadProgressTrampoline);
-                Excef.excef_set_auth_request_callback(&AuthRequestTrampoline);
+                Excef.excef_set_auth_request_callback_v2(&AuthRequestTrampoline);
                 Excef.excef_set_find_result_callback(&FindResultTrampoline);
                 Excef.excef_set_render_process_gone_callback(&RenderProcessGoneTrampoline);
                 Excef.excef_set_scheme_request_callback(&SchemeRequestTrampoline);
@@ -1359,6 +1359,7 @@ public static partial class Cef
                 Excef.excef_set_permission_prompt_callback(&PermissionPromptTrampoline);
                 Excef.excef_set_media_access_callback(&MediaAccessTrampoline);
                 Excef.excef_set_before_popup_callback(&BeforePopupTrampoline);
+                Excef.excef_set_host_popup_callback(&HostPopupTrampoline);
                 Excef.excef_set_cert_error_callback(&CertErrorTrampoline);
                 Excef.excef_set_take_focus_callback(&TakeFocusTrampoline);
                 Excef.excef_set_set_focus_callback(&SetFocusTrampoline);
@@ -1442,6 +1443,19 @@ public static partial class Cef
         StartRequestContextOperation(requestId =>
             Excef.excef_flush_cookie_store_async(contextHandle, requestId));
 
+    internal static Task<int> SetPreferenceAsyncInContext(
+        int contextHandle, string name, string valueJson, CancellationToken cancellationToken) =>
+        StartRequestContextOperation(requestId =>
+        {
+            unsafe
+            {
+                var n = (sbyte*)Marshal.StringToCoTaskMemUTF8(name);
+                var v = (sbyte*)Marshal.StringToCoTaskMemUTF8(valueJson);
+                try { return Excef.excef_set_preference_async(contextHandle, n, v, requestId); }
+                finally { Marshal.FreeCoTaskMem((IntPtr)n); Marshal.FreeCoTaskMem((IntPtr)v); }
+            }
+        }, cancellationToken);
+
     internal static Task<int> ClearHttpAuthCredentialsAsyncInContext(
         int contextHandle) =>
         StartRequestContextOperation(requestId =>
@@ -1454,7 +1468,8 @@ public static partial class Cef
         StartRequestContextOperation(requestId =>
             Excef.excef_close_all_connections_async(contextHandle, requestId));
 
-    private static Task<int> StartRequestContextOperation(Func<int, int> schedule)
+    private static Task<int> StartRequestContextOperation(
+        Func<int, int> schedule, CancellationToken cancellationToken = default)
     {
         var requestId = Interlocked.Increment(ref s_nextRequestContextOperationId);
         var completion = new TaskCompletionSource<int>(
@@ -1467,7 +1482,16 @@ public static partial class Cef
                 "The CEF request-context operation could not be scheduled."));
         }
 
-        return completion.Task;
+        return cancellationToken.CanBeCanceled
+            ? AwaitRequestContextOperationAsync(requestId, completion.Task, cancellationToken)
+            : completion.Task;
+    }
+
+    private static async Task<int> AwaitRequestContextOperationAsync(
+        int requestId, Task<int> completion, CancellationToken cancellationToken)
+    {
+        try { return await completion.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        finally { s_requestContextOperations.TryRemove(requestId, out _); }
     }
 
     // ---- argv / utf-8 helpers ------------------------------------------

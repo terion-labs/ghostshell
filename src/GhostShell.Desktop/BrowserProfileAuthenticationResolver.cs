@@ -88,11 +88,16 @@ internal sealed class BrowserProfileAuthenticationResolver(ISecretVault vault) :
         BrowserAuthenticationChallenge challenge)
     {
         if (challenge.IsProxy
+            || !Uri.TryCreate(challenge.OriginUrl, UriKind.Absolute, out var origin)
+            || !string.Equals(origin.Scheme, authentication.OriginScheme, StringComparison.Ordinal)
+            || !string.Equals(origin.Host.TrimEnd('.'), authentication.Host, StringComparison.OrdinalIgnoreCase)
+            || origin.Port != (authentication.Port ?? (string.Equals(authentication.OriginScheme, "https", StringComparison.Ordinal) ? 443 : 80))
+            || challenge.Port != origin.Port
+            || !string.Equals(challenge.RouteIdentity, authentication.RouteIdentity, StringComparison.Ordinal)
             || !string.Equals(
                 authentication.Host,
                 challenge.Host.Trim().TrimEnd('.'),
                 StringComparison.OrdinalIgnoreCase)
-            || authentication.Port is { } port && challenge.Port != port
             || authentication.Realm is { } realm
                 && !string.Equals(realm, challenge.Realm, StringComparison.Ordinal))
         {

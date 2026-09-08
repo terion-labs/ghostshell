@@ -248,8 +248,9 @@ terminal exposes both `terminal.paste` and
 `Auto` cannot authorize it; the host additionally accepts only an exact
 `HumanApproval` or already-confirmed run-local `YoloPolicy` source. After
 rechecking both capabilities, the host acquires one one-action input lease and
-passes `ConfirmedUnsafe` to the typed paste port only at that final trusted
-boundary. The shared terminal engine keeps the caller/lease token on each queued
+dispatches to the typed paste port only at that final trusted boundary. Paste
+input carries text, not a caller-supplied approval flag; the one-use capability
+authorization is the authority. The shared terminal engine keeps the caller/lease token on each queued
 mutation through the PTY write, which is its irreversible commit point. A
 normal receipt remains gated by flush, but post-commit cancellation or flush
 failure completes that committed receipt before failing the session; this

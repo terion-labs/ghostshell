@@ -292,6 +292,31 @@ public sealed partial class DesignSystemConventionTests
     }
 
     [Fact]
+    public void Website_exports_exclude_accessibility_comparisons_before_normalizing_the_theme()
+    {
+        var export = File.ReadAllText(Path.Combine(
+            ApplicationViews.RepositoryRoot,
+            "tools",
+            "GhostShell.DesignQa",
+            "WebsiteScreenshotExport.cs"));
+        var routeFilterStart = export.IndexOf("public static bool IncludesRoute", StringComparison.Ordinal);
+        var rejectionEnd = export.IndexOf("=> false,", routeFilterStart, StringComparison.Ordinal);
+        Assert.True(routeFilterStart > 0 && rejectionEnd > routeFilterStart);
+        var rejectedRoutes = export[routeFilterStart..rejectionEnd];
+        foreach (var route in new[]
+                 {
+                     "design-system-high-contrast",
+                     "design-system-scale-200",
+                     "design-system-scale-250",
+                 })
+        {
+            Assert.Contains($"\"{route}\" or", rejectedRoutes, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("\"design-system\" or", rejectedRoutes, StringComparison.Ordinal);
+        Assert.Contains("_ => true,", export[rejectionEnd..], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Design_qa_review_covers_primary_surfaces_without_blocking_release_gates()
     {
         var root = ApplicationViews.RepositoryRoot;

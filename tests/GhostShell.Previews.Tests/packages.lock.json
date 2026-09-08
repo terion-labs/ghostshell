@@ -177,8 +177,12 @@
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
           "Magick.NET-Q8-AnyCPU": "[14.16.0, )",
-          "PDFtoImage": "[5.3.0, )"
+          "PDFtoImage": "[5.3.0, )",
+          "SharpCompress": "[0.50.3, )"
         }
+      },
+      "sharpcompress": {
+        "type": "Project"
       },
       "Magick.NET-Q8-AnyCPU": {
         "type": "CentralTransitive",

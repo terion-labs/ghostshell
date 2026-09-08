@@ -297,7 +297,7 @@
         </StackPanel>
       </controls:SurfaceCard>
 
-      <TextBlock
+      <controls:LiveRegionTextBlock
           x:Name="ValidationError"
           Foreground="{DynamicResource ShellDangerBrush}"
           Focusable="True"

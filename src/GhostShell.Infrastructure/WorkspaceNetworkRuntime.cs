@@ -313,6 +313,7 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
         private readonly IWorkspacePacketGatewayRuntime? _packetGatewayRuntime;
         private readonly Func<TimeSpan, CancellationToken, Task> _reconnectDelay;
         private INetworkConnectionSession? _connection;
+        private string? _connectionAuthenticationRouteIdentity;
         private IWorkspacePacketGatewaySession? _packetGateway;
         private WorkspaceNetworkPolicyUpdate? _appliedUpdate;
         private CancellationTokenSource? _automaticReconnect;
@@ -553,13 +554,15 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
             lock (_stateGate)
             {
                 _connection = connection;
+                _connectionAuthenticationRouteIdentity = BrowserHttpAuthentication.NetworkRouteIdentity(selected);
                 connection.Changed += OnConnectionChanged;
             }
 
             var snapshot = new WorkspaceNetworkSnapshot(
                 WorkspaceNetworkState.Connected,
                 connection.Egress,
-                selectedId);
+                selectedId,
+                authenticationRouteIdentity: BrowserHttpAuthentication.NetworkRouteIdentity(selected));
             Publish(snapshot);
             return NetworkConnectionResult<WorkspaceNetworkSnapshot>.Succeed(snapshot);
         }
@@ -659,7 +662,8 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
                             WorkspaceNetworkState.Connected,
                             WorkspaceNetworkEgress.Attached,
                             selectedId,
-                            routeCapabilities: gatewaySnapshot.Capabilities);
+                            routeCapabilities: gatewaySnapshot.Capabilities,
+                            authenticationRouteIdentity: BrowserHttpAuthentication.NetworkRouteIdentity(selected));
                 _snapshot = snapshot;
                 changed = Changed;
             }
@@ -989,7 +993,8 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
                     NetworkConnectionState.Connected => new WorkspaceNetworkSnapshot(
                         WorkspaceNetworkState.Connected,
                         connection.Egress,
-                        providerSnapshot.ConnectionId),
+                        providerSnapshot.ConnectionId,
+                        authenticationRouteIdentity: _connectionAuthenticationRouteIdentity),
                     NetworkConnectionState.Disconnecting
                         or NetworkConnectionState.Disconnected
                         or NetworkConnectionState.Failed =>

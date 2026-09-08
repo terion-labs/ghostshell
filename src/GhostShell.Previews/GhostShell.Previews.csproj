@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GhostShell.Application\GhostShell.Application.csproj" />
     <ProjectReference Include="..\GhostShell.Core\GhostShell.Core.csproj" />
+    <ProjectReference Include="../../vendor/sharpcompress/SharpCompress.csproj" />
   </ItemGroup>
 
 </Project>

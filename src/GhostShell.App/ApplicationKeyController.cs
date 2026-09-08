@@ -8,10 +8,6 @@ internal readonly record struct ApplicationKeyProfileSnapshot(
     string Name,
     CommandContext ActiveContexts);
 
-internal readonly record struct ApplicationKeyHandling(
-    bool WasResolved,
-    bool ShouldHandle);
-
 internal delegate ValueTask<bool> ApplicationKeyReplay(
     IReadOnlyList<KeyStroke> strokes,
     CancellationToken cancellationToken);
@@ -48,24 +44,16 @@ internal sealed class ApplicationKeyController : IDisposable
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public async Task<ApplicationKeyHandling> HandleAsync(
+    public ApplicationKeyResolution Resolve(
         KeyStroke stroke,
-        ApplicationKeyProfileSnapshot profile,
-        ApplicationKeyReplay? replay)
+        ApplicationKeyProfileSnapshot profile)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         Synchronize(profile);
-        var resolution = _resolver.Resolve(
+        return _resolver.Resolve(
             stroke,
             profile.ActiveContexts,
             _timeProvider.GetUtcNow());
-        if (resolution.Kind == ApplicationKeyResolutionKind.NotHandled)
-        {
-            return default;
-        }
-
-        await ApplyAsync(resolution, profile, replay);
-        return new ApplicationKeyHandling(true, resolution.ShouldHandle);
     }
 
     public void Reset()
@@ -75,7 +63,7 @@ internal sealed class ApplicationKeyController : IDisposable
         ClearHint();
     }
 
-    private async Task ApplyAsync(
+    public async Task ApplyAsync(
         ApplicationKeyResolution resolution,
         ApplicationKeyProfileSnapshot profile,
         ApplicationKeyReplay? replay)

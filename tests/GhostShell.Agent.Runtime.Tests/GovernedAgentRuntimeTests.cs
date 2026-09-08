@@ -119,6 +119,12 @@ public sealed partial class GovernedAgentRuntimeTests
             AgentYoloConfirmation.RunLifetimeExpiry,
             fixture.Runtime.Snapshot.YoloAuthority!.ExpiresAtUtc);
 
+        var runId = fixture.Runtime.Snapshot.RunId;
+        Assert.True((await fixture.Runtime.SendAsync(
+            fixture.Prompt("Continue the same conversation."), CancellationToken.None)).IsSuccess);
+        Assert.Equal(runId, fixture.Runtime.Snapshot.RunId);
+        Assert.NotNull(fixture.Runtime.Snapshot.YoloAuthority);
+
         var disabled = await fixture.Runtime.DisableYoloAsync(
             CancellationToken.None);
 
@@ -127,6 +133,39 @@ public sealed partial class GovernedAgentRuntimeTests
         Assert.Equal(
             AgentPermission.Ask,
             fixture.Runtime.Snapshot.TerminalMutationPermission);
+    }
+
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("clear")]
+    [InlineData("new")]
+    [InlineData("dispose")]
+    public async Task Full_access_is_revoked_when_the_run_ends(string ending)
+    {
+        await using var fixture = new RuntimeFixture(ProviderRound.AnswerEveryTurn());
+        Assert.True((await fixture.Runtime.SendAsync(
+            fixture.Prompt("Start the conversation."), CancellationToken.None)).IsSuccess);
+        Assert.True((await fixture.Runtime.EnableFullAccessAsync(CancellationToken.None)).IsAccepted);
+        Assert.NotNull(fixture.Runtime.Snapshot.YoloAuthority);
+
+        switch (ending)
+        {
+            case "stop":
+                Assert.True((await fixture.Runtime.StopAsync(CancellationToken.None)).WasRunning);
+                break;
+            case "clear":
+                Assert.True(await fixture.Runtime.ClearAsync(CancellationToken.None));
+                break;
+            case "new":
+                Assert.True(await fixture.Runtime.StartNewConversationAsync(CancellationToken.None));
+                break;
+            case "dispose":
+                await fixture.Runtime.DisposeAsync();
+                break;
+        }
+
+        Assert.Null(fixture.Runtime.Snapshot.YoloAuthority);
+        Assert.NotEqual(AgentPermission.Yolo, fixture.Runtime.Snapshot.TerminalMutationPermission);
     }
 
     [Fact]

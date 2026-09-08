@@ -14,6 +14,68 @@ public sealed class NativeArtifactPublisherTests : IDisposable
         Directory.CreateDirectory(_temporaryDirectory);
 
     [Fact]
+    public void Terminal_publication_preserves_sibling_receipts_and_executable_payloads()
+    {
+        var paths = CreatePublicationPaths("terminal-components");
+        File.WriteAllText(Path.Combine(paths.StagedDirectory, "libghostty-vt.dylib"), "new terminal");
+        File.WriteAllText(Path.Combine(paths.StagedDirectory, "native-terminal-build-receipt.json"), "terminal receipt");
+        WriteMarker(Path.Combine(paths.DestinationDirectory, "cef"), "CEF receipt");
+        WriteMarker(Path.Combine(paths.DestinationDirectory, "workspace-runtime"), "runtime");
+        File.WriteAllText(Path.Combine(paths.DestinationDirectory, "libghostty-vt.dylib"), "old terminal");
+        var runtime = Path.Combine(paths.DestinationDirectory, "workspace-runtime", "marker.txt");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(runtime, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        }
+
+        NativeArtifactPublisher.Publish(paths.StagedDirectory, paths.DestinationDirectory, "terminal");
+
+        Assert.Equal("CEF receipt", ReadMarker(Path.Combine(paths.DestinationDirectory, "cef")));
+        Assert.Equal("runtime", File.ReadAllText(runtime));
+        Assert.Equal("new terminal", File.ReadAllText(Path.Combine(paths.DestinationDirectory, "libghostty-vt.dylib")));
+        Assert.Equal("terminal receipt", File.ReadAllText(Path.Combine(paths.DestinationDirectory, "native-terminal-build-receipt.json")));
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.True(File.GetUnixFileMode(runtime).HasFlag(UnixFileMode.UserExecute));
+        }
+    }
+
+    [Fact]
+    public void Component_validation_failure_keeps_the_previous_complete_tree()
+    {
+        var paths = CreatePublicationPaths("component-failure");
+        WriteMarker(Path.Combine(paths.StagedDirectory, "cef"), "unauthorized sibling");
+        WriteMarker(paths.DestinationDirectory, "old terminal");
+        WriteMarker(Path.Combine(paths.DestinationDirectory, "cef"), "old CEF");
+
+        Assert.Throws<InvalidDataException>(() =>
+            NativeArtifactPublisher.Publish(paths.StagedDirectory, paths.DestinationDirectory, "terminal"));
+
+        Assert.Equal("old terminal", ReadMarker(paths.DestinationDirectory));
+        Assert.Equal("old CEF", ReadMarker(Path.Combine(paths.DestinationDirectory, "cef")));
+    }
+
+    [Fact]
+    public void Concurrent_publication_cannot_overwrite_a_sibling_build()
+    {
+        var paths = CreatePublicationPaths("concurrent-publication");
+        WriteMarker(paths.DestinationDirectory, "old terminal");
+        WriteMarker(Path.Combine(paths.StagedDirectory, "cef"), "new CEF");
+        var lockPath = Path.Combine(Path.GetDirectoryName(paths.DestinationDirectory)!,
+            ".ghostshell-native-publication.osx-arm64.lock");
+        using (var publication = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Throws<IOException>(() =>
+                NativeArtifactPublisher.Publish(paths.StagedDirectory, paths.DestinationDirectory, "cef"));
+            Assert.Equal("old terminal", ReadMarker(paths.DestinationDirectory));
+        }
+
+        NativeArtifactPublisher.Publish(paths.StagedDirectory, paths.DestinationDirectory, "cef");
+        Assert.Equal("old terminal", ReadMarker(paths.DestinationDirectory));
+        Assert.Equal("new CEF", ReadMarker(Path.Combine(paths.DestinationDirectory, "cef")));
+    }
+
+    [Fact]
     public void Publisher_exclusively_moves_a_staged_first_build()
     {
         var paths = CreatePublicationPaths("first-build");

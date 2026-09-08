@@ -5,6 +5,56 @@ namespace GhostShell.Databases.Tests;
 public sealed class DatabaseSqlDialectTests
 {
     [Theory]
+    [InlineData("sqlite")]
+    [InlineData("postgres")]
+    [InlineData("cockroach")]
+    [InlineData("redshift")]
+    [InlineData("mysql")]
+    [InlineData("mariadb")]
+    [InlineData("sqlserver")]
+    [InlineData("duckdb")]
+    [InlineData("oracle")]
+    [InlineData("firebird")]
+    [InlineData("clickhouse")]
+    public void InsertBudgetMatchesExactDialectBytesAtTheBoundary(string driver)
+    {
+        var dialect = DatabaseSqlDialect.For(driver);
+        var table = new DatabaseTableDescriptor("tä\"`]ble", DatabaseTableKind.Table, Catalog: "cät", Schema: "sch\"`]ema");
+        var details = new DatabaseObjectDetails(table,
+            [new DatabaseColumnSchema("tä\"`]xt", 1, "jsonb", DatabaseValueKind.Text, IsNullable: true),
+             new DatabaseColumnSchema("bin", 2, "BLOB", DatabaseValueKind.Binary),
+             new DatabaseColumnSchema("flag", 3, "BOOLEAN", DatabaseValueKind.Boolean)], [], CanEdit: true);
+        DatabaseInsertedRow[] rows = [new([
+            new("tä\"`]xt", DatabaseEditValueState.Value, "🌐 O'Hara\\\r\n"),
+            new("bin", DatabaseEditValueState.Value, new byte[] { 0, 197, 255 }),
+            new("flag", DatabaseEditValueState.Value, true)]), new([])];
+        foreach (var row in rows)
+        {
+            var original = dialect.BuildInsertStatement(table.Id, details, row);
+            var exact = System.Text.Encoding.UTF8.GetByteCount(original);
+            Assert.Equal(original, dialect.BuildInsertStatement(table.Id, details, row, exact));
+            Assert.Throws<InvalidDataException>(() => dialect.BuildInsertStatement(table.Id, details, row, exact - 1));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InsertBudgetRejectsLargeLiteralOrIdentifierBeforeExpandedAllocation(bool identifier)
+    {
+        var large = new string('\'', 1_000_000);
+        var table = new DatabaseTableDescriptor(identifier ? large : "items", DatabaseTableKind.Table);
+        var details = new DatabaseObjectDetails(table,
+            [new DatabaseColumnSchema("value", 1, "TEXT", DatabaseValueKind.Text)], [], CanEdit: true);
+        var row = new DatabaseInsertedRow([new("value", DatabaseEditValueState.Value, identifier ? "text" : large)]);
+        var dialect = DatabaseSqlDialect.For("postgres");
+        Assert.Throws<InvalidDataException>(() => dialect.BuildInsertStatement(table.Id, details, row, 128));
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<InvalidDataException>(() => dialect.BuildInsertStatement(table.Id, details, row, 128));
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 64 * 1024);
+    }
+
+    [Theory]
     [InlineData("sqlite", "Sqlite", true)]
     [InlineData("postgres", "PostgreSql", true)]
     [InlineData("cockroach", "PostgreSql", true)]

@@ -16,7 +16,8 @@ public sealed record DatabaseConnectionSaveRequest(
     DatabaseConnectionDetails Details,
     bool StorePassword,
     ConnectionId? TunnelConnectionId,
-    DatabaseInlineTunnelRequest? InlineTunnel = null);
+    DatabaseInlineTunnelRequest? InlineTunnel = null,
+    DatabaseConnectionProfileId? DraftId = null);
 
 /// <summary>
 /// An SSH tunnel that lives only inside the database profile. A null password
@@ -27,7 +28,8 @@ public sealed record DatabaseInlineTunnelRequest(
     int Port,
     string? Username,
     bool UseAgent,
-    string? Password);
+    string? Password,
+    SshHostKeyPolicy HostKeyPolicy = SshHostKeyPolicy.Strict);
 
 public sealed record DatabaseTunnelOption(
     ConnectionId? Id,
@@ -53,6 +55,10 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
     private readonly DatabaseConnectionProfileId? _existingId;
     private readonly ConnectionProfile? _existingInlineTunnel;
     private readonly Func<CancellationToken, Task<string?>>? _storedPasswordResolver;
+    private readonly IConnectionSecurityRuntime? _securityRuntime;
+    private readonly DatabaseConnectionProfileId _draftProfileId;
+    private SshHostKeyPolicy _tunnelHostKeyPolicy = SshHostKeyPolicy.Strict;
+    private SshHostKeyReview? _hostKeyReview;
     private DatabaseDriverDescriptor _selectedDriver;
     private DatabaseTunnelOption _selectedTunnel;
     private string _name = string.Empty;
@@ -80,11 +86,14 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
         IDatabaseConnectionCatalog client,
         IReadOnlyList<ConnectionProfile> connections,
         DatabaseConnectionProfile? existing = null,
-        Func<CancellationToken, Task<string?>>? storedPasswordResolver = null)
+        Func<CancellationToken, Task<string?>>? storedPasswordResolver = null,
+        IConnectionSecurityRuntime? securityRuntime = null)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _connections = connections ?? throw new ArgumentNullException(nameof(connections));
         _storedPasswordResolver = storedPasswordResolver;
+        _securityRuntime = securityRuntime;
+        _draftProfileId = existing?.Id ?? DatabaseConnectionProfileId.New();
         Drivers = client.Drivers;
         _selectedDriver = Drivers[0];
         TunnelOptions = BuildTunnelOptions(connections, existing);
@@ -97,6 +106,7 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
 
         _existingId = existing.Id;
         _existingInlineTunnel = existing.InlineTunnel;
+        _tunnelHostKeyPolicy = existing.InlineTunnel?.HostKeyPolicy ?? SshHostKeyPolicy.Strict;
         _name = existing.Name;
         _selectedDriver = Drivers.FirstOrDefault(item => string.Equals(item.Id, existing.DriverId, StringComparison.Ordinal))
             ?? Drivers[0];
@@ -174,6 +184,19 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
     }
 
     public bool IsInlineTunnel => SelectedTunnel.IsInline;
+
+    public IReadOnlyList<SshHostKeyPolicy> TunnelHostKeyPolicies { get; } =
+        [SshHostKeyPolicy.Strict, SshHostKeyPolicy.AcceptNew, SshHostKeyPolicy.InsecureIgnore];
+
+    public SshHostKeyPolicy TunnelHostKeyPolicy
+    {
+        get => _tunnelHostKeyPolicy;
+        set => SetProperty(ref _tunnelHostKeyPolicy, value);
+    }
+
+    public SshHostKeyReview? HostKeyReview => _hostKeyReview;
+
+    public bool HasHostKeyReview => _hostKeyReview?.Disposition is SshHostKeyDisposition.Unknown or SshHostKeyDisposition.Changed;
 
     public bool IsFileBased => SelectedDriver.IsFileBased;
 
@@ -359,7 +382,8 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
             details,
             StorePassword,
             IsInlineTunnel ? null : SelectedTunnel.Id,
-            inlineTunnel);
+            inlineTunnel,
+            _draftProfileId);
     }
 
     /// <summary>
@@ -413,6 +437,25 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
         }
 
         var password = request.Details.Password;
+        if (tunnel?.HostKeyPolicy == SshHostKeyPolicy.Strict && _securityRuntime is not null)
+        {
+            var prepared = await _securityRuntime.PrepareSshHostKeyAsync(tunnel, null, cancellationToken);
+            if (prepared is ConnectionRuntimeResult<SshHostKeyReview>.Failure failure)
+            {
+                TestStatus = "Host key unavailable";
+                TestDetail = failure.Error.Message;
+                return;
+            }
+            _hostKeyReview = ((ConnectionRuntimeResult<SshHostKeyReview>.Success)prepared).Value;
+            OnPropertyChanged(nameof(HostKeyReview));
+            OnPropertyChanged(nameof(HasHostKeyReview));
+            if (HasHostKeyReview)
+            {
+                TestStatus = "Review SSH host key";
+                TestDetail = "Verify the fingerprint through a trusted channel before connecting.";
+                return;
+            }
+        }
         if (password is null && HasStoredPassword && _storedPasswordResolver is not null)
         {
             password = await _storedPasswordResolver(cancellationToken);
@@ -473,7 +516,31 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
             authentication,
             ConnectionStartup.Default,
             ConnectionKeepAlive.Disabled,
-            SshHostKeyPolicy.AcceptNew);
+            request.HostKeyPolicy);
+
+    public async Task TrustHostKeyAsync(SshHostKeyReviewId confirmedReviewId, CancellationToken cancellationToken)
+    {
+        if (_securityRuntime is null || _hostKeyReview is not { } review
+            || review.Id != confirmedReviewId || !HasHostKeyReview || IsTesting)
+        {
+            return;
+        }
+        var action = review.RequiresExplicitReplacement
+            ? SshHostKeyTrustAction.ReplaceChanged
+            : SshHostKeyTrustAction.TrustNew;
+        var result = await _securityRuntime.TrustSshHostKeyAsync(
+            new SshHostKeyTrustRequest(review.Id, review.ConnectionId, action), cancellationToken);
+        if (result is ConnectionRuntimeResult<SshHostKeyReview>.Failure failure)
+        {
+            TestStatus = "Host key not trusted";
+            TestDetail = failure.Error.Message;
+            return;
+        }
+        _hostKeyReview = null;
+        OnPropertyChanged(nameof(HostKeyReview));
+        OnPropertyChanged(nameof(HasHostKeyReview));
+        await TestAsync(cancellationToken);
+    }
 
     private DatabaseConnectionDetails ResolveDetails()
     {
@@ -530,7 +597,8 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
             ParsePort(TunnelPort, "Tunnel port") ?? 22,
             Optional(TunnelUsername),
             useAgent,
-            useAgent ? null : password);
+            useAgent ? null : password,
+            TunnelHostKeyPolicy);
     }
 
     private ConnectionProfile? ResolveTestTunnel(DatabaseConnectionSaveRequest request)
@@ -573,7 +641,7 @@ public sealed class DatabaseConnectionEditorViewModel : ObservableObject
 
         return BuildInlineTunnelProfile(
             DatabaseConnectionProfile.InlineTunnelId(
-                _existingId ?? DatabaseConnectionProfileId.New()),
+                _draftProfileId),
             $"{Name.Trim()} tunnel",
             inline,
             authentication);

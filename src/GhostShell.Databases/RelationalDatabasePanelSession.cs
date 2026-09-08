@@ -126,6 +126,7 @@ internal sealed partial class RelationalDatabasePanelSession : IRelationalDataba
                     request.Query,
                     operation.Token))
             .ConfigureAwait(false);
+        using var resultContent = page.Result;
         operation.Token.ThrowIfCancellationRequested();
         var result = new DatabaseTableSnapshot(
             ProjectObject(databaseObject),

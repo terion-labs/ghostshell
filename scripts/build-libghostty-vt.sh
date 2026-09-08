@@ -368,6 +368,47 @@ if [[ "${target_rid}" == "${host_rid}" ]]; then
     "${abi_probe}"
 fi
 
+# Porta.Pty's managed API remains pinned; replace only its Unix native shim.
+# This boundary must be receipted with the terminal, never loaded from NuGet.
+pty_receipt='null'
+if [[ "${target_rid}" != win-* ]]; then
+    pty_source="${repository_dir}/native/porta-pty"
+    [[ "$(hash_file "${pty_source}/upstream/porta_pty.c")" == 9331e2dff6af7dfd553dba94602321e10e45760ef510b437a27e5afb55c4ec6f ]] || exit 1
+    [[ "$(hash_file "${pty_source}/upstream/LICENSE")" == 60957c2a4732512d8f4f86a8511181d435605a4872a1d4ec0456f6fe302d3ed5 ]] || exit 1
+    pty_work="${build_run_dir}/pty"
+    mkdir "${pty_work}"
+    cp "${pty_source}/upstream/porta_pty.c" "${pty_work}/porta_pty.c"
+    patch --batch --fuzz=0 -d "${pty_work}" -p1 -i "${pty_source}/descriptor-boundary.patch"
+    pty_library=libghostshell_pty.so
+    pty_options=(-D_GNU_SOURCE -lutil)
+    pty_sdk_options=()
+    if [[ "${target_rid}" == osx-* ]]; then
+        pty_library=libghostshell_pty.dylib
+        pty_sdk="$(xcrun --show-sdk-path)"
+        pty_sdk_options=(-isystem "${pty_sdk}/usr/include" "-L${pty_sdk}/usr/lib")
+        pty_options=(-D_DARWIN_C_SOURCE -Wl,-install_name,@rpath/libghostshell_pty.dylib)
+    fi
+    "${zig}" cc -std=c11 -Wall -Wextra -Werror -shared -fPIC -target "${zig_target}" \
+        -I "${pty_source}" "${pty_work}/porta_pty.c" "${pty_options[@]}" ${pty_sdk_options[@]+"${pty_sdk_options[@]}"} \
+        -o "${artifact_dir}/${pty_library}"
+    "${zig}" cc -std=c11 -D_GNU_SOURCE -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -target "${zig_target}" \
+        "${pty_source}/descriptor-boundary-test.c" "${artifact_dir}/${pty_library}" ${pty_sdk_options[@]+"${pty_sdk_options[@]}"} \
+        "-Wl,-rpath,${artifact_dir}" -o "${pty_work}/descriptor-boundary-test"
+    if [[ "${target_rid}" == "${host_rid}" ]]; then
+        "${pty_work}/descriptor-boundary-test"
+    fi
+    cp "${pty_source}/upstream/LICENSE" "${artifact_dir}/PORTA-PTY-LICENSE"
+    pty_sha="$(hash_file "${artifact_dir}/${pty_library}")"
+    pty_content_sha="${pty_sha}"
+    if [[ "${target_rid}" == osx-* ]]; then
+        pty_content_sha="$("${dotnet}" run --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" --configuration Release --verbosity quiet \
+            ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
+            -- native-signature-removed-sha256 "${artifact_dir}/${pty_library}")"
+    fi
+    [[ "${pty_content_sha}" =~ ^[a-f0-9]{64}$ ]] || exit 1
+    pty_receipt="{\"sourceCommit\":\"54684ba55148ed6bcd0c827ad7e8841a3289a466\",\"sourceSha256\":\"$(hash_file "${pty_source}/upstream/porta_pty.c")\",\"patchSha256\":\"$(hash_file "${pty_source}/descriptor-boundary.patch")\",\"boundarySha256\":\"$(hash_file "${pty_source}/descriptor-boundary.h")\",\"abi\":1,\"artifact\":{\"path\":\"${pty_library}\",\"bytes\":$(file_size "${artifact_dir}/${pty_library}"),\"sha256\":\"${pty_sha}\",\"signatureRemovedSha256\":\"${pty_content_sha}\"},\"license\":{\"path\":\"PORTA-PTY-LICENSE\",\"bytes\":$(file_size "${artifact_dir}/PORTA-PTY-LICENSE"),\"sha256\":\"$(hash_file "${artifact_dir}/PORTA-PTY-LICENSE")\"}}"
+fi
+
 # The managed terminal owns rendering but still consumes Ghostty's OSC 133
 # shell setup. Stage only the reviewed shells, byte-for-byte from the same
 # pinned checkout used for libghostty-vt. The manifest makes that source set
@@ -417,6 +458,20 @@ fi
 
 catalog_sha="$(hash_file "${component_catalog}")"
 library_sha="$(hash_file "${artifact_dir}/${artifact_library}")"
+signature_removed_sha="${library_sha}"
+if [[ "${target_rid}" == osx-* ]]; then
+    # Apple's canonical signature removal retains program content while making
+    # its identity independent of the later Developer-ID signature.
+    signature_removed_sha="$("${dotnet}" run \
+        --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+        --configuration Release --verbosity quiet \
+        ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
+        -- native-signature-removed-sha256 "${artifact_dir}/${artifact_library}")"
+    if [[ ! "${signature_removed_sha}" =~ ^[a-f0-9]{64}$ ]]; then
+        echo "The native terminal content identity was not produced cleanly." >&2
+        exit 1
+    fi
+fi
 license_sha="$(hash_file "${artifact_dir}/GHOSTTY-LICENSE")"
 zig_executable_sha="$(hash_file "${zig}")"
 library_bytes="$(file_size "${artifact_dir}/${artifact_library}")"
@@ -434,6 +489,7 @@ printf '%s\n' \
     '  "generator": "scripts/build-libghostty-vt.sh",' \
     "  \"catalogSha256\": \"${catalog_sha}\"," \
     "  \"targetRid\": \"${target_rid}\"," \
+    "  \"pty\": ${pty_receipt}," \
     '  "source": {' \
     "    \"repository\": \"${ghostty_repository}\"," \
     "    \"commit\": \"${ghostty_commit}\"" \
@@ -464,7 +520,8 @@ printf '%s\n' \
     '  "artifact": {' \
     "    \"path\": \"${artifact_library}\"," \
     "    \"bytes\": ${library_bytes}," \
-    "    \"sha256\": \"${library_sha}\"" \
+    "    \"sha256\": \"${library_sha}\"," \
+    "    \"signatureRemovedSha256\": \"${signature_removed_sha}\"" \
     '  },' \
     '  "license": {' \
     '    "path": "GHOSTTY-LICENSE",' \
@@ -492,6 +549,7 @@ printf '%s\n' \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
     native-publish-artifacts \
+    --component terminal \
     --staged-directory "${artifact_dir}" \
     --destination "${artifact_parent_dir}/${target_rid}"
 

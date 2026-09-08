@@ -342,7 +342,8 @@ public sealed record WorkspaceNetworkSnapshot
         WorkspaceNetworkEgress egress,
         NetworkConnectionId? selectedConnectionId,
         NetworkConnectionError? error = null,
-        WorkspacePacketRouteCapabilities? routeCapabilities = null)
+        WorkspacePacketRouteCapabilities? routeCapabilities = null,
+        string? authenticationRouteIdentity = null)
     {
         if (!Enum.IsDefined(state))
         {
@@ -365,6 +366,7 @@ public sealed record WorkspaceNetworkSnapshot
         SelectedConnectionId = selectedConnectionId;
         Error = error;
         RouteCapabilities = routeCapabilities;
+        AuthenticationRouteIdentity = state == WorkspaceNetworkState.Direct ? "local" : authenticationRouteIdentity;
     }
 
     public WorkspaceNetworkState State { get; }
@@ -376,6 +378,8 @@ public sealed record WorkspaceNetworkSnapshot
     public NetworkConnectionError? Error { get; }
 
     public WorkspacePacketRouteCapabilities? RouteCapabilities { get; }
+
+    public string? AuthenticationRouteIdentity { get; }
 
     public static WorkspaceNetworkSnapshot Direct { get; } = new(
         WorkspaceNetworkState.Direct,

@@ -200,6 +200,34 @@ public sealed class StartupProtectionRuntimeTests : IDisposable
         Assert.Null(rebooted.PersistentCachePassword);
     }
 
+    [Theory]
+    [InlineData("app.security.config-database-key")]
+    [InlineData("app.security.preview-cache-key")]
+    public async Task Partial_key_deletion_is_reported_and_sealed_keys_remain_recoverable(string refusedReference)
+    {
+        var databasePath = Path.Combine(_root, "ghostshell.db");
+        var (encryption, database) = ComposeEncryption(databasePath);
+        await WriteProbeRowAsync(database);
+        Assert.Null(await encryption.SetEnabledAsync(true, CancellationToken.None));
+        _vault.RefusedDeleteReference = refusedReference;
+        var protection = new StartupProtectionRuntime(_vault, _root, _clock, encryption);
+
+        var error = await protection.EnableAsync("4812", CancellationToken.None);
+
+        Assert.Contains("incomplete", error, StringComparison.Ordinal);
+        Assert.True(protection.HoldsWrappedKeys);
+        var (rebooted, rebootedDatabase) = ComposeEncryption(databasePath);
+        var restarted = new StartupProtectionRuntime(_vault, _root, _clock, rebooted);
+        await rebooted.InitializeAsync(restarted.HoldsWrappedKeys, CancellationToken.None);
+        Assert.True(await restarted.TryUnlockAsync("4812", CancellationToken.None));
+        Assert.Equal("probe", await ReadProbeRowAsync(rebootedDatabase));
+        Assert.NotNull(await restarted.SealEncryptionKeysAsync("4812", CancellationToken.None));
+
+        _vault.RefusedDeleteReference = null;
+        Assert.Null(await restarted.SealEncryptionKeysAsync("4812", CancellationToken.None));
+        Assert.True(restarted.HoldsWrappedKeys);
+    }
+
     [Fact]
     public async Task Disabling_protection_returns_the_keys_to_the_keystore()
     {
@@ -327,6 +355,8 @@ public sealed class StartupProtectionRuntimeTests : IDisposable
     {
         private readonly InMemorySecretVault _inner = new();
 
+        public string? RefusedDeleteReference { get; set; }
+
         public SecretVaultAvailability Availability => new(
             SecretVaultAvailabilityState.Available,
             SecretVaultPersistenceKind.OsProtectedPersistent,
@@ -360,7 +390,10 @@ public sealed class StartupProtectionRuntimeTests : IDisposable
         public ValueTask<SecretVaultResult<Unit>> DeleteAsync(
             DeleteSecretRequest request,
             CancellationToken cancellationToken) =>
-            _inner.DeleteAsync(request, cancellationToken);
+            request.Reference.Value == RefusedDeleteReference
+                ? ValueTask.FromResult(SecretVaultResult<Unit>.Fail(
+                    SecretVaultError.Create(SecretVaultErrorCode.AccessDenied)))
+                : _inner.DeleteAsync(request, cancellationToken);
 
         public ValueTask<SecretVaultResult<SecretMetadata>> GetMetadataAsync(
             GetSecretMetadataRequest request,

@@ -38,7 +38,7 @@
     </controls:PanelChrome.Leading>
 
     <controls:PanelChrome.Actions>
-      <TextBlock
+      <controls:LiveRegionTextBlock
           VerticalAlignment="Center"
           Classes="Muted"
           FontSize="{DynamicResource ShellFontSize9}"

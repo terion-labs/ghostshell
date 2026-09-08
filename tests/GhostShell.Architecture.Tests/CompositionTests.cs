@@ -46,18 +46,16 @@ public sealed class CompositionTests
         await using var services = DesktopComposition.CreateServiceProvider();
 
         var support = new WorkspaceIsolationPlatformResolver().ResolveCurrent();
-        var containerExecutable = services
-            .GetRequiredService<IConnectionExecutableLocator>()
-            .Find("container");
+        var runtimeExecutable = WorkspaceSdkIsolationProvider.FindBundledRuntime();
         var provider = services.GetService<IWorkspaceIsolationProvider>();
         var installer = services.GetService<IWorkspaceIsolationRuntimeInstaller>();
 
         if (support is WorkspaceIsolationPlatformSupport.Available { Adapter: var adapter })
         {
             Assert.IsType<WorkspaceIsolationRuntimeInstaller>(installer);
-            if (containerExecutable is not null)
+            if (runtimeExecutable is not null)
             {
-                var isolationProvider = Assert.IsAssignableFrom<IWorkspaceIsolationProvider>(provider);
+                var isolationProvider = Assert.IsType<WorkspaceSdkIsolationProvider>(provider);
                 Assert.Equal(adapter.Descriptor, isolationProvider.Descriptor);
             }
             else

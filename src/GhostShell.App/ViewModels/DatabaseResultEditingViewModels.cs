@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using GhostShell.Application;
 
@@ -95,7 +96,7 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
         _state = _originalState;
         _originalValue = value.RawValue;
         _currentValue = value.RawValue;
-        _editText = value.IsNull ? string.Empty : value.ToInvariantText();
+        _editText = value.IsNull || value.RawValue is DatabaseValueContent ? string.Empty : value.ToInvariantText();
         _originalEditText = _editText;
         _displayText = BoundDisplay(_state == DatabaseEditValueState.Value && value.RawValue is null
             ? _editText
@@ -123,6 +124,59 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
 
     /// <summary>Whether clipboard text can enter this cell through semantic parsing.</summary>
     public bool CanSetText => IsEditable;
+
+    public bool NeedsFullTextForEditing => CanSetText && _currentValue is DatabaseValueContent;
+
+    internal async Task LoadFullTextForEditingAsync(long availableMemoryBytes, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!NeedsFullTextForEditing || _currentValue is not DatabaseValueContent content)
+        {
+            return;
+        }
+
+        const long reserve = 64L * 1024 * 1024;
+        // A deliberate editor action may allocate a complete string/document.
+        // Budget their copies against available process memory, not a fixed
+        // read-only cell-size cap. Full streamed export remains available.
+        if (content.Length > int.MaxValue || content.Length > Math.Max(0, availableMemoryBytes - reserve) / 6)
+        {
+            throw new IOException("There is not enough memory to open this complete value in the text editor. Export the full value to a file, or free memory and retry.");
+        }
+
+        await using var source = content.OpenRead();
+        var complete = await Task.Run(async () =>
+        {
+            using var reader = new StreamReader(source, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            var text = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            // Numeric spill retains its provider CLR identity, including the
+            // original key/concurrency value. Display text is not that identity.
+            object value = content.ScalarType switch
+            {
+                null => text,
+                DatabaseArrayScalarType.Int128 => Int128.Parse(text, CultureInfo.InvariantCulture),
+                DatabaseArrayScalarType.UInt128 => UInt128.Parse(text, CultureInfo.InvariantCulture),
+                DatabaseArrayScalarType.BigInteger => BigInteger.Parse(text, CultureInfo.InvariantCulture),
+                _ => throw new InvalidDataException("Unsupported detached numeric type."),
+            };
+            return (Text: text, Value: value);
+        }, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ReferenceEquals(_currentValue, content))
+        {
+            return;
+        }
+
+        _currentValue = complete.Value;
+        _editText = complete.Text;
+        if (ReferenceEquals(_originalValue, content))
+        {
+            _originalValue = complete.Value;
+            _originalEditText = complete.Text;
+        }
+        RaiseValueStateChanged();
+        OnPropertyChanged(nameof(NeedsFullTextForEditing));
+    }
 
     public bool CanSetEmpty => IsEditable && Column.ValueKind == DatabaseValueKind.Text;
 
@@ -167,14 +221,16 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
     };
 
     /// <summary>
-    /// The complete detached value used by copy and export operations. Provider
-    /// display text is deliberately bounded for the grid, so it must never be
-    /// used as an interchange value when a safe raw value is available.
+    /// Formats an already materialized value. Detached content requires the
+    /// streaming export path or explicit editor loading; this synchronous
+    /// property must not substitute a content handle's diagnostic description.
     /// </summary>
     public string FullText => _state switch
     {
         DatabaseEditValueState.Null => "NULL",
         DatabaseEditValueState.Default => "DEFAULT",
+        _ when _currentValue is DatabaseValueContent => throw new InvalidOperationException(
+            "Detached database values require streaming export or explicit editor loading."),
         _ when Column.ValueKind == DatabaseValueKind.Other => _displayText,
         _ when _currentValue is not null => FormatFullValue(_currentValue),
         _ => _editText,
@@ -191,7 +247,8 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
             }
 
             var normalized = value ?? string.Empty;
-            var textChanged = !string.Equals(_editText, normalized, StringComparison.Ordinal);
+            var textChanged = _currentValue is DatabaseValueContent
+                || !string.Equals(_editText, normalized, StringComparison.Ordinal);
             var stateChanged = _state != DatabaseEditValueState.Value;
             if (!textChanged && !stateChanged)
             {
@@ -250,6 +307,7 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
     public bool IsValid => ValidationError is null;
 
     public bool IsDirty => _state != _originalState
+        || (_originalValue is DatabaseValueContent && !ReferenceEquals(_currentValue, _originalValue))
         || (_state == DatabaseEditValueState.Value && UsesTextEditor
             ? !string.Equals(_editText, _originalEditText, StringComparison.Ordinal)
             : !ValuesEqual(_currentValue, _originalValue));
@@ -388,11 +446,8 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
             return IsValid;
         }
 
-        if (UsesTextEditor)
-        {
-            ParseCurrentText();
-        }
-
+        // Text setters already parse and validate. Re-parsing an unchanged
+        // provider value here can narrow its CLR type or consume a spill handle.
         edit = new DatabaseColumnEdit(Column.Name, DatabaseEditValueState.Value, _currentValue);
         return IsValid;
     }
@@ -462,6 +517,10 @@ public sealed class DatabaseResultCellViewModel : ObservableObject
         if (parseText && UsesTextEditor)
         {
             ParseCurrentText();
+        }
+        else
+        {
+            ValidationError = null;
         }
     }
 
@@ -902,6 +961,8 @@ public sealed class DatabaseRowFieldViewModel : ObservableObject, IDisposable
     private readonly DatabaseResultCellViewModel _cell;
     private string _draft = string.Empty;
     private bool _isEditing;
+
+    internal DatabaseResultCellViewModel Cell => _cell;
 
     public DatabaseRowFieldViewModel(
         DatabaseResultColumnViewModel column,

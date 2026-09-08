@@ -46,6 +46,8 @@
     <Content Include="../../licenses/SMBLIBRARY-LGPL-3.0.txt" Link="SMBLIBRARY-LGPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../licenses/GPL-3.0.txt" Link="GPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../licenses/THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../vendor/sshnet/upstream/LICENSE" Link="SSH-NET-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../vendor/sshnet/GHOSTSHELL-VENDORING.md" Link="SSH-NET-SOURCE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../native/artifacts/common/fonts/JetBrainsMono/OFL.txt" Link="JETBRAINS-MONO-OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -200,6 +202,9 @@
 
   <ItemGroup Condition="'$(GhostShellNativeTerminalRequired)' == 'true'">
     <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/$(GhostShellNativeTerminalLibrary)" />
+    <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/libghostshell_pty.dylib" Condition="$(GhostShellEffectiveRuntimeIdentifier.StartsWith('osx-'))" />
+    <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/libghostshell_pty.so" Condition="$(GhostShellEffectiveRuntimeIdentifier.StartsWith('linux-'))" />
+    <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/PORTA-PTY-LICENSE" Condition="!$(GhostShellEffectiveRuntimeIdentifier.StartsWith('win-'))" />
     <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/GHOSTTY-LICENSE" />
     <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/ghostty-vt-required-exports.txt" />
     <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalArtifactDirectory)/native-terminal-build-receipt.json" />
@@ -213,6 +218,7 @@
     <GhostShellNativeTerminalRequiredFile Include="$(GhostShellNativeTerminalShellIntegrationDirectory)/zsh/ghostty-integration" />
 
     <Content Include="$(GhostShellNativeTerminalArtifactDirectory)/$(GhostShellNativeTerminalLibrary)" Link="$(GhostShellNativeTerminalLibrary)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellNativeTerminalArtifactDirectory)/PORTA-PTY-LICENSE" Link="PORTA-PTY-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="!$(GhostShellEffectiveRuntimeIdentifier.StartsWith('win-'))" />
     <Content Include="$(GhostShellNativeTerminalArtifactDirectory)/GHOSTTY-LICENSE" Link="GHOSTTY-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(GhostShellNativeTerminalArtifactDirectory)/ghostty-vt-required-exports.txt" Link="ghostty-vt-required-exports.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(GhostShellNativeTerminalArtifactDirectory)/native-terminal-build-receipt.json" Link="native-terminal-build-receipt.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

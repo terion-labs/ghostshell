@@ -7,6 +7,53 @@ namespace GhostShell.App.Tests;
 
 public sealed class DatabaseConnectionSettingsCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Draft_create_keeps_identity_and_does_not_become_an_edit(bool alreadyExists)
+    {
+        var id = DatabaseConnectionProfileId.New();
+        var catalog = DispatchProxy.Create<IDefinitionCatalog, CatalogProxy>();
+        var proxy = (CatalogProxy)(object)catalog;
+        if (alreadyExists)
+        {
+            proxy.Snapshot = DefinitionCatalogSnapshot.Empty with
+            {
+                DatabaseConnections = [new StoredDefinition<DatabaseConnectionProfile>(
+                    new DatabaseConnectionProfile(id, 1, "Existing", "postgres", "Host=existing"),
+                    1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)],
+            };
+        }
+        var database = DispatchProxy.Create<IDatabaseConnectionCatalog, DatabaseCatalogProxy>();
+        var vault = DispatchProxy.Create<ISecretVault, VaultProxy>();
+        var coordinator = new DatabaseConnectionSettingsCoordinator(catalog, database, vault, _ => { }, _ => { });
+        var result = await coordinator.SaveDatabaseConnectionAsync(null, "Draft", "postgres", new DatabaseConnectionDetails(Host: "db"),
+            false, null, draftId: id);
+        if (alreadyExists)
+        {
+            Assert.Null(result);
+            Assert.Null(proxy.SavedProfile);
+        }
+        else
+        {
+            Assert.Equal(id, result!.Id);
+            Assert.Null(proxy.ExpectedRevision);
+        }
+    }
+
+    [Fact]
+    public async Task Missing_edit_identity_does_not_silently_create_a_new_profile()
+    {
+        var catalog = DispatchProxy.Create<IDefinitionCatalog, CatalogProxy>();
+        var database = DispatchProxy.Create<IDatabaseConnectionCatalog, DatabaseCatalogProxy>();
+        var vault = DispatchProxy.Create<ISecretVault, VaultProxy>();
+        var coordinator = new DatabaseConnectionSettingsCoordinator(catalog, database, vault, _ => { }, _ => { });
+        var result = await coordinator.SaveDatabaseConnectionAsync(DatabaseConnectionProfileId.New(), "Missing", "postgres",
+            new DatabaseConnectionDetails(Host: "db"), false, null);
+        Assert.Null(result);
+        Assert.Null(((CatalogProxy)(object)catalog).SavedProfile);
+    }
+
     [Fact]
     public async Task Save_strips_the_password_and_forwards_a_null_create_revision()
     {

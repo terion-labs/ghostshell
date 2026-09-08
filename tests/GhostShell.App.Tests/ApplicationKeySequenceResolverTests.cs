@@ -287,12 +287,10 @@ public sealed class ApplicationKeyControllerTests
             CommandContext.Workspace);
         var profile = DirectProfile(binding);
 
-        var handling = await controller.HandleAsync(
-            binding.Sequence[0],
-            Snapshot(profile),
-            replay: null);
+        var handling = controller.Resolve(binding.Sequence[0], Snapshot(profile));
+        await controller.ApplyAsync(handling, Snapshot(profile), replay: null);
 
-        Assert.True(handling.WasResolved);
+        Assert.NotEqual(ApplicationKeyResolutionKind.NotHandled, handling.Kind);
         Assert.True(handling.ShouldHandle);
         Assert.Same(binding, executed);
     }
@@ -307,13 +305,11 @@ public sealed class ApplicationKeyControllerTests
         var prefix = new KeyStroke("B", CoreKeyModifiers.Control);
         var profile = PassThroughProfile(prefix, TimeSpan.FromSeconds(1));
 
-        _ = await controller.HandleAsync(prefix, Snapshot(profile), replay: null);
-        var handling = await controller.HandleAsync(
-            new KeyStroke("Q"),
-            Snapshot(profile),
-            replay: null);
+        await controller.ApplyAsync(controller.Resolve(prefix, Snapshot(profile)), Snapshot(profile), replay: null);
+        var handling = controller.Resolve(new KeyStroke("Q"), Snapshot(profile));
+        await controller.ApplyAsync(handling, Snapshot(profile), replay: null);
 
-        Assert.True(handling.WasResolved);
+        Assert.NotEqual(ApplicationKeyResolutionKind.NotHandled, handling.Kind);
         Assert.True(handling.ShouldHandle);
         Assert.Contains("no terminal is active", error, StringComparison.Ordinal);
     }
@@ -326,8 +322,8 @@ public sealed class ApplicationKeyControllerTests
         var profile = PassThroughProfile(prefix, TimeSpan.FromMilliseconds(25));
         var controller = CreateController(_ => Task.CompletedTask);
 
-        _ = await controller.HandleAsync(
-            prefix,
+        await controller.ApplyAsync(
+            controller.Resolve(prefix, Snapshot(profile)),
             Snapshot(profile),
             (_, _) =>
             {

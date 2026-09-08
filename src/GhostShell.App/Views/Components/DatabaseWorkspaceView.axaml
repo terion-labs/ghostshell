@@ -398,8 +398,8 @@
           </Grid>
         </Border>
 
+        <StackPanel Grid.Row="3">
         <controls:SurfaceCard
-            Grid.Row="3"
             Tone="Notice"
             Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
             Padding="{controls:Inset Sm}"
@@ -413,6 +413,19 @@
               Text="{Binding ErrorMessage}"
               TextWrapping="Wrap" />
         </controls:SurfaceCard>
+
+        <controls:SurfaceCard
+            Tone="Notice"
+            Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+            Padding="{controls:Inset Sm}"
+            IsVisible="{Binding HasInterchangeNotice}">
+          <controls:LiveRegionTextBlock
+              Text="{Binding InterchangeNotice}"
+              TextWrapping="Wrap"
+              AutomationProperties.LiveSetting="Polite"
+              AutomationProperties.Name="Spreadsheet formula risk" />
+        </controls:SurfaceCard>
+        </StackPanel>
 
         <Grid Grid.Row="4">
           <!-- DATA -->
@@ -1046,10 +1059,9 @@
                (Tinted translucency, not blur — Avalonia's acrylic backdrop is
                window-level and cannot blur in-app content behind a control.) -->
           <Grid IsVisible="{Binding IsDatabaseDiagramOverview}">
-            <local:DatabaseMermaidDiagramView
+            <local:DatabaseWorkerDiagramView
                 x:Name="MermaidDiagramRenderer"
-                MermaidSource="{Binding MermaidDiagramSource}"
-                HeaderVeilHeight="{Binding #DiagramHeaderBar.Bounds.Height}" />
+                Session="{Binding DiagramSession}" />
             <Border
                 x:Name="DiagramHeaderBar"
                 VerticalAlignment="Top"
@@ -1075,7 +1087,7 @@
                     Classes="TextButton Dense"
                     Click="OnSaveMermaidDiagramClick"
                     Content="Save…"
-                    IsEnabled="{Binding HasMermaidDiagram}"
+                    IsEnabled="{Binding IsConnected}"
                     AutomationProperties.Name="Save the Mermaid ER diagram" />
               </StackPanel>
             </Border>

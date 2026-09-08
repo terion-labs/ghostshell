@@ -33,6 +33,9 @@ public sealed partial class GitRepositoryClient(
     // working-set read speak, so the two can never drift apart.
     private static readonly string[] StatusArguments =
     [
+        // Passive inspection must not execute a repository-supplied fsmonitor.
+        // Human mutation commands retain their normal hooks and configuration.
+        "-c", "core.fsmonitor=false",
         "--no-optional-locks", "status", "--porcelain=v2", "-z",
         "--branch", "--untracked-files=all",
     ];
@@ -258,7 +261,7 @@ public sealed partial class GitRepositoryClient(
         var refsTask = ExecuteAsync(
             repository,
             [
-                "for-each-ref", $"--format={GitRefsParser.ForEachRefFormat}",
+                "-c", "core.fsmonitor=false", "for-each-ref", $"--format={GitRefsParser.ForEachRefFormat}",
                 "refs/heads", "refs/remotes", "refs/tags",
             ],
             ReadTimeout,
@@ -266,25 +269,25 @@ public sealed partial class GitRepositoryClient(
             cancellationToken).AsTask();
         var remotesTask = ExecuteAsync(
             repository,
-            ["remote", "-v"],
+            ["-c", "core.fsmonitor=false", "remote", "-v"],
             ReadTimeout,
             ReadOutputLimit,
             cancellationToken).AsTask();
         var stashesTask = ExecuteAsync(
             repository,
-            ["stash", "list", "-z", "--format=%gd%x00%gs"],
+            ["-c", "core.fsmonitor=false", "stash", "list", "-z", "--format=%gd%x00%gs"],
             ReadTimeout,
             ReadOutputLimit,
             cancellationToken).AsTask();
         var worktreesTask = ExecuteAsync(
             repository,
-            ["worktree", "list", "--porcelain", "-z"],
+            ["-c", "core.fsmonitor=false", "worktree", "list", "--porcelain", "-z"],
             ReadTimeout,
             ReadOutputLimit,
             cancellationToken).AsTask();
         var submodulesTask = ExecuteAsync(
             repository,
-            ["submodule", "status"],
+            ["-c", "core.fsmonitor=false", "submodule", "status"],
             ReadTimeout,
             ReadOutputLimit,
             cancellationToken).AsTask();
@@ -479,7 +482,7 @@ public sealed partial class GitRepositoryClient(
 
         var result = await ExecuteAsync(
             repository,
-            DiffArguments(request),
+            ["-c", "core.fsmonitor=false", .. DiffArguments(request)],
             DiffTimeout,
             DiffOutputLimit,
             cancellationToken,

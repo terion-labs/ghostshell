@@ -110,7 +110,8 @@ public sealed class StartupCommandDeliveryFailurePolicyPersistenceTests
         Assert.True(preflight.Value!.CanCommit);
         var committed = await bundles.CommitImportAsync(
             preflight.Value,
-            CancellationToken.None);
+            CancellationToken.None,
+            preflight.Value.AcknowledgeExecutionReview());
         var restored = await new SqliteDefinitionRepository<ScreenDefinition>(
                 temporary.Database,
                 TimeProvider.System)
@@ -159,7 +160,8 @@ public sealed class StartupCommandDeliveryFailurePolicyPersistenceTests
         Assert.True(preflight.Value!.CanCommit);
         var committed = await destinationBundles.CommitImportAsync(
             preflight.Value,
-            CancellationToken.None);
+            CancellationToken.None,
+            preflight.Value.AcknowledgeExecutionReview());
         var restored = await new SqliteDefinitionRepository<ScreenDefinition>(
                 destination.Database,
                 TimeProvider.System)
@@ -208,7 +210,8 @@ public sealed class StartupCommandDeliveryFailurePolicyPersistenceTests
         Assert.True(preflight.Value!.CanCommit);
         var committed = await destinationBundles.CommitImportAsync(
             preflight.Value,
-            CancellationToken.None);
+            CancellationToken.None,
+            preflight.Value.AcknowledgeExecutionReview());
         var restored = await new SqliteDefinitionRepository<WorkspaceDefinition>(
                 destination.Database,
                 TimeProvider.System)

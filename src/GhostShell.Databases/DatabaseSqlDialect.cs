@@ -25,7 +25,7 @@ internal sealed record DatabaseSqlCommand(
 /// Catalog discovery remains separate because database catalogs are not a SQL
 /// dialect concern.
 /// </summary>
-internal sealed class DatabaseSqlDialect
+internal sealed partial class DatabaseSqlDialect
 {
     // ReadTableAsync asks for one look-ahead row so it can expose HasMore
     // without a second query. The public page size remains capped at 5000.
@@ -101,21 +101,22 @@ internal sealed class DatabaseSqlDialect
     public string QuoteObject(DatabaseObjectId objectId)
     {
         ArgumentNullException.ThrowIfNull(objectId);
-        var components = Family switch
-        {
-            DatabaseFamily.SqlServer or DatabaseFamily.DuckDb =>
-                Present(objectId.Catalog, objectId.Schema, objectId.Name),
-            // Discovery intentionally exposes only the main SQLite catalog.
-            // Qualifying it prevents a later TEMP table with the same name
-            // from redirecting a preview or mutation to the wrong object.
-            DatabaseFamily.Sqlite => Present(objectId.Schema ?? "main", objectId.Name),
-            DatabaseFamily.PostgreSql or DatabaseFamily.MySql or DatabaseFamily.Oracle
-                or DatabaseFamily.ClickHouse =>
-                Present(objectId.Schema, objectId.Name),
-            _ => Present(objectId.Name),
-        };
-        return string.Join('.', components.Select(QuoteIdentifier));
+        return string.Join('.', ObjectComponents(objectId).Select(QuoteIdentifier));
     }
+
+    private IEnumerable<string> ObjectComponents(DatabaseObjectId objectId) => Family switch
+    {
+        DatabaseFamily.SqlServer or DatabaseFamily.DuckDb =>
+            Present(objectId.Catalog, objectId.Schema, objectId.Name),
+        // Discovery intentionally exposes only the main SQLite catalog.
+        // Qualifying it prevents a later TEMP table with the same name
+        // from redirecting a preview or mutation to the wrong object.
+        DatabaseFamily.Sqlite => Present(objectId.Schema ?? "main", objectId.Name),
+        DatabaseFamily.PostgreSql or DatabaseFamily.MySql or DatabaseFamily.Oracle
+            or DatabaseFamily.ClickHouse =>
+            Present(objectId.Schema, objectId.Name),
+        _ => Present(objectId.Name),
+    };
 
     public string ParameterMarker(string name) => Family switch
     {
@@ -514,7 +515,8 @@ internal sealed class DatabaseSqlDialect
     public string BuildInsertStatement(
         DatabaseObjectId table,
         DatabaseObjectDetails details,
-        DatabaseInsertedRow row)
+        DatabaseInsertedRow row,
+        int maximumUtf8Bytes = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(details);
@@ -523,6 +525,7 @@ internal sealed class DatabaseSqlDialect
         var values = ValidateEdits(row.Values, details, allowDefault: true)
             .Where(value => value.State != DatabaseEditValueState.Default)
             .ToArray();
+        EnsureInsertFits(table, details, values, maximumUtf8Bytes);
         if (values.Length == 0)
         {
             return Family switch
@@ -873,15 +876,18 @@ internal sealed class DatabaseSqlDialect
         DatabaseObjectId table,
         DatabaseObjectDetails details)
     {
-        var column = details.Columns.FirstOrDefault(candidate =>
+        var column = OracleDefaultColumn(details);
+        return $"INSERT INTO {QuoteObject(table)} ({QuoteIdentifier(column.Name)}) VALUES (DEFAULT);";
+    }
+
+    private static DatabaseColumnSchema OracleDefaultColumn(DatabaseObjectDetails details) =>
+        details.Columns.FirstOrDefault(candidate =>
                 candidate.CanEdit
                 && (candidate.DefaultExpression is not null || candidate.IsNullable == true))
             ?? details.Columns.FirstOrDefault(candidate =>
                 candidate.IsIdentity && !candidate.IsGenerated)
             ?? throw new InvalidOperationException(
                 "Oracle requires a default-bearing, nullable, or identity column for a default-valued row.");
-        return $"INSERT INTO {QuoteObject(table)} ({QuoteIdentifier(column.Name)}) VALUES (DEFAULT);";
-    }
 
     private string FormatInsertLiteral(object value, DatabaseColumnSchema column)
     {

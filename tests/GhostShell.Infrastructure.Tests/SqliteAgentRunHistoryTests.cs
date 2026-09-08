@@ -113,6 +113,73 @@ public sealed class SqliteAgentRunHistoryTests
     }
 
     [Fact]
+    public async Task RetentionIncludesCheckpointOnlyRunsAfterMetadataFailureAndRestart()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var store = new SqliteAgentSessionCheckpointStore(temporary.Database, new FixedTimeProvider(Now));
+        var scope = new AgentConversationScopeId("checkpoint-only");
+        foreach (var (id, timestamp) in new[]
+                 {
+                     ("orphan-old", Now.AddDays(-20)),
+                     ("orphan-middle", Now.AddDays(-2)),
+                     ("orphan-new", Now.AddDays(-1)),
+                 })
+        {
+            Assert.True((await store.SaveAsync(scope, Checkpoint(id, timestamp), CancellationToken.None)).IsSuccess);
+        }
+
+        await using (var connection = await temporary.Database.OpenConnectionAsync(CancellationToken.None))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                CREATE TRIGGER reject_history_metadata BEFORE INSERT ON agent_run_history_metadata
+                BEGIN SELECT RAISE(ABORT, 'simulated metadata failure'); END;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+        Assert.False((await store.SaveHistoryMetadataAsync(scope, Metadata("orphan-new", Now.AddDays(-1)), CancellationToken.None)).IsSuccess);
+        await temporary.ReopenAsync();
+        store = new SqliteAgentSessionCheckpointStore(temporary.Database, new FixedTimeProvider(Now));
+
+        var retention = Success(await store.GetHistoryRetentionAsync(CancellationToken.None));
+        Assert.True((await store.UpdateHistoryRetentionAsync(scope, retention, 1, TimeSpan.FromDays(5), null, CancellationToken.None)).IsSuccess);
+
+        Assert.Equal([new AgentRunId("orphan-new")],
+            Success(await store.ListAsync(scope, 10, CancellationToken.None)).Select(item => item.RunId));
+        Assert.False((await store.LoadAsync(scope, new AgentRunId("orphan-old"), CancellationToken.None)).IsSuccess);
+        Assert.False((await store.LoadAsync(scope, new AgentRunId("orphan-middle"), CancellationToken.None)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task CheckpointOnlySaveEnforcesCountWithoutWaitingForMetadata()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var store = new SqliteAgentSessionCheckpointStore(temporary.Database, new FixedTimeProvider(Now));
+        var retention = Success(await store.GetHistoryRetentionAsync(CancellationToken.None));
+        Assert.True((await store.UpdateHistoryRetentionAsync(null, retention, 1, TimeSpan.FromDays(5), null, CancellationToken.None)).IsSuccess);
+        Assert.True((await store.SaveAsync(Checkpoint("first", Now.AddDays(-1)), CancellationToken.None)).IsSuccess);
+        Assert.True((await store.SaveAsync(Checkpoint("second", Now), CancellationToken.None)).IsSuccess);
+
+        Assert.Equal([new AgentRunId("second")],
+            Success(await store.ListAsync(10, CancellationToken.None)).Select(item => item.RunId));
+    }
+
+    [Fact]
+    public async Task RetentionRanksLatestActivityAcrossCheckpointAndMetadata()
+    {
+        await using var temporary = TemporaryDatabase.Create();
+        var store = new SqliteAgentSessionCheckpointStore(temporary.Database, new FixedTimeProvider(Now));
+        Assert.True((await store.SaveAsync(Checkpoint("new-checkpoint", Now), CancellationToken.None)).IsSuccess);
+        Assert.True((await store.SaveHistoryMetadataAsync(null, Metadata("new-checkpoint", Now.AddDays(-20)), CancellationToken.None)).IsSuccess);
+        Assert.True((await store.SaveAsync(Checkpoint("older-checkpoint", Now.AddDays(-1)), CancellationToken.None)).IsSuccess);
+        var retention = Success(await store.GetHistoryRetentionAsync(CancellationToken.None));
+        Assert.True((await store.UpdateHistoryRetentionAsync(null, retention, 1, TimeSpan.FromDays(5), null, CancellationToken.None)).IsSuccess);
+
+        Assert.Equal([new AgentRunId("new-checkpoint")],
+            Success(await store.ListAsync(10, CancellationToken.None)).Select(item => item.RunId));
+    }
+
+    [Fact]
     public async Task ExportIsDeterministicAllowlistedAndOmitsCheckpointContent()
     {
         await using var temporary = TemporaryDatabase.Create();

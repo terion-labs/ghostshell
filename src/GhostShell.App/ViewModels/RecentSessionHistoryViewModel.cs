@@ -35,6 +35,7 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
     private bool _isApplyingStoredRetention;
     private bool _hasPendingRetentionChange;
     private bool _disposed;
+    private volatile bool _presentationStopped;
     private RecentSessionHistoryItemViewModel? _selectedSession;
     private HistoryExportScope _selectedExportScope;
     private HistoryRetentionOption? _selectedRetentionOption;
@@ -335,8 +336,7 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
     }
 
     public Task RecordCompletionsAsync(
-        IReadOnlyList<(SessionId SessionId, RecentSessionOutcome Outcome)> completions,
-        bool refreshAfterWrite)
+        IReadOnlyList<(SessionId SessionId, RecentSessionOutcome Outcome)> completions)
     {
         ArgumentNullException.ThrowIfNull(completions);
         if (_history is null || completions.Count == 0)
@@ -386,10 +386,7 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
                 return;
             }
 
-            if (refreshAfterWrite)
-            {
-                await RefreshCoreAsync(token);
-            }
+            await RefreshCoreAsync(token);
         });
     }
 
@@ -631,6 +628,12 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
         SnapshotChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Stops UI publication without cancelling queued durable writes. Shutdown
+    /// still drains completions, including operations queued before this call.
+    /// </summary>
+    public void StopPresentationUpdates() => _presentationStopped = true;
+
     public void SealOperations()
     {
         lock (_operationGate)
@@ -725,7 +728,7 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
         CancellationToken cancellationToken,
         bool replaceRetentionSelection = false)
     {
-        if (_history is null)
+        if (_history is null || _presentationStopped)
         {
             return;
         }
@@ -733,6 +736,11 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
         if (_history.SupportsRetentionSettings)
         {
             var retention = await _history.GetRetentionAsync(cancellationToken);
+            if (_presentationStopped)
+            {
+                return;
+            }
+
             if (!retention.IsSuccess)
             {
                 ClearRetentionSelection();
@@ -749,6 +757,11 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
         var result = await _history.ListRecentAsync(
             RecentSessionQuery.MaximumLimit,
             cancellationToken);
+        if (_presentationStopped)
+        {
+            return;
+        }
+
         if (!result.IsSuccess)
         {
             ApplyFailure(result.Error!);
@@ -847,6 +860,11 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
 
     private void ApplyFailure(RecentSessionStoreError error)
     {
+        if (_presentationStopped)
+        {
+            return;
+        }
+
         HasFailure = true;
         HasUnreadableHistory = error.Code == RecentSessionStoreErrorCode.InvalidHistoryData;
         Sessions.Clear();
@@ -923,6 +941,7 @@ public sealed class RecentSessionHistoryViewModel : ObservableObject, IDisposabl
         }
 
         _disposed = true;
+        StopPresentationUpdates();
         SealOperations();
         _lifetime.Cancel();
         _lifetime.Dispose();

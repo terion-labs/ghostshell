@@ -192,7 +192,7 @@
               </Grid>
             </controls:LabeledField>
           </Grid>
-          <TextBlock
+          <controls:LiveRegionTextBlock
               Foreground="{DynamicResource ShellDangerBrush}"
               FontSize="{DynamicResource ShellFontSize9}"
               IsVisible="{Binding !AgentPolicy.IsValid}"
@@ -286,7 +286,7 @@
                         Text="{Binding StartupLocation}"
                         PlaceholderText="Working directory, URL, or provider path"
                         AutomationProperties.Name="{Binding PanelLabel, StringFormat=Startup location for {0}}" />
-                    <TextBlock
+                    <controls:LiveRegionTextBlock
                         Foreground="{DynamicResource ShellDangerBrush}"
                         FontSize="{DynamicResource ShellFontSize9}"
                         IsVisible="{Binding HasInvalidBrowserAddress}"
@@ -337,7 +337,7 @@
           Tone="Danger"
           Glyph="Warning"
           IsVisible="{Binding #ValidationError.IsVisible}">
-        <TextBlock
+        <controls:LiveRegionTextBlock
             x:Name="ValidationError"
             IsVisible="False"
             TextWrapping="Wrap"

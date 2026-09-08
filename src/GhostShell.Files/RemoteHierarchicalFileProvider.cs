@@ -226,6 +226,12 @@ public abstract partial class RemoteHierarchicalFileProvider : IFileProvider
                 await using var session = await _sessions
                     .OpenAsync(token)
                     .ConfigureAwait(false);
+                var linkError = await EnsureNoLinksAsync(session, resolved.Value!, includeLeaf: true, token)
+                    .ConfigureAwait(false);
+                if (linkError is not null)
+                {
+                    return FileProviderResult<FileAccessControl>.Failure(linkError);
+                }
                 await session
                     .SetPermissionsAsync(
                         resolved.Value!.RemotePath,
@@ -252,6 +258,12 @@ public abstract partial class RemoteHierarchicalFileProvider : IFileProvider
         await using var session = await _sessions
             .OpenAsync(cancellationToken)
             .ConfigureAwait(false);
+        var linkError = await EnsureNoLinksAsync(session, resolved.Value!, includeLeaf: true, cancellationToken)
+            .ConfigureAwait(false);
+        if (linkError is not null)
+        {
+            return FileProviderResult<FileAccessControl>.Failure(linkError);
+        }
         var mode = await session
             .GetPermissionsAsync(resolved.Value!.RemotePath, cancellationToken)
             .ConfigureAwait(false);

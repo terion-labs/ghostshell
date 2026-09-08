@@ -802,6 +802,10 @@ EXCEF_API void excef_set_request_context_completion_callback(
 EXCEF_API int excef_delete_cookies_in_context_async(
     int context_handle, const char* url, const char* name, int request_id);
 EXCEF_API int excef_flush_cookie_store_async(int context_handle, int request_id);
+// Applies a preference on the CEF UI thread after durable context initialization.
+// Completion result is 1 only if the preference was actually accepted.
+EXCEF_API int excef_set_preference_async(int context_handle, const char* name,
+                                        const char* value_json, int request_id);
 
 // ---- Browser-closed event ------------------------------------------------
 
@@ -1059,9 +1063,10 @@ typedef void (*excef_auth_request_cb_t)(
     const char* host,
     int port,
     const char* realm,
-    const char* scheme);
+    const char* scheme,
+    const char* origin_url);
 
-EXCEF_API void excef_set_auth_request_callback(excef_auth_request_cb_t cb);
+EXCEF_API void excef_set_auth_request_callback_v2(excef_auth_request_cb_t cb);
 
 // Resolve. NULL/empty username = cancel (the request fails with 401/407).
 EXCEF_API void excef_resolve_auth(uint64_t token,
@@ -1175,6 +1180,15 @@ typedef void (*excef_before_popup_cb_t)(int browser_id,
                                           int disposition,
                                           int user_gesture);
 EXCEF_API void excef_set_before_popup_callback(excef_before_popup_cb_t cb);
+
+// Reserve and adopt the actual OSR popup before CEF creates it. Return 1 only
+// after the managed host owns child_browser_id and its policy/lifetime. The
+// native window stays windowless and retains CEF's opener/WindowProxy.
+typedef int (*excef_host_popup_cb_t)(int browser_id, int child_browser_id,
+                                    const char* target_url,
+                                    const char* target_frame_name,
+                                    int disposition, int user_gesture);
+EXCEF_API void excef_set_host_popup_callback(excef_host_popup_cb_t cb);
 
 // ---- Permission handler ------------------------------------------------
 //

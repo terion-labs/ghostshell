@@ -32,6 +32,7 @@ internal sealed class WorkspaceIsolationTcpTunnelFactory(
         private readonly string _targetHost;
         private readonly int _targetPort;
         private readonly TcpListener _listener;
+        private int _disposed;
 
         public Tunnel(
             IConnectionCommandRuntime commandRuntime,
@@ -55,9 +56,11 @@ internal sealed class WorkspaceIsolationTcpTunnelFactory(
         }
 
         public int LocalPort { get; }
+        public bool IsClosed => Volatile.Read(ref _disposed) != 0 || !_acceptThread.IsAlive;
 
         public async ValueTask DisposeAsync()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
             _lifetime.Cancel();
             _listener.Stop();
             _acceptThread.Join();

@@ -4,6 +4,16 @@ set -euo pipefail
 # Uses only a disposable profile and fixture cookies. Never opens user data.
 repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime="${1:-${repository_dir}/native/artifacts/osx-arm64/cef}"
+keychain_mode="${2:-mock}"
+[[ "${keychain_mode}" == mock || "${keychain_mode}" == native || "${keychain_mode}" == transition ]] || { echo "Keychain mode must be native, mock or transition." >&2; exit 1; }
+write_mode="${keychain_mode}"
+read_mode="${keychain_mode}"
+read_operation=read
+if [[ "${keychain_mode}" == transition ]]; then
+    write_mode=mock
+    read_mode=native
+    read_operation=read-missing
+fi
 [[ "$(uname -s):$(uname -m)" == Darwin:arm64 ]] || { echo "Requires Apple Silicon macOS." >&2; exit 1; }
 [[ -f "${runtime}/cef-runtime-build-receipt.json" ]] || { echo "Build the CEF runtime first." >&2; exit 1; }
 test_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-cookie-restart.XXXXXX")"
@@ -24,9 +34,13 @@ xcrun clang -std=c11 -Wall -Wextra -Werror \
     -o "${app}/Contents/MacOS/SessionCookies"
 codesign --force --sign - "${app}"
 helper="${app}/Contents/Frameworks/GhostSHELL Helper.app/Contents/MacOS/GhostSHELL Helper"
-"${app}/Contents/MacOS/SessionCookies" write "${test_dir}/state" "${helper}"
+"${app}/Contents/MacOS/SessionCookies" write "${test_dir}/state" "${helper}" "${write_mode}"
+cookie_database="${test_dir}/state/profile/Cookies"
+[[ -f "${cookie_database}" ]] || { echo "Fixture cookie database missing." >&2; exit 1; }
+encrypted_count="$(sqlite3 "${cookie_database}" "SELECT count(*) FROM cookies WHERE name='login' AND value='' AND length(encrypted_value)>0;")"
+[[ "${encrypted_count}" == 1 ]] || { echo "Fixture cookie was not stored encrypted." >&2; exit 1; }
 # Profile restoration gives CEF a new working-directory identity each run.
 mv "${test_dir}/state/profile" "${test_dir}/state/restored-profile"
 # A fresh process must restore the durable cookie but neither another profile's
 # cookie nor the private context's cookie. No expiry date was set on either.
-"${app}/Contents/MacOS/SessionCookies" read "${test_dir}/state" "${helper}"
+"${app}/Contents/MacOS/SessionCookies" "${read_operation}" "${test_dir}/state" "${helper}" "${read_mode}"

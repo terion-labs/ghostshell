@@ -15,6 +15,8 @@ internal sealed class FakeS3ObjectStore : IS3ObjectStore
 
     public int ContinuationTokenPadding { get; init; }
 
+    public Func<string?, S3ObjectPage>? ListingOverride { get; init; }
+
     public ValueTask<S3ObjectPage> ListAsync(
         string bucket,
         string prefix,
@@ -24,6 +26,10 @@ internal sealed class FakeS3ObjectStore : IS3ObjectStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         LastContinuationToken = continuationToken;
+        if (ListingOverride is not null)
+        {
+            return ValueTask.FromResult(ListingOverride(continuationToken));
+        }
         var offset = DecodeOffset(continuationToken);
         var rows = new SortedDictionary<string, ListRow>(StringComparer.Ordinal);
         foreach (var pair in _objects.Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal)))

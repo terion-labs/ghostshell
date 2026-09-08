@@ -59,6 +59,9 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
         _profile = profile;
         _authenticationResolver = authenticationResolver;
         _proxyAuthenticationResolver = proxyAuthenticationResolver;
+        _productEvents = new(
+            static operation => Dispatcher.UIThread.Post(operation),
+            productEvent => ProductEvent?.Invoke(this, productEvent));
         _webView = new CefWebView
         {
             Url = BrowserAddress.Blank.Value.AbsoluteUri,
@@ -68,6 +71,7 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
         _view = new Grid();
         _view.Children.Add(_webView);
         _view.Children.Add(_agentCursorOverlay);
+        _view.SizeChanged += (_, _) => ResizeHostedPopups();
         _webView.BrowserReady += OnBrowserReady;
     }
 
@@ -394,6 +398,8 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
         }
 
         _disposed = true;
+        CloseHostedPopups();
+        _productEvents.Dispose();
         _lifetime.Cancel();
         _queuedAddress = null;
         _activeNavigation = null;
@@ -546,6 +552,7 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
         // or filesystem-affecting operation therefore defaults closed until a
         // future typed product contract owns the corresponding user decision.
         browser.BeforePopup += OnBeforePopup;
+        browser.HostPopup += OnHostPopup;
         browser.JsDialog += BlockJavaScriptDialog;
         browser.FileDialog += BlockFileDialog;
         browser.DownloadStarting += OnDownloadStarting;
@@ -569,6 +576,7 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
         browser.RenderProcessGone -= OnRenderProcessGone;
         browser.ConsoleMessage -= CefConsoleMessagePolicy.Handle;
         browser.BeforePopup -= OnBeforePopup;
+        browser.HostPopup -= OnHostPopup;
         browser.JsDialog -= BlockJavaScriptDialog;
         browser.FileDialog -= BlockFileDialog;
         browser.DownloadStarting -= OnDownloadStarting;
@@ -672,11 +680,12 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
 
             if (args.Type is not Cef.ResourceType.MainFrame)
             {
-                ResolveSubresource(args, Volatile.Read(ref _resourceRequestPolicy));
+                ResolveSubresource(args, ReadResourceRequestPolicy());
                 return;
             }
 
-            var requestPolicy = _activeNavigation?.ReadRequestPolicy();
+            var requestPolicy = _activeNavigation?.ReadRequestPolicy()
+                ?? _popupOpener?.ReadResourceRequestPolicy();
             if (requestPolicy is null)
             {
                 args.Continue();
@@ -1461,7 +1470,8 @@ internal sealed partial class CefBrowserView : IEmbeddedBrowserView
             args.Host,
             args.Port,
             args.Realm,
-            args.Scheme);
+            args.Scheme,
+            args.OriginUrl);
         if (args.IsProxy)
         {
             var proxyCredentials = _proxyAuthenticationResolver?.Resolve(challenge);

@@ -27,7 +27,9 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
     private readonly Dictionary<ContextKey, ContextEntry> _contexts = [];
     private bool _disposed;
     private bool _contextsReleasedForShutdown;
+    private readonly Dictionary<IWorkspaceNetworkConnector, (HashSet<ContextKey> Keys, Func<CancellationToken, Task> Callback)> _authenticationRouteBindings = [];
     private bool _engineShutdownCompleted;
+    private Task<bool>? _shutdownSeal;
 
     public CefBrowserProfileStore(
         IBrowserProfileAuthenticationResolver? authenticationResolver = null)
@@ -91,7 +93,8 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
     public CefBrowserProfileLease AcquireRouted(
         BrowserProfileBinding profile,
         string routeIdentity,
-        int socksProxyPort)
+        int socksProxyPort,
+        string? authenticationRouteIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(routeIdentity);
@@ -99,13 +102,15 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             profile,
             RoutedRouteKey(routeIdentity),
             new Uri($"socks5://127.0.0.1:{socksProxyPort}", UriKind.Absolute),
-            proxyAuthenticationResolver: null);
+            proxyAuthenticationResolver: null,
+            authenticationRouteIdentity: authenticationRouteIdentity ?? routeIdentity);
     }
 
     public CefBrowserProfileLease AcquireRouted(
         BrowserProfileBinding profile,
         string routeIdentity,
-        IWorkspaceNetworkConnector networkConnector)
+        IWorkspaceNetworkConnector networkConnector,
+        string? authenticationRouteIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(routeIdentity);
@@ -115,14 +120,23 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                 networkConnector.BrowserProxyEndpoint,
                 credentials)
             : null;
-        return Acquire(
+        var lease = Acquire(
             profile,
             RoutedRouteKey(routeIdentity),
             networkConnector.BrowserProxyEndpoint,
             resolver,
             networkConnector.BrowserProfileRouteIdentity is { } persistentRoute
                 ? RoutedRouteKey(persistentRoute)
+                : null,
+            authenticationRouteIdentity: authenticationRouteIdentity,
+            authenticationRouteSource: authenticationRouteIdentity is null
+                ? () => networkConnector.BrowserAuthenticationRouteIdentity
                 : null);
+        if (authenticationRouteIdentity is null)
+        {
+            BindAuthenticationRoute(networkConnector, new ContextKey(profile.Selection, RouteKey(RoutedRouteKey(routeIdentity))));
+        }
+        return lease;
     }
 
     public BrowserProfileDataState ReadState(
@@ -187,6 +201,11 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             }
 
             _disposed = true;
+            foreach (var binding in _authenticationRouteBindings)
+            {
+                binding.Key.BrowserAuthenticationRouteChanging -= binding.Value.Callback;
+            }
+            _authenticationRouteBindings.Clear();
             foreach (var entry in _contexts.Values)
             {
                 if (!entry.ContextReleased)
@@ -232,6 +251,11 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             {
                 return true;
             }
+
+            // A process may have died during copy or after archiving but before
+            // snapshot cleanup. It is never an independent recovery authority;
+            // the original runtime tree or committed encrypted archive wins.
+            DeleteOwnedDirectory(EngineSnapshotDirectory);
 
             if (Directory.Exists(EngineRestoreDirectory))
             {
@@ -343,14 +367,16 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         }
     }
 
-    internal bool SealRuntimeStateAfterEngineShutdown()
+    internal Task<bool> SealRuntimeStateAfterEngineShutdownAsync(
+        Func<string, string, CancellationToken, Task>? copyEngineSnapshot = null,
+        CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_engineShutdownCompleted)
             {
-                return true;
+                return Task.FromResult(true);
             }
 
             if (!_contextsReleasedForShutdown)
@@ -359,78 +385,188 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     "Browser contexts must be released before their runtime state is sealed.");
             }
 
-            var succeeded = true;
-            foreach (var entry in _contexts.Values.Where(entry => entry.IsDurable))
+            return _shutdownSeal ??= SealRuntimeStateCoreAsync(copyEngineSnapshot, cancellationToken);
+        }
+    }
+
+    private async Task<bool> SealRuntimeStateCoreAsync(
+        Func<string, string, CancellationToken, Task>? copyEngineSnapshot,
+        CancellationToken cancellationToken)
+    {
+        var succeeded = true;
+        foreach (var entry in _contexts.Values.Where(entry => entry.IsDurable))
+        {
+            var contextOperation = "archive-failed";
+            try
             {
-                try
+                if (_stateStore?.IsRetentionEnabled == false)
                 {
+                    DeleteRuntimeEntry(entry.EntryDirectory!);
+                    continue;
+                }
+
+                if (_stateStore?.IsAvailable != true)
+                {
+                    succeeded = false;
+                    continue;
+                }
+
+                _stateStore.Seal(entry.StateKey, entry.CacheDirectory!);
+                contextOperation = "cleanup-failed";
+                DeleteRuntimeEntry(entry.EntryDirectory!);
+            }
+            catch (Exception exception)
+                when (exception is IOException
+                    or InvalidDataException
+                    or UnauthorizedAccessException
+                    or InvalidOperationException)
+            {
+                var reason = exception switch
+                {
+                    FileNotFoundException => "missing-file",
+                    DirectoryNotFoundException => "missing-directory",
+                    InvalidDataException => "invalid-data",
+                    UnauthorizedAccessException => "access-denied",
+                    IOException when (exception.HResult & 0xffff) is 11 or 32 or 33 or 35 => "file-locked",
+                    IOException => "io",
+                    _ => "state",
+                };
+                var stage = exception.Data["GhostShell.BrowserSealStage"] switch
+                {
+                    "open-source" => "open-source",
+                    "write-content" => "write-content",
+                    "open-container" => "open-container",
+                    "write-metadata" => "write-metadata",
+                    "write-manifest" => "write-manifest",
+                    _ => "other",
+                };
+                var sourceCategory = exception.Data["GhostShell.BrowserSealSourceCategory"] switch
+                {
+                    "leveldb-lock" => "leveldb-lock",
+                    "first-party-sets" => "first-party-sets",
+                    "cookies" => "cookies",
+                    "history" => "history",
+                    _ => "other",
+                };
+                SecretSafeDiagnosticProjection.WriteStandardError(
+                    $"browser.shutdown.context-state.{contextOperation}.{reason}.{stage}.{sourceCategory}",
+                    SecretSafeDiagnosticKind.Unexpected);
+                succeeded = false;
+            }
+        }
+
+        if (succeeded)
+        {
+            var operation = "browser.shutdown.engine-state.archive-failed";
+            try
+            {
+                if (_runtimeRoot is not null
+                    && Directory.Exists(_runtimeRoot))
+                {
+                    if (Directory.Exists(ContextsRoot))
+                    {
+                        DeleteOwnedDirectory(ContextsRoot);
+                    }
+
                     if (_stateStore?.IsRetentionEnabled == false)
                     {
-                        DeleteRuntimeEntry(entry.EntryDirectory!);
-                        continue;
+                        DeleteOwnedDirectory(_runtimeRoot);
                     }
+                    else if (_stateStore?.IsAvailable == true)
+                    {
+                        string? snapshot = null;
+                        try
+                        {
+                            if (copyEngineSnapshot is not null)
+                            {
+                                snapshot = EngineSnapshotDirectory;
+                                DeleteOwnedDirectory(snapshot);
+                                PreparePrivateDirectory(snapshot);
+                                await copyEngineSnapshot(_runtimeRoot, snapshot, cancellationToken).ConfigureAwait(false);
+                            }
 
-                    if (_stateStore?.IsAvailable != true)
+                            cancellationToken.ThrowIfCancellationRequested();
+                            lock (_gate)
+                            {
+                                ObjectDisposedException.ThrowIf(_disposed, this);
+                                _stateStore.Seal(EngineStateKey, snapshot ?? _runtimeRoot);
+                            }
+                        }
+                        finally
+                        {
+                            if (snapshot is not null)
+                            {
+                                DeleteOwnedDirectory(snapshot);
+                            }
+                        }
+                        operation = "browser.shutdown.engine-state.cleanup-failed";
+                        DeleteOwnedDirectory(_runtimeRoot);
+                    }
+                    else
                     {
                         succeeded = false;
-                        continue;
                     }
-
-                    _stateStore.Seal(entry.StateKey, entry.CacheDirectory!);
-                    DeleteRuntimeEntry(entry.EntryDirectory!);
-                }
-                catch (Exception exception)
-                    when (exception is IOException
-                        or InvalidDataException
-                        or UnauthorizedAccessException
-                        or InvalidOperationException)
-                {
-                    succeeded = false;
                 }
             }
-
-            if (succeeded)
+            catch (Exception exception)
+                when (exception is IOException
+                    or InvalidDataException
+                    or UnauthorizedAccessException
+                    or InvalidOperationException)
             {
-                try
+                var reason = exception switch
                 {
-                    if (_runtimeRoot is not null
-                        && Directory.Exists(_runtimeRoot))
-                    {
-                        if (Directory.Exists(ContextsRoot))
-                        {
-                            DeleteOwnedDirectory(ContextsRoot);
-                        }
-
-                        if (_stateStore?.IsRetentionEnabled == false)
-                        {
-                            DeleteOwnedDirectory(_runtimeRoot);
-                        }
-                        else if (_stateStore?.IsAvailable == true)
-                        {
-                            _stateStore.Seal(EngineStateKey, _runtimeRoot);
-                            DeleteOwnedDirectory(_runtimeRoot);
-                        }
-                        else
-                        {
-                            succeeded = false;
-                        }
-                    }
-                }
-                catch (Exception exception)
-                    when (exception is IOException
-                        or InvalidDataException
-                        or UnauthorizedAccessException
-                        or InvalidOperationException)
+                    FileNotFoundException => "missing-file",
+                    DirectoryNotFoundException => "missing-directory",
+                    InvalidDataException => "invalid-data",
+                    UnauthorizedAccessException => "access-denied",
+                    IOException when (exception.HResult & 0xffff) is 11 or 32 or 33 or 35 => "file-locked",
+                    IOException => "io",
+                    _ => "state",
+                };
+                var stage = exception.Data["GhostShell.BrowserSealStage"] switch
                 {
-                    succeeded = false;
-                }
+                    "validate" => "validate",
+                    "open-container" => "open-container",
+                    "open-archive" => "open-archive",
+                    "close-archive" => "close-archive",
+                    "write-metadata" => "write-metadata",
+                    "write-manifest" => "write-manifest",
+                    "delete-previous" => "delete-previous",
+                    "remove-unused" => "remove-unused",
+                    "harden-container" => "harden-container",
+                    "close-container" => "close-container",
+                    "enumerate-source" => "enumerate-source",
+                    "create-entry" => "create-entry",
+                    "open-source" => "open-source",
+                    "open-entry" => "open-entry",
+                    "copy-source" => "copy-source",
+                    "close-entry" => "close-entry",
+                    _ => "unspecified",
+                };
+                var sourceCategory = exception.Data["GhostShell.BrowserSealSourceCategory"] switch
+                {
+                    "leveldb-lock" => "leveldb-lock",
+                    "first-party-sets" => "first-party-sets",
+                    "ruleset" => "ruleset",
+                    "password-dictionary" => "password-dictionary",
+                    "cookies" => "cookies",
+                    "history" => "history",
+                    "metrics" => "metrics",
+                    _ => "other",
+                };
+                SecretSafeDiagnosticProjection.WriteStandardError(operation + "." + reason + "." + stage + "." + sourceCategory, exception);
+                succeeded = false;
             }
+        }
 
+        lock (_gate)
+        {
             _contexts.Clear();
             _engineShutdownCompleted = succeeded;
-
-            return succeeded;
         }
+
+        return succeeded;
     }
 
     private CefBrowserProfileLease Acquire(
@@ -438,12 +574,18 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         string routeIdentity,
         Uri? proxyEndpoint,
         IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver,
-        string? persistentRouteIdentity = null)
+        string? persistentRouteIdentity = null,
+        string? authenticationRouteIdentity = null,
+        Func<string?>? authenticationRouteSource = null)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var key = new ContextKey(
             profile.Selection,
             RouteKey(routeIdentity));
+        var authenticationResolver = _authenticationResolver is null
+            ? null
+            : new RouteAuthenticationResolver(_authenticationResolver,
+                authenticationRouteSource ?? (() => authenticationRouteIdentity ?? persistentRouteIdentity ?? routeIdentity));
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -463,7 +605,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                             "The browser profile route is already active through a different proxy endpoint.");
                     }
 
-                    ConfigureProxy(existing.Context, proxyEndpoint);
+                    existing.Ready = ConfigureProxyAsync(existing.Context, proxyEndpoint);
                     existing.ProxyEndpoint = proxyEndpoint;
                 }
 
@@ -473,11 +615,12 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     key,
                     existing.Context,
                     profile,
-                    _authenticationResolver,
+                    authenticationResolver,
                     proxyAuthenticationResolver,
                     existing.ProxyEndpoint is null
                         ? BrowserNetworkRouteKind.Local
-                        : BrowserNetworkRouteKind.SshRouted);
+                        : BrowserNetworkRouteKind.SshRouted,
+                    existing.Ready);
             }
 
             var durableSelection = profile.Definition.Persistence
@@ -510,16 +653,16 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                 entryDirectory = CreateRuntimeEntry(stateKey.Value);
                 cacheDirectory = CacheDirectoryForEntry(entryDirectory);
                 _stateStore!.Restore(stateKey.Value, cacheDirectory);
+                PreparePrivateDirectory(cacheDirectory);
             }
 
             ICefBrowserRequestContext? context = null;
             try
             {
                 context = _createContext(cacheDirectory);
-                if (proxyEndpoint is { } endpoint)
-                {
-                    ConfigureProxy(context, endpoint);
-                }
+                var ready = proxyEndpoint is { } endpoint
+                    ? ConfigureProxyAsync(context, endpoint)
+                    : Task.CompletedTask;
 
                 if (entryDirectory is not null)
                 {
@@ -535,17 +678,19 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                         entryDirectory,
                         cacheDirectory,
                         profile.Revision,
-                        hasInitialLease: true));
+                        hasInitialLease: true)
+                    { Ready = ready });
                 return new CefBrowserProfileLease(
                     this,
                     key,
                     context,
                     profile,
-                    _authenticationResolver,
+                    authenticationResolver,
                     proxyAuthenticationResolver,
                     proxyEndpoint is null
                         ? BrowserNetworkRouteKind.Local
-                        : BrowserNetworkRouteKind.SshRouted);
+                        : BrowserNetworkRouteKind.SshRouted,
+                    ready);
             }
             catch
             {
@@ -557,6 +702,55 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
                 throw;
             }
+        }
+    }
+
+    private sealed class RouteAuthenticationResolver(
+        IBrowserProfileAuthenticationResolver resolver,
+        Func<string?> routeIdentity) : IBrowserProfileAuthenticationResolver
+    {
+        public async ValueTask<BrowserAuthenticationCredentials?> ResolveAsync(
+            BrowserProfileBinding profile,
+            BrowserAuthenticationChallenge challenge,
+            CancellationToken cancellationToken)
+        {
+            var authority = routeIdentity();
+            if (authority is null)
+            {
+                return null;
+            }
+            var credentials = await resolver.ResolveAsync(
+                profile, challenge with { RouteIdentity = authority }, cancellationToken).ConfigureAwait(false);
+            return string.Equals(authority, routeIdentity(), StringComparison.Ordinal) ? credentials : null;
+        }
+    }
+
+    private void BindAuthenticationRoute(IWorkspaceNetworkConnector connector, ContextKey key)
+    {
+        lock (_gate)
+        {
+            if (!_authenticationRouteBindings.TryGetValue(connector, out var binding))
+            {
+                HashSet<ContextKey> keys = [];
+                Func<CancellationToken, Task> callback = async cancellationToken =>
+                {
+                    ICefBrowserRequestContext[] contexts;
+                    lock (_gate)
+                    {
+                        contexts = [.. keys.Where(_contexts.ContainsKey).Select(key => _contexts[key])
+                            .Where(entry => !entry.ContextReleased).Select(entry => entry.Context)];
+                    }
+                    foreach (var context in contexts)
+                    {
+                        await context.CloseAllConnectionsAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                        await context.ClearHttpAuthCredentialsAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                };
+                binding = (keys, callback);
+                _authenticationRouteBindings.Add(connector, binding);
+                connector.BrowserAuthenticationRouteChanging += callback;
+            }
+            binding.Keys.Add(key);
         }
     }
 
@@ -584,6 +778,7 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
             try
             {
                 _stateStore.Restore(stateKey, cacheDirectory);
+                PreparePrivateDirectory(cacheDirectory);
                 context = _createContext(cacheDirectory);
                 BrowserProfileRuntimeManifest.MarkActive(entryDirectory);
                 _contexts.Add(
@@ -769,14 +964,14 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
         BrowserProfileStateKey.NormalizeRoute(
             $"ssh:{BrowserProfileStateKey.NormalizeRoute(routeIdentity)}");
 
-    private static void ConfigureProxy(
+    private static async Task ConfigureProxyAsync(
         ICefBrowserRequestContext context,
         Uri proxyEndpoint)
     {
         foreach (var preference in
                  CefBrowserNetworkContext.RequiredPreferences(proxyEndpoint))
         {
-            if (!context.SetPreference(preference.Key, preference.Value))
+            if (!await context.SetPreferenceAsync(preference.Key, preference.Value).ConfigureAwait(false))
             {
                 throw new InvalidOperationException(
                     $"The embedded browser rejected the required '{preference.Key}' network setting.");
@@ -795,6 +990,9 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
          ?? throw new InvalidOperationException(
              "The browser runtime root is unavailable."))
         + ".restore";
+
+    private string EngineSnapshotDirectory =>
+        _runtimeRoot + ".shutdown-snapshot";
 
     private void RestoreEngineStateAtomically()
     {
@@ -944,6 +1142,8 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
 
         public ICefBrowserRequestContext Context { get; } = context;
 
+        public Task Ready { get; set; } = Task.CompletedTask;
+
         public Uri? ProxyEndpoint { get; set; } = proxyEndpoint;
 
         public BrowserProfileStateKey StateKey { get; } = stateKey
@@ -1008,7 +1208,8 @@ public sealed class CefBrowserProfileLease : IDisposable
         BrowserProfileBinding profile,
         IBrowserProfileAuthenticationResolver? authenticationResolver,
         IWorkspaceProxyAuthenticationResolver? proxyAuthenticationResolver,
-        BrowserNetworkRouteKind routeKind)
+        BrowserNetworkRouteKind routeKind,
+        Task ready)
     {
         _owner = owner;
         _key = key;
@@ -1017,14 +1218,22 @@ public sealed class CefBrowserProfileLease : IDisposable
         _authenticationResolver = authenticationResolver;
         _proxyAuthenticationResolver = proxyAuthenticationResolver;
         RouteKind = routeKind;
+        Ready = ready;
     }
 
     internal BrowserNetworkRouteKind RouteKind { get; }
 
-    internal CefBrowserView CreateView() => _context.CreateView(
-        _profile,
-        _authenticationResolver,
-        _proxyAuthenticationResolver);
+    public Task Ready { get; }
+
+    internal CefBrowserView CreateView()
+    {
+        ObjectDisposedException.ThrowIf(_owner is null, this);
+        if (!Ready.IsCompletedSuccessfully)
+        {
+            throw new InvalidOperationException("The browser network policy has not been accepted.");
+        }
+        return _context.CreateView(_profile, _authenticationResolver, _proxyAuthenticationResolver);
+    }
 
     public void Dispose() => Interlocked.Exchange(ref _owner, null)?.Release(
         _key,
@@ -1038,6 +1247,8 @@ public sealed class CefBrowserProfileLease : IDisposable
 internal interface ICefBrowserRequestContext : IDisposable
 {
     bool SetPreference(string name, string value);
+
+    Task<bool> SetPreferenceAsync(string name, string value) => Task.FromResult(SetPreference(name, value));
 
     Task<int> DeleteCookiesAsync();
 
@@ -1067,6 +1278,9 @@ internal sealed class CefBrowserRequestContext(
 
     public bool SetPreference(string name, string value) =>
         _context.SetPreference(name, value);
+
+    public Task<bool> SetPreferenceAsync(string name, string value) =>
+        _context.SetPreferenceAsync(name, value);
 
     public Task<int> DeleteCookiesAsync() => _context.DeleteCookiesAsync();
 

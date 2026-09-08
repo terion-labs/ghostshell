@@ -31,7 +31,7 @@
           Glyph="Shield"
           Text="Saved definitions, secrets, history, recovery snapshots, terminal content, OS caches, debug trace output, and any active log are outside this cleanup boundary." />
 
-      <TextBlock
+      <controls:LiveRegionTextBlock
           Classes="Muted"
           FontSize="{DynamicResource ShellFontSize9}"
           Text="{Binding StatusMessage}"

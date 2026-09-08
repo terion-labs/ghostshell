@@ -76,6 +76,10 @@ public sealed partial class NativeTerminalBuildContractTests
         Assert.Contains("-Wextra", script, StringComparison.Ordinal);
         Assert.Contains("-Werror", script, StringComparison.Ordinal);
         Assert.Contains("testsPassed", script, StringComparison.Ordinal);
+        Assert.Contains("--component terminal", script, StringComparison.Ordinal);
+        var cefScript = File.ReadAllText(Path.Combine(RepositoryRoot, "scripts", "build-cef-runtime.sh"));
+        Assert.Contains("--component cef", cefScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("cp -R \"${existing}\"", cefScript, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -484,7 +488,43 @@ public sealed partial class NativeTerminalBuildContractTests
                 StringComparison.Ordinal));
         var error = Assert.Single(validation.Descendants("Error"));
 
-        Assert.Equal(12, requiredFiles.Length);
+        string[] commonFiles =
+        [
+            "$(GhostShellNativeTerminalArtifactDirectory)/$(GhostShellNativeTerminalLibrary)",
+            "$(GhostShellNativeTerminalArtifactDirectory)/GHOSTTY-LICENSE",
+            "$(GhostShellNativeTerminalArtifactDirectory)/ghostty-vt-required-exports.txt",
+            "$(GhostShellNativeTerminalArtifactDirectory)/native-terminal-build-receipt.json",
+            "$(MSBuildThisFileDirectory)../../licenses/native-terminal-components.json",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/MANIFEST.sha256",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/SHELL-INTEGRATION-NOTICE.md",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/bash/bash-preexec.sh",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/bash/ghostty.bash",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/fish/vendor_conf.d/ghostty-shell-integration.fish",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/zsh/.zshenv",
+            "$(GhostShellNativeTerminalShellIntegrationDirectory)/zsh/ghostty-integration",
+        ];
+        Assert.Equal(
+            commonFiles.Order(StringComparer.Ordinal),
+            project.Descendants("GhostShellNativeTerminalRequiredFile")
+                .Where(element => element.Attribute("Condition") is null)
+                .Select(element => (string?)element.Attribute("Include"))
+                .Order(StringComparer.Ordinal));
+        (string Path, string Condition)[] platformFiles =
+        [
+            ("$(GhostShellNativeTerminalArtifactDirectory)/libghostshell_pty.dylib",
+                "$(GhostShellEffectiveRuntimeIdentifier.StartsWith('osx-'))"),
+            ("$(GhostShellNativeTerminalArtifactDirectory)/libghostshell_pty.so",
+                "$(GhostShellEffectiveRuntimeIdentifier.StartsWith('linux-'))"),
+            ("$(GhostShellNativeTerminalArtifactDirectory)/PORTA-PTY-LICENSE",
+                "!$(GhostShellEffectiveRuntimeIdentifier.StartsWith('win-'))"),
+        ];
+        Assert.Equal(
+            platformFiles.OrderBy(item => item.Path, StringComparer.Ordinal),
+            project.Descendants("GhostShellNativeTerminalRequiredFile")
+                .Where(element => element.Attribute("Condition") is not null)
+                .Select(element => (Path: Assert.IsType<string>((string?)element.Attribute("Include")),
+                    Condition: Assert.IsType<string>((string?)element.Attribute("Condition"))))
+                .OrderBy(item => item.Path, StringComparer.Ordinal));
         Assert.Contains(requiredFiles, path => path.EndsWith(
             "$(GhostShellNativeTerminalLibrary)",
             StringComparison.Ordinal));

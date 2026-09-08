@@ -13,6 +13,7 @@ public sealed class WorkspaceNetworkControlViewModel : ObservableObject, IAsyncD
     private readonly IWorkspaceNetworkSession? _session;
     private readonly IUiThreadDispatcher _dispatcher;
     private readonly Action<WorkspaceNetworkSnapshot>? _applyEgress;
+    private readonly IWorkspaceNetworkConnector? _networkConnector;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ObservableCollection<WorkspaceNetworkConnectionOptionViewModel> _connections = [];
     private readonly SemaphoreSlim _operationGate = new(1, 1);
@@ -27,13 +28,16 @@ public sealed class WorkspaceNetworkControlViewModel : ObservableObject, IAsyncD
         WorkspaceNetworkPolicyUpdate policy,
         IWorkspaceNetworkSession? session,
         IUiThreadDispatcher dispatcher,
-        Action<WorkspaceNetworkSnapshot>? applyEgress = null)
+        Action<WorkspaceNetworkSnapshot>? applyEgress = null,
+        IWorkspaceNetworkConnector? networkConnector = null)
     {
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         _catalogPolicy = policy;
         _session = session;
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _applyEgress = applyEgress;
+        _networkConnector = networkConnector;
+        networkConnector?.BrowserAuthenticationRouteFailed += OnBrowserAuthenticationRouteFailed;
         _snapshot = session?.Snapshot ?? UnavailableSnapshot(policy.Policy);
         Connections = new ReadOnlyObservableCollection<WorkspaceNetworkConnectionOptionViewModel>(
             _connections);
@@ -246,6 +250,7 @@ public sealed class WorkspaceNetworkControlViewModel : ObservableObject, IAsyncD
         }
 
         _disposed = true;
+        _networkConnector?.BrowserAuthenticationRouteFailed -= OnBrowserAuthenticationRouteFailed;
         _lifetime.Cancel();
         if (_session is { } activeSession)
         {
@@ -358,6 +363,26 @@ public sealed class WorkspaceNetworkControlViewModel : ObservableObject, IAsyncD
             await _dispatcher.InvokeAsync(
                 () => ApplySnapshot(snapshot),
                 _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async void OnBrowserAuthenticationRouteFailed(object? sender, EventArgs args)
+    {
+        try
+        {
+            await _dispatcher.InvokeAsync(() =>
+            {
+                _snapshot = new WorkspaceNetworkSnapshot(WorkspaceNetworkState.Blocked,
+                    WorkspaceNetworkEgress.Blocked, _snapshot.SelectedConnectionId,
+                    new NetworkConnectionError(NetworkConnectionErrorCode.RouteUnavailable,
+                        "browser_auth_route_reset_failed",
+                        "Traffic stays blocked because saved browser authentication could not be cleared for the new route. Select the connection again to retry.",
+                        retryable: true));
+                NotifyStatusChanged();
+            }, _lifetime.Token);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {

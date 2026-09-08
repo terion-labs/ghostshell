@@ -338,6 +338,9 @@ internal static unsafe partial class Excef
     public static extern int excef_flush_cookie_store_async(int context_handle, int request_id);
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int excef_set_preference_async(int context_handle, sbyte* name, sbyte* value_json, int request_id);
+
+    [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void excef_set_browser_closed_callback([NativeTypeName("excef_browser_closed_cb_t")] delegate* unmanaged[Cdecl]<int, void> cb);
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
@@ -419,7 +422,7 @@ internal static unsafe partial class Excef
     public static extern void excef_download_action([NativeTypeName("uint64_t")] ulong token, int action);
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern void excef_set_auth_request_callback([NativeTypeName("excef_auth_request_cb_t")] delegate* unmanaged[Cdecl]<int, ulong, int, sbyte*, int, sbyte*, sbyte*, void> cb);
+    public static extern void excef_set_auth_request_callback_v2([NativeTypeName("excef_auth_request_cb_t")] delegate* unmanaged[Cdecl]<int, ulong, int, sbyte*, int, sbyte*, sbyte*, sbyte*, void> cb);
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void excef_resolve_auth([NativeTypeName("uint64_t")] ulong token, [NativeTypeName("const char *")] sbyte* username, [NativeTypeName("const char *")] sbyte* password);
@@ -444,6 +447,9 @@ internal static unsafe partial class Excef
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void excef_set_before_popup_callback([NativeTypeName("excef_before_popup_cb_t")] delegate* unmanaged[Cdecl]<int, sbyte*, sbyte*, int, int, void> cb);
+
+    [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void excef_set_host_popup_callback(delegate* unmanaged[Cdecl]<int, int, sbyte*, sbyte*, int, int, int> cb);
 
     [DllImport("exclr8cef", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void excef_set_permission_prompt_callback([NativeTypeName("excef_permission_prompt_cb_t")] delegate* unmanaged[Cdecl]<int, ulong, ulong, sbyte*, int, void> cb);

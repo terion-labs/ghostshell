@@ -62,6 +62,7 @@ public sealed class WorkspaceNetworkRuntimeTests
         Assert.Equal(WorkspaceNetworkState.Connected, session.Snapshot.State);
         Assert.Equal(ConnectionId, session.Snapshot.SelectedConnectionId);
         Assert.Equal(provider.Session.Egress, session.Snapshot.Egress);
+        Assert.Equal(BrowserHttpAuthentication.NetworkRouteIdentity(profile), session.Snapshot.AuthenticationRouteIdentity);
     }
 
     [Fact]

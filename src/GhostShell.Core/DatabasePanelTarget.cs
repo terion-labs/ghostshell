@@ -1,9 +1,9 @@
 namespace GhostShell.Core;
 
 /// <summary>
-/// The durable address of a database viewer panel: a driver id and its ADO.NET
-/// connection string, serialized as "driverId:connection string" into the slots
-/// that carry panel locations (screen startup location, recovery payloads).
+/// Legacy or explicitly supplied database panel address: a driver id and its
+/// connection string. New runtime recovery persists a confidential vault token,
+/// never this raw representation. Existing local addresses remain readable.
 /// The first colon splits the two, so driver ids never contain one.
 /// </summary>
 public sealed record DatabasePanelTarget(string DriverId, string ConnectionString)

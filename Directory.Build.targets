@@ -5,7 +5,7 @@
   <Target
       Name="RequireExistingRuntimeLockForLockedRestore"
       BeforeTargets="_GenerateRestoreGraphProjectEntry;Restore"
-      Condition="('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and '$(RestoreLockedMode)' == 'true' and ('$(GhostShellFirstPartyProject)' == 'True' or '$(MSBuildProjectName)' == 'GhostShell.Desktop')">
+      Condition="('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and '$(RestoreLockedMode)' == 'true' and ('$(GhostShellFirstPartyProject)' == 'True' or '$(GhostShellVendoredLockedProject)' == 'true' or '$(MSBuildProjectName)' == 'GhostShell.Desktop')">
     <ItemGroup>
       <GhostShellExpectedRuntimeLock
           Include="$([System.IO.Path]::GetFullPath('packages.$(RuntimeIdentifier).lock.json', '$(MSBuildProjectDirectory)'))"

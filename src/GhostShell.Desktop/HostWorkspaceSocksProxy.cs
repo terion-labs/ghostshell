@@ -18,13 +18,22 @@ internal sealed class HostWorkspaceSocksProxy :
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly Task _acceptLoop;
+    private readonly WorkspaceNetworkProxyCredentials? _upstreamCredentials;
     private WorkspaceNetworkEgress _egress = WorkspaceNetworkEgress.Direct;
     private CancellationTokenSource _routeLifetime = new();
+    private WorkspaceNetworkProxyCredentials _routeCredentials = WorkspaceLoopbackProxyProtocol.CreateCredentials();
+    private string? _authenticationRouteIdentity = "local";
+    private string _lastAuthenticationRouteIdentity = "local";
+    private long _authenticationRouteGeneration;
     private long _connectionSequence;
     private int _disposed;
+    private int _stopped;
 
-    public HostWorkspaceSocksProxy(string? browserProfileRouteIdentity = null)
+    public HostWorkspaceSocksProxy(
+        string? browserProfileRouteIdentity = null,
+        WorkspaceNetworkProxyCredentials? upstreamCredentials = null)
     {
+        _upstreamCredentials = upstreamCredentials;
         BrowserProfileRouteIdentity = browserProfileRouteIdentity;
         _listener.Start();
         LocalPort = ((IPEndPoint)_listener.LocalEndpoint).Port;
@@ -41,6 +50,18 @@ internal sealed class HostWorkspaceSocksProxy :
 
     public WorkspaceNetworkEgress Egress => CurrentRoute().Egress;
 
+    public CancellationToken RouteLifetime => CurrentRoute().CancellationToken;
+
+    public IWorkspaceNetworkConnector CaptureRoute()
+    {
+        lock (_egressGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            return new WorkspaceNetworkRouteSnapshot(
+                LocalProxyEndpoint, _egress, _routeCredentials, _routeLifetime.Token);
+        }
+    }
+
     public Uri LocalProxyEndpoint { get; }
 
     public WorkspaceNetworkProxyCredentials LocalProxyCredentials { get; } =
@@ -49,6 +70,15 @@ internal sealed class HostWorkspaceSocksProxy :
     public Uri BrowserProxyEndpoint { get; }
 
     public string? BrowserProfileRouteIdentity { get; }
+
+    public string? BrowserAuthenticationRouteIdentity
+    {
+        get { lock (_egressGate) { return _authenticationRouteIdentity; } }
+    }
+
+    public event Func<CancellationToken, Task>? BrowserAuthenticationRouteChanging;
+
+    public event EventHandler? BrowserAuthenticationRouteFailed;
 
     public ValueTask<Stream> ConnectTcpAsync(
         string host,
@@ -61,7 +91,10 @@ internal sealed class HostWorkspaceSocksProxy :
             port,
             cancellationToken);
 
-    public void Apply(WorkspaceNetworkEgress egress)
+    public void Apply(WorkspaceNetworkEgress egress) =>
+        Apply(egress, egress == WorkspaceNetworkEgress.Direct ? "local" : null);
+
+    public void Apply(WorkspaceNetworkEgress egress, string? authenticationRouteIdentity)
     {
         ArgumentNullException.ThrowIfNull(egress);
         if (Volatile.Read(ref _disposed) != 0)
@@ -70,20 +103,85 @@ internal sealed class HostWorkspaceSocksProxy :
         }
 
         CancellationTokenSource previous;
+        CancellationToken routeToken;
+        long generation;
+        bool authorityChanged;
         lock (_egressGate)
         {
-            if (_egress == egress)
+            if (_egress == egress && string.Equals(_authenticationRouteIdentity, authenticationRouteIdentity, StringComparison.Ordinal))
             {
                 return;
             }
 
-            _egress = egress;
+            authorityChanged = authenticationRouteIdentity is not null
+                && !string.Equals(_lastAuthenticationRouteIdentity, authenticationRouteIdentity, StringComparison.Ordinal);
+            _egress = authorityChanged ? WorkspaceNetworkEgress.Blocked : egress;
+            _authenticationRouteIdentity = authorityChanged ? null : authenticationRouteIdentity;
             previous = _routeLifetime;
             _routeLifetime = new CancellationTokenSource();
+            _routeCredentials = WorkspaceLoopbackProxyProtocol.CreateCredentials();
+            routeToken = _routeLifetime.Token;
+            generation = ++_authenticationRouteGeneration;
         }
 
         previous.Cancel();
         previous.Dispose();
+        if (authorityChanged)
+        {
+            _ = CompleteAuthenticationRouteChangeAsync(egress, authenticationRouteIdentity!, routeToken, generation);
+        }
+    }
+
+    // Keep this ordering aligned with the other built-in workspace broker:
+    // block old traffic, erase cached HTTP authority, then publish the route.
+    private async Task CompleteAuthenticationRouteChangeAsync(
+        WorkspaceNetworkEgress egress,
+        string identity,
+        CancellationToken routeToken,
+        long generation)
+    {
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(routeToken, _lifetime.Token);
+            deadline.CancelAfter(TimeSpan.FromSeconds(15));
+            if (BrowserAuthenticationRouteChanging is { } callbacks)
+            {
+                await Task.WhenAll(callbacks.GetInvocationList()
+                    .Cast<Func<CancellationToken, Task>>()
+                    .Select(callback => callback(deadline.Token)))
+                    .WaitAsync(deadline.Token).ConfigureAwait(false);
+            }
+            lock (_egressGate)
+            {
+                if (_authenticationRouteGeneration == generation && Volatile.Read(ref _disposed) == 0)
+                {
+                    _lastAuthenticationRouteIdentity = identity;
+                    _authenticationRouteIdentity = identity;
+                    _egress = egress;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            lock (_egressGate)
+            {
+                if (_authenticationRouteGeneration != generation || Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+            }
+            SecretSafeDiagnosticProjection.WriteStandardError("workspace.browser-auth.route-change.failed", exception);
+            BrowserAuthenticationRouteFailed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void Stop()
+    {
+        if (Interlocked.Exchange(ref _stopped, 1) == 0)
+        {
+            _listener.Stop();
+            _lifetime.Cancel();
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -93,6 +191,7 @@ internal sealed class HostWorkspaceSocksProxy :
             return;
         }
 
+        Stop();
         await _lifetime.CancelAsync().ConfigureAwait(false);
         CancellationTokenSource routeLifetime;
         lock (_egressGate)
@@ -156,7 +255,8 @@ internal sealed class HostWorkspaceSocksProxy :
             var request = await WorkspaceLoopbackProxyProtocol.AuthenticateAndReadAsync(
                     downstream,
                     LocalProxyCredentials,
-                    cancellationToken)
+                    cancellationToken,
+                    route.Credentials)
                 .ConfigureAwait(false);
             if (request is null)
             {
@@ -214,7 +314,9 @@ internal sealed class HostWorkspaceSocksProxy :
                 successReplyStarted = true;
                 if (request.Value.Protocol == WorkspaceLoopbackProxyProtocol.Protocol.HttpForward)
                 {
-                    upstreamClient.Client.Shutdown(SocketShutdown.Send);
+                    // The rewrite already requests Connection: close after this response.
+                    // Sending FIN here disposes SSH.NET's dynamic-forward channel
+                    // before it can return the origin response. Do not relay another request.
                     await upstream.CopyToAsync(downstream, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -235,19 +337,26 @@ internal sealed class HostWorkspaceSocksProxy :
         }
     }
 
-    private (WorkspaceNetworkEgress Egress, CancellationToken CancellationToken) CurrentRoute()
+    private (WorkspaceNetworkEgress Egress, CancellationToken CancellationToken, WorkspaceNetworkProxyCredentials Credentials) CurrentRoute()
     {
         lock (_egressGate)
         {
-            return (_egress, _routeLifetime.Token);
+            return (_egress, _routeLifetime.Token, _routeCredentials);
         }
     }
 
-    private static async ValueTask ConnectSocksAsync(
+    private async ValueTask ConnectSocksAsync(
         Stream stream,
         Destination destination,
         CancellationToken cancellationToken)
     {
+        if (_upstreamCredentials is { } credentials)
+        {
+            await WorkspaceSocksClient.ConnectSocks5Async(
+                stream, credentials, destination.Host, destination.Port, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         await stream.WriteAsync(new byte[] { 5, 1, 0 }, cancellationToken)
             .ConfigureAwait(false);
         var greeting = new byte[2];

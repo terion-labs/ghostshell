@@ -6,6 +6,268 @@ namespace GhostShell.App.Tests;
 
 public sealed class DatabaseRuntimePanelViewModelTests
 {
+    [Theory]
+    [InlineData("unchanged", true)]
+    [InlineData("target", false)]
+    [InlineData("route", false)]
+    [InlineData("password", false)]
+    [InlineData("failed", false)]
+    public async Task FirstRecoverySavePreservesStartupOnlyForTheAcceptedInitialBinding(string change, bool preserves)
+    {
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var route = new ConnectionProfile(new ConnectionId("original-route"), 1, "Route",
+            new ConnectionEndpoint.Ssh("original.invalid", username: "user"),
+            new ConnectionAuthentication.None(), ConnectionStartup.Default, ConnectionKeepAlive.Disabled,
+            SshHostKeyPolicy.AcceptNew);
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            "postgres", "Host=fixture.invalid", route, sessionPassword: "fixture", recovery: new DatabaseRecoveryState(vault));
+        var source = new ScreenPanelDefinition(ScreenPanelId.New(), new LayoutSlotId("database"),
+            ScreenPanelKind.DatabaseViewer, "Database", route.Id,
+            new PanelStartupBehavior("postgres:Host=fixture.invalid", ["select 1"],
+                StartupCommandDeliveryFailurePolicy.StopAfterFirstDeliveryFailure));
+        panel.SourceDefinition = source;
+        Assert.False(panel.CanPreserveInitialSourceConnection);
+        panel.StartInitialization();
+        await panel.Initialization;
+        Assert.True(panel.CanPreserveInitialSourceConnection);
+        switch (change)
+        {
+            case "target": panel.ConnectionString = "Host=other.invalid"; break;
+            case "route":
+                panel.SetTunnel(new ConnectionProfile(route.Id, 1, "Route",
+                    new ConnectionEndpoint.Ssh("changed.invalid", username: "user"), route.Authentication,
+                    route.Startup, route.KeepAlive, route.HostKeyPolicy));
+                break;
+            case "password": panel.SetSessionPassword("replacement"); break;
+            case "failed": client.FailWith = "fixture failure"; break;
+        }
+        while (panel.IsBusy) { await Task.Yield(); }
+        await panel.ConnectAsync();
+        Assert.Equal(preserves, panel.CanPreserveInitialSourceConnection);
+        var captured = WorkspaceAutoSaveCoordinatorTests.CaptureDatabasePanel(panel, source);
+        Assert.Null(captured.ConnectionId);
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(captured.Startup.Location));
+        Assert.Equal(preserves ? source.Startup.Commands : [], captured.Startup.Commands);
+        if (preserves)
+        {
+            Assert.Equal(source.Startup.DeliveryFailurePolicy, captured.Startup.DeliveryFailurePolicy);
+            Assert.Equal(source.Id, captured.Id);
+            Assert.Equal(source.Startup.Commands,
+                WorkspaceAutoSaveCoordinatorTests.CaptureDatabasePanel(panel, captured).Startup.Commands);
+        }
+    }
+
+    [Fact]
+    public async Task ReplacingQueryPageAndClosingViewReleaseTheirDetachedContent()
+    {
+        var stores = new List<ResultOwnershipFixture>();
+        var client = new FakeDatabasePanelClient
+        {
+            ResultContentFactory = () =>
+            {
+                var store = new ResultOwnershipFixture();
+                stores.Add(store);
+                return store;
+            },
+            TableHasMore = true,
+            TableTotalRows = 1000,
+        };
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            driverId: "sqlite", connectionString: "Data Source=fixture.db");
+        await panel.Initialization;
+        await panel.PreviewTableAsync(panel.Tables[0]);
+        Assert.Equal(1, Assert.Single(stores).Owners);
+        Assert.True(stores[0].PrimaryReleased);
+        await panel.NextPageAsync();
+        Assert.Equal(2, stores.Count);
+        Assert.Equal(0, stores[0].Owners);
+        Assert.Equal(1, stores[1].Owners);
+        panel.Dispose();
+        Assert.Equal(0, stores[1].Owners);
+    }
+
+    private sealed class ResultOwnershipFixture : DatabaseValueContentStore
+    {
+        public int Owners { get; private set; } = 1;
+        public bool PrimaryReleased { get; private set; }
+        public override IDisposable Retain()
+        {
+            Assert.True(Owners > 0);
+            Owners++;
+            return new Lease(this);
+        }
+        public override Task<DatabaseValueContent> StoreAsync(DatabaseValueKind kind,
+            Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && !PrimaryReleased)
+            {
+                PrimaryReleased = true;
+                Owners--;
+            }
+        }
+        private sealed class Lease(ResultOwnershipFixture owner) : IDisposable
+        {
+            private ResultOwnershipFixture? _owner = owner;
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _owner, null) is { } retained)
+                {
+                    retained.Owners--;
+                }
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AsyncClipboardSnapshotRunsOffThreadAndCannotPublishAfterSupersessionOrClose(bool close)
+    {
+        var store = new ResultOwnershipFixture();
+        var client = new FakeDatabasePanelClient { ResultContentFactory = () => store };
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            driverId: "sqlite", connectionString: "Data Source=fixture.db");
+        await panel.Initialization;
+        await panel.PreviewTableAsync(panel.Tables[0]);
+        using var gate = new ManualResetEventSlim(false);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var original = panel.ResultRows[0];
+        var content = new BlockedClipboardContent(gate, started);
+        var row = new DatabaseResultRowViewModel(1,
+            [.. original.Cells.Select((cell, index) => index == 1
+                ? new DatabaseValue(content, DatabaseValueKind.Text, "preview", true)
+                : new DatabaseValue(cell.RawValue, cell.Column.ValueKind, cell.Text))],
+            [.. original.Cells.Select(cell => cell.Column)], [.. original.Cells.Select(cell => cell.Width)], canEdit: false);
+        var oldCopy = panel.BuildCellValueAsync(row, 1);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(panel.IsBusy);
+        Assert.Equal(2, store.Owners);
+        try
+        {
+            if (close) { panel.Dispose(); }
+            else
+            {
+                var newer = await panel.BuildCellValueAsync(panel.ResultRows[1], 0);
+                Assert.True(panel.IsClipboardRequestCurrent(newer.Revision));
+                Assert.False(panel.HasInterchangeNotice);
+            }
+        }
+        finally { gate.Set(); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => oldCopy);
+        Assert.Equal(close ? 0 : 1, store.Owners);
+        Assert.False(panel.IsBusy);
+    }
+
+    private sealed class BlockedClipboardContent(ManualResetEventSlim gate, TaskCompletionSource started) : DatabaseValueContent
+    {
+        public override long Length => 8;
+        public override DatabaseValueKind Kind => DatabaseValueKind.Text;
+        public override Stream OpenRead()
+        {
+            started.TrySetResult();
+            if (!gate.Wait(TimeSpan.FromSeconds(5))) { throw new TimeoutException("Clipboard test was not released."); }
+            return new MemoryStream(" =1+1"u8.ToArray(), writable: false);
+        }
+    }
+
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("json")]
+    [InlineData("insert")]
+    public async Task InspectorCopyFormatsUseCompleteSnapshotAndOriginalDriverFormatter(string format)
+    {
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            driverId: "sqlite", connectionString: "Data Source=fixture.db");
+        await panel.Initialization;
+        await panel.PreviewTableAsync(panel.Tables[0]);
+        using var gate = new ManualResetEventSlim(true);
+        var original = panel.ResultRows[0];
+        var content = new BlockedClipboardContent(gate, new TaskCompletionSource());
+        var row = new DatabaseResultRowViewModel(1,
+            [.. original.Cells.Select((cell, index) => index == 1
+                ? new DatabaseValue(content, DatabaseValueKind.Text, "preview", true)
+                : new DatabaseValue(cell.RawValue, cell.Column.ValueKind, cell.Text))],
+            [.. original.Cells.Select(cell => cell.Column)], [.. original.Cells.Select(cell => cell.Width)], canEdit: false);
+        var snapshot = format switch
+        {
+            "csv" => await panel.BuildRowCsvAsync(row),
+            "json" => await panel.BuildRowJsonAsync(row),
+            _ => await panel.BuildRowSqlInsertAsync(row),
+        };
+        Assert.True(panel.IsClipboardRequestCurrent(snapshot.Revision));
+        Assert.Contains(" =1+1", snapshot.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("preview", snapshot.Text, StringComparison.Ordinal);
+        if (format == "insert")
+        {
+            Assert.Equal(" =1+1", Assert.Single(client.LastFormattedInsert!.Values, value => value.ColumnName == "name").Value);
+        }
+        Assert.Equal(format == "csv", panel.HasInterchangeNotice);
+    }
+
+    [Fact]
+    public async Task TemporaryPasswordOverrideDoesNotReuseTheSavedProfilesOlderCredential()
+    {
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var state = new DatabaseRecoveryState(vault);
+        var profile = new DatabaseConnectionProfile(DatabaseConnectionProfileId.New(), 1, "Saved", "postgres",
+            "Host=fixture.invalid", SecretRef.New());
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", new FakeDatabasePanelClient(),
+            savedConnection: profile, sessionPassword: "temporary-fixture", recovery: state);
+        Assert.Null(panel.RecoveryTarget);
+        panel.StartInitialization();
+        await panel.Initialization;
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(panel.RecoveryTarget));
+        Assert.Equal("temporary-fixture", (await state.RestoreAsync(CancellationToken.None))!.SessionPassword);
+    }
+
+    [Fact]
+    public async Task AdHocRecoveryWaitsForAcceptanceAndRetainsSessionPassword()
+    {
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var state = new DatabaseRecoveryState(vault);
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            "postgres", "Host=fixture.invalid", sessionPassword: "session-fixture", recovery: state);
+        Assert.Null(panel.RecoveryTarget);
+        Assert.Null(client.LastConnectionString);
+        Assert.Equal(0, vault.Creates);
+        panel.StartInitialization();
+        await panel.Initialization;
+
+        Assert.Equal("Host=fixture.invalid;Password=session-fixture", client.LastConnectionString);
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(panel.RecoveryTarget));
+        Assert.Equal(client.LastConnectionString, (await state.RestoreAsync(CancellationToken.None))!.ConnectionString);
+        Assert.Equal(1, vault.Creates);
+    }
+
+    [Fact]
+    public async Task LiveSavedTargetChangeUsesTokenAndFailedWriteKeepsWorkingConfiguration()
+    {
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var state = new DatabaseRecoveryState(vault);
+        var profile = new DatabaseConnectionProfile(DatabaseConnectionProfileId.New(), 1, "Saved", "postgres", "Host=first;Password=fixture");
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            savedConnection: profile, recovery: state);
+        Assert.Equal("saved:" + profile.Id.Value, panel.RecoveryTarget);
+        panel.ConnectionString = "Host=second;Password=fixture";
+        await panel.ConnectAsync();
+        var target = panel.RecoveryTarget;
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(target));
+        vault.FailWrites = true;
+        panel.ConnectionString = "Host=third;Password=fixture";
+        await panel.ConnectAsync();
+
+        Assert.True(panel.IsConnected);
+        Assert.Equal("Host=third;Password=fixture", panel.ConnectionString);
+        Assert.Equal(target, panel.RecoveryTarget);
+        Assert.Contains("could not be saved", panel.ErrorMessage!, StringComparison.Ordinal);
+        Assert.Equal("Host=second;Password=fixture", (await state.RestoreAsync(CancellationToken.None))!.ConnectionString);
+    }
+
     [Fact]
     public void Provider_typed_rows_stay_clean_until_the_user_changes_text()
     {
@@ -209,10 +471,12 @@ public sealed class DatabaseRuntimePanelViewModelTests
     public async Task Connect_lists_tables_and_publishes_the_durable_target()
     {
         var client = new FakeDatabasePanelClient();
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var recovery = new DatabaseRecoveryState(vault);
         using var panel = new DatabaseRuntimePanelViewModel(
             PanelInstanceId.New(),
             "Database",
-            client);
+            client, recovery: recovery);
 
         Assert.Equal(PanelKind.DatabaseViewer, panel.Kind);
         Assert.False(panel.IsConnected);
@@ -223,7 +487,8 @@ public sealed class DatabaseRuntimePanelViewModelTests
 
         Assert.True(panel.IsConnected);
         Assert.Equal(["people", "names"], panel.Tables.Select(table => table.Name), StringComparer.Ordinal);
-        Assert.Equal("sqlite:Data Source=demo.db", panel.RecoveryTarget);
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(panel.RecoveryTarget));
+        Assert.Equal("Data Source=demo.db", (await recovery.RestoreAsync(CancellationToken.None))!.ConnectionString);
 
         // Editing the target drops the connected state until re-probed.
         panel.ConnectionString = "Data Source=other.db";
@@ -408,7 +673,7 @@ public sealed class DatabaseRuntimePanelViewModelTests
             client,
             savedConnection: profile,
             passwordResolver: (reference, _) => Task.FromResult<string?>(
-                reference == secret ? "vaulted" : null));
+                reference == profile ? "vaulted" : null));
         await panel.Initialization;
 
         Assert.True(panel.IsSavedConnection);
@@ -441,7 +706,7 @@ public sealed class DatabaseRuntimePanelViewModelTests
             savedConnection: profile,
             passwordResolver: (reference, _) =>
             {
-                Assert.Equal(secret, reference);
+                Assert.Equal(profile, reference);
                 resolveCount++;
                 return Task.FromResult<string?>("vaulted");
             },
@@ -540,6 +805,8 @@ public sealed class DatabaseRuntimePanelViewModelTests
     public async Task Editing_details_detaches_the_panel_from_the_saved_connection()
     {
         var client = new FakeDatabasePanelClient();
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var recovery = new DatabaseRecoveryState(vault);
         var profile = new DatabaseConnectionProfile(
             DatabaseConnectionProfileId.New(),
             DatabaseConnectionProfile.CurrentSchemaVersion,
@@ -552,7 +819,8 @@ public sealed class DatabaseRuntimePanelViewModelTests
             "Database",
             client,
             savedConnection: profile,
-            passwordResolver: (_, _) => Task.FromResult<string?>("vaulted"));
+            passwordResolver: (_, _) => Task.FromResult<string?>("vaulted"), recovery: recovery);
+        panel.StartInitialization();
         await panel.Initialization;
         Assert.True(panel.IsSavedConnection);
 
@@ -560,7 +828,8 @@ public sealed class DatabaseRuntimePanelViewModelTests
             new DatabaseConnectionDetails(Options: "Host=other;Database=app"));
 
         Assert.False(panel.IsSavedConnection);
-        Assert.StartsWith("postgres:", panel.RecoveryTarget, StringComparison.Ordinal);
+        Assert.NotNull(DatabaseRecoveryToken.TryParse(panel.RecoveryTarget));
+        Assert.Equal("Host=other;Database=app", (await recovery.RestoreAsync(CancellationToken.None))!.ConnectionString);
         Assert.Equal("Host=other;Database=app", client.LastConnectionString);
     }
 
@@ -639,6 +908,40 @@ public sealed class DatabaseRuntimePanelViewModelTests
             panel.BuildCurrentPageSql()
                 .Split("INSERT INTO", StringSplitOptions.None)
                 .Length - 1);
+    }
+
+    [Fact]
+    public async Task FormulaLikeCsvAndTsvKeepExactDataAndShowNonBlockingRiskNotice()
+    {
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(
+            PanelInstanceId.New(), "Database", client,
+            driverId: "sqlite", connectionString: "Data Source=demo.db");
+        await panel.Initialization;
+        await panel.PreviewTableAsync(panel.Tables[0]);
+        var row = panel.ResultRows[0];
+        panel.SelectRow(row);
+        const string formula = "\t=HYPERLINK(\"https://example.invalid\",\"label\")";
+        panel.SetSelectedCellText(1, formula);
+
+        var csv = DatabaseGridCsv.Parse(panel.BuildRowCsv(row));
+        Assert.Equal(formula, Assert.Single(csv.Rows)[1]);
+        Assert.True(panel.HasInterchangeNotice);
+        Assert.Equal(DatabaseSpreadsheetRisk.Notice, panel.InterchangeNotice);
+        Assert.False(panel.HasError);
+        Assert.False(panel.IsBusy);
+        Assert.Contains("HYPERLINK", panel.BuildRowTsv(row), StringComparison.Ordinal);
+        Assert.True(panel.HasInterchangeNotice);
+
+        using var exported = new MemoryStream();
+        await panel.WriteCurrentPageExportAsync(exported, DatabaseGridExportFormat.Csv);
+        var file = DatabaseGridCsv.Parse(System.Text.Encoding.UTF8.GetString(exported.ToArray()));
+        Assert.Equal(formula, file.Rows[0][1]);
+        Assert.True(panel.HasInterchangeNotice);
+
+        panel.SetSelectedCellText(1, "ordinary text");
+        _ = panel.BuildRowCsv(row);
+        Assert.False(panel.HasInterchangeNotice);
     }
 
     [Fact]
@@ -1379,7 +1682,7 @@ public sealed class DatabaseRuntimePanelViewModelTests
     }
 
     [Fact]
-    public async Task Database_overview_lazily_builds_and_caches_the_mermaid_diagram()
+    public async Task Database_overview_owns_a_worker_and_closes_it_when_leaving_the_diagram()
     {
         var client = new FakeDatabasePanelClient();
         using var panel = new DatabaseRuntimePanelViewModel(
@@ -1400,30 +1703,112 @@ public sealed class DatabaseRuntimePanelViewModelTests
         Assert.False(panel.ShowQueryEditor);
         Assert.False(panel.ShowDataSurface);
         Assert.True(panel.HasMermaidDiagram);
-        Assert.StartsWith("erDiagram", panel.MermaidDiagramSource, StringComparison.Ordinal);
-        Assert.Contains("```mermaid", panel.MermaidDiagramText, StringComparison.Ordinal);
-        Assert.Contains("people", panel.MermaidDiagramText, StringComparison.Ordinal);
+        Assert.Empty(panel.MermaidDiagramSource);
+        Assert.Empty(panel.MermaidDiagramText);
+        var first = Assert.IsType<FakeDiagramSession>(panel.DiagramSession);
         Assert.Equal(1, client.SchemaGraphCallCount);
 
         panel.ShowDatabaseOverview();
+        Assert.True(first.Disposed);
         Assert.True(panel.IsDatabaseObjectsOverview);
         Assert.True(panel.ShowDataSurface);
         await panel.ShowDatabaseDiagramAsync();
-        Assert.Equal(1, client.SchemaGraphCallCount);
+        Assert.Equal(2, client.SchemaGraphCallCount);
 
         panel.ShowDatabaseOverview();
         panel.QueryText = "SELECT id, name FROM people";
         await panel.RunQueryAsync();
         panel.ShowDatabaseOverview();
         await panel.ShowDatabaseDiagramAsync();
-        Assert.Equal(1, client.SchemaGraphCallCount);
+        Assert.Equal(3, client.SchemaGraphCallCount);
 
         panel.ShowDatabaseOverview();
         panel.QueryText = "CREATE TABLE added (id INTEGER)";
         await panel.RunQueryAsync();
         panel.ShowDatabaseOverview();
         await panel.ShowDatabaseDiagramAsync();
+        Assert.Equal(4, client.SchemaGraphCallCount);
+    }
+
+    [Fact]
+    public async Task Leaving_the_diagram_cancels_metadata_loading_without_blocking_navigation()
+    {
+        var client = new FakeDatabasePanelClient { HoldDiagram = true };
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            "sqlite", "Data Source=demo.db");
+        await panel.Initialization;
+        var loading = panel.ShowDatabaseDiagramAsync();
+        Assert.True(panel.IsBusy);
+
+        panel.ShowDatabaseOverview();
+        await loading.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(client.DiagramCanceled);
+        Assert.False(panel.IsBusy);
+        Assert.True(panel.IsDatabaseObjectsOverview);
+        Assert.False(panel.HasMermaidDiagram);
+    }
+
+    [Fact]
+    public async Task Hidden_diagram_releases_its_worker_but_retains_the_selected_view()
+    {
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            "sqlite", "Data Source=demo.db");
+        await panel.Initialization;
+        await panel.ShowDatabaseDiagramAsync();
+        var first = Assert.IsType<FakeDiagramSession>(panel.DiagramSession);
+
+        panel.SuspendDatabaseDiagram();
+
+        Assert.True(first.Disposed);
+        Assert.True(panel.IsDatabaseDiagramOverview);
+        Assert.False(panel.HasMermaidDiagram);
+        await panel.ShowDatabaseDiagramAsync();
+        Assert.True(panel.HasMermaidDiagram);
         Assert.Equal(2, client.SchemaGraphCallCount);
+    }
+
+    [Theory]
+    [InlineData("close")]
+    [InlineData("replace")]
+    [InlineData("newer-copy")]
+    public async Task DiagramClipboardRejectsSupersededExportEvenWhenSessionIgnoresCancellation(string action)
+    {
+        var client = new FakeDatabasePanelClient();
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", client,
+            "sqlite", "Data Source=demo.db");
+        await panel.Initialization;
+        await panel.ShowDatabaseDiagramAsync();
+        var session = Assert.IsType<FakeDiagramSession>(panel.DiagramSession);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.ExportGate = release.Task;
+        var copy = panel.BuildDiagramClipboardAsync(session, DatabaseDiagramExport.Svg);
+        if (action == "close") { panel.Dispose(); }
+        else if (action == "replace") { panel.SuspendDatabaseDiagram(); }
+        else
+        {
+            session.ExportGate = null;
+            var newer = await panel.BuildDiagramClipboardAsync(session, DatabaseDiagramExport.MermaidMarkdown);
+            Assert.Equal("complete diagram", newer.Text);
+            Assert.True(panel.IsClipboardRequestCurrent(newer.Revision));
+        }
+        release.SetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => copy);
+    }
+
+    [Fact]
+    public async Task CompletedDiagramClipboardRevisionIsInvalidAfterDiagramReplacement()
+    {
+        using var panel = new DatabaseRuntimePanelViewModel(PanelInstanceId.New(), "Database", new FakeDatabasePanelClient(),
+            "sqlite", "Data Source=demo.db");
+        await panel.Initialization;
+        await panel.ShowDatabaseDiagramAsync();
+        var copy = await panel.BuildDiagramClipboardAsync(panel.DiagramSession!, DatabaseDiagramExport.Svg);
+        Assert.Equal("complete diagram", copy.Text);
+        Assert.True(panel.IsClipboardRequestCurrent(copy.Revision));
+        panel.SuspendDatabaseDiagram();
+        Assert.False(panel.IsClipboardRequestCurrent(copy.Revision));
     }
 
     [Fact]
@@ -2645,8 +3030,31 @@ public sealed class DatabaseRuntimePanelViewModelTests
         Incomplete,
     }
 
-    private sealed class FakeDatabasePanelClient : IDatabasePanelClient
+    internal sealed class FakeDiagramSession : IDatabaseDiagramSession
     {
+        public bool Disposed { get; private set; }
+        public Task? ExportGate { get; set; }
+        public Task<byte[]> RenderViewportAsync(DatabaseDiagramViewport viewport, CancellationToken cancellationToken) =>
+            Task.FromResult(Array.Empty<byte>());
+        public async Task ExportAsync(Stream destination, DatabaseDiagramExport format, CancellationToken cancellationToken)
+        {
+            if (ExportGate is { } gate) { await gate; }
+            // Intentionally ignores cancellation: publication must still check ownership.
+            await destination.WriteAsync("complete diagram"u8.ToArray(), CancellationToken.None);
+        }
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    internal sealed class FakeDatabasePanelClient : IDatabasePanelClient
+    {
+        public DatabaseInsertedRow? LastFormattedInsert { get; private set; }
+        public Func<DatabaseValueContentStore>? ResultContentFactory { get; init; }
+        public bool HoldDiagram { get; init; }
+        public bool DiagramCanceled { get; private set; }
         public string? FailWith { get; set; }
 
         public string? LastSql { get; private set; }
@@ -2901,6 +3309,29 @@ public sealed class DatabaseRuntimePanelViewModelTests
                     : null));
         }
 
+        public async Task<IDatabaseDiagramSession> OpenDatabaseDiagramAsync(
+            string driverId,
+            string connectionString,
+            ConnectionProfile? tunnel,
+            CancellationToken cancellationToken)
+        {
+            SchemaGraphCallCount++;
+            if (HoldDiagram)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    DiagramCanceled = true;
+                    throw;
+                }
+            }
+
+            return new FakeDiagramSession();
+        }
+
         public Task<DatabaseSchemaGraph> GetDatabaseSchemaGraphAsync(
             string driverId,
             string connectionString,
@@ -3084,7 +3515,8 @@ public sealed class DatabaseRuntimePanelViewModelTests
                 Truncated: false,
                 RowsAffected: 0,
                 TimeSpan.FromMilliseconds(2),
-                typedRows);
+                typedRows,
+                ResultContentFactory?.Invoke());
             return new DatabaseTablePage(
                 result,
                 query.Offset,
@@ -3124,8 +3556,10 @@ public sealed class DatabaseRuntimePanelViewModelTests
         public string BuildInsertStatement(
             string driverId,
             DatabaseObjectDetails details,
-            DatabaseInsertedRow row)
+            DatabaseInsertedRow row,
+            int maximumUtf8Bytes = int.MaxValue)
         {
+            LastFormattedInsert = row;
             var values = row.Values
                 .Where(value => value.State != DatabaseEditValueState.Default)
                 .ToArray();

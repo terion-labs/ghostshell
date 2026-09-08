@@ -340,7 +340,7 @@ public sealed class AgentTerminalSessionHostTests
         var terminal = fixture.Factory[fixture.SessionId];
         Assert.Equal(1, terminal.PasteCount);
         Assert.Equal(
-            new TerminalPasteInput(text, ConfirmedUnsafe: true),
+            new TerminalPasteInput(text),
             terminal.LastPasteInput);
         Assert.Equal(1, fixture.Authorization.ConsumeCount);
         var completion = Assert.Single(fixture.Authorization.Completions);
@@ -377,7 +377,7 @@ public sealed class AgentTerminalSessionHostTests
         Assert.Equal(0, terminal.PasteCount);
         Assert.Equal(0, terminal.EnterCount);
         Assert.Equal(
-            new TerminalPasteInput(text, ConfirmedUnsafe: true),
+            new TerminalPasteInput(text),
             terminal.LastPasteInput);
         Assert.Equal(1, fixture.Authorization.ConsumeCount);
         var completion = Assert.Single(fixture.Authorization.Completions);
@@ -528,7 +528,7 @@ public sealed class AgentTerminalSessionHostTests
 
         Assert.Equal(HostErrorCode.ConfirmationRequired, result.Error().Code);
         Assert.Equal(1, terminal.PasteCount);
-        Assert.True(terminal.LastPasteInput?.ConfirmedUnsafe);
+        Assert.Equal("echo engine-still-refuses\n", terminal.LastPasteInput?.Text);
         var completion = Assert.Single(fixture.Authorization.Completions);
         Assert.Equal(AgentActionOutcome.Failed, completion.Outcome);
         Assert.Equal("confirmation_required", completion.StableCode);

@@ -6,6 +6,34 @@ public sealed class ProjectDependencyTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
+    [Theory]
+    [InlineData("vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj")]
+    [InlineData("vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj")]
+    [InlineData("vendor/sshnet/SSH.NET.csproj")]
+    [InlineData("vendor/sharpcompress/SharpCompress.csproj")]
+    [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj")]
+    [InlineData("vendor/sqlclient/tests/Tds.TestSupport.csproj")]
+    public void ActiveVendorProjectsHaveNormalSolutionConfigurationMapping(string projectPath)
+    {
+        // Unmapped references lose the parent's configuration in solution builds.
+        var project = Assert.Single(LoadProject("GhostShell.slnx").Descendants("Project"), element =>
+            string.Equals((string?)element.Attribute("Path"), projectPath, StringComparison.Ordinal));
+        Assert.Empty(project.Elements());
+    }
+
+    [Theory]
+    [InlineData("vendor/sshnet/SSH.NET.csproj", "SSH.NET", "Renci.SshNet")]
+    [InlineData("vendor/sharpcompress/SharpCompress.csproj", "SharpCompress", "SharpCompress")]
+    [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj",
+        "Microsoft.Data.SqlClient.Routed", "Microsoft.Data.SqlClient")]
+    public void PatchedProjectNamesMatchRestoreIdentityWithoutChangingClrNames(string projectPath, string packageId, string assemblyName)
+    {
+        var project = LoadProject(projectPath);
+        Assert.Equal(packageId, Path.GetFileNameWithoutExtension(projectPath));
+        Assert.Equal(packageId, Assert.Single(project.Descendants("PackageId")).Value);
+        Assert.Equal(assemblyName, Assert.Single(project.Descendants("AssemblyName")).Value);
+    }
+
     [Fact]
     public void CoreHasOnlyBclDependencies()
     {
@@ -99,11 +127,14 @@ public sealed class ProjectDependencyTests
     }
 
     [Fact]
-    public void InfrastructureDependsOnlyOnApplicationAndCoreProjects()
+    public void InfrastructureDependsOnlyOnApplicationCoreAndPinnedSshTransportProjects()
     {
-        var references = References(
+        var projectReferences = References(
             LoadProject("src/GhostShell.Infrastructure/GhostShell.Infrastructure.csproj"),
-            "ProjectReference")
+            "ProjectReference");
+        Assert.Contains("../../vendor/sshnet/SSH.NET.csproj", projectReferences, StringComparer.Ordinal);
+        var references = projectReferences
+            .Where(reference => reference != "../../vendor/sshnet/SSH.NET.csproj")
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
             .ToHashSet(StringComparer.Ordinal);
@@ -116,9 +147,14 @@ public sealed class ProjectDependencyTests
     [Fact]
     public void FilesBoundaryDoesNotDependOnPresentationRuntimeOrInfrastructureProjects()
     {
-        var references = References(
+        var projectReferences = References(
                 LoadProject("src/GhostShell.Files/GhostShell.Files.csproj"),
-                "ProjectReference")
+                "ProjectReference");
+        // This pinned source adapter replaces the SSH.NET package to enforce
+        // authentication on its loopback listener; no presentation dependency.
+        Assert.Contains("../../vendor/sshnet/SSH.NET.csproj", projectReferences, StringComparer.Ordinal);
+        var references = projectReferences
+            .Where(reference => reference != "../../vendor/sshnet/SSH.NET.csproj")
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
             .ToArray();
@@ -175,16 +211,22 @@ public sealed class ProjectDependencyTests
     [Fact]
     public void DatabasesBoundaryDependsOnlyOnApplicationCoreAndAdoDrivers()
     {
-        var references = References(
+        var projectReferences = References(
                 LoadProject("src/GhostShell.Databases/GhostShell.Databases.csproj"),
-                "ProjectReference")
+                "ProjectReference");
+        // The pinned provider keeps SQL redirects inside the captured route.
+        Assert.Contains(
+            "../../vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj",
+            projectReferences,
+            StringComparer.Ordinal);
+        var references = projectReferences
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
         Assert.Equal(
-            new[] { "GhostShell.Application.csproj", "GhostShell.Core.csproj" },
+            new[] { "GhostShell.Application.csproj", "GhostShell.Core.csproj", "Microsoft.Data.SqlClient.Routed.csproj" },
             references);
 
         var sourceRoot = Path.Combine(RepositoryRoot, "src/GhostShell.Databases");

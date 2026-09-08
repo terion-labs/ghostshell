@@ -526,13 +526,21 @@ public sealed partial class SqliteAgentSessionCheckpointStore
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            WITH ranked AS (
+            WITH activity AS (
+                SELECT run_id, updated_utc FROM agent_run_history_metadata
+                UNION ALL
+                SELECT run_id, updated_utc FROM agent_session_checkpoints
+            ), latest AS (
+                SELECT run_id, MAX(updated_utc) AS updated_utc
+                FROM activity
+                GROUP BY run_id
+            ), ranked AS (
                 SELECT
                     run_id,
                     updated_utc,
                     ROW_NUMBER() OVER (
                         ORDER BY updated_utc DESC, run_id) AS position
-                FROM agent_run_history_metadata
+                FROM latest
                 WHERE $protectedRunId IS NULL OR run_id <> $protectedRunId
             )
             SELECT run_id

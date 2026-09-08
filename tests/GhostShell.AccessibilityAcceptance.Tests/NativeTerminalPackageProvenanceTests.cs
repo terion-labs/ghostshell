@@ -113,6 +113,26 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
     }
 
     [Fact]
+    public void Missing_signature_independent_identity_is_rejected_before_signing()
+    {
+        var fixture = CreateFixture();
+        var receipt = JsonNode.Parse(File.ReadAllText(fixture.ReceiptPath))!.AsObject();
+        receipt["artifact"]!.AsObject().Remove("signatureRemovedSha256");
+        File.WriteAllText(fixture.ReceiptPath, receipt.ToJsonString());
+        File.Copy(fixture.ReceiptPath,
+            Path.Combine(fixture.LicenseDirectory, "Native", "native-terminal-build-receipt.json"),
+            overwrite: true);
+
+        Assert.Throws<InvalidDataException>(() => NativeTerminalPackageProvenance.Validate(
+            fixture.ExecutableDirectory,
+            fixture.ExecutableDirectory,
+            fixture.ExecutableDirectory,
+            fixture.LicenseDirectory,
+            fixture.CatalogPath,
+            fixture.ReceiptPath));
+    }
+
+    [Fact]
     public void Signed_package_metadata_rejects_an_invalid_build_digest()
     {
         var fixture = CreateFixture();
@@ -137,11 +157,69 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
                 fixture.ReceiptPath));
     }
 
+    [Fact]
+    public void Post_sign_validation_rejects_a_different_valid_MachO_program()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        var fixture = CreateFixture();
+        var libraryPath = Path.Combine(fixture.ExecutableDirectory, "libghostty-vt.dylib");
+        File.Copy("/usr/bin/true", libraryPath, overwrite: true);
+        UpdateLibraryEvidence(fixture, libraryPath);
+        File.Copy("/usr/bin/false", libraryPath, overwrite: true);
+
+        Assert.Throws<InvalidDataException>(() =>
+            NativeTerminalPackageProvenance.ValidateAfterCodeSigning(
+                fixture.ExecutableDirectory,
+                fixture.ExecutableDirectory,
+                fixture.ExecutableDirectory,
+                fixture.LicenseDirectory,
+                fixture.CatalogPath,
+                fixture.ReceiptPath));
+    }
+
+    [Fact]
+    public void Signature_normalization_is_stable_across_repeated_ad_hoc_signing()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        var libraryPath = Path.Combine(_temporaryDirectory, "native-library");
+        File.Copy("/usr/bin/true", libraryPath);
+        var expected = NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(libraryPath);
+        foreach (var identifier in new[] { "app.ghostshell.fixture.one", "app.ghostshell.fixture.two" })
+        {
+            var start = new ProcessStartInfo("/usr/bin/codesign")
+            {
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            foreach (var argument in new[] { "--force", "--sign", "-", "--identifier", identifier, libraryPath })
+            {
+                start.ArgumentList.Add(argument);
+            }
+            using var process = Process.Start(start)!;
+            var error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            Assert.True(process.ExitCode == 0, error);
+            var signedSha = Sha256(libraryPath);
+            Assert.Equal(expected, NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(libraryPath));
+            Assert.Equal(signedSha, Sha256(libraryPath));
+        }
+    }
+
     private static void UpdateLibraryEvidence(Fixture fixture, string libraryPath)
     {
         var receipt = JsonNode.Parse(File.ReadAllText(fixture.ReceiptPath))!.AsObject();
         receipt["artifact"]!["bytes"] = new FileInfo(libraryPath).Length;
         receipt["artifact"]!["sha256"] = Sha256(libraryPath);
+        receipt["artifact"]!["signatureRemovedSha256"] =
+            NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(libraryPath);
         File.WriteAllText(fixture.ReceiptPath, receipt.ToJsonString());
         File.Copy(
             fixture.ReceiptPath,
@@ -232,6 +310,29 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
                 fixture.ReceiptPath));
     }
 
+    [Fact]
+    public void Descriptor_safe_pty_bytes_are_receipt_bound()
+    {
+        var fixture = CreateFixture();
+        File.AppendAllText(Path.Combine(fixture.ExecutableDirectory, "libghostshell_pty.dylib"), "changed");
+        Assert.Throws<InvalidDataException>(() => NativeTerminalPackageProvenance.Validate(
+            fixture.ExecutableDirectory, fixture.ExecutableDirectory, fixture.ExecutableDirectory,
+            fixture.LicenseDirectory, fixture.CatalogPath, fixture.ReceiptPath));
+    }
+
+    [Fact]
+    public void Old_receipt_without_descriptor_boundary_is_rejected()
+    {
+        var fixture = CreateFixture();
+        var receipt = JsonNode.Parse(File.ReadAllText(fixture.ReceiptPath))!.AsObject();
+        receipt.Remove("pty");
+        File.WriteAllText(fixture.ReceiptPath, receipt.ToJsonString());
+        File.Copy(fixture.ReceiptPath, Path.Combine(fixture.LicenseDirectory, "Native", "native-terminal-build-receipt.json"), true);
+        Assert.Throws<InvalidDataException>(() => NativeTerminalPackageProvenance.Validate(
+            fixture.ExecutableDirectory, fixture.ExecutableDirectory, fixture.ExecutableDirectory,
+            fixture.LicenseDirectory, fixture.CatalogPath, fixture.ReceiptPath));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_temporaryDirectory))
@@ -255,6 +356,7 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
         {
             schemaVersion = 1,
             format = "ghostshell-native-terminal-component-catalog-v1",
+            pty = PtyTestProvenance.Catalog,
             component = new
             {
                 sourceCommit = Commit,
@@ -313,6 +415,7 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
         {
             schemaVersion = 1,
             format = "ghostshell-native-terminal-build-receipt-v1",
+            pty = PtyTestProvenance.Create(executableDirectory, licenseDirectory),
             catalogSha256 = Sha256(catalogPath),
             targetRid = "osx-arm64",
             source = new
@@ -338,6 +441,7 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
                 path = "libghostty-vt.dylib",
                 bytes = new FileInfo(libraryPath).Length,
                 sha256 = Sha256(libraryPath),
+                signatureRemovedSha256 = new string('0', 64),
             },
             license = new
             {

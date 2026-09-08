@@ -40,10 +40,10 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
     private string? _bootDirectory;
     private readonly ConcurrentDictionary<WorkspaceId, WorkspaceState> _workspaces = new();
 
-    public WorkspaceSdkIsolationProvider(string executable)
+    public WorkspaceSdkIsolationProvider(string executable, string? stateRoot = null)
         : this(
             executable,
-            Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "sdk-workspaces"),
+            stateRoot ?? Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "sdk-workspaces"),
             BundledWorkspacePacketGatewayBackend.ResolveHostHelperExecutable(new PathConnectionExecutableLocator())
                 ?? Path.Combine(AppContext.BaseDirectory, "workspace-network-gateway"),
             new WorkspaceGatewayProcessRunner(),

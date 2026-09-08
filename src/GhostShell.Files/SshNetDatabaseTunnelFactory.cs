@@ -18,6 +18,11 @@ public sealed class SshNetDatabaseTunnelFactory(
     IConnectionRuntime? connectionRuntime = null,
     IWorkspaceNetworkConnector? networkConnector = null) : IDatabaseTunnelFactory
 {
+    public CancellationToken RouteLifetime => networkConnector?.RouteLifetime ?? CancellationToken.None;
+
+    public IDatabaseTunnelFactory CaptureRoute() => new SshNetDatabaseTunnelFactory(
+        secretVault, knownHosts, connectionRuntime, networkConnector?.CaptureRoute());
+
     public async ValueTask<IDatabaseTunnelLease> OpenAsync(
         ConnectionProfile connection,
         string targetHost,
@@ -26,6 +31,11 @@ public sealed class SshNetDatabaseTunnelFactory(
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetHost);
+        var route = networkConnector?.CaptureRoute();
+        using var routeCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, route?.RouteLifetime ?? CancellationToken.None);
+        cancellationToken = routeCancellation.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         if (connection.Endpoint is not ConnectionEndpoint.Ssh endpoint)
         {
             throw new InvalidOperationException(
@@ -54,7 +64,7 @@ public sealed class SshNetDatabaseTunnelFactory(
                 endpoint,
                 endpoint.Username,
                 authentication,
-                networkConnector);
+                route);
             info.Timeout = TimeSpan.FromSeconds(15);
             info.RetryAttempts = 1;
             client = new SshClient(info)
@@ -256,10 +266,13 @@ public sealed class SshNetDatabaseTunnelFactory(
         List<byte[]> ownedBuffers,
         List<IDisposable> ownedDisposables) : IDatabaseTunnelLease
     {
+        private int _disposed;
         public int LocalPort { get; } = (int)forward.BoundPort;
+        public bool IsClosed => Volatile.Read(ref _disposed) != 0 || !client.IsConnected || !forward.IsStarted;
 
         public ValueTask DisposeAsync()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) { return ValueTask.CompletedTask; }
             try
             {
                 forward.Stop();

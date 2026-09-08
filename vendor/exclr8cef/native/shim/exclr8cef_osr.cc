@@ -104,6 +104,7 @@ excef_nav_entry_cb_t g_nav_entry_cb = nullptr;
 std::map<int, CefRefPtr<CefRegistration>> g_devtools_observers;
 std::mutex g_devtools_observers_mu;
 excef_before_popup_cb_t g_before_popup_cb = nullptr;
+excef_host_popup_cb_t g_host_popup_cb = nullptr;
 excef_cert_error_cb_t g_cert_error_cb = nullptr;
 excef_frame_lifecycle_cb_t g_frame_lifecycle_cb = nullptr;
 excef_main_frame_changed_cb_t g_main_frame_changed_cb = nullptr;
@@ -704,7 +705,7 @@ bool Exclr8CefOsrHandler::OnBeforeUnloadDialog(CefRefPtr<CefBrowser> /*browser*/
 }
 
 bool Exclr8CefOsrHandler::GetAuthCredentials(CefRefPtr<CefBrowser> /*browser*/,
-                                              const CefString& /*origin_url*/,
+                                              const CefString& origin_url,
                                               bool isProxy,
                                               const CefString& host,
                                               int port,
@@ -720,9 +721,10 @@ bool Exclr8CefOsrHandler::GetAuthCredentials(CefRefPtr<CefBrowser> /*browser*/,
     std::string host_s = host.ToString();
     std::string realm_s = realm.ToString();
     std::string scheme_s = scheme.ToString();
+    std::string origin_s = origin_url.ToString();
     g_auth_request_cb(id_, token, isProxy ? 1 : 0,
                       host_s.c_str(), port,
-                      realm_s.c_str(), scheme_s.c_str());
+                      realm_s.c_str(), scheme_s.c_str(), origin_s.c_str());
     return true;
 }
 
@@ -1710,6 +1712,15 @@ void Exclr8CefOsrHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
         std::lock_guard<std::mutex> lock(browser_mu_);
         browser_ = browser;
     }
+    if (popup_opener_id_ > 0) {
+        if (auto opener = LookupOsrHandler(popup_opener_id_)) {
+            opener->ForgetPendingPopup(popup_request_id_);
+        }
+    }
+    if (popup_aborted_) {
+        browser->GetHost()->CloseBrowser(true);
+        return;
+    }
     browser->GetHost()->WasResized();
     if (g_browser_initialized_cb) {
         g_browser_initialized_cb(id_);
@@ -1719,18 +1730,42 @@ void Exclr8CefOsrHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
 bool Exclr8CefOsrHandler::OnBeforePopup(
         CefRefPtr<CefBrowser> /*browser*/,
         CefRefPtr<CefFrame> /*frame*/,
-        int /*popup_id*/,
+        int popup_id,
         const CefString& target_url,
         const CefString& target_frame_name,
         cef_window_open_disposition_t target_disposition,
         bool user_gesture,
         const CefPopupFeatures& /*popupFeatures*/,
-        CefWindowInfo& /*windowInfo*/,
-        CefRefPtr<CefClient>& /*client*/,
+        CefWindowInfo& windowInfo,
+        CefRefPtr<CefClient>& client,
         CefBrowserSettings& /*settings*/,
         CefRefPtr<CefDictionaryValue>& extra_info,
         bool* /*no_javascript_access*/) {
     extra_info = CreateBrowserExtraInfo();
+    if (g_host_popup_cb) {
+        const int child_id = AllocateBrowserId();
+        auto child = CefRefPtr<Exclr8CefOsrHandler>(new Exclr8CefOsrHandler(
+            child_id, 640, 480, device_scale_factor_, paint_cb_));
+        child->popup_opener_id_ = id_;
+        child->popup_request_id_ = popup_id;
+        RegisterOsrHandler(child_id, child);
+        const std::string url = target_url.ToString();
+        const std::string frame = target_frame_name.ToString();
+        if (!paint_cb_ || !g_host_popup_cb(id_, child_id, url.c_str(), frame.c_str(),
+                static_cast<int>(target_disposition), user_gesture ? 1 : 0)) {
+            child->AbortPendingPopup();
+            return true;
+        }
+        pending_popups_[popup_id] = child;
+        windowInfo.SetAsWindowless((CefWindowHandle)0);
+        windowInfo.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
+        windowInfo.shared_texture_enabled = false;
+        windowInfo.external_begin_frame_enabled = false;
+        client = child;
+        // Leave no_javascript_access untouched: the original native popup
+        // must retain the normal opener and returned WindowProxy semantics.
+        return false;
+    }
     return ForwardNewTabRequest(
         target_url,
         target_frame_name,
@@ -1764,7 +1799,7 @@ bool Exclr8CefOsrHandler::ForwardNewTabRequest(
         const CefString& target_frame_name,
         cef_window_open_disposition_t target_disposition,
         bool user_gesture) {
-    if (!g_before_popup_cb || target_url.empty()) {
+    if (!g_before_popup_cb) {
         return false;
     }
 
@@ -1779,8 +1814,29 @@ bool Exclr8CefOsrHandler::ForwardNewTabRequest(
     return true;
 }
 
+void Exclr8CefOsrHandler::ForgetPendingPopup(int popup_id) {
+    pending_popups_.erase(popup_id);
+}
+
+void Exclr8CefOsrHandler::AbortPendingPopup() {
+    if (popup_aborted_) return;
+    popup_aborted_ = true;
+    UnregisterOsrHandler(id_);
+    if (g_browser_closed_cb) g_browser_closed_cb(id_);
+}
+
+void Exclr8CefOsrHandler::OnBeforePopupAborted(CefRefPtr<CefBrowser>, int popup_id) {
+    const auto pending = pending_popups_.find(popup_id);
+    if (pending == pending_popups_.end()) return;
+    auto child = pending->second;
+    pending_popups_.erase(pending);
+    child->AbortPendingPopup();
+}
+
 void Exclr8CefOsrHandler::OnBeforeClose(CefRefPtr<CefBrowser> /*browser*/) {
     int closed_id = id_;
+    auto pending = std::move(pending_popups_);
+    for (auto& entry : pending) entry.second->AbortPendingPopup();
 
     // Cancel any pending deferred-response callbacks owned by this browser.
     // Without this, the CEF callback objects stay refcounted in our registry
@@ -2539,11 +2595,51 @@ private:
     IMPLEMENT_REFCOUNTING(CookieDeletionRelay);
 };
 
+class SetReadyPreference : public CefCompletionCallback, public CefTask {
+public:
+    SetReadyPreference(int context_handle, std::string name,
+                       CefRefPtr<CefValue> value, int request_id)
+        : context_handle_(context_handle), name_(std::move(name)),
+          value_(value), request_id_(request_id) {}
+
+    void OnComplete() override {
+        // Cookie manager readiness includes the asynchronous durable profile
+        // initialization. Preference access itself belongs to the CEF UI thread.
+        if (CefCurrentlyOn(TID_UI)) Execute();
+        else CefPostTask(TID_UI, this);
+    }
+
+    void Execute() override {
+        auto context = ResolveContext(context_handle_);
+        CefString error;
+        const bool accepted = context && context->SetPreference(name_, value_, error);
+        if (exclr8cef::g_request_context_completion_cb)
+            exclr8cef::g_request_context_completion_cb(request_id_, accepted ? 1 : 0);
+    }
+
+private:
+    int context_handle_;
+    std::string name_;
+    CefRefPtr<CefValue> value_;
+    int request_id_;
+    IMPLEMENT_REFCOUNTING(SetReadyPreference);
+};
+
 }  // namespace
 
 extern "C" void excef_set_request_context_completion_callback(
     excef_request_context_completion_cb_t cb) {
     exclr8cef::g_request_context_completion_cb = cb;
+}
+
+extern "C" int excef_set_preference_async(
+    int context_handle, const char* name, const char* value_json, int request_id) {
+    auto context = ResolveContext(context_handle);
+    if (!context || !name || !*name || !value_json) return 0;
+    auto value = CefParseJSON(value_json, JSON_PARSER_RFC);
+    if (!value) return 0;
+    return context->GetCookieManager(
+        new SetReadyPreference(context_handle, name, value, request_id)) ? 1 : 0;
 }
 
 extern "C" int excef_clear_http_auth_credentials_async(
@@ -3019,9 +3115,15 @@ public:
         : browser_id_(browser_id), force_close_(force_close) {}
 
     void Execute() override {
-        auto browser = exclr8cef::GetOsrBrowser(browser_id_);
+        auto handler = exclr8cef::LookupOsrHandler(browser_id_);
+        if (!handler) return;
+        auto browser = handler->browser();
         if (browser) {
             browser->GetHost()->CloseBrowser(force_close_);
+        } else {
+            // A hosted popup is registered before native creation. Remember
+            // its close so a late OnAfterCreated cannot resurrect the view.
+            handler->AbortPendingPopup();
         }
     }
 
@@ -3138,7 +3240,7 @@ extern "C" void excef_set_file_dialog_callback(excef_file_dialog_cb_t cb) { excl
 extern "C" void excef_set_context_menu_callback(excef_context_menu_cb_t cb) { exclr8cef::g_context_menu_cb = cb; }
 extern "C" void excef_set_download_starting_callback(excef_download_starting_cb_t cb) { exclr8cef::g_download_starting_cb = cb; }
 extern "C" void excef_set_download_progress_callback(excef_download_progress_cb_t cb) { exclr8cef::g_download_progress_cb = cb; }
-extern "C" void excef_set_auth_request_callback(excef_auth_request_cb_t cb) { exclr8cef::g_auth_request_cb = cb; }
+extern "C" void excef_set_auth_request_callback_v2(excef_auth_request_cb_t cb) { exclr8cef::g_auth_request_cb = cb; }
 extern "C" void excef_set_find_result_callback(excef_find_result_cb_t cb) { exclr8cef::g_find_result_cb = cb; }
 extern "C" void excef_set_render_process_gone_callback(excef_render_process_gone_cb_t cb) { exclr8cef::g_render_process_gone_cb = cb; }
 extern "C" void excef_set_scheme_request_callback(excef_scheme_request_cb_t cb) { exclr8cef::g_scheme_request_cb = cb; }
@@ -3806,6 +3908,10 @@ extern "C" void excef_set_media_access_callback(excef_media_access_cb_t cb) {
 
 extern "C" void excef_set_before_popup_callback(excef_before_popup_cb_t cb) {
     exclr8cef::g_before_popup_cb = cb;
+}
+
+extern "C" void excef_set_host_popup_callback(excef_host_popup_cb_t cb) {
+    exclr8cef::g_host_popup_cb = cb;
 }
 
 extern "C" void excef_set_cert_error_callback(excef_cert_error_cb_t cb) {

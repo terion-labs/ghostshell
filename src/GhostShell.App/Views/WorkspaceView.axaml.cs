@@ -388,6 +388,11 @@ public sealed partial class WorkspaceView : UserControl
 
     private void OnWorkspacesMenuCloseClick(object? sender, RoutedEventArgs e)
     {
+        if (sender is not Control { DataContext: LauncherWorkspaceViewModel { CanClose: true } })
+        {
+            return;
+        }
+
         CloseWorkspaceRequested?.Invoke(sender, e);
         WorkspacesMenuButton.Flyout?.Hide();
     }

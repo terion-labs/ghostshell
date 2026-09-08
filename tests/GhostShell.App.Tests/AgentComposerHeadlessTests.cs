@@ -6,6 +6,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
@@ -1503,6 +1504,80 @@ public sealed partial class AgentChatViewModelTests
                 Assert.Contains("Checking the contradiction", rendered.Text, StringComparison.Ordinal);
                 Assert.Contains("Writing the answer", rendered.Text, StringComparison.Ordinal);
                 Assert.DoesNotContain("premiseChecking", rendered.Text, StringComparison.Ordinal);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public Task Long_markdown_realizes_only_viewport_editors_and_keeps_complete_copy() =>
+        RunAgentComposerHeadlessAsync(async () =>
+        {
+            var markdown = string.Join("\n\n", Enumerable.Range(0, 200)
+                .Select(index => $"```text\nblock-{index:D3}\n```"));
+            var preview = new MarkdownPreviewView { Text = markdown, ContinuousSelection = true };
+            var window = new Window { Width = 700, Height = 650, Content = preview };
+            try
+            {
+                window.Show();
+                for (var attempt = 0; attempt < 80 && !preview.IsPresentationReady; attempt++)
+                {
+                    await Task.Delay(25);
+                    window.UpdateLayout();
+                }
+
+                var list = Assert.Single(preview.GetVisualDescendants().OfType<ListBox>());
+                Assert.Equal(200, list.ItemCount);
+                Assert.InRange(preview.GetVisualDescendants().OfType<CodePreviewView>().Count(), 1, 32);
+                list.ScrollIntoView(list.Items[^1]!);
+                for (var attempt = 0; attempt < 40
+                    && !preview.GetVisualDescendants().OfType<CodePreviewView>().Any(code => code.Text == "block-199"); attempt++)
+                {
+                    await Task.Delay(25);
+                    window.UpdateLayout();
+                }
+
+                Assert.Contains(preview.GetVisualDescendants().OfType<CodePreviewView>(), code => code.Text == "block-199");
+                Assert.InRange(preview.GetVisualDescendants().OfType<CodePreviewView>().Count(), 1, 32);
+                var copy = Assert.Single(preview.GetVisualDescendants().OfType<Button>(), button => Equals(button.Content, "Copy all Markdown"));
+                copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Equal(markdown, await window.Clipboard!.TryGetTextAsync());
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public Task Huge_markdown_table_keeps_formatted_rows_accessible_in_bounded_pages() =>
+        RunAgentComposerHeadlessAsync(async () =>
+        {
+            var markdown = "|A|B|\n|-|-|\n" + string.Join('\n', Enumerable.Range(0, 2000).Select(index => $"|{index}|value|"));
+            var preview = new MarkdownPreviewView { Text = markdown, ContinuousSelection = true };
+            var window = new Window { Width = 700, Height = 650, Content = preview };
+            try
+            {
+                window.Show();
+                for (var attempt = 0; attempt < 80 && !preview.IsPresentationReady; attempt++)
+                {
+                    await Task.Delay(25);
+                    window.UpdateLayout();
+                }
+
+                Assert.Empty(preview.GetVisualDescendants().OfType<CodePreviewView>());
+                Assert.InRange(preview.GetVisualDescendants().OfType<SelectableTextBlock>().Count(), 1, 40);
+                var nextRows = Assert.Single(preview.GetVisualDescendants().OfType<Button>(), button => Equals(button.Content, "Next rows"));
+                while (nextRows.IsEnabled)
+                {
+                    nextRows.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
+                window.UpdateLayout();
+                Assert.Contains(preview.GetVisualDescendants().OfType<SelectableTextBlock>(),
+                    text => text.Inlines?.OfType<Run>().Any(run => run.Text == "1999") == true);
+                Assert.InRange(preview.GetVisualDescendants().OfType<SelectableTextBlock>().Count(), 1, 40);
             }
             finally
             {

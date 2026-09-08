@@ -1,0 +1,21 @@
+--- a/tests/upstream/TDS/TDSPacketHeader.cs
++++ b/tests/upstream/TDS/TDSPacketHeader.cs
+@@ -181,13 +181,17 @@
+         public bool Inflate(Stream source)
+         {
+             // Check if inflation is complete
+-            if (_inflationOffset < Size)
++            while (_inflationOffset < Size)
+             {
+                 // Calculate remaining bytes
+                 int packetHeaderLeft = Size - _inflationOffset;
+ 
+                 // Read the rest of the packet header
+                 int packetHeaderRead = source.Read(_data, _inflationOffset, packetHeaderLeft);
++                if (packetHeaderRead == 0)
++                {
++                    throw new EndOfStreamException("The TDS packet header is incomplete.");
++                }
+ 
+                 // Update offset
+                 _inflationOffset += (ushort)packetHeaderRead;

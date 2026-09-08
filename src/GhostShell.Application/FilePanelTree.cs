@@ -22,67 +22,81 @@ internal static class FilePanelTree
             throw new ArgumentOutOfRangeException(nameof(scope), scope, null);
         }
 
-        var pageSize = client.Profiles.FirstOrDefault(profile =>
+        var pageSize = Math.Min(500, client.Profiles.FirstOrDefault(profile =>
             string.Equals(profile.Id, root.ProviderProfileId, StringComparison.Ordinal))
-            ?.MaximumPageSize ?? 250;
-        var pending = new Stack<FilePanelLocation>();
-        var visited = new HashSet<FilePanelLocation>();
-        pending.Push(root.WithVersion(null));
-
-        while (pending.TryPop(out var directory))
+            ?.MaximumPageSize ?? 250);
+        var ancestors = new HashSet<FilePanelLocation>();
+        await foreach (var entry in WalkAsync(root.WithVersion(null)).ConfigureAwait(false))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!visited.Add(directory))
+            yield return entry;
+        }
+
+        async IAsyncEnumerable<FilePanelResult<FilePanelEntry>> WalkAsync(FilePanelLocation directory)
+        {
+            if (!ancestors.Add(directory))
             {
-                continue;
+                yield break;
             }
 
-            var children = new List<FilePanelEntry>();
-            string? continuation = null;
-            var usedContinuations = new HashSet<string>(StringComparer.Ordinal);
-            do
+            try
             {
-                var page = await client.ListAsync(
-                    new FilePanelListRequest(
-                        directory,
-                        pageSize,
-                        continuation,
-                        showHidden),
-                    cancellationToken).ConfigureAwait(false);
-                if (!page.IsSuccess)
+                string? continuation = null;
+                string? checkpoint = null;
+                long checkpointWindow = 1;
+                long checkpointDistance = 0;
+                do
                 {
-                    yield return FilePanelResult<FilePanelEntry>.Failure(page.Error!);
-                    yield break;
-                }
-
-                foreach (var entry in page.Value!.Entries)
-                {
-                    if (showHidden || !entry.IsHidden)
+                    var page = await client.ListAsync(
+                        new FilePanelListRequest(
+                            directory,
+                            pageSize,
+                            continuation,
+                            showHidden),
+                        cancellationToken).ConfigureAwait(false);
+                    if (!page.IsSuccess)
                     {
-                        children.Add(entry);
-                        yield return FilePanelResult<FilePanelEntry>.Success(entry);
+                        yield return FilePanelResult<FilePanelEntry>.Failure(page.Error!);
+                        yield break;
+                    }
+
+                    foreach (var entry in page.Value!.Entries)
+                    {
+                        if (showHidden || !entry.IsHidden)
+                        {
+                            yield return FilePanelResult<FilePanelEntry>.Success(entry);
+                            if (scope == FilePanelDiscoveryScope.Subtree && entry.Kind == FilePanelEntryKind.Directory)
+                            {
+                                // Demand-driven depth-first traversal retains one provider page per
+                                // ancestor, not every sibling and every file in the whole subtree.
+                                await foreach (var child in WalkAsync(entry.Location.WithVersion(null)).ConfigureAwait(false))
+                                {
+                                    yield return child;
+                                }
+                            }
+                        }
+                    }
+
+                    continuation = page.Value.ContinuationToken;
+                    if (continuation is not null && string.Equals(continuation, checkpoint, StringComparison.Ordinal))
+                    {
+                        yield return InvalidContinuation();
+                        yield break;
+                    }
+                    if (++checkpointDistance == checkpointWindow)
+                    {
+                        // Brent's cycle checkpoint needs constant retained token
+                        // space even when a search scans many nonmatching pages.
+                        checkpoint = continuation;
+                        checkpointDistance = 0;
+                        checkpointWindow = Math.Min(long.MaxValue / 2, checkpointWindow) * 2;
                     }
                 }
+                while (continuation is not null);
 
-                continuation = page.Value.ContinuationToken;
-                if (continuation is not null && !usedContinuations.Add(continuation))
-                {
-                    yield return InvalidContinuation();
-                    yield break;
-                }
             }
-            while (continuation is not null);
-
-            if (scope != FilePanelDiscoveryScope.Subtree)
+            finally
             {
-                continue;
-            }
-
-            foreach (var child in children
-                .Where(entry => entry.Kind == FilePanelEntryKind.Directory)
-                .Reverse())
-            {
-                pending.Push(child.Location.WithVersion(null));
+                ancestors.Remove(directory);
             }
         }
     }

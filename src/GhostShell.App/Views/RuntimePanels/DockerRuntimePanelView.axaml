@@ -254,7 +254,7 @@
 
     <controls:PanelChrome.Actions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
-        <TextBlock
+        <controls:LiveRegionTextBlock
             VerticalAlignment="Center"
             Classes="Muted DockerStatusSummary"
             FontSize="{DynamicResource ShellFontSize9}"

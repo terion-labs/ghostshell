@@ -22,6 +22,30 @@ public sealed class RedisConnectionCatalog(
     public IReadOnlyList<DatabaseDriverDescriptor> Drivers { get; } =
         [.. relational.Drivers, RedisDatabase.Descriptor];
 
+    public bool IsConnectionStringValid(string driverId, string connectionString)
+    {
+        if (!IsRedis(driverId))
+        {
+            return _relational.IsConnectionStringValid(driverId, connectionString);
+        }
+        try
+        {
+            if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)
+                && uri.Scheme is "redis" or "rediss" && !string.IsNullOrEmpty(uri.Query))
+            {
+                // The editor currently ignores Redis URI query options. That
+                // permissive behavior cannot prove an export contains no secret.
+                return false;
+            }
+            _ = Parse(connectionString);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     public async Task<DatabaseSessionInfo> DescribeSessionAsync(
         string driverId,
         string connectionString,

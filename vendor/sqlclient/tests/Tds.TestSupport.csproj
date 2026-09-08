@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>GhostShell.SqlClient.Tds.TestSupport</AssemblyName>
+    <Version>6.0.2</Version>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Unmodified, test-only upstream token readers consume complete-frame
+         MemoryStreams. The other warning is the synthetic fixture certificate
+         constructor. Neither exception applies to first-party test code. -->
+    <NoWarn>$(NoWarn);CA2022;SYSLIB0057</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="upstream/TDS/**/*.cs" />
+    <Compile Include="upstream/TDS.EndPoint/**/*.cs" Exclude="upstream/TDS.EndPoint/**/*.Windows.cs" />
+    <Compile Include="upstream/TDS.Servers/**/*.cs" />
+    <None Include="upstream/TDS.Servers/TdsServerCertificate.pfx" Link="TdsServerCertificate.pfx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

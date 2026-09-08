@@ -1048,7 +1048,8 @@ public sealed partial class MainWindow
                     database.Request.StorePassword,
                     database.Request.TunnelConnectionId,
                     database.Request.InlineTunnel,
-                    _lifetime.Token);
+                    _lifetime.Token,
+                    database.Request.DraftId);
                 if (profile is not null)
                 {
                     _ = ViewModel.ApplyDatabasePanelConnection(
@@ -1148,7 +1149,8 @@ public sealed partial class MainWindow
                 database.Request.StorePassword,
                 database.Request.TunnelConnectionId,
                 database.Request.InlineTunnel,
-                _lifetime.Token);
+                _lifetime.Token,
+                database.Request.DraftId);
             if (profile is not null)
             {
                 _ = ViewModel.ApplyDatabasePanelConnection(

@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GhostShell.Browser.HostedBrowserPopupView">
+  <Border Background="{DynamicResource ShellSurfaceOverlayBrush}"
+          BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="1"
+          CornerRadius="{DynamicResource ShellControlCornerRadius}" ClipToBounds="True">
+    <DockPanel>
+      <Border DockPanel.Dock="Top" Classes="PanelToolbar" Padding="8">
+        <DockPanel>
+          <Button x:Name="CloseButton" DockPanel.Dock="Right" Content="Close popup" />
+          <TextBlock x:Name="OriginText" VerticalAlignment="Center" Margin="0,0,8,0"
+                     Text="Popup · about:blank" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+      </Border>
+      <ContentControl x:Name="BrowserContent" />
+    </DockPanel>
+  </Border>
+</UserControl>

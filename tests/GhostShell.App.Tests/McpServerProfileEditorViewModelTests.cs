@@ -699,10 +699,12 @@ public sealed class McpServerProfileEditorViewModelTests
             editor.Descendants(view + "ItemsControl"),
             element => string.Equals(element.Attribute("ItemsSource")?.Value
 , "{Binding HttpHeaders}", StringComparison.Ordinal));
-        Assert.NotNull(editor.Descendants(view + "TextBlock").Single(element => string.Equals(element.Attribute(x + "Name")?.Value, "ValidationError"
-, StringComparison.Ordinal) && string.Equals(element.Attribute("Focusable")?.Value, "True"
-, StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(
-                element.Attribute("AutomationProperties.Name")?.Value)));
+        var validationError = Assert.Single(
+            editor.Descendants(XName.Get("LiveRegionTextBlock", "using:GhostShell.App.Controls")),
+            element => string.Equals(element.Attribute(x + "Name")?.Value, "ValidationError", StringComparison.Ordinal));
+        Assert.Equal("True", validationError.Attribute("Focusable")?.Value);
+        Assert.Equal("Assertive", validationError.Attribute("AutomationProperties.LiveSetting")?.Value);
+        Assert.Equal("MCP server validation error", validationError.Attribute("AutomationProperties.Name")?.Value);
         // The sentence lives on the executable field's Hint, which LabeledField
         // renders below the control; the guarantee is that it is stated, not
         // which element states it.

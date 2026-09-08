@@ -9,7 +9,7 @@ namespace GhostShell.Files;
 /// Establishes the local-user trust boundary for encrypted content paths
 /// before LiteDB or a cleanup operation is allowed to follow them.
 /// </summary>
-internal static class PrivateContentPathGuard
+public static class PrivateContentPathGuard
 {
     private const ushort FileTypeMask = 0xF000;
     private const ushort DirectoryFileType = 0x4000;
@@ -59,10 +59,10 @@ internal static class PrivateContentPathGuard
         ValidatePrivateDirectory(path);
     }
 
-    internal static void ValidatePrivateDirectory(string path) =>
+    public static void ValidatePrivateDirectory(string path) =>
         ValidatePrivatePath(path, DirectoryFileType, OwnerDirectoryMode, isDirectory: true);
 
-    internal static void ValidatePrivateFile(string path) =>
+    public static void ValidatePrivateFile(string path) =>
         ValidatePrivatePath(path, RegularFileType, OwnerFileMode, isDirectory: false);
 
     internal static FileStream CreatePrivateFile(string path, FileShare share)

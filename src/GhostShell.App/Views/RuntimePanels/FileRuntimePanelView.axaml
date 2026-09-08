@@ -127,6 +127,10 @@
           <Border
               Classes="FileToolbarGroup">
             <StackPanel Orientation="Horizontal">
+              <Button Classes="SecondaryButton" Content="Previous page"
+                  Command="{Binding PreviousPageCommand}" IsVisible="{Binding HasPreviousPage}" />
+              <Button Classes="SecondaryButton" Content="Next page"
+                  Command="{Binding NextPageCommand}" IsVisible="{Binding HasNextPage}" />
               <Button Classes="IconButton FileToolbarAction" Click="OnNavigateUpClick" IsEnabled="{Binding CanNavigateUp}" ToolTip.Tip="Parent folder" AutomationProperties.Name="Parent folder">
                 <icons:SymbolIcon Symbol="ArrowUp" FontSize="14" />
               </Button>
@@ -687,10 +691,13 @@
                     Text="{Binding SelectedMetadata.Size}" />
               </StackPanel>
               <!-- An archive is listed, never unpacked. -->
-              <components:PreviewTreeView
-                  Margin="{controls:Inset Sm}"
-                  DataContext="{Binding PreviewTree}"
-                  IsVisible="{Binding $parent[UserControl].DataContext.HasTreePreview}" />
+              <Grid RowDefinitions="Auto,*" IsVisible="{Binding HasTreePreview}">
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                  <Button Content="Previous archive page" Command="{Binding PreviousArchivePageCommand}" IsVisible="{Binding HasPreviousArchivePage}" />
+                  <Button Content="Next archive page" Command="{Binding NextArchivePageCommand}" IsVisible="{Binding HasNextArchivePage}" />
+                </StackPanel>
+                <components:PreviewTreeView Grid.Row="1" Margin="{controls:Inset Sm}" DataContext="{Binding PreviewTree}" />
+              </Grid>
               <!-- Markdown is laid out as native controls, so its text stays
                    selectable and copyable like any other text in the shell. -->
               <ScrollViewer
@@ -745,7 +752,7 @@
                       AutomationProperties.Name="Previous PDF page">
                     <icons:SymbolIcon Symbol="ChevronLeft" FontSize="12" />
                   </Button>
-                  <TextBlock
+                  <controls:LiveRegionTextBlock
                       VerticalAlignment="Center"
                       Classes="Muted"
                       FontSize="{DynamicResource ShellFontSize10}"

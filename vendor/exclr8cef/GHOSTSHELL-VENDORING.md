@@ -3,7 +3,7 @@
 This directory vendors Exclr8CEF commit
 `7751a0b76cbabaf1fa81ef2b71b694a44c87f77e` and applies the reviewed
 GhostSHELL hardening needed for a production off-screen browser host. The
-resulting native binding version is `0.8.0-ghostshell.7`.
+resulting native binding version is `0.8.0-ghostshell.10`.
 
 `GHOSTSHELL-PATCHSET.sha256` is the canonical, path-sorted manifest of every
 file that differs from that upstream commit. Its own SHA-256 is recorded in
@@ -21,6 +21,17 @@ accelerated presentation with a fixed-rate CEF frame clock and reusable
 compositor-released buffers, and an
 Avalonia-rendered browser context menu, browser-tab context commands, and
 modifier/middle-click new-tab routing.
+
+The v2 authentication callback carries CEF's challenge origin URL unchanged
+to the managed boundary. The versioned export prevents older native libraries
+from being mistaken for the origin-aware ABI used by saved credentials.
+
+Hosted popups reserve a managed OSR browser before native creation and adopt
+the original CEF popup instead of canceling/recreating its URL. This preserves
+WindowProxy/opener, delayed blank navigation, postMessage and window.close
+while keeping the popup inside an owning host surface and request context.
+Creation abort and opener teardown release pending reservations. A host that
+does not accept ownership cannot create an untracked native popup window.
 
 Disk-backed request contexts explicitly persist session cookies across process
 restarts. Contexts without a cache path remain in-memory and do not retain them.

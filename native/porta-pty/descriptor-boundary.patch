@@ -1,0 +1,55 @@
+--- a/porta_pty.c
++++ b/porta_pty.c
+@@ -18,6 +18,7 @@
+     #include <pty.h>
+ #endif
+ 
++
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+@@ -33,6 +34,8 @@
+     #define PTY_EXPORT __attribute__((visibility("default")))
+ #endif
+ 
++#include "descriptor-boundary.h"
++
+ /*
+  * Structure to pass terminal settings to the native spawn function.
+  * This mirrors the managed Termios structure.
+@@ -129,6 +132,11 @@
+     }
+     
+     /* Fork with PTY */
++    int descriptor_ceiling = ghostshell_descriptor_ceiling();
++    if (descriptor_ceiling < 0) {
++        result.error = errno;
++        return result;
++    }
+     int master_fd = -1;
+     pid_t pid = forkpty(&master_fd, NULL, term_ptr, ws_ptr);
+     
+@@ -144,6 +152,8 @@
+          * This is the key to avoiding W^X issues.
+          */
+         
++        ghostshell_close_child_descriptors(descriptor_ceiling);
++
+         /* Change working directory if specified */
+         if (working_dir != NULL && working_dir[0] != '\0') {
+             if (chdir(working_dir) == -1) {
+@@ -187,6 +197,14 @@
+     }
+     
+     /* Parent process */
++    if (fcntl(master_fd, F_SETFD, FD_CLOEXEC) == -1) {
++        int error = errno;
++        kill(pid, SIGKILL);
++        while (waitpid(pid, NULL, 0) == -1 && errno == EINTR) {}
++        close(master_fd);
++        result.error = error;
++        return result;
++    }
+     result.master_fd = master_fd;
+     result.pid = pid;
+     result.error = 0;

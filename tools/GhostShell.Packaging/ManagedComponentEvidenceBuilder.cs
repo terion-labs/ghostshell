@@ -23,7 +23,7 @@ internal sealed record ManagedComponentEvidenceLimits(
     long MaximumBytes,
     int MaximumRelativePathDepth);
 
-internal static class ManagedComponentEvidenceBuilder
+internal static partial class ManagedComponentEvidenceBuilder
 {
     private const int MaximumCatalogBytes = 4 * 1024 * 1024;
     internal const int MaximumGeneratedEvidenceFiles = 1_024;
@@ -53,6 +53,9 @@ internal static class ManagedComponentEvidenceBuilder
     [
         "Exclr8Cef.dll",
         "Exclr8Cef.WebView.dll",
+        "Microsoft.Data.SqlClient.dll",
+        "Renci.SshNet.dll",
+        "SharpCompress.dll",
         "GhostShell.dll",
         "GhostShell.Agent.dll",
         "GhostShell.Agent.Providers.dll",
@@ -113,7 +116,8 @@ internal static class ManagedComponentEvidenceBuilder
         string catalogPath,
         string nugetPackageRoot,
         string productVersion,
-        ManagedComponentEvidenceLimits limits)
+        ManagedComponentEvidenceLimits limits,
+        string? sourceRoot = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             publishDirectory,
@@ -155,7 +159,9 @@ internal static class ManagedComponentEvidenceBuilder
                 "project" => ValidateProject(
                     publishDirectory,
                     dependency,
-                    dependencyManifest.Libraries[dependency.Identity]),
+                    dependencyManifest.Libraries[dependency.Identity],
+                    sourceRoot,
+                    evidence),
                 "nuget" or "runtime" => ValidateNuGetPackage(
                     nugetPackageRoot,
                     dependency,
@@ -405,6 +411,16 @@ internal static class ManagedComponentEvidenceBuilder
                     component.Identity,
                     "nuspecLicense");
                 RequireEmpty(component.Notices, component.Identity, "notices");
+                if (VendoredProjects.TryGetValue(component.Identity, out var vendor))
+                {
+                    ValidateVendoredCatalogEntry(component, vendor);
+                    break;
+                }
+                if (component.VendorSource is not null
+                    || VendoredProjects.Values.Any(reviewed => string.Equals(reviewed.File, component.File, StringComparison.Ordinal)))
+                {
+                    throw CatalogError($"component {component.Identity} is not a reviewed vendor identity");
+                }
                 RequireEqual(
                     component.LicenseDeclared,
                     NoAssertion,
@@ -415,6 +431,10 @@ internal static class ManagedComponentEvidenceBuilder
                 break;
             case "nuget":
             case "runtime":
+                if (component.VendorSource is not null || VendoredProjects.ContainsKey(component.Identity))
+                {
+                    throw CatalogError($"component {component.Identity} cannot claim stock package provenance");
+                }
                 RequireEqual(
                     component.DepsType,
 string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepack" : "package",
@@ -1188,7 +1208,9 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
     private static PackageEvidence ValidateProject(
         string publishDirectory,
         CatalogDependency component,
-        DependencyManifestEntry manifest)
+        DependencyManifestEntry manifest,
+        string? sourceRoot,
+        EvidenceAccumulator evidence)
     {
         if (!string.Equals(manifest.Type, "project", StringComparison.Ordinal))
         {
@@ -1197,6 +1219,10 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
         }
 
         var file = component.File!;
+        if (VendoredProjects.TryGetValue(component.Identity, out var vendor))
+        {
+            return ValidateVendoredProject(publishDirectory, sourceRoot, component, vendor, evidence);
+        }
         var checksum = HashPublishedFile(
             Path.Combine(publishDirectory, file),
             file);
@@ -2538,6 +2564,8 @@ string.Equals(component.Kind, "runtime"
         public string? NuspecLicense { get; init; }
 
         public List<CatalogNotice> Notices { get; init; } = [];
+
+        public CatalogVendorSource? VendorSource { get; init; }
     }
 
     private sealed class CatalogNotice

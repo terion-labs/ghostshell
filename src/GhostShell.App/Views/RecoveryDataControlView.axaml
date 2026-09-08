@@ -38,7 +38,7 @@
           Glyph="Shield"
           Text="Only snapshots from previous runs are shown here. The current run is protected." />
 
-      <TextBlock
+      <controls:LiveRegionTextBlock
           Classes="Muted"
           FontSize="{DynamicResource ShellFontSize9}"
           Text="{Binding StatusMessage}"

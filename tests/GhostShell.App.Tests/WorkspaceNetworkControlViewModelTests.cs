@@ -7,6 +7,35 @@ namespace GhostShell.App.Tests;
 
 public sealed class WorkspaceNetworkControlViewModelTests
 {
+    [Fact]
+    public async Task Browser_authentication_reset_failure_is_visible_and_retryable_without_reapplying_route()
+    {
+        var connector = new FailingBrowserRouteConnector();
+        var applied = 0;
+        await using var viewModel = new WorkspaceNetworkControlViewModel(
+            Update(enabled: true, killSwitch: true, FirstId),
+            new FakeWorkspaceNetworkSession(new WorkspaceNetworkSnapshot(WorkspaceNetworkState.Connected,
+                WorkspaceNetworkEgress.Attached, FirstId)),
+            new ImmediateDispatcher(), _ => applied++, connector);
+
+        connector.Fail();
+
+        Assert.True(viewModel.IsBlocked);
+        Assert.Contains("Select the connection again", viewModel.StatusText, StringComparison.Ordinal);
+        Assert.True(viewModel.CanToggle);
+        Assert.Equal(1, applied);
+    }
+
+    private sealed class FailingBrowserRouteConnector : IWorkspaceNetworkConnector
+    {
+        public WorkspaceNetworkEgress Egress => WorkspaceNetworkEgress.Blocked;
+        public Uri LocalProxyEndpoint => new("socks5://127.0.0.1:41001");
+        public event EventHandler? BrowserAuthenticationRouteFailed;
+        public void Fail() => BrowserAuthenticationRouteFailed?.Invoke(this, EventArgs.Empty);
+        public ValueTask<Stream> ConnectTcpAsync(string host, int port, CancellationToken cancellationToken) =>
+            ValueTask.FromException<Stream>(new NotSupportedException());
+    }
+
     private static readonly NetworkConnectionId FirstId = new("first-network");
     private static readonly NetworkConnectionId SecondId = new("second-network");
 

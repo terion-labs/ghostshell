@@ -24,28 +24,32 @@ public sealed class ArchiveTableOfContents : IArchiveTableOfContents
         FilePreviewContent content,
         string fileName,
         int maximumEntries,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int offset = 0)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEntries);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
 
         try
         {
             return ArchiveFormats.Kind(fileName) switch
             {
                 ArchiveKind.Zip => await Task.Run(
-                    () => ReadZip(content, maximumEntries, cancellationToken),
+                    () => ReadZip(content, maximumEntries, offset, cancellationToken),
                     cancellationToken).ConfigureAwait(false),
                 ArchiveKind.Tar => await ReadTarAsync(
                     content,
                     compressed: false,
                     maximumEntries,
+                    offset,
                     cancellationToken).ConfigureAwait(false),
                 ArchiveKind.CompressedTar => await ReadTarAsync(
                     content,
                     compressed: true,
                     maximumEntries,
+                    offset,
                     cancellationToken).ConfigureAwait(false),
                 _ => null,
             };
@@ -61,30 +65,39 @@ public sealed class ArchiveTableOfContents : IArchiveTableOfContents
     private static IReadOnlyList<ArchiveEntryDescriptor> ReadZip(
         FilePreviewContent content,
         int maximumEntries,
+        int offset,
         CancellationToken cancellationToken)
     {
-        // The content's stream is seekable, which is all a zip index needs:
-        // ZipArchive seeks to the central directory and reads entries from it.
+        // The pinned extension bypasses SharpCompress's retaining Entries
+        // collection, so skipped headers are collectible even on deep pages.
+        // Parsing still uses its ZIP64/encryption-aware central-directory reader.
         using var source = content.OpenRead();
-        using var archive = new ZipArchive(source, ZipArchiveMode.Read);
+        using var archive = (SharpCompress.Archives.Zip.ZipArchive)SharpCompress.Archives.Zip.ZipArchive.OpenArchive(source);
         var entries = new List<ArchiveEntryDescriptor>();
-        foreach (var entry in archive.Entries)
+        using var iterator = archive.EnumerateEntriesUncached().GetEnumerator();
+        while (entries.Count < maximumEntries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (entries.Count >= maximumEntries)
+            if (!iterator.MoveNext())
             {
                 break;
             }
+            if (offset > 0)
+            {
+                offset--;
+                continue;
+            }
+            var entry = iterator.Current;
 
             // A zip records a folder as an entry ending in a separator, with no
             // content of its own.
-            var isDirectory = entry.FullName.EndsWith('/')
-                || entry.FullName.EndsWith('\\');
+            var name = entry.Key ?? throw new InvalidDataException("A ZIP entry has no path.");
+            var isDirectory = entry.IsDirectory;
             entries.Add(new ArchiveEntryDescriptor(
-                entry.FullName,
+                name,
                 isDirectory,
-                isDirectory ? null : entry.Length,
-                isDirectory ? null : entry.CompressedLength));
+                isDirectory ? null : entry.Size,
+                isDirectory ? null : entry.CompressedSize));
         }
 
         return entries;
@@ -94,6 +107,7 @@ public sealed class ArchiveTableOfContents : IArchiveTableOfContents
         FilePreviewContent content,
         bool compressed,
         int maximumEntries,
+        int offset,
         CancellationToken cancellationToken)
     {
         await using var file = content.OpenRead();
@@ -119,6 +133,12 @@ public sealed class ArchiveTableOfContents : IArchiveTableOfContents
             if (entry is null)
             {
                 break;
+            }
+
+            if (offset > 0)
+            {
+                offset--;
+                continue;
             }
 
             var isDirectory = entry.EntryType is TarEntryType.Directory;

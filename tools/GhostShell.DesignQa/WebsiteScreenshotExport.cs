@@ -174,6 +174,9 @@ internal static class WebsiteScreenshotExport
         "settings-terminal-full" or
         "appearance-corners-tight" or
         "appearance-corners-round" or
+        "design-system-high-contrast" or
+        "design-system-scale-200" or
+        "design-system-scale-250" or
         "workspace-tabs-side" => false,
         _ => true,
     };

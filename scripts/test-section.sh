@@ -45,6 +45,7 @@ services_projects=(
     "tests/GhostShell.Infrastructure.Tests/GhostShell.Infrastructure.Tests.csproj"
     "tests/GhostShell.Monitoring.Tests/GhostShell.Monitoring.Tests.csproj"
     "tests/GhostShell.Previews.Tests/GhostShell.Previews.Tests.csproj"
+    "tests/GhostShell.SshNet.Tests/GhostShell.SshNet.Tests.csproj"
     "tests/GhostShell.Updates.Tests/GhostShell.Updates.Tests.csproj"
 )
 data_browser_projects=(

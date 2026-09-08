@@ -127,7 +127,7 @@ internal static class RuntimeWorkspaceRecoveryCodec
             FileRuntimePanelViewModel => RuntimePanelRecoveryKind.FileViewer,
             StatisticsRuntimePanelViewModel => RuntimePanelRecoveryKind.Statistics,
             ProcessMonitorRuntimePanelViewModel => RuntimePanelRecoveryKind.ProcessMonitor,
-            DatabaseRuntimePanelViewModel or RedisRuntimePanelViewModel =>
+            DatabaseRuntimePanelViewModel or RedisRuntimePanelViewModel or PendingDatabaseRecoveryPanelViewModel =>
                 RuntimePanelRecoveryKind.DatabaseViewer,
             DockerRuntimePanelViewModel => RuntimePanelRecoveryKind.Docker,
             GitRuntimePanelViewModel => RuntimePanelRecoveryKind.Git,
@@ -138,6 +138,7 @@ internal static class RuntimeWorkspaceRecoveryCodec
         var browser = panel as BrowserRuntimePanelViewModel;
         var database = panel as DatabaseRuntimePanelViewModel;
         var redis = panel as RedisRuntimePanelViewModel;
+        var pendingDatabase = panel as PendingDatabaseRecoveryPanelViewModel;
         var file = panel as FileRuntimePanelViewModel;
         var statistics = panel as StatisticsRuntimePanelViewModel;
         var processes = panel as ProcessMonitorRuntimePanelViewModel;
@@ -154,13 +155,12 @@ internal static class RuntimeWorkspaceRecoveryCodec
                 ?? statistics?.ConnectionId.Value
                 ?? processes?.ConnectionId.Value
                 ?? docker?.ConnectionId.Value
-                ?? git?.ConnectionId.Value
-                ?? database?.TunnelConnectionId?.Value
-                ?? redis?.TunnelConnectionId?.Value,
+                ?? git?.ConnectionId.Value,
             terminal?.RecoveryStartupLocation
                 ?? browser?.CurrentAddress.ToString()
                 ?? database?.RecoveryTarget
                 ?? redis?.RecoveryTarget
+                ?? pendingDatabase?.Target
                 ?? (git is { IsRepositoryOpen: true } ? git.RepositoryRoot : null),
             file?.SelectedProfile?.Id ?? file?.CurrentLocation?.ProviderProfileId,
             file?.CurrentLocation is { } location

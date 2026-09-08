@@ -54,6 +54,26 @@ public sealed class DatabaseWorkspaceFileExportTests : IDisposable
     }
 
     [Fact]
+    public async Task Canceled_streamed_export_removes_temporary_and_keeps_original()
+    {
+        var target = Path.Combine(_directory, "page.csv");
+        await File.WriteAllTextAsync(target, "original", Encoding.UTF8);
+        using var cancellation = new CancellationTokenSource();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            DatabaseWorkspaceView.WriteLocalStorageFileAtomicallyAsync(target, destination =>
+            {
+                using var writer = DatabaseGridExport.CreateFileWriter(destination, cancellation.Token);
+                writer.Write("partial");
+                writer.Flush();
+                cancellation.Cancel();
+                writer.Write("must not commit");
+                return Task.CompletedTask;
+            }));
+        Assert.Equal("original", await File.ReadAllTextAsync(target, Encoding.UTF8));
+        Assert.Empty(Directory.EnumerateFiles(_directory, "*.tmp"));
+    }
+
+    [Fact]
     public void Page_export_accepts_only_the_supported_data_formats()
     {
         Assert.Equal(

@@ -160,7 +160,7 @@
                           Grid.Column="1"
                           Classes="IconButton"
                           Click="OnWorkspacesMenuCloseClick"
-                          IsVisible="{Binding IsOpen}"
+                          IsVisible="{Binding CanClose}"
                           ToolTip.Tip="Terminate this workspace and everything running in it"
                           AutomationProperties.Name="{Binding Name, StringFormat=Terminate workspace {0}}">
                         <icons:SymbolIcon Symbol="Dismiss" FontSize="11" />
@@ -389,7 +389,7 @@
                   Symbol="ArrowSort"
                   FontSize="10"
                   Foreground="{DynamicResource ShellAccentBrush}" />
-              <TextBlock
+              <controls:LiveRegionTextBlock
                   VerticalAlignment="Center"
                   FontSize="{DynamicResource ShellFontSize9}"
                   FontWeight="Medium"
@@ -658,7 +658,7 @@
           unreadable at this size and invisible at this opacity, which is the
           point: it is addressed to the reader, not to the window.
         -->
-        <TextBlock
+        <controls:LiveRegionTextBlock
             x:Name="TabReorderAnnouncement"
             Width="1"
             Height="1"
@@ -670,7 +670,7 @@
             Text="{Binding TabReorderStatus}"
             AutomationProperties.LiveSetting="Polite"
             AutomationProperties.Name="{Binding TabReorderStatus, StringFormat={}Tab order status · {0}}" />
-        <TextBlock
+        <controls:LiveRegionTextBlock
             Width="1"
             Height="1"
             HorizontalAlignment="Left"

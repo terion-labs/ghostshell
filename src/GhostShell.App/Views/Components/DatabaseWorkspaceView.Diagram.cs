@@ -1,8 +1,9 @@
-using System.Text;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using GhostShell.App.ViewModels;
+using GhostShell.Application;
 
 namespace GhostShell.App.Views.Components;
 
@@ -14,33 +15,31 @@ public sealed partial class DatabaseWorkspaceView
         MimeTypes = ["text/markdown"],
         AppleUniformTypeIdentifiers = ["net.daringfireball.markdown"],
     };
+    private static readonly FilePickerFileType MermaidSvgFileType = new("SVG diagram")
+    {
+        Patterns = ["*.svg"],
+        MimeTypes = ["image/svg+xml"],
+        AppleUniformTypeIdentifiers = ["public.svg-image"],
+    };
 
     private async void OnCopyMermaidDiagramClick(object? sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;
-        if (Panel is not { HasMermaidDiagram: true } panel
-            || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
-        {
-            return;
-        }
-
-        try
-        {
-            await clipboard.SetTextAsync(panel.MermaidDiagramText);
-        }
-        catch (Exception exception)
-        {
-            panel.ReportInteractionError($"Could not copy the Mermaid diagram: {exception.Message}");
-        }
+        await CopyDiagramAsync(DatabaseDiagramExport.MermaidMarkdown);
     }
 
     private async void OnCopyMermaidSvgClick(object? sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;
+        await CopyDiagramAsync(DatabaseDiagramExport.Svg);
+    }
+
+    internal async Task CopyDiagramAsync(DatabaseDiagramExport format)
+    {
         if (Panel is not { } panel
-            || !MermaidDiagramRenderer.HasRenderedDiagram
+            || panel.DiagramSession is not { } session
             || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
         {
             return;
@@ -48,11 +47,24 @@ public sealed partial class DatabaseWorkspaceView
 
         try
         {
-            await clipboard.SetTextAsync(MermaidDiagramRenderer.RenderedSvg);
+            var snapshot = await panel.BuildDiagramClipboardAsync(session, format);
+            if (ReferenceEquals(Panel, panel) && ReferenceEquals(panel.DiagramSession, session)
+                && panel.IsClipboardRequestCurrent(snapshot.Revision)
+                && ReferenceEquals(TopLevel.GetTopLevel(this)?.Clipboard, clipboard))
+            {
+                await clipboard.SetTextAsync(snapshot.Text);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer copy, hidden/replaced diagram, or closed panel owns the UI.
         }
         catch (Exception exception)
         {
-            panel.ReportInteractionError($"Could not copy the rendered SVG: {exception.Message}");
+            if (ReferenceEquals(Panel, panel) && ReferenceEquals(panel.DiagramSession, session))
+            {
+                panel.ReportInteractionError($"Could not copy the database diagram: {exception.Message}");
+            }
         }
     }
 
@@ -62,12 +74,12 @@ public sealed partial class DatabaseWorkspaceView
         _ = e;
         var panel = Panel;
         var storage = TopLevel.GetTopLevel(this)?.StorageProvider;
-        if (panel is not { HasMermaidDiagram: true } || storage?.CanSave != true)
+        if (panel is not { IsConnected: true } || storage?.CanSave != true)
         {
             return;
         }
 
-        var source = panel.MermaidDiagramText;
+        var session = panel.DiagramSession;
         try
         {
             var selected = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -75,7 +87,7 @@ public sealed partial class DatabaseWorkspaceView
                 Title = "Save the Mermaid ER diagram",
                 SuggestedFileName = "dbdiagram.md",
                 DefaultExtension = "md",
-                FileTypeChoices = [MermaidMarkdownFileType],
+                FileTypeChoices = [MermaidMarkdownFileType, MermaidSvgFileType],
                 ShowOverwritePrompt = true,
             });
             if (selected is null)
@@ -83,17 +95,19 @@ public sealed partial class DatabaseWorkspaceView
                 return;
             }
 
-            if (!string.Equals(source, panel.MermaidDiagramText, StringComparison.Ordinal))
+            if (!ReferenceEquals(session, panel.DiagramSession))
             {
                 panel.ReportInteractionError(
                     "The database diagram changed while the destination was open. Save it again.");
                 return;
             }
 
-            var content = Encoding.UTF8.GetBytes(source);
+            var format = selected.Name.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                ? DatabaseDiagramExport.Svg
+                : DatabaseDiagramExport.MermaidMarkdown;
             await WriteStorageFileAsync(
                 selected,
-                destination => destination.WriteAsync(content).AsTask());
+                destination => panel.ExportDatabaseDiagramAsync(destination, format, CancellationToken.None));
         }
         catch (OperationCanceledException)
         {
@@ -105,4 +119,5 @@ public sealed partial class DatabaseWorkspaceView
             panel.ReportInteractionError($"Could not save the Mermaid diagram: {exception.Message}");
         }
     }
+
 }

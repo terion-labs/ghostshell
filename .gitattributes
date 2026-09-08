@@ -1,5 +1,11 @@
 
 * text=auto eol=lf
 
+# These pinned source/patch inventories bind exact bytes, including upstream CRLF.
+# Preserve them through the index and checkout; analyzer policy is unchanged.
+vendor/sqlclient/** -text
+vendor/sshnet/** -text
+vendor/sharpcompress/** -text
+
 # Use bd merge for beads JSONL files
 .beads/issues.jsonl merge=beads

@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <map>
 
 #include "include/cef_client.h"
 #include "include/cef_context_menu_handler.h"
@@ -320,6 +321,7 @@ public:
     // CefLifeSpanHandler
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
     void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
+    void OnBeforePopupAborted(CefRefPtr<CefBrowser> browser, int popup_id) override;
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
                         CefRefPtr<CefFrame> frame,
                         int popup_id,
@@ -414,6 +416,8 @@ public:
     void ApplyPendingSizeOnUi();
     void ApplySettledSizeOnUi(uint64_t scheduled_generation);
     void SetDeviceScaleFactor(float scale);
+    void ForgetPendingPopup(int popup_id);
+    void AbortPendingPopup();
 
     // Drag-and-drop bookkeeping. The shim handles internal-page DnD entirely
     // by intercepting mouse events while in_drag_ is true and converting
@@ -450,6 +454,10 @@ private:
     float device_scale_factor_;
     excef_paint_callback_t paint_cb_;
     mutable std::mutex browser_mu_;
+    std::map<int, CefRefPtr<Exclr8CefOsrHandler>> pending_popups_;
+    int popup_opener_id_ = 0;
+    int popup_request_id_ = 0;
+    bool popup_aborted_ = false;
     CefRefPtr<CefBrowser> browser_;
     // Channel count from OnAudioStreamStarted; OnAudioStreamPacket's data
     // array is exactly this long (no null terminator). Both fire on the

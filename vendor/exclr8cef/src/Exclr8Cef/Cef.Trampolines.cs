@@ -187,7 +187,7 @@ public static partial class Cef
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe void AuthRequestTrampoline(int browserId, ulong token, int isProxy, sbyte* host, int port, sbyte* realm, sbyte* scheme)
+    private static unsafe void AuthRequestTrampoline(int browserId, ulong token, int isProxy, sbyte* host, int port, sbyte* realm, sbyte* scheme, sbyte* originUrl)
     {
         if (!s_browsers.TryGetValue(browserId, out var b))
         {
@@ -206,7 +206,8 @@ public static partial class Cef
                 Marshal.PtrToStringUTF8((IntPtr)host) ?? "",
                 port,
                 Marshal.PtrToStringUTF8((IntPtr)realm) ?? "",
-                Marshal.PtrToStringUTF8((IntPtr)scheme) ?? "");
+                Marshal.PtrToStringUTF8((IntPtr)scheme) ?? "",
+                Marshal.PtrToStringUTF8((IntPtr)originUrl) ?? "");
         }
         catch { Excef.excef_resolve_auth(token, null, null); }
     }
@@ -430,6 +431,31 @@ public static partial class Cef
             Marshal.PtrToStringUTF8((IntPtr)issuerCn) ?? "");
         try { b.RaiseCertError(certArgs); }
         catch { certArgs.Cancel(); }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe int HostPopupTrampoline(
+        int browserId, int childBrowserId, sbyte* targetUrl, sbyte* targetFrameName,
+        int disposition, int userGesture)
+    {
+        if (!s_browsers.TryGetValue(browserId, out var parent)) return 0;
+        var child = new CefBrowser(childBrowserId);
+        if (!s_browsers.TryAdd(childBrowserId, child)) return 0;
+        try
+        {
+            var args = new HostPopupEventArgs(child,
+                Marshal.PtrToStringUTF8((IntPtr)targetUrl) ?? "",
+                Marshal.PtrToStringUTF8((IntPtr)targetFrameName) ?? "",
+                (WindowOpenDisposition)disposition, userGesture != 0);
+            parent.RaiseHostPopup(args);
+            if (args.IsHosted && !child.IsClosed) return 1;
+        }
+        catch { }
+        if (s_browsers.TryRemove(childBrowserId, out var rejected))
+        {
+            try { rejected.RaiseClosed(); } catch { }
+        }
+        return 0;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

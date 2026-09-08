@@ -34,7 +34,7 @@ public sealed class SqliteAgentPolicyPreferenceStore : IAgentPolicyPreferenceSto
                 return ApplicationRunResult<AgentPolicy?>.Success(null);
             }
 
-            var policy = DefinitionJson.DeserializeAgentPolicy((string)value);
+            var policy = StoredAgentPolicyJson.Read((string)value);
             return policy?.IsValidForDurableStorage() == true
                 ? ApplicationRunResult<AgentPolicy?>.Success(policy)
                 : Failure<AgentPolicy?>(

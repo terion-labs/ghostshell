@@ -322,10 +322,10 @@ public sealed class ManagedTerminalSurface : Control
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
-        // A paste command from this app-owned surface is the user's approval.
-        // Other session-host callers still need to opt in through ConfirmedUnsafe.
+        // A paste command is an explicit user action. Agent input is authorized
+        // independently by the session host, not by a caller-supplied paste flag.
         return RequireInputSink().PasteAsync(
-            new TerminalPasteInput(text, ConfirmedUnsafe: true),
+            new TerminalPasteInput(text),
             cancellationToken);
     }
 

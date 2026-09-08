@@ -383,7 +383,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             () => RuntimeWorkspace,
             () => _runtimeHistorySource,
             () => _shutdownStarted,
-            _timeProvider);
+            _timeProvider,
+            _secretVault,
+            SetError);
         RuntimeRecovery = new RuntimeWorkspaceRecoveryCoordinator(
             runtimeRecoveryWriter,
             () => RuntimeWorkspace,
@@ -4266,9 +4268,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 _databaseConnectionCatalog,
                 [.. _catalog.Snapshot.Connections.Select(item => item.Value)],
                 existing,
-                existing?.PasswordSecret is { } storedSecret
-                    ? token => ResolveDatabasePasswordAsync(storedSecret, token)
-                    : null);
+                existing?.PasswordSecret is not null
+                    ? token => ResolveDatabasePasswordAsync(existing, token)
+                    : null,
+                _connectionSecurityRuntime);
         }
 
         return new UnifiedConnectionEditorViewModel(
@@ -4994,12 +4997,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         CancellationToken cancellationToken)
     {
         var multiplexed = OpenTerminalPanels().Where(panel => panel.Id == panelId).ToArray();
-        CancelPendingConnections(multiplexed);
-        var result = await RuntimeGraph.CloseAsync(
+        var result = await CloseWithPendingConnectionsAsync(
             CloseScopeRequest.Panel(panelId, decision),
+            multiplexed,
             cancellationToken);
         RecordRecentSessionCompletions(result);
-        if (result is HostResult<CloseScopeResult>.Success
+        if (decision != CloseDecision.Cancel
+            && result is HostResult<CloseScopeResult>.Success
             { Value: CloseScopeResult.Completed })
         {
             QueueMultiplexerTermination(multiplexed);
@@ -5018,12 +5022,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             .SelectMany(tab => tab.Panels)
             .OfType<TerminalRuntimePanelViewModel>()
             .ToArray();
-        CancelPendingConnections(multiplexed);
-        var result = await RuntimeGraph.CloseAsync(
+        var result = await CloseWithPendingConnectionsAsync(
             CloseScopeRequest.Tab(tabId, decision),
+            multiplexed,
             cancellationToken);
         RecordRecentSessionCompletions(result);
-        if (result is HostResult<CloseScopeResult>.Success
+        if (decision != CloseDecision.Cancel
+            && result is HostResult<CloseScopeResult>.Success
             { Value: CloseScopeResult.Completed })
         {
             QueueMultiplexerTermination(multiplexed);
@@ -5051,19 +5056,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             .SelectMany(tab => tab.Panels)
             .OfType<TerminalRuntimePanelViewModel>()
             .ToArray();
-        CancelPendingConnections(multiplexed);
-        var result = await RuntimeGraph.CloseAsync(
+        var result = await CloseWithPendingConnectionsAsync(
             CloseScopeRequest.Workspace(workspaceId, decision),
+            multiplexed,
             cancellationToken);
         RecordRecentSessionCompletions(result);
-        if (result is HostResult<CloseScopeResult>.Success
+        if (decision != CloseDecision.Cancel
+            && result is HostResult<CloseScopeResult>.Success
             {
                 Value: CloseScopeResult.Completed completed,
             })
         {
             QueueMultiplexerTermination(multiplexed);
-            if (decision != CloseDecision.Cancel
-                && completed.Scope == CloseScopeKind.Workspace
+            if (completed.Scope == CloseScopeKind.Workspace
                 && string.Equals(
                     completed.TargetId,
                     workspaceId.Value,
@@ -5079,6 +5084,54 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                 SetError(releaseError.Message);
             }
         }
+        return result;
+    }
+
+    private async ValueTask<HostResult<CloseScopeResult>> CloseWithPendingConnectionsAsync(
+        CloseScopeRequest request,
+        IReadOnlyList<TerminalRuntimePanelViewModel> panels,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.Decision == CloseDecision.Cancel)
+        {
+            return HostResult<CloseScopeResult>.Succeed(
+                new CloseScopeResult.Completed(request.Scope, request.TargetId, []), 0);
+        }
+
+        if (request.Decision == CloseDecision.Request)
+        {
+            // Startup holds the host's graph gate. Ask before cancelling it,
+            // rather than blocking the close probe behind an unavailable host.
+            var starting = panels
+                .Where(panel => !panel.HasObservedActiveSession && panel.SessionRequest is not null)
+                .Select(panel => new ActiveSessionSummary(
+                    panel.SessionRequest!.SessionId, panel.Id, panel.Title,
+                    "The connection is still starting.", 0))
+                .ToArray();
+            if (starting.Length > 0)
+            {
+                return HostResult<CloseScopeResult>.Succeed(
+                    new CloseScopeResult.ConfirmationRequired(
+                        request.Scope, request.TargetId, starting), 0);
+            }
+        }
+        else
+        {
+            CancelPendingConnections(panels);
+        }
+
+        var result = await RuntimeGraph.CloseAsync(request, cancellationToken);
+        if (result is HostResult<CloseScopeResult>.Success
+            { Value: CloseScopeResult.Completed completed }
+            && completed.Sessions.All(session => session.Outcome is
+                SessionCloseOutcome.GracefullyClosed
+                or SessionCloseOutcome.ForceTerminated
+                or SessionCloseOutcome.AlreadyClosed))
+        {
+            CancelPendingConnections(panels);
+        }
+
         return result;
     }
 
@@ -5242,12 +5295,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             return false;
         }
 
-        CancelPendingConnections(
-            workspace.Tabs
-                .SelectMany(tab => tab.Panels)
-                .OfType<TerminalRuntimePanelViewModel>()
-                .Where(panel => panel.Id == panelId));
-
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             _runtimeGraphLifetime.Token);
@@ -5323,12 +5370,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         {
             return false;
         }
-
-        CancelPendingConnections(
-            workspace.Tabs
-                .Where(tab => tab.Id == tabId)
-                .SelectMany(tab => tab.Panels)
-                .OfType<TerminalRuntimePanelViewModel>());
 
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
@@ -8434,9 +8475,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             _recentSessionIds.Remove(panelId);
         }
 
-        _ = History.RecordCompletionsAsync(
-            completions,
-            refreshAfterWrite: !_shutdownStarted);
+        _ = History.RecordCompletionsAsync(completions);
     }
 
     /// <summary>
@@ -8647,6 +8686,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     /// </summary>
     internal void RefreshCatalog(DefinitionCatalogSnapshot snapshot)
     {
+        // Catalog notifications already queued on the dispatcher outlive
+        // unsubscription. Check the owner when the callback actually executes.
+        if (_disposed || _shutdownStarted)
+        {
+            return;
+        }
+
         _presentedCatalogSnapshot = snapshot;
         var workspaces = snapshot.Workspaces
             .OrderBy(item => item.Value.SortOrder)
@@ -10261,6 +10307,17 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         ScreenPanelDefinition panel,
         bool deferFileInitialization = false)
     {
+        var runtimePanel = CreatePanelCore(workspaceId, tabId, panel, deferFileInitialization);
+        runtimePanel.SourceDefinition = panel;
+        return runtimePanel;
+    }
+
+    private RuntimePanelViewModel CreatePanelCore(
+        WorkspaceInstanceId workspaceId,
+        TabInstanceId tabId,
+        ScreenPanelDefinition panel,
+        bool deferFileInitialization)
+    {
         var title = string.IsNullOrWhiteSpace(panel.Title) ? PanelTitle(panel.Kind) : panel.Title;
         if (panel.Kind == ScreenPanelKind.FileViewer)
         {
@@ -10598,27 +10655,21 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         connection ??= ConnectionForFileProfile(initialProfileId) ?? LocalConnection();
         var hostBackends = WorkspaceRuntimeServicesFor(workspaceId)?.Backends
             ?? _hostWorkspaceRuntimeServices.Backends;
-        var profile = ResolveFileProfile(initialProfileId);
-        var hostInitialLocation = initialLocation ?? profile?.Root;
         var owner = new SessionOwner(
             HostMode.Desktop,
             WindowId,
             workspaceId,
             tabId,
             panelId);
-        var options = hostInitialLocation is null
-            ? HostedFilePanelClientOptions.Deferred(
-                SessionId.New(),
-                owner,
-                ClientId,
-                title,
-                initialProfileId)
-            : new HostedFilePanelClientOptions(
-                SessionId.New(),
-                owner,
-                ClientId,
-                title,
-                hostInitialLocation);
+        // The view resolves its saved location or provider start folder before
+        // the first request binds agent scope. The human provider root may be
+        // broader and must not silently become that session's trusted root.
+        var options = HostedFilePanelClientOptions.Deferred(
+            SessionId.New(),
+            owner,
+            ClientId,
+            title,
+            initialProfileId);
         var hostedClient = new SessionHostedFilePanelClient(
             SessionClient,
             hostBackends.FilePanelClient,
@@ -10970,7 +11021,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         DatabaseConnectionProfile? savedConnection = null,
         DatabaseObjectId? initialObject = null,
         bool deferStoredCredentialAccess = false,
-        WorkspaceInstanceId? workspaceId = null)
+        WorkspaceInstanceId? workspaceId = null,
+        string? sessionPassword = null,
+        DatabaseRecoveryState? recovery = null,
+        bool persistedConnection = true)
     {
         var runtimeServices = workspaceId is { } runtimeWorkspaceId
             ? WorkspaceRuntimeServicesFor(runtimeWorkspaceId)
@@ -10996,7 +11050,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             tunnelConnection ??= BuiltInConnections.Local;
         }
 
-        var effectiveDriver = savedConnection?.DriverId ?? driverId;
+        recovery ??= new DatabaseRecoveryState(_secretVault);
+        var effectiveDriver = driverId ?? savedConnection?.DriverId;
         if (string.Equals(effectiveDriver, RedisDatabase.DriverId, StringComparison.Ordinal))
         {
             return redisFactory is null || _databaseConnectionCatalog is null
@@ -11019,7 +11074,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                         ? StoreDatabasePasswordAsync
                         : null,
                     DatabasePasswordStoreLabel(_secretVault.Availability.Adapter),
-                    deferStoredCredentialAccess: deferStoredCredentialAccess);
+                    deferStoredCredentialAccess: deferStoredCredentialAccess,
+                    sessionPassword: sessionPassword,
+                    recovery: recovery,
+                    persistedConnection: persistedConnection);
         }
 
         return databaseClient is null
@@ -11045,7 +11103,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
                     : null,
                 passwordStoreLabel: DatabasePasswordStoreLabel(
                     _secretVault.Availability.Adapter),
-                deferStoredCredentialAccess: deferStoredCredentialAccess);
+                deferStoredCredentialAccess: deferStoredCredentialAccess,
+                sessionPassword: sessionPassword,
+                recovery: recovery,
+                persistedConnection: persistedConnection);
     }
 
     private static string DatabasePasswordStoreLabel(string adapter) => adapter switch
@@ -11327,26 +11388,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             ? RuntimeWorkspace.Id
             : (WorkspaceInstanceId?)null;
         var title = databaseObject?.DisplayName ?? source.Title;
-        if (source.SavedConnectionId is { } profileId
-            && FindDatabaseConnection(profileId) is { } profile)
-        {
-            return CreateDatabasePanel(
-                PanelInstanceId.New(),
-                title,
-                tunnelConnection: ResolveDatabaseTunnel(profile),
-                savedConnection: profile,
-                initialObject: databaseObject?.Id,
-                workspaceId: workspaceId);
-        }
-
         return CreateDatabasePanel(
             PanelInstanceId.New(),
             title,
             source.SelectedDriver.Id,
             source.ConnectionString,
             source.TunnelConnection,
+            savedConnection: source.BoundConnectionProfile,
             initialObject: databaseObject?.Id,
-            workspaceId: workspaceId);
+            workspaceId: workspaceId,
+            sessionPassword: source.SessionPassword);
     }
 
     /// <summary>
@@ -11460,6 +11511,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         bool deferStoredCredentialAccess = false,
         WorkspaceInstanceId? workspaceId = null)
     {
+        if (target?.StartsWith(DatabaseRecoveryToken.Prefix, StringComparison.Ordinal) == true)
+        {
+            return new PendingDatabaseRecoveryPanelViewModel(panelId, title, target, RestoreDatabasePanelAsync);
+        }
+        if (string.Equals(target, DatabaseRecoveryToken.ReconnectTarget, StringComparison.Ordinal))
+        {
+            var disconnected = CreateDatabasePanel(panelId, title, workspaceId: workspaceId);
+            if (disconnected is DatabaseRuntimePanelViewModel database)
+            {
+                database.RequireImportedConnection();
+            }
+            return disconnected;
+        }
         if (target?.StartsWith(SavedDatabaseTargetPrefix, StringComparison.Ordinal) == true)
         {
             var profileId = target[SavedDatabaseTargetPrefix.Length..];
@@ -11495,6 +11559,53 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             recoveredTunnel,
             deferStoredCredentialAccess: deferStoredCredentialAccess,
             workspaceId: workspaceId);
+    }
+
+    private async Task<bool> RestoreDatabasePanelAsync(PendingDatabaseRecoveryPanelViewModel pending, CancellationToken cancellationToken)
+    {
+        // Acceptance iterates the panel collection. Even a synchronous vault
+        // adapter must not replace an item until that iteration has finished.
+        await Task.Yield();
+        if (DatabaseRecoveryToken.TryParse(pending.Target) is not { } token
+            || FindAcceptedPanelOwner(pending) is not { } owner)
+        {
+            return false;
+        }
+        var recovery = new DatabaseRecoveryState(_secretVault, token);
+        var payload = await recovery.RestoreAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (payload is null || FindAcceptedPanelOwner(pending) != owner || _shutdownStarted)
+        {
+            return false;
+        }
+        var workspace = _openWorkspaces.FirstOrDefault(candidate => candidate.Id == owner.WorkspaceId)
+            ?? (RuntimeWorkspace?.Id == owner.WorkspaceId ? RuntimeWorkspace : null);
+        var tab = workspace?.Tabs.FirstOrDefault(candidate => candidate.Id == owner.TabId);
+        if (tab is null)
+        {
+            return false;
+        }
+        var replacement = CreateDatabasePanel(pending.Id, pending.Title, payload.DriverId, payload.ConnectionString,
+            payload.Tunnel, payload.CredentialOwner, workspaceId: owner.WorkspaceId,
+            sessionPassword: payload.SessionPassword, recovery: recovery, persistedConnection: false);
+        if (replacement is UnavailableRuntimePanelViewModel
+            || replacement is DatabaseRuntimePanelViewModel relational
+                && !string.Equals(relational.SelectedDriver.Id, payload.DriverId, StringComparison.Ordinal))
+        {
+            replacement.Dispose();
+            return false;
+        }
+        replacement.SourceDefinition = pending.SourceDefinition;
+        if (!tab.ReplacePanel(pending, replacement))
+        {
+            replacement.Dispose();
+            return false;
+        }
+        Notifications.Watch(workspace!);
+        StartTrackingRecovery(replacement);
+        StartAcceptedRuntimePanel(replacement, owner);
+        QueueRuntimeRecoverySnapshot();
+        return true;
     }
 
     /// <summary>
@@ -11646,7 +11757,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             }
 
             tunnel = DatabaseConnectionEditorViewModel.BuildInlineTunnelProfile(
-                DatabaseConnectionProfile.InlineTunnelId(DatabaseConnectionProfileId.New()),
+                DatabaseConnectionProfile.InlineTunnelId(request.DraftId ?? DatabaseConnectionProfileId.New()),
                 $"{request.Name} tunnel",
                 inline,
                 new ConnectionAuthentication.SshAgent());
@@ -11684,7 +11795,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         bool storePassword,
         ConnectionId? tunnelConnectionId,
         DatabaseInlineTunnelRequest? inlineTunnel = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DatabaseConnectionProfileId? draftId = null)
     {
         ClearError();
         var saved = await DatabaseConnectionSettings.SaveDatabaseConnectionAsync(
@@ -11695,7 +11807,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
             storePassword,
             tunnelConnectionId,
             inlineTunnel,
-            cancellationToken);
+            cancellationToken,
+            draftId);
         NotifyDatabaseConnectionOptionsChanged(saved);
         return saved;
     }
@@ -11715,9 +11828,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     }
 
     private Task<string?> ResolveDatabasePasswordAsync(
-        SecretRef secret,
+        DatabaseConnectionProfile profile,
         CancellationToken cancellationToken) =>
-        DatabaseConnectionSettings.ResolveDatabasePasswordAsync(secret, cancellationToken);
+        DatabaseConnectionSettings.ResolveDatabasePasswordAsync(profile, cancellationToken);
 
     private void NotifyDatabaseConnectionOptionsChanged(DatabaseConnectionProfile? saved)
     {
@@ -11757,6 +11870,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         RuntimePanelViewModel panel,
         SessionOwner? owner)
     {
+        if (panel is PendingDatabaseRecoveryPanelViewModel pendingDatabase)
+        {
+            _ = TrackHostedPanelInitializationAsync(pendingDatabase.StartInitializationAsync());
+            return;
+        }
+        if (panel is DatabaseRuntimePanelViewModel databasePanel)
+        {
+            databasePanel.StartInitialization();
+        }
+        if (panel is RedisRuntimePanelViewModel redisPanel)
+        {
+            redisPanel.StartInitialization();
+        }
         if (panel is FileRuntimePanelViewModel files)
         {
             _ = files.StartInitialization();
@@ -12353,6 +12479,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         lock (_shutdownGate)
         {
             _shutdownStarted = true;
+            History.StopPresentationUpdates();
             try
             {
                 _runtimeGraphLifetime.Cancel();
@@ -12385,6 +12512,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         }
 
         _shutdownStarted = true;
+        History.StopPresentationUpdates();
         AgentWorkspaceScope.StopTracking(_runtimeWorkspace);
         StopTrackingRecovery(_runtimeWorkspace);
         QueueRemainingRecentSessionCompletions(RecentSessionOutcome.GracefullyClosed);
@@ -12527,6 +12655,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
 
         _disposed = true;
         _shutdownStarted = true;
+        History.StopPresentationUpdates();
         _workspaceDefinitionOccupancy.UnregisterWindow(WindowId);
         ReleaseAppearanceEditing();
         History.SealOperations();

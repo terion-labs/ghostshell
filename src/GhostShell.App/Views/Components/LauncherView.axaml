@@ -78,7 +78,7 @@
           </controls:SurfaceCard>
         </Grid>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
-          <TextBlock
+          <controls:LiveRegionTextBlock
               VerticalAlignment="Center"
               Classes="Muted"
               FontSize="{DynamicResource ShellFontSize10}"

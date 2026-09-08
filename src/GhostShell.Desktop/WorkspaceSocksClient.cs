@@ -37,7 +37,7 @@ internal static class WorkspaceSocksClient
         }
     }
 
-    private static async ValueTask ConnectSocks5Async(
+    public static async ValueTask ConnectSocks5Async(
         Stream stream,
         WorkspaceNetworkProxyCredentials credentials,
         string host,

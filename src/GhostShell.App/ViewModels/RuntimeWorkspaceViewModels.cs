@@ -1803,6 +1803,8 @@ public abstract class RuntimePanelViewModel(
 
     public PanelInstanceId Id { get; } = id;
 
+    internal ScreenPanelDefinition? SourceDefinition { get; set; }
+
     public PanelKind Kind { get; } = kind;
 
     public string Title { get; } = title;
@@ -3135,7 +3137,7 @@ public sealed class TerminalRuntimePanelViewModel : RuntimePanelViewModel, IPane
     }
 }
 
-public sealed class UnavailableRuntimePanelViewModel(
+public class UnavailableRuntimePanelViewModel(
     PanelInstanceId id,
     PanelKind kind,
     string title,
@@ -3143,5 +3145,11 @@ public sealed class UnavailableRuntimePanelViewModel(
     string capabilityMessage)
     : RuntimePanelViewModel(id, kind, title, kindLabel)
 {
-    public string CapabilityMessage { get; } = capabilityMessage;
+    public string CapabilityMessage { get; protected set; } = capabilityMessage;
+
+    public virtual string StateHeading => "Adapter unavailable";
+
+    public virtual string? StateActionLabel => null;
+
+    public virtual System.Windows.Input.ICommand? StateActionCommand => null;
 }

@@ -8,7 +8,7 @@ using GhostShell.Packaging;
 
 namespace GhostShell.AccessibilityAcceptance;
 
-public sealed class MacOsAppBundleBuilderTests : IDisposable
+public sealed partial class MacOsAppBundleBuilderTests : IDisposable
 {
     private const string NuspecNamespace =
         "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd";
@@ -286,7 +286,7 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
                 .GetProperty("packages")
                 .EnumerateArray()
                 .ToArray();
-            Assert.Equal(ProjectAssemblyNames.Length + 4, packages.Length);
+            Assert.Equal(ProjectAssemblyNames.Length + VendorFixtures.Length + 4, packages.Length);
             AssertProjectPackage(
                 packages,
                 "Exclr8Cef",
@@ -354,7 +354,7 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
                 "DESCRIBES",
                 StringComparison.Ordinal));
             Assert.Equal(
-                ProjectAssemblyNames.Length + 3,
+                ProjectAssemblyNames.Length + VendorFixtures.Length + 3,
                 relationships.Count(relationship =>
                     string.Equals(
                         relationship.GetProperty("relationshipType").GetString(),
@@ -577,7 +577,8 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
                     maximumFiles,
                     maximumEntries,
                     maximumBytes,
-                    MaximumRelativePathDepth: 61)));
+                    MaximumRelativePathDepth: 61),
+                inputs.ProductIdentitySourceRoot));
 
         Assert.Contains(
             "incremental file, entry, byte, or path-depth budget",
@@ -1849,6 +1850,9 @@ public sealed class MacOsAppBundleBuilderTests : IDisposable
                     },
                 });
         }
+
+        AddVendoredProjectFixtures(publishDirectory, productIdentity.SourceRoot,
+            libraries, selectedTarget, catalogDependencies);
 
         foreach (var package in new[] { harfBuzz, skia })
         {

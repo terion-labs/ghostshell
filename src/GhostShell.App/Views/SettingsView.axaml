@@ -659,8 +659,26 @@
                   <TextBlock Classes="SectionHeading" Text="HTTP authentication" />
                   <TextBlock
                       Classes="Muted"
-                      Text="Optionally answer one exact Basic or Digest challenge for the selected custom profile. The password is stored only in the operating-system vault. Proxy authentication is never answered."
+                      Text="Answer Basic or Digest challenges only for this origin and network route. The password stays in the operating-system vault. Existing credentials default to HTTPS and local/direct; select an SSH route explicitly when needed."
                       TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                    <controls:LabeledField Label="Origin transport">
+                      <ComboBox ItemsSource="{Binding BrowserProfileSettingsEditor.AuthenticationOriginSchemes}"
+                                SelectedItem="{Binding BrowserProfileSettingsEditor.AuthenticationOriginScheme, Mode=TwoWay}"
+                                AutomationProperties.Name="Browser HTTP authentication origin transport" />
+                    </controls:LabeledField>
+                    <controls:LabeledField Grid.Column="1" Label="Authorized route">
+                      <ComboBox ItemsSource="{Binding BrowserProfileSettingsEditor.AuthenticationRoutes}"
+                                SelectedItem="{Binding BrowserProfileSettingsEditor.AuthenticationRoute, Mode=TwoWay}"
+                                AutomationProperties.Name="Browser HTTP authentication authorized route">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="vm:BrowserAuthenticationRouteOption">
+                            <TextBlock Text="{Binding DisplayName}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </controls:LabeledField>
+                  </Grid>
                   <Grid ColumnDefinitions="2*,Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
                     <controls:LabeledField Label="Host">
                       <TextBox
@@ -668,7 +686,7 @@
                           PlaceholderText="internal.example.com"
                           AutomationProperties.Name="Browser HTTP authentication host" />
                     </controls:LabeledField>
-                    <controls:LabeledField Grid.Column="1" Label="Port (optional)">
+                    <controls:LabeledField Grid.Column="1" Label="Port (default for transport)">
                       <TextBox
                           Width="110"
                           Text="{Binding BrowserProfileSettingsEditor.AuthenticationPort, Mode=TwoWay}"
@@ -853,15 +871,12 @@
               <controls:SurfaceCard>
                 <StackPanel Spacing="{DynamicResource ShellSpaceLg}">
                   <TextBlock Classes="SectionHeading" Text="Input &amp; safety" />
-                  <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
                     <controls:LabeledField Label="Clipboard read">
                       <ComboBox ItemsSource="{Binding TerminalSettingsEditor.ClipboardAccessOptions}" SelectedItem="{Binding TerminalSettingsEditor.ClipboardRead}" />
                     </controls:LabeledField>
                     <controls:LabeledField Grid.Column="1" Label="Clipboard write">
                       <ComboBox ItemsSource="{Binding TerminalSettingsEditor.ClipboardAccessOptions}" SelectedItem="{Binding TerminalSettingsEditor.ClipboardWrite}" />
-                    </controls:LabeledField>
-                    <controls:LabeledField Grid.Column="2" Label="Paste safety">
-                      <ComboBox ItemsSource="{Binding TerminalSettingsEditor.PasteSafetyOptions}" SelectedItem="{Binding TerminalSettingsEditor.PasteSafety}" />
                     </controls:LabeledField>
                   </Grid>
                   <Grid ColumnDefinitions="*,*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
@@ -995,11 +1010,11 @@
                       <TextBlock FontWeight="SemiBold" Text="Retain session metadata" />
                       <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
                           Text="Off unless you ask for it. When on, the launcher remembers what was opened — definition metadata only, never commands, output, environment values, or credentials." />
-                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                      <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
                           Text="{Binding HistoryRetentionStatus}"
                           AutomationProperties.LiveSetting="Polite"
                           AutomationProperties.Name="History retention status" />
-                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                      <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
                           Text="{Binding HistoryExportStatus}"
                           AutomationProperties.LiveSetting="Polite"
                           AutomationProperties.Name="History export status" />
@@ -1413,7 +1428,7 @@
                           </StackPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="2" Spacing="{DynamicResource ShellSpaceXs}">
-                          <TextBlock
+                          <controls:LiveRegionTextBlock
                               FontWeight="SemiBold"
                               Text="{Binding Status}"
                               AutomationProperties.LiveSetting="Polite"
@@ -1538,7 +1553,7 @@
                   </StackPanel>
                 </controls:SettingRow>
                 <controls:SettingsGroup.Footer>
-                  <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding HistoryRetentionStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Current session history privacy" />
+                  <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding HistoryRetentionStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Current session history privacy" />
                 </controls:SettingsGroup.Footer>
               </controls:SettingsGroup>
               <views:LocalArtifactControlView x:Name="LocalArtifactControlView" />
@@ -1563,7 +1578,7 @@
                   <StackPanel Grid.Row="3" Grid.Column="1" Spacing="{DynamicResource ShellSpaceXs}">
                     <TextBlock Classes="Eyebrow" Text="Update channel" />
                     <TextBlock Text="{Binding ApplicationUpdates.Channel}" />
-                    <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding ApplicationUpdates.Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Application update status" />
+                    <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding ApplicationUpdates.Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Application update status" />
                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding ApplicationUpdates.DownloadProgress}" IsVisible="{Binding ApplicationUpdates.IsDownloading}" AutomationProperties.Name="Update download progress" />
                     <WrapPanel Orientation="Horizontal">
                       <Button Margin="{controls:Inset Right=Xs, Bottom=Xs}" Classes="SecondaryButton" Click="OnCheckForUpdatesClick" Content="Check for updates" IsEnabled="{Binding ApplicationUpdates.CanCheck}" IsVisible="{Binding ApplicationUpdates.CanCheck}" AutomationProperties.Name="Check for application updates" />

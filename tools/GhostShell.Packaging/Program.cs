@@ -12,6 +12,7 @@ internal static class Program
             return args.FirstOrDefault()?.ToLowerInvariant() switch
             {
                 "macos" => BuildMacOs(MacOsPackagingCommand.Parse(args[1..])),
+                "native-signature-removed-sha256" => PrintNativeContentDigest(args[1..]),
                 "macos-release-legal" => ValidateMacOsReleaseLegal(args[1..]),
                 "cef-runtime-receipt" => CreateCefRuntimeReceipt(
                     CefRuntimeReceiptCommand.Parse(args[1..])),
@@ -46,11 +47,22 @@ internal static class Program
     {
         var result = NativeArtifactPublisher.Publish(
             command.StagedDirectory,
-            command.DestinationDirectory);
+            command.DestinationDirectory,
+            command.Component);
         Console.WriteLine(
             result.ReplacedExistingDirectory
                 ? "Atomically replaced the native artifact directory."
                 : "Published the native artifact directory.");
+        return 0;
+    }
+
+    private static int PrintNativeContentDigest(IReadOnlyList<string> arguments)
+    {
+        if (arguments.Count != 1 || string.IsNullOrWhiteSpace(arguments[0]))
+        {
+            throw new PackagingUsageException("native-signature-removed-sha256 requires one Mach-O path.");
+        }
+        Console.WriteLine(NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(arguments[0]));
         return 0;
     }
 
@@ -136,6 +148,8 @@ internal static class Program
             """
             GhostSHELL packaging
 
+              native-signature-removed-sha256 <Mach-O-file>
+
               macos --publish <native-aot-directory>
                     --managed-evidence <self-contained-directory>
                     --output <GhostShell.app>
@@ -176,6 +190,7 @@ internal static class Program
 
               native-publish-artifacts --staged-directory <directory>
                     --destination <native/artifacts/runtime-identifier>
+                    [--component terminal|cef]
 
             The macOS command refuses an existing destination and requires a complete
             self-contained publish payload, including the pinned native terminal runtime. It

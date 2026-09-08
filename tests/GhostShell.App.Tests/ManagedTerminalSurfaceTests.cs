@@ -598,10 +598,7 @@ public sealed class ManagedTerminalSurfaceTests
     [Fact]
     public async Task Multiline_paste_is_sent_immediately()
     {
-        var sink = new RecordingInputSink
-        {
-            RequirePasteConfirmation = true,
-        };
+        var sink = new RecordingInputSink();
         var surface = new ManagedTerminalSurface
         {
             InputSink = sink,
@@ -614,7 +611,6 @@ public sealed class ManagedTerminalSurfaceTests
         Assert.False(result.RequiresConfirmation);
         var paste = Assert.Single(sink.Pastes);
         Assert.Equal("first\nsecond", paste.Text);
-        Assert.True(paste.ConfirmedUnsafe);
     }
 
     [Fact]
@@ -1187,8 +1183,6 @@ public sealed class ManagedTerminalSurfaceTests
 
         public int ClearScrollbackCount { get; private set; }
 
-        public bool RequirePasteConfirmation { get; init; }
-
         public TerminalSelectionText SelectionText { get; set; } =
             new(string.Empty, false, false);
 
@@ -1285,10 +1279,7 @@ public sealed class ManagedTerminalSurfaceTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Pastes.Add(pasteInput);
-            return ValueTask.FromResult(
-                RequirePasteConfirmation && !pasteInput.ConfirmedUnsafe
-                    ? TerminalPasteResult.ConfirmationRequired(bracketed: true)
-                    : TerminalPasteResult.Completed(bracketed: true));
+            return ValueTask.FromResult(TerminalPasteResult.Completed(bracketed: true));
         }
     }
 

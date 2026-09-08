@@ -68,6 +68,18 @@ public sealed class ProcessConnectionCommandRunner : IConnectionCommandRunner
         catch (OperationCanceledException)
         {
             TryKill(process);
+            // Cancellation is not complete until this owned child is reaped.
+            // Snapshot callers must not remove a destination while cp can still
+            // write it. Keep cleanup bounded even if termination was denied.
+            using var reapTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(reapTimeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+            {
+                throw new IOException("The owned process did not exit within its cleanup deadline.", exception);
+            }
             await AwaitDrainAfterCancellationAsync(stderrTask, stdoutTask).ConfigureAwait(false);
             var outcome = cancellationToken.IsCancellationRequested
                 ? ConnectionProbeOutcome.Cancelled

@@ -1,5 +1,6 @@
 using GhostShell.Application.ApplicationUpdates;
 using Velopack;
+using Velopack.Locators;
 using Velopack.Sources;
 
 namespace GhostShell.Updates;
@@ -16,7 +17,8 @@ internal sealed class VelopackApplicationUpdateService : IApplicationUpdateServi
 
     public VelopackApplicationUpdateService(
         DistributionIdentity distribution,
-        Action requestShutdown)
+        Action requestShutdown,
+        IVelopackLocator? locator = null)
     {
         ArgumentNullException.ThrowIfNull(distribution);
         ArgumentNullException.ThrowIfNull(requestShutdown);
@@ -34,7 +36,8 @@ internal sealed class VelopackApplicationUpdateService : IApplicationUpdateServi
             {
                 ExplicitChannel = distribution.Channel,
                 AllowVersionDowngrade = false,
-            });
+            },
+            locator);
         var applyAllowed = ApplyDoesNotRequireMacOsElevation(
             Environment.ProcessPath);
         Snapshot = !_updates.IsInstalled
@@ -186,7 +189,9 @@ internal sealed class VelopackApplicationUpdateService : IApplicationUpdateServi
             // session history. It gives up after Velopack's 60-second limit.
             _updates.WaitExitThenApplyUpdates(
                 release,
-                silent: false,
+                // Velopack 1.2.0 refuses its macOS elevation path in silent mode.
+                // Location checks are only UI guidance, never an authority boundary.
+                silent: OperatingSystem.IsMacOS(),
                 restart: true,
                 restartArgs: null);
             _requestShutdown();
@@ -213,9 +218,14 @@ internal sealed class VelopackApplicationUpdateService : IApplicationUpdateServi
 
     private static bool ApplyDoesNotRequireMacOsElevation(string? processPath)
     {
-        if (!OperatingSystem.IsMacOS() || string.IsNullOrWhiteSpace(processPath))
+        if (!OperatingSystem.IsMacOS())
         {
             return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(processPath))
+        {
+            return false;
         }
 
         var fullPath = Path.GetFullPath(processPath);

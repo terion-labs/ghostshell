@@ -21,6 +21,10 @@ public interface IDatabaseDriver
     DbConnection CreateRoutedConnection(string connectionString, string host, int port) =>
         CreateConnection(RewriteEndpoint(connectionString, host, port));
 
+    /// <summary>Uses the captured route for engines whose server can redirect transport endpoints.</summary>
+    DbConnection CreateRoutedConnection(string connectionString, string host, int port, DatabaseConnectionRoute route) =>
+        CreateRoutedConnection(connectionString, host, port);
+
     /// <summary>
     /// Maps friendly input onto the provider's syntax before anything parses
     /// it — file engines accept a bare path here. The default keeps the input.

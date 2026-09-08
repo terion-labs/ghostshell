@@ -10,4 +10,5 @@ public enum SecretScopeKind
     FileProvider,
     DatabaseConnection,
     NetworkConnection,
+    DatabaseRecovery,
 }

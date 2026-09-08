@@ -58,6 +58,32 @@ public sealed partial class PosixLocalFileProvider
             : NativeError("delete the entry");
     }
 
+    internal FileProviderError? SetModeNoFollow(FilePath path, uint mode)
+    {
+        using var parent = path.IsRoot
+            ? OpenRootForAccessControl()
+            : OpenParentDirectory(path);
+        if (parent.Error is not null)
+        {
+            return parent.Error;
+        }
+
+        // Unlike opening the leaf for reading, fchmodat permits an owner to
+        // repair unreadable modes. Never retry without NOFOLLOW on failure.
+        return fchmodat(parent.Descriptor, parent.LeafName!, mode,
+            OperatingSystem.IsMacOS() ? 0x20 : 0x100) == 0
+            ? null
+            : NativeError("change the permissions without following links");
+    }
+
+    private ParentDirectoryHandle OpenRootForAccessControl()
+    {
+        var descriptor = open(RootPath, DirectoryOpenFlags());
+        return descriptor < 0
+            ? ParentDirectoryHandle.Failed(NativeError("open the configured provider root"))
+            : ParentDirectoryHandle.Opened(descriptor, ".");
+    }
+
     private ParentDirectoryHandle OpenParentDirectory(FilePath path)
     {
         if (path.IsRoot)
@@ -97,8 +123,10 @@ public sealed partial class PosixLocalFileProvider
     }
 
     private static int DirectoryOpenFlags() => OperatingSystem.IsMacOS()
-        ? 0x0010_0000 | 0x0100_0000 | 0x0000_0100
-        : 0x0001_0000 | 0x0008_0000 | 0x0002_0000;
+        // O_SEARCH on macOS and O_PATH on Linux do not require directory read
+        // permission; openat still enforces search permission for each child.
+        ? 0x4000_0000 | 0x0010_0000 | 0x0100_0000 | 0x0000_0100
+        : 0x0020_0000 | 0x0001_0000 | 0x0008_0000 | 0x0002_0000;
 
     private static FileProviderError NativeError(string operation)
     {
@@ -176,6 +204,9 @@ public sealed partial class PosixLocalFileProvider
 
     [DllImport("libc", SetLastError = true)]
     private static extern int unlinkat(int directory, string path, int flags);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int fchmodat(int directory, string path, uint mode, int flags);
 
     [DllImport("libc")]
     private static extern int close(int descriptor);

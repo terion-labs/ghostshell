@@ -252,14 +252,12 @@ public sealed class TerminalContractsTests
     }
 
     [Theory]
-    [InlineData("single line", false)]
-    [InlineData("first\nsecond", true)]
-    [InlineData("control\u0003", true)]
-    [InlineData("tab\tallowed", false)]
-    public void Paste_contract_identifies_content_that_needs_safety_policy(
-        string text,
-        bool expectedUnsafe)
+    [InlineData("single line")]
+    [InlineData("first\nsecond")]
+    [InlineData("control\u0003")]
+    [InlineData("tab\tallowed")]
+    public void Paste_contract_preserves_text_for_engine_encoding(string text)
     {
-        Assert.Equal(expectedUnsafe, new TerminalPasteInput(text).ContainsUnsafeContent);
+        Assert.Equal(text, new TerminalPasteInput(text).Text);
     }
 }

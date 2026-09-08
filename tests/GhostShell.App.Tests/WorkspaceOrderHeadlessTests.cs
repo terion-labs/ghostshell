@@ -17,6 +17,44 @@ namespace GhostShell.App.Tests;
 [Collection(AvaloniaUiCollection.Name)]
 public sealed class WorkspaceOrderHeadlessTests
 {
+    [Fact]
+    public Task Workspace_menu_never_offers_or_dispatches_close_for_Main() => RunAsync(async () =>
+    {
+        using var model = CreateModel(out _);
+        var main = new LauncherWorkspaceViewModel(
+            new WorkspaceId(WorkspaceDefinition.DefaultWorkspaceId), 1, "Main", "", "#808080", "M",
+            FluentIcons.Common.Symbol.Window, 0)
+        { IsOpen = true };
+        model.Workspaces.Insert(0, main);
+        model.Workspaces[1].IsOpen = true;
+        var view = new WorkspaceView { DataContext = model };
+        var closed = 0;
+        view.CloseWorkspaceRequested += (_, _) => closed++;
+        var window = new Window { Width = 1000, Height = 700, Content = view, DataContext = model };
+        window.Show();
+        try
+        {
+            var menu = view.FindControl<Button>("WorkspacesMenuButton")!;
+            var flyout = Assert.IsType<Flyout>(menu.Flyout);
+            flyout.ShowAt(menu);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            window.UpdateLayout();
+            var content = Assert.IsAssignableFrom<Control>(flyout.Content);
+            var closeButtons = content.GetVisualDescendants().OfType<Button>()
+                .Where(button => Equals(button.GetValue(ToolTip.TipProperty),
+                    "Terminate this workspace and everything running in it")).ToArray();
+            var mainClose = Assert.Single(closeButtons, button => ReferenceEquals(button.DataContext, main));
+            Assert.False(mainClose.IsVisible);
+            mainClose.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(0, closed);
+            var otherClose = Assert.Single(closeButtons, button => ReferenceEquals(button.DataContext, model.Workspaces[1]));
+            Assert.True(otherClose.IsVisible);
+            otherClose.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(1, closed);
+        }
+        finally { window.Close(); }
+    });
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]

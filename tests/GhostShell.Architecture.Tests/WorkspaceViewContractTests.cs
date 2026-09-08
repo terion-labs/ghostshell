@@ -453,8 +453,7 @@ public sealed class WorkspaceViewContractTests
 
         Assert.Contains(
             root.Descendants(),
-            element => string.Equals(element.Name.LocalName, "TextBlock"
-, StringComparison.Ordinal) && string.Equals(
+            element => element.Name == XName.Get("LiveRegionTextBlock", "using:GhostShell.App.Controls") && string.Equals(
                     AttributeValue(element, "Text"),
                     "{Binding TabReorderStatus}",
                     StringComparison.Ordinal)

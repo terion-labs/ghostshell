@@ -204,6 +204,7 @@ public abstract partial class LocalFileProvider
 
         try
         {
+            var headroom = new DiskWriteHeadroom(parentResult.Value.Path, request.ContentLength);
             await using (var temporary = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -226,6 +227,7 @@ public abstract partial class LocalFileProvider
                             "The source ended before its declared content length.");
                     }
 
+                    headroom.BeforeWrite(read);
                     await temporary
                         .WriteAsync(buffer.AsMemory(0, read), cancellationToken)
                         .ConfigureAwait(false);

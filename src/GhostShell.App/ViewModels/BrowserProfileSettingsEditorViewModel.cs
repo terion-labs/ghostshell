@@ -12,6 +12,8 @@ public sealed record BrowserProfileSharingOption(
     string DisplayName,
     string Description);
 
+public sealed record BrowserAuthenticationRouteOption(string Identity, string DisplayName);
+
 public sealed record BrowserProfileItemViewModel(
     BrowserProfileId Id,
     long Revision,
@@ -49,6 +51,8 @@ public sealed class BrowserProfileSettingsEditorViewModel : ObservableObject
     private string _authenticationHost = string.Empty;
     private string _authenticationPort = string.Empty;
     private string _authenticationRealm = string.Empty;
+    private string _authenticationOriginScheme = "https";
+    private BrowserAuthenticationRouteOption? _authenticationRoute;
     private BrowserAuthenticationScheme _authenticationScheme =
         BrowserAuthenticationScheme.Basic;
     private string _authenticationUsername = string.Empty;
@@ -203,6 +207,22 @@ public sealed class BrowserProfileSettingsEditorViewModel : ObservableObject
 
     public IReadOnlyList<BrowserAuthenticationScheme> AuthenticationSchemes { get; } =
         Enum.GetValues<BrowserAuthenticationScheme>();
+
+    public IReadOnlyList<string> AuthenticationOriginSchemes { get; } = ["https", "http"];
+
+    public ObservableCollection<BrowserAuthenticationRouteOption> AuthenticationRoutes { get; } = [];
+
+    public string AuthenticationOriginScheme
+    {
+        get => _authenticationOriginScheme;
+        set => SetProperty(ref _authenticationOriginScheme, value);
+    }
+
+    public BrowserAuthenticationRouteOption? AuthenticationRoute
+    {
+        get => _authenticationRoute;
+        set => SetProperty(ref _authenticationRoute, value);
+    }
 
     public string AuthenticationHost
     {
@@ -484,6 +504,11 @@ public sealed class BrowserProfileSettingsEditorViewModel : ObservableObject
             ? SecretRef.New()
             : current!.PasswordSecret;
         BrowserHttpAuthentication authentication;
+        if (AuthenticationRoute is null)
+        {
+            OperationStatus = "Select the network route authorized to use this password.";
+            return;
+        }
         try
         {
             authentication = new BrowserHttpAuthentication(
@@ -492,7 +517,9 @@ public sealed class BrowserProfileSettingsEditorViewModel : ObservableObject
                 AuthenticationRealm,
                 AuthenticationScheme,
                 AuthenticationUsername,
-                reference);
+                reference,
+                AuthenticationOriginScheme,
+                AuthenticationRoute.Identity);
         }
         catch (ArgumentException exception)
         {
@@ -703,6 +730,27 @@ public sealed class BrowserProfileSettingsEditorViewModel : ObservableObject
             : null;
         HasAuthentication = authentication is not null;
         AuthenticationHost = authentication?.Host ?? string.Empty;
+        AuthenticationOriginScheme = authentication?.OriginScheme ?? "https";
+        AuthenticationRoutes.Clear();
+        AuthenticationRoutes.Add(new("local", "Direct"));
+        if (_catalog is not null)
+        {
+            foreach (var stored in _catalog.Snapshot.Connections)
+            {
+                var connection = stored.Value.ResolveHostConnection(id => _catalog.Snapshot.Connections
+                    .SingleOrDefault(candidate => candidate.Value.Id == id)?.Value);
+                if (connection?.Endpoint is ConnectionEndpoint.Ssh)
+                {
+                    AuthenticationRoutes.Add(new(BrowserHttpAuthentication.SshRouteIdentity(connection), $"SSH · {connection.Name}"));
+                }
+            }
+            foreach (var stored in _catalog.Snapshot.NetworkConnections)
+            {
+                AuthenticationRoutes.Add(new(BrowserHttpAuthentication.NetworkRouteIdentity(stored.Value), $"Workspace network · {stored.Value.Name}"));
+            }
+        }
+        var routeIdentity = authentication?.RouteIdentity ?? "local";
+        AuthenticationRoute = AuthenticationRoutes.SingleOrDefault(route => string.Equals(route.Identity, routeIdentity, StringComparison.Ordinal));
         AuthenticationPort = authentication?.Port?.ToString(
             CultureInfo.InvariantCulture) ?? string.Empty;
         AuthenticationRealm = authentication?.Realm ?? string.Empty;

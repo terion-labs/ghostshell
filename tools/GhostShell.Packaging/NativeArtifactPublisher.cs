@@ -2,11 +2,13 @@ namespace GhostShell.Packaging;
 
 internal sealed record NativeArtifactPublishCommand(
     string StagedDirectory,
-    string DestinationDirectory)
+    string DestinationDirectory,
+    string? Component = null)
 {
     private static readonly HashSet<string> Options =
     [
         "--destination",
+        "--component",
         "--staged-directory",
     ];
 
@@ -20,7 +22,8 @@ internal sealed record NativeArtifactPublishCommand(
                 "--staged-directory"),
             PackagingCommandParser.Required(
                 values,
-                "--destination"));
+                "--destination"),
+            values.GetValueOrDefault("--component"));
     }
 }
 
@@ -48,20 +51,46 @@ internal static class NativeArtifactPublisher
         ".ghostshell-native-artifacts.";
     private const int MaximumEntries = 40_000;
     private const int MaximumDepth = 32;
+    private static readonly HashSet<string> TerminalRoots = new(StringComparer.Ordinal)
+    {
+        "libghostty-vt.dylib",
+        "libghostty-vt.so",
+        "ghostty-vt.dll",
+        "libghostshell_pty.dylib",
+        "libghostshell_pty.so",
+        "PORTA-PTY-LICENSE",
+        "GHOSTTY-LICENSE",
+        "ghostty-vt-required-exports.txt",
+        "native-terminal-build-receipt.json",
+        "ghostty",
+    };
 
     public static NativeArtifactPublishResult Publish(
         string stagedDirectory,
-        string destinationDirectory)
+        string destinationDirectory,
+        string? component = null)
     {
+        if (component is not null and not "terminal" and not "cef")
+        {
+            throw new ArgumentException("Unknown native artifact component.", nameof(component));
+        }
+
         var staged = RequireExistingDirectoryWithoutLinks(
             stagedDirectory,
             nameof(stagedDirectory));
         var destination = ParseDestination(destinationDirectory);
         ValidatePrivateSibling(staged, destination.Path);
+        using var publicationLock = AcquirePublicationLock(destination.Path);
         ValidateTree(staged, "staged native artifact");
         if (destination.Exists)
         {
             ValidateTree(destination.Path, "existing native artifact");
+        }
+
+        if (component is not null)
+        {
+            PreserveIndependentComponents(staged, destination, component);
+            ValidateTree(staged, "merged native artifact");
         }
 
         // Re-run path validation immediately before the atomic operation. On
@@ -89,6 +118,70 @@ internal static class NativeArtifactPublisher
         return new NativeArtifactPublishResult(
             destination.Path,
             destination.Exists);
+    }
+
+    private static FileStream AcquirePublicationLock(string destination)
+    {
+        var parent = Path.GetDirectoryName(destination)!;
+        var path = Path.Combine(parent, $".ghostshell-native-publication.{Path.GetFileName(destination)}.lock");
+        if (InspectPathWithoutFollowing(path) == InspectedPath.Directory)
+        {
+            throw new IOException("The native publication lock is not a regular file.");
+        }
+
+        // Cooperating publishers fail rather than overwrite a sibling published
+        // concurrently. The OS releases the exclusive handle even after a crash.
+        return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    }
+
+    private static void PreserveIndependentComponents(string staged, DestinationState destination, string component)
+    {
+        bool Owns(string name) => string.Equals(component, "terminal", StringComparison.Ordinal)
+            ? TerminalRoots.Contains(name)
+            : string.Equals(name, "cef", StringComparison.Ordinal);
+        if (Enumerate(new DirectoryInfo(staged), "component artifact")
+            .Any(entry => !Owns(entry.Name)))
+        {
+            throw new InvalidDataException("Native component publication contains an independently owned component.");
+        }
+
+        if (!destination.Exists)
+        {
+            return;
+        }
+
+        // Siblings retain their own receipts; copying them does not add them to
+        // the terminal receipt. Only the completed merged tree is exchanged.
+        foreach (var entry in Enumerate(new DirectoryInfo(destination.Path), "existing native artifact"))
+        {
+            if (!Owns(entry.Name))
+            {
+                CopyIndependentEntry(entry, Path.Combine(staged, entry.Name));
+            }
+        }
+    }
+
+    private static void CopyIndependentEntry(FileSystemInfo entry, string destination)
+    {
+        RejectLink(entry);
+        if (entry is DirectoryInfo directory)
+        {
+            Directory.CreateDirectory(destination);
+            foreach (var child in Enumerate(directory, "independent native artifact"))
+            {
+                CopyIndependentEntry(child, Path.Combine(destination, child.Name));
+            }
+
+            return;
+        }
+
+        using var source = RegularPackageFileReader.Open(entry.FullName, out _);
+        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        source.CopyTo(output);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(destination, File.GetUnixFileMode(entry.FullName));
+        }
     }
 
     private static DestinationState ParseDestination(string path)

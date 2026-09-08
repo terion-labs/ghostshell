@@ -9,6 +9,322 @@ namespace GhostShell.Git.Tests;
 public sealed class GovernedGitRepositoryClientTests
 {
     [Fact]
+    public async Task CancelledCaptureRemovesPrivateBytesAfterProcessTermination()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, "tracked.txt"), "approved\n");
+        var observed = await repository.ReadStateAsync();
+        var marker = Path.Combine(repository.Root, ".git", "capture-path");
+        var client = new GitRepositoryClient(new CaptureScriptExecutor(repository.Executor, script =>
+            script.Replace("cp -- \"$root/$path\" \"$temporary/candidate\"",
+                "cp -- \"$root/$path\" \"$temporary/candidate\"\n"
+                + "printf '%s' \"$temporary\" > \"$root/.git/capture-path\"\n"
+                + "sleep 60", StringComparison.Ordinal)), TimeProvider.System);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var operation = client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges), cancellation.Token).AsTask();
+        while (!File.Exists(marker))
+        {
+            await Task.Delay(10, cancellation.Token);
+        }
+        var capturePath = await File.ReadAllTextAsync(marker, cancellation.Token);
+        Assert.True(File.Exists(Path.Combine(capturePath, "candidate")));
+        await cancellation.CancelAsync();
+        try
+        {
+            _ = await operation;
+        }
+        catch (OperationCanceledException)
+        {
+            // Both an explicit cancellation and a rejected terminated command
+            // are acceptable; neither may leave the private candidate behind.
+        }
+        Assert.False(Directory.Exists(capturePath));
+    }
+
+    [Theory]
+    [InlineData("worktree")]
+    [InlineData("info")]
+    [InlineData("global")]
+    [InlineData("config")]
+    public async Task GovernedStageRejectsChangedNormalizationInputs(string input)
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var attributes = input switch
+        {
+            "info" => Path.Combine(repository.Root, ".git", "info", "attributes"),
+            "global" => Path.Combine(repository.Root, ".git", "global-attributes"),
+            _ => Path.Combine(repository.Root, ".gitattributes"),
+        };
+        if (input == "global")
+        {
+            await repository.RunGitAsync("config", "core.attributesFile", attributes);
+        }
+        if (input != "config")
+        {
+            await File.WriteAllTextAsync(attributes, "*.txt text eol=lf\n");
+        }
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, "tracked.txt"), "approved\r\n");
+        var observed = await repository.ReadStateAsync();
+        if (input == "config")
+        {
+            await repository.RunGitAsync("config", "core.autocrlf", "true");
+        }
+        else
+        {
+            await File.WriteAllTextAsync(attributes, "*.txt -text\n");
+        }
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges, change => change.Path == "tracked.txt"), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Rejected, receipt.Disposition);
+        Assert.Equal(string.Empty, await repository.RunGitOutputAsync("diff", "--cached", "--name-only"));
+    }
+
+    [Fact]
+    public async Task GovernedCaptureDoesNotExecuteFilterAddedAfterSnapshot()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, "tracked.txt"), "approved\n");
+        var observed = await repository.ReadStateAsync();
+        var client = new GitRepositoryClient(new CaptureScriptExecutor(repository.Executor, script =>
+            script.Replace("# Normalize the approved capture using only its bound snapshot.",
+                "run_git config --local filter.race.clean 'touch filter-executed; cat'\n"
+                + "printf '*.txt filter=race\\n' > \"$root/.git/info/attributes\"\n"
+                + "# Normalize the approved capture using only its bound snapshot.", StringComparison.Ordinal)), TimeProvider.System);
+
+        var receipt = await client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Rejected, receipt.Disposition);
+        Assert.False(File.Exists(Path.Combine(repository.Root, "filter-executed")));
+        Assert.Equal(string.Empty, await repository.RunGitOutputAsync("diff", "--cached", "--name-only"));
+    }
+
+    [Fact]
+    public async Task GovernedStageUsesIndexAttributeFallbackAndCharsetNormalization()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var attributes = Path.Combine(repository.Root, ".gitattributes");
+        await File.WriteAllTextAsync(attributes, "*.txt text eol=lf working-tree-encoding=UTF-16LE ident\n");
+        await repository.RunGitAsync("add", ".gitattributes");
+        await repository.RunGitAsync("commit", "-m", "encoding attributes");
+        File.Delete(attributes);
+        await File.WriteAllBytesAsync(Path.Combine(repository.Root, "tracked.txt"),
+            System.Text.Encoding.Unicode.GetBytes("$Id: fixture $\r\nUnicode: λ\r\n"));
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges, change => change.Path == "tracked.txt"), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.Equal("$Id$\nUnicode: λ", await repository.RunGitOutputAsync("show", ":tracked.txt"));
+    }
+
+    [Fact]
+    public async Task GovernedStagePreservesNewlineAndSpaceInFileName()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        const string name = "directory\n/file with\nnewline.txt";
+        Directory.CreateDirectory(Path.Combine(repository.Root, "directory\n"));
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, name), "approved\n");
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.Equal("approved", await repository.RunGitOutputAsync("show", ":" + name));
+    }
+
+    [Fact]
+    public async Task GovernedStagePreservesIndexModeWhenFileModeIsIgnored()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await repository.RunGitAsync("config", "core.filemode", "false");
+        var path = Path.Combine(repository.Root, "tracked.txt");
+        await File.WriteAllTextAsync(path, "approved\n");
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.StartsWith("100644 ", await repository.RunGitOutputAsync("ls-files", "--stage", "tracked.txt"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RejectedCaptureDoesNotWriteRacedOutsideContentToSharedObjects()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await using var outside = await LocalRepository.CreateAsync();
+        var outsidePath = Path.Combine(outside.Root, "tracked.txt");
+        await File.WriteAllTextAsync(outsidePath, "outside-private-fixture-" + Guid.NewGuid());
+        var outsideObject = await repository.RunGitOutputAsync("hash-object", "--no-filters", "--", outsidePath);
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, "tracked.txt"), "approved\n");
+        var observed = await repository.ReadStateAsync();
+        var escapedOutside = outsidePath.Replace("'", "'\\''", StringComparison.Ordinal);
+        var client = new GitRepositoryClient(new CaptureScriptExecutor(repository.Executor, script =>
+            script.Replace("elif [ -f \"$root/$path\" ]; then",
+                "elif [ -f \"$root/$path\" ]; then\n"
+                + "rm -f \"$root/$path\"\n"
+                + $"ln -s '{escapedOutside}' \"$root/$path\"", StringComparison.Ordinal)), TimeProvider.System);
+
+        var receipt = await client.StageGovernedAsync(repository.Handle, observed.Guard,
+            Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Rejected, receipt.Disposition);
+        Assert.Equal(string.Empty, await repository.RunGitOutputAsync("diff", "--cached", "--name-only"));
+        var lookup = await repository.Executor.ExecuteAsync(new ConnectionCommand(BuiltInConnections.Local,
+            "git", ["-C", repository.Root, "cat-file", "-e", outsideObject], TimeSpan.FromSeconds(10), 1024),
+            CancellationToken.None);
+        Assert.Equal(ConnectionCommandOutcome.Exited, lookup.Outcome);
+        Assert.NotEqual(0, lookup.ExitCode);
+    }
+
+    [Fact]
+    public async Task GovernedStageRetainsApprovedBytesWhenWorkingFileChangesAtIndexDispatch()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var path = Path.Combine(repository.Root, "tracked.txt");
+        await File.WriteAllTextAsync(path, "approved content\n");
+        var observed = await repository.ReadStateAsync();
+        var client = new GitRepositoryClient(
+            new BeforeIndexWriteExecutor(repository.Executor,
+                () => File.WriteAllTextAsync(path, "unapproved concurrent content\n")),
+            TimeProvider.System);
+
+        var receipt = await client.StageGovernedAsync(repository.Handle,
+            observed.Guard, Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.OutcomeUnknown, receipt.Disposition);
+        Assert.Equal("approved content", await repository.RunGitOutputAsync("show", ":tracked.txt"));
+        Assert.Equal("unapproved concurrent content\n", await File.ReadAllTextAsync(path));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GovernedStagePreservesExecutableModeAndBuiltInTextNormalization(bool executable)
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, ".gitattributes"), "*.txt text eol=lf\n");
+        await repository.RunGitAsync("add", ".gitattributes");
+        await repository.RunGitAsync("commit", "-m", "text attributes");
+        var path = Path.Combine(repository.Root, "tracked.txt");
+        await File.WriteAllTextAsync(path, "CRLF content\r\n");
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite
+            | (executable ? UnixFileMode.UserExecute : 0));
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle,
+            observed.Guard, Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.Equal("CRLF content", await repository.RunGitOutputAsync("show", ":tracked.txt"));
+        Assert.StartsWith(executable ? "100755 " : "100644 ",
+            await repository.RunGitOutputAsync("ls-files", "--stage", "tracked.txt"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GovernedStageCapturesSymlinkTargetWithoutFollowingIt()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        File.CreateSymbolicLink(Path.Combine(repository.Root, "link.txt"), "tracked.txt");
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle,
+            observed.Guard, Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.Equal("tracked.txt", await repository.RunGitOutputAsync("show", ":link.txt"));
+        Assert.StartsWith("120000 ", await repository.RunGitOutputAsync("ls-files", "--stage", "link.txt"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GovernedStageCapturesSubmoduleCommit()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        await using var source = await LocalRepository.CreateAsync();
+        await repository.RunGitAsync("-c", "protocol.file.allow=always", "submodule", "add", source.Root, "module");
+        await repository.RunGitAsync("commit", "-m", "add module");
+        await File.WriteAllTextAsync(Path.Combine(repository.Root, "module", "tracked.txt"), "module change\n");
+        await repository.RunGitAsync("-C", "module", "add", "tracked.txt");
+        await repository.RunGitAsync("-C", "module", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "module change");
+        var expectedCommit = await repository.RunGitOutputAsync("-C", "module", "rev-parse", "HEAD");
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle,
+            observed.Guard, Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.StartsWith($"160000 {expectedCommit} ",
+            await repository.RunGitOutputAsync("ls-files", "--stage", "module"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GovernedStagePreservesDeletion()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        File.Delete(Path.Combine(repository.Root, "tracked.txt"));
+        var observed = await repository.ReadStateAsync();
+
+        var receipt = await repository.Client.StageGovernedAsync(repository.Handle,
+            observed.Guard, Assert.Single(observed.Snapshot.UnstagedChanges), CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Succeeded, receipt.Disposition);
+        Assert.Equal(string.Empty, await repository.RunGitOutputAsync("ls-files", "--stage", "tracked.txt"));
+    }
+
+    [Fact]
+    public async Task PassiveStatusDoesNotExecuteRepositoryFsmonitor()
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var marker = Path.Combine(repository.Root, "fsmonitor-ran");
+        var hook = Path.Combine(repository.Root, ".git", "fsmonitor-test");
+        await File.WriteAllTextAsync(hook, $"#!/bin/sh\ntouch '{marker}'\n");
+        File.SetUnixFileMode(hook, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        await repository.RunGitAsync("config", "core.fsmonitor", hook);
+
+        var workingSet = await repository.Client.ReadWorkingSetAsync(
+            repository.Handle, 1, CancellationToken.None);
+        var snapshot = await repository.Client.ReadSnapshotAsync(
+            repository.Handle, 2, CancellationToken.None);
+
+        Assert.IsType<GitResult<GitWorkingSet>.Success>(workingSet);
+        Assert.IsType<GitResult<GitRepositorySnapshot>.Success>(snapshot);
+        Assert.False(File.Exists(marker));
+        // A deliberate human Git operation still uses the configured hook.
+        await repository.RunGitAsync("status", "--porcelain");
+        Assert.True(File.Exists(marker));
+    }
+
+    [Theory]
+    [InlineData("tracked.txt")]
+    [InlineData("untracked.txt")]
+    public async Task GovernedStageRejectsContentRewrittenWithTheSameStatus(string path)
+    {
+        await using var repository = await LocalRepository.CreateAsync();
+        var fullPath = Path.Combine(repository.Root, path);
+        await File.WriteAllTextAsync(fullPath, "observed content\n");
+        var observed = await repository.ReadStateAsync();
+        var selected = Assert.Single(observed.Snapshot.UnstagedChanges);
+        await File.WriteAllTextAsync(fullPath, "replaced content\n");
+        var changed = await repository.ReadStateAsync();
+        Assert.Equal(selected, Assert.Single(changed.Snapshot.UnstagedChanges));
+        Assert.NotEqual(observed.Guard.WorktreeDigest, changed.Guard.WorktreeDigest, StringComparer.Ordinal);
+
+        var receipt = await repository.Client.StageGovernedAsync(
+            repository.Handle, observed.Guard, selected, CancellationToken.None);
+
+        Assert.Equal(GitGovernedMutationDisposition.Rejected, receipt.Disposition);
+        Assert.Equal("git_state_changed", receipt.StableCode);
+        Assert.Equal(string.Empty, await repository.RunGitOutputAsync("diff", "--cached", "--name-only"));
+    }
+
+    [Fact]
     public async Task GovernedStateBindsHeadIndexWorktreeAndRefs()
     {
         await using var repository = await LocalRepository.CreateAsync();
@@ -259,7 +575,7 @@ public sealed class GovernedGitRepositoryClientTests
             change => string.Equals(change.Path, "tracked.txt", StringComparison.Ordinal));
         var racing = new AfterCommandExecutor(
             repository.Executor,
-            "add",
+            "update-index",
             () => new ValueTask(repository.RunGitAsync("add", "--", "other.txt")));
         var client = new GitRepositoryClient(racing, TimeProvider.System);
 
@@ -557,6 +873,49 @@ public sealed class GovernedGitRepositoryClientTests
             UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
     }
 
+    private sealed class CaptureScriptExecutor(IConnectionCommandExecutor inner, Func<string, string> transform)
+        : IConnectionCommandExecutor
+    {
+        public ValueTask<ConnectionCommandResult> ExecuteAsync(ConnectionCommand request, CancellationToken cancellationToken)
+        {
+            if (request.Arguments.Contains("ghostshell-worktree-capture", StringComparer.Ordinal)
+                && request.Arguments.Contains("write", StringComparer.Ordinal))
+            {
+                request = new ConnectionCommand(request.Connection, request.Executable,
+                    [.. request.Arguments.Select(argument => argument.Contains("run_git()", StringComparison.Ordinal)
+                        ? transform(argument) : argument)], request.Timeout, request.MaximumOutputCharacters);
+            }
+            return inner.ExecuteAsync(request, cancellationToken);
+        }
+
+        public ValueTask<ConnectionBinaryCommandResult> ExecuteBinaryAsync(ConnectionBinaryCommand request, CancellationToken cancellationToken) =>
+            inner.ExecuteBinaryAsync(request, cancellationToken);
+
+        public ValueTask<ConnectionStreamingCommandResult<T>> ExecuteStreamingAsync<T>(ConnectionBinaryCommand request,
+            Func<Stream, CancellationToken, ValueTask<T>> consumeOutput, CancellationToken cancellationToken) =>
+            inner.ExecuteStreamingAsync(request, consumeOutput, cancellationToken);
+    }
+
+    private sealed class BeforeIndexWriteExecutor(IConnectionCommandExecutor inner, Func<Task> change)
+        : IConnectionCommandExecutor
+    {
+        public async ValueTask<ConnectionCommandResult> ExecuteAsync(ConnectionCommand request, CancellationToken cancellationToken)
+        {
+            if (request.Arguments.Contains("update-index", StringComparer.Ordinal))
+            {
+                await change();
+            }
+            return await inner.ExecuteAsync(request, cancellationToken);
+        }
+
+        public ValueTask<ConnectionBinaryCommandResult> ExecuteBinaryAsync(ConnectionBinaryCommand request, CancellationToken cancellationToken) =>
+            inner.ExecuteBinaryAsync(request, cancellationToken);
+
+        public ValueTask<ConnectionStreamingCommandResult<T>> ExecuteStreamingAsync<T>(ConnectionBinaryCommand request,
+            Func<Stream, CancellationToken, ValueTask<T>> consumeOutput, CancellationToken cancellationToken) =>
+            inner.ExecuteStreamingAsync(request, consumeOutput, cancellationToken);
+    }
+
     private sealed class AfterCommandExecutor(
         IConnectionCommandExecutor inner,
         string trigger,
@@ -676,7 +1035,7 @@ public sealed class GovernedGitRepositoryClientTests
 
             var result = await inner.ExecuteAsync(request, cancellationToken);
             if (ThrowAfterMutation
-                && request.Arguments.Contains("add", StringComparer.Ordinal))
+                && request.Arguments.Contains("update-index", StringComparer.Ordinal))
             {
                 Interlocked.Exchange(ref _throwNext, 1);
             }

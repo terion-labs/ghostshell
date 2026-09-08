@@ -92,7 +92,7 @@
         BorderThickness="1"
         CornerRadius="{DynamicResource ShellControlCornerRadius}"
         IsVisible="False">
-      <TextBlock
+      <controls:LiveRegionTextBlock
           x:Name="ErrorText"
           Foreground="{DynamicResource ShellDangerBrush}"
           TextWrapping="Wrap"

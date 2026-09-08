@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -66,11 +67,10 @@ internal static class NativeTerminalPackageProvenance
     }
 
     /// <summary>
-    /// Validates the immutable native-terminal metadata after macOS code signing.
-    /// The assembly path must call <see cref="Validate"/> before signing because
-    /// codesign replaces the linker's embedded signature and therefore changes
-    /// the dylib length and digest. The release verifier separately validates
-    /// the package's deep signature and records the exact signed dylib digest.
+    /// Validates receipt-bound executable content after macOS code signing.
+    /// The build receipt includes the digest after Apple's signature removal,
+    /// so a new signature can change without admitting different program bytes.
+    /// The release verifier also checks the package's deep signature identity.
     /// </summary>
     public static void ValidateAfterCodeSigning(
         string executableDirectory,
@@ -132,6 +132,15 @@ internal static class NativeTerminalPackageProvenance
 
         var artifact = RequireObject(receipt.RootElement, "artifact");
         RequireString(artifact, "path", LibraryFileName);
+        // Fail before signing when an old receipt lacks the identity needed by
+        // post-sign verification, rather than discovering that after notarizing.
+        var contentSha256 = RequireString(artifact, "signatureRemovedSha256");
+        if (contentSha256.Length != 64
+            || contentSha256.Any(static character =>
+                character is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+        {
+            throw new InvalidDataException("The native terminal receipt has an invalid signature-independent SHA-256.");
+        }
         var libraryPath = Path.Combine(executableDirectory, LibraryFileName);
         if (requireExactLibrary)
         {
@@ -142,10 +151,11 @@ internal static class NativeTerminalPackageProvenance
         }
         else
         {
-            ValidateSignedLibraryMetadata(libraryPath, artifact);
+            ValidateSignedLibraryContent(libraryPath, artifact);
         }
 
         var build = RequireObject(receipt.RootElement, "build");
+        ValidatePty(executableDirectory, licenseDirectory, catalog.RootElement, receipt.RootElement, requireExactLibrary);
         RequireBoolean(build, "testsPassed", expected: true);
 
         var abi = RequireObject(receipt.RootElement, "abi");
@@ -219,7 +229,42 @@ internal static class NativeTerminalPackageProvenance
         }
     }
 
-    private static void ValidateSignedLibraryMetadata(
+    private static void ValidatePty(string executableDirectory, string licenseDirectory,
+        JsonElement catalog, JsonElement receipt, bool requireExactLibrary)
+    {
+        var expected = RequireObject(catalog, "pty");
+        var pty = RequireObject(receipt, "pty");
+        foreach (var name in new[] { "sourceCommit", "sourceSha256", "patchSha256", "boundarySha256" })
+        {
+            RequireString(pty, name, RequireString(expected, name));
+        }
+        if (RequireInt64(pty, "abi") != 1)
+        {
+            throw new InvalidDataException("The PTY descriptor boundary ABI is incompatible.");
+        }
+        var artifact = RequireObject(pty, "artifact");
+        RequireString(artifact, "path", "libghostshell_pty.dylib");
+        var contentHash = RequireString(artifact, "signatureRemovedSha256");
+        if (contentHash.Length != 64 || contentHash.Any(static character =>
+                character is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+        {
+            throw new InvalidDataException("The PTY receipt has an invalid signature-independent SHA-256.");
+        }
+        var path = Path.Combine(executableDirectory, "libghostshell_pty.dylib");
+        if (requireExactLibrary)
+        {
+            ValidateFile(path, artifact, "packaged descriptor-safe PTY shim");
+        }
+        else
+        {
+            ValidateSignedLibraryContent(path, artifact);
+        }
+        var license = RequireObject(pty, "license");
+        RequireString(license, "path", "PORTA-PTY-LICENSE");
+        ValidateFile(Path.Combine(licenseDirectory, "PORTA-PTY-LICENSE"), license, "packaged PTY license");
+    }
+
+    private static void ValidateSignedLibraryContent(
         string path,
         JsonElement expected)
     {
@@ -243,6 +288,67 @@ internal static class NativeTerminalPackageProvenance
         {
             throw new InvalidDataException(
                 "The native terminal build receipt has an invalid library SHA-256.");
+        }
+
+        RequireString(
+            expected,
+            "signatureRemovedSha256",
+            ComputeSignatureRemovedSha256(path));
+    }
+
+    /// <summary>
+    /// Hashes a private copy after Apple's codesign removes its signature.
+    /// Never mutates the build input or signed package. macOS-only by design.
+    /// </summary>
+    public static string ComputeSignatureRemovedSha256(string path)
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException("Mach-O signature normalization requires macOS.");
+        }
+
+        var source = new FileInfo(path);
+        if (!source.Exists || source.LinkTarget is not null || source.Length == 0)
+        {
+            throw new InvalidDataException("The Mach-O identity input must be a nonempty regular file.");
+        }
+
+        var temporary = Directory.CreateTempSubdirectory("ghostshell-native-identity-");
+        try
+        {
+            var copy = Path.Combine(temporary.FullName, "native-library");
+            File.Copy(source.FullName, copy);
+            var start = new ProcessStartInfo("/usr/bin/codesign")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            start.ArgumentList.Add("--remove-signature");
+            start.ArgumentList.Add(copy);
+            using var process = Process.Start(start)
+                ?? throw new InvalidOperationException("Could not start Mach-O signature normalization.");
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(30_000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                throw new InvalidDataException("Mach-O signature normalization timed out.");
+            }
+            _ = output.GetAwaiter().GetResult();
+            _ = error.GetAwaiter().GetResult();
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidDataException("Apple codesign rejected Mach-O signature normalization.");
+            }
+
+            using var stream = File.OpenRead(copy);
+            return Convert.ToHexStringLower(SHA256.HashData(stream));
+        }
+        finally
+        {
+            temporary.Delete(recursive: true);
         }
     }
 

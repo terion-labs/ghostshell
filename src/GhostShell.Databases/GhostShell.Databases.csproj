@@ -10,7 +10,6 @@
     <PackageReference Include="ClickHouse.Client" />
     <PackageReference Include="DuckDB.NET.Data.Full" />
     <PackageReference Include="FirebirdSql.Data.FirebirdClient" />
-    <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" />
     <PackageReference Include="SQLite3MC.PCLRaw.bundle" />
     <PackageReference Include="MySqlConnector" />
@@ -21,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GhostShell.Application\GhostShell.Application.csproj" />
     <ProjectReference Include="..\GhostShell.Core\GhostShell.Core.csproj" />
+    <ProjectReference Include="../../vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj" />
   </ItemGroup>
 
   <ItemGroup>

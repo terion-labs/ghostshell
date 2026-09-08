@@ -34,13 +34,14 @@ internal sealed class HostUserspaceVpnTransport : IHostUserspaceVpnTransport
     public HostUserspaceVpnTransport(
         NetworkConnectionKind kind,
         ISecretVault secretVault,
-        IConnectionExecutableLocator executableLocator)
+        IConnectionExecutableLocator executableLocator,
+        string? persistentStateRoot = null)
         : this(
             kind,
             secretVault,
             executableLocator,
             new HostUserspaceVpnProcessRunner(),
-            Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "vpn-state"))
+            persistentStateRoot ?? Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "vpn-state"))
     {
     }
 

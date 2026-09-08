@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using GhostShell.Application;
 using GhostShell.Core;
@@ -6,18 +8,21 @@ using Microsoft.Data.Sqlite;
 
 namespace GhostShell.Infrastructure;
 
-public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
+public sealed partial class SqliteDefinitionBundleStore : IDefinitionBundleStore
 {
     private const int MaximumDefinitionCount = 10_000;
     private readonly GhostShellDatabase _database;
     private readonly TimeProvider _timeProvider;
+    private readonly IDatabaseConnectionCatalog? _databaseConnections;
 
-    public SqliteDefinitionBundleStore(GhostShellDatabase database, TimeProvider timeProvider)
+    public SqliteDefinitionBundleStore(GhostShellDatabase database, TimeProvider timeProvider,
+        IDatabaseConnectionCatalog? databaseConnections = null)
     {
         ArgumentNullException.ThrowIfNull(database);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _database = database;
         _timeProvider = timeProvider;
+        _databaseConnections = databaseConnections;
     }
 
     public async ValueTask<DefinitionStoreResult<PortableDefinitionBundle>> ExportAsync(
@@ -36,6 +41,7 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
             await using var reader = await command.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
             var documents = new List<PortableDefinitionDocument>();
+            var reconnectCount = 0;
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 var document = ReadDocument(reader);
@@ -55,6 +61,11 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                     continue;
                 }
 
+                var sanitized = SanitizeExportedDatabaseTargets(definition!, ref reconnectCount);
+                if (!ReferenceEquals(sanitized, definition))
+                {
+                    document = document with { PayloadJson = DefinitionJson.Serialize(sanitized) };
+                }
                 documents.Add(definition is BrowserProfileDefinition profile
                     ? SanitizeExportedBrowserProfile(document, profile)
                     : document);
@@ -64,7 +75,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 new PortableDefinitionBundle(
                     PortableDefinitionBundle.CurrentFormatVersion,
                     _timeProvider.GetUtcNow(),
-                    documents));
+                    documents)
+                { ReconnectRequiredDatabasePanelCount = reconnectCount });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -77,6 +89,11 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
             return Failure<PortableDefinitionBundle>(
                 MapSqliteError(exception),
                 "The definition store could not create an export.");
+        }
+        catch (NotSupportedException)
+        {
+            return Failure<PortableDefinitionBundle>(DefinitionStoreErrorCode.InvalidDefinition,
+                "A legacy database target cannot be checked for safe export. Open and reconnect that panel before exporting; no export was created.");
         }
         catch (Exception exception) when (IsStorageFormatException(exception))
         {
@@ -93,6 +110,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
     {
         ArgumentNullException.ThrowIfNull(bundle);
         var parsed = ParseBundle(bundle, mode);
+        // Reuse the bounded parser snapshot, never enumerate caller-owned input again after review.
+        bundle = bundle with { Definitions = parsed.SourceDocuments };
         if (parsed.Issues.Any(issue => issue.IsBlocking))
         {
             return DefinitionStoreResult<DefinitionImportPreflight>.Success(
@@ -112,6 +131,9 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                         cancellationToken)
                     .ConfigureAwait(false);
                 AddConflictIssues(parsed, existing, mode);
+                var catalog = await ReadReviewCatalogAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+                var detachedScreens = DetachReferencedDatabaseRecovery(parsed, catalog.Definitions);
+                bundle = bundle with { Definitions = parsed.SourceDocuments };
 
                 var validator = new SqliteDefinitionGraphValidator(
                     connection,
@@ -128,9 +150,19 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 }
 
                 parsed.Issues.AddRange(problems.Select(ToImportIssue));
+                var available = new Dictionary<DefinitionKey, object>(catalog.Definitions);
+                foreach (var item in parsed.Definitions)
+                {
+                    available[item.Key] = item.Value;
+                }
+                var executionReview = detachedScreens.Concat(DefinitionExecutionReview.Build(parsed.Definitions.Values, available)).ToArray();
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return DefinitionStoreResult<DefinitionImportPreflight>.Success(
-                    new DefinitionImportPreflight(bundle, mode, parsed.Issues));
+                    new DefinitionImportPreflight(bundle, mode, parsed.Issues)
+                    {
+                        ExecutionReview = executionReview,
+                        CatalogFingerprint = catalog.Fingerprint,
+                    });
             }
             catch
             {
@@ -160,7 +192,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
 
     public async ValueTask<DefinitionStoreResult<DefinitionImportResult>> CommitImportAsync(
         DefinitionImportPreflight preflight,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DefinitionImportExecutionApproval? executionApproval = null)
     {
         ArgumentNullException.ThrowIfNull(preflight);
         var parsed = ParseBundle(preflight.Bundle, preflight.Mode);
@@ -177,6 +210,25 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
             await using var transaction = connection.BeginTransaction(deferred: false);
             try
             {
+                var catalog = await ReadReviewCatalogAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+                _ = DetachReferencedDatabaseRecovery(parsed, catalog.Definitions);
+                if (parsed.Issues.Any(issue => issue.IsBlocking))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    return FromImportIssue<DefinitionImportResult>(parsed.Issues.First(issue => issue.IsBlocking));
+                }
+                var available = new Dictionary<DefinitionKey, object>(catalog.Definitions);
+                foreach (var item in parsed.Definitions)
+                {
+                    available[item.Key] = item.Value;
+                }
+                var requiresReview = DefinitionExecutionReview.Build(parsed.Definitions.Values, available).Count > 0;
+                if (requiresReview && (executionApproval?.AppliesTo(preflight) != true || preflight.CatalogFingerprint is null))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    return Failure<DefinitionImportResult>(DefinitionStoreErrorCode.InvalidDefinition,
+                        "Review and explicitly approve this import's executable content and connection authority before applying it.");
+                }
                 var existing = await ReadExistingKeysAsync(
                         connection,
                         transaction,
@@ -201,6 +253,14 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 {
                     await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
                     return FromProblem<DefinitionImportResult>(problems[0]);
+                }
+
+                if (preflight.CatalogFingerprint is not null
+                    && !string.Equals(preflight.CatalogFingerprint, catalog.Fingerprint, StringComparison.Ordinal))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    return Failure<DefinitionImportResult>(DefinitionStoreErrorCode.RevisionConflict,
+                        "Definitions changed after import review. Run preflight and review the current destinations again.");
                 }
 
                 var inserted = 0;
@@ -336,6 +396,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 "The portable definition collection changed while it was being read."));
             return parsed;
         }
+
+        parsed.SourceDocuments = Array.AsReadOnly(documents);
 
         foreach (var document in documents)
         {
@@ -487,6 +549,16 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                     false));
             }
 
+            var detachedRecovery = DetachImportedDatabaseRecovery(definition!);
+            if (!ReferenceEquals(detachedRecovery, definition))
+            {
+                definition = detachedRecovery;
+                importedDocument = importedDocument with { PayloadJson = DefinitionJson.Serialize(detachedRecovery) };
+                parsed.Issues.Add(new(DefinitionImportIssueCode.ImportedDatabaseRecoveryDetached,
+                    detachedRecovery.Key,
+                    "This workspace contains device-local database sessions. Their confidential targets and credentials are not imported; choose those database connections again after opening it.", false));
+            }
+
             if (!parsed.Definitions.TryAdd(definition!.Key, definition))
             {
                 parsed.Issues.Add(new(
@@ -563,6 +635,120 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
                 profile.Name,
                 detached);
     }
+
+    private static IDurableDefinition DetachImportedDatabaseRecovery(IDurableDefinition definition)
+    {
+        static bool NeedsReconnect(ScreenPanelDefinition panel) => panel.Kind == ScreenPanelKind.DatabaseViewer
+            && panel.Startup.Location?.StartsWith(DatabaseRecoveryToken.Prefix, StringComparison.Ordinal) == true;
+        static ScreenPanelDefinition Detach(ScreenPanelDefinition panel) => NeedsReconnect(panel)
+            ? panel with
+            {
+                ConnectionId = null,
+                Startup = new PanelStartupBehavior(DatabaseRecoveryToken.ReconnectTarget,
+                    panel.Startup.Commands, panel.Startup.DeliveryFailurePolicy),
+            }
+            : panel;
+
+        if (definition is ScreenDefinition screen && screen.Panels.Any(NeedsReconnect))
+        {
+            return new ScreenDefinition(screen.Id, screen.SchemaVersion, screen.Name, screen.Description,
+                screen.LayoutId, [.. screen.Panels.Select(Detach)], screen.Tags, screen.AgentPolicyOverride);
+        }
+        if (definition is WorkspaceDefinition workspace
+            && workspace.Entries.OfType<WorkspaceEntry.Tab>().SelectMany(tab => tab.Panels).Any(NeedsReconnect))
+        {
+            var entries = workspace.Entries.Select(entry => entry is WorkspaceEntry.Tab tab
+                ? new WorkspaceEntry.Tab(tab.Id, tab.Name, tab.LayoutId, [.. tab.Panels.Select(Detach)])
+                : entry).ToArray();
+            return WithWorkspaceEntries(workspace, entries);
+        }
+        return definition;
+    }
+
+    private static IReadOnlyList<DefinitionExecutionReviewItem> DetachReferencedDatabaseRecovery(
+        ParsedBundle parsed, IReadOnlyDictionary<DefinitionKey, object> catalog)
+    {
+        var review = new List<DefinitionExecutionReviewItem>();
+        var copies = new Dictionary<ScreenId, ScreenDefinition>();
+        foreach (var workspace in parsed.Definitions.Values.OfType<WorkspaceDefinition>().ToArray())
+        {
+            var entries = workspace.Entries.ToArray();
+            var changed = false;
+            for (var index = 0; index < entries.Length; index++)
+            {
+                if (entries[index] is not WorkspaceEntry.ScreenReference reference
+                    || parsed.Definitions.ContainsKey(new(ScreenDefinition.Kind, reference.ScreenId.Value))
+                    || catalog.GetValueOrDefault(new(ScreenDefinition.Kind, reference.ScreenId.Value)) is not ScreenDefinition source
+                    || ReferenceEquals(DetachImportedDatabaseRecovery(source), source))
+                {
+                    continue;
+                }
+                if (source.AgentPolicyOverride is not null)
+                {
+                    if (!copies.TryGetValue(source.Id, out var copy))
+                    {
+                        if (parsed.Documents.Count >= MaximumDefinitionCount)
+                        {
+                            parsed.Issues.Add(InvalidBundle("The imported screen copies exceed the maximum number of definitions. Import fewer workspaces at once."));
+                            continue;
+                        }
+                        ScreenId copyId;
+                        do
+                        {
+                            copyId = new(Guid.NewGuid().ToString("N"));
+                        }
+                        while (catalog.ContainsKey(new(ScreenDefinition.Kind, copyId.Value))
+                            || parsed.Definitions.ContainsKey(new(ScreenDefinition.Kind, copyId.Value)));
+                        var detachedSource = (ScreenDefinition)DetachImportedDatabaseRecovery(source);
+                        copy = new(copyId, source.SchemaVersion, source.Name, source.Description, source.LayoutId,
+                            detachedSource.Panels, source.Tags, source.AgentPolicyOverride);
+                        copies.Add(source.Id, copy);
+                        parsed.Definitions.Add(copy.Key, copy);
+                        var copyDocument = new PortableDefinitionDocument(ScreenDefinition.Kind, copy.Id.Value,
+                            copy.SchemaVersion, copy.Name, DefinitionJson.Serialize(copy));
+                        parsed.Documents.Add(copyDocument);
+                        parsed.SourceDocuments = Array.AsReadOnly(parsed.SourceDocuments.Append(copyDocument).ToArray());
+                    }
+                    entries[index] = new WorkspaceEntry.ScreenReference(reference.Id, copy.Id, reference.Alias);
+                }
+                else
+                {
+                    var detached = (ScreenDefinition)DetachImportedDatabaseRecovery(source);
+                    entries[index] = new WorkspaceEntry.Tab(reference.Id, reference.Alias ?? source.Name,
+                        source.LayoutId, detached.Panels);
+                }
+                changed = true;
+                review.Add(new($"Local screen snapshot — {workspace.Name} / {reference.Alias ?? source.Name}",
+                    source.AgentPolicyOverride is null
+                        ? "This imported entry becomes a workspace-local snapshot, detached from future updates to the linked saved screen. Its device-local database sessions require reconnection; the original saved screen is unchanged."
+                        : "This imported entry uses a separate saved-screen copy, detached from future updates to the original screen. The copy retains its screen-specific agent policy and layout, but its device-local database sessions require reconnection; the original saved screen is unchanged."));
+            }
+            if (!changed)
+            {
+                continue;
+            }
+            var snapshot = WithWorkspaceEntries(workspace, entries);
+            parsed.Definitions[workspace.Key] = snapshot;
+            var documentIndex = parsed.Documents.FindIndex(document => document.Kind == workspace.Key.Kind
+                && string.Equals(document.Id, workspace.Key.Value, StringComparison.Ordinal));
+            var document = parsed.Documents[documentIndex] with { PayloadJson = DefinitionJson.Serialize(snapshot) };
+            parsed.Documents[documentIndex] = document;
+            // The reviewed bundle itself owns this exact materialized snapshot.
+            // Commit never reinterprets a mutable linked screen after approval.
+            parsed.SourceDocuments = Array.AsReadOnly(parsed.SourceDocuments.Select(source => source.Kind == document.Kind
+                && string.Equals(source.Id, document.Id, StringComparison.Ordinal) ? document : source).ToArray());
+            parsed.Issues.Add(new(DefinitionImportIssueCode.ImportedDatabaseRecoveryDetached, workspace.Key,
+                "A linked local screen was captured as a separate snapshot. Its database sessions require reconnection and it no longer follows updates to the original saved screen.", false));
+        }
+        return review;
+    }
+
+    private static WorkspaceDefinition WithWorkspaceEntries(WorkspaceDefinition workspace, IReadOnlyList<WorkspaceEntry> entries) =>
+        new(workspace.Id, workspace.SchemaVersion, workspace.Name,
+            workspace.Description, workspace.Accent, entries, workspace.AgentPolicyOverride, workspace.Icon,
+            workspace.AutoSave, workspace.Color, workspace.AgentPanelPinned, workspace.TerminalMultiplexingOverride,
+            workspace.BrowserProfileOverride, workspace.HasExplicitAccent, workspace.IsIsolated, workspace.IsolationMounts,
+            workspace.IsolationImageReference, workspace.RunAgentInIsolation, workspace.NetworkOverride, workspace.SortOrder);
 
     private static NetworkPolicy DisableImportedNetworkPolicy(NetworkPolicy policy) =>
         new(
@@ -663,6 +849,33 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
         }
 
         return result;
+    }
+
+    private static async Task<(string Fingerprint, Dictionary<DefinitionKey, object> Definitions)> ReadReviewCatalogAsync(
+        SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
+    {
+        using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var definitions = new Dictionary<DefinitionKey, object>();
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT kind, id, schema_version, name, payload_json, revision FROM definitions ORDER BY kind, id;";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var document = ReadDocument(reader);
+            for (var index = 0; index < 6; index++)
+            {
+                var bytes = Encoding.UTF8.GetBytes(Convert.ToString(reader.GetValue(index), CultureInfo.InvariantCulture) ?? string.Empty);
+                digest.AppendData(BitConverter.GetBytes(bytes.Length));
+                digest.AppendData(bytes);
+            }
+            if (!KnownDefinitionRegistry.TryParse(document, out var definition, out _))
+            {
+                throw new InvalidOperationException("Stored definition could not be reviewed.");
+            }
+            definitions.Add(new(document.Kind, document.Id), definition!);
+        }
+        return (Convert.ToHexString(digest.GetHashAndReset()), definitions);
     }
 
     private static async Task UpsertDocumentAsync(
@@ -805,6 +1018,8 @@ public sealed class SqliteDefinitionBundleStore : IDefinitionBundleStore
 
     private sealed class ParsedBundle
     {
+        public IReadOnlyList<PortableDefinitionDocument> SourceDocuments { get; set; } = [];
+
         public Dictionary<DefinitionKey, object> Definitions { get; } = [];
 
         public List<PortableDefinitionDocument> Documents { get; } = [];

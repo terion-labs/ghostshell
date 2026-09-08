@@ -18,8 +18,9 @@ public interface IArchiveTableOfContents
 
     /// <summary>
     /// The entries, or null when the content cannot be read as an archive.
-    /// Stops at <paramref name="maximumEntries"/>: a listing is a look inside,
-    /// and an archive of a million files must not become a million rows. The
+    /// Stops at <paramref name="maximumEntries"/> after skipping <paramref name="offset"/>.
+    /// Consumers can request one extra row to detect a following page without
+    /// materializing the whole archive. The
     /// file name says which format to expect; the bytes come from the content,
     /// wherever it lives.
     /// </summary>
@@ -27,7 +28,8 @@ public interface IArchiveTableOfContents
         FilePreviewContent content,
         string fileName,
         int maximumEntries,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        int offset = 0);
 }
 
 /// <summary>Which names are archives, shared by the previewer and the reader.</summary>

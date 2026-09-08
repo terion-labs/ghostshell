@@ -173,10 +173,12 @@ public sealed class AuthRequestEventArgs : EventArgs
     public string Realm { get; }
     /// <summary>Auth scheme — "basic", "digest", "ntlm", "negotiate".</summary>
     public string Scheme { get; }
+    public string OriginUrl { get; }
 
-    internal AuthRequestEventArgs(ulong token, bool isProxy, string host, int port, string realm, string scheme)
+    internal AuthRequestEventArgs(ulong token, bool isProxy, string host, int port, string realm, string scheme, string originUrl)
     {
         _token = token; IsProxy = isProxy; Host = host; Port = port; Realm = realm; Scheme = scheme;
+        OriginUrl = originUrl;
     }
 
     public void Continue(string username, string password)
@@ -665,6 +667,18 @@ public sealed class BeforePopupEventArgs : EventArgs
         Disposition = disposition;
         UserGesture = userGesture;
     }
+}
+
+/// <summary>The actual reserved popup browser; adopt it synchronously and set IsHosted.</summary>
+public sealed class HostPopupEventArgs(CefBrowser browser, string targetUrl,
+    string targetFrameName, Cef.WindowOpenDisposition disposition, bool userGesture) : EventArgs
+{
+    public CefBrowser Browser { get; } = browser;
+    public string TargetUrl { get; } = targetUrl;
+    public string TargetFrameName { get; } = targetFrameName;
+    public Cef.WindowOpenDisposition Disposition { get; } = disposition;
+    public bool UserGesture { get; } = userGesture;
+    public bool IsHosted { get; set; }
 }
 
 /// <summary>Args for <see cref="CefBrowser.PermissionRequest"/>.</summary>

@@ -70,6 +70,22 @@ public static class SqliteInMemoryDatabases
     }
 
     /// <summary>
+    /// Borrows an existing preview image for private worker transfer without a
+    /// second parent buffer. Ordinary file targets return null; a closed token
+    /// fails rather than becoming a path or selecting another registration.
+    /// </summary>
+    public static Stream? OpenSnapshot(string connectionString)
+    {
+        if (!TryResolveToken(connectionString, out var token)) { return null; }
+        if (!Registered.TryGetValue(token, out var pinned) || !pinned.TryBeginBorrow())
+        {
+            throw new InvalidOperationException("This in-memory database preview has been closed.");
+        }
+        try { return pinned.OpenBorrowedStream(); }
+        catch { pinned.EndBorrow(); throw; }
+    }
+
+    /// <summary>
     /// A connection for a registered token, or null when the connection string
     /// is an ordinary one. Called by the SQLite driver for every string it is
     /// asked to open.
@@ -163,6 +179,8 @@ public static class SqliteInMemoryDatabases
         private int _borrows;
         private bool _released;
 
+        public Stream OpenBorrowedStream() => new SnapshotStream(bytes, this);
+
         public bool TryBeginBorrow()
         {
             lock (_gate)
@@ -217,6 +235,20 @@ public static class SqliteInMemoryDatabases
             if (_released && _borrows == 0 && _pin.IsAllocated)
             {
                 _pin.Free();
+            }
+        }
+    }
+
+    private sealed class SnapshotStream(byte[] bytes, PinnedDatabase owner) : MemoryStream(bytes, writable: false)
+    {
+        private PinnedDatabase? _owner = owner;
+
+        protected override void Dispose(bool disposing)
+        {
+            try { base.Dispose(disposing); }
+            finally
+            {
+                if (disposing) { Interlocked.Exchange(ref _owner, null)?.EndBorrow(); }
             }
         }
     }

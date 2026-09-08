@@ -156,8 +156,11 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         Assert.True(completed);
     }
 
-    [Fact]
-    public async Task ClosingConnectingPanelCancelsStalledHostStartupBeforeReturning()
+    [Theory]
+    [InlineData(CloseScopeKind.Panel)]
+    [InlineData(CloseScopeKind.Tab)]
+    [InlineData(CloseScopeKind.Workspace)]
+    public async Task ClosingConnectingScopeKeepsStartupUntilTheUserConfirms(CloseScopeKind scope)
     {
         var snapshot = CreateCatalogSnapshot();
         var ssh = new ConnectionProfile(
@@ -183,16 +186,127 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         var terminal = Assert.IsType<TerminalRuntimePanelViewModel>(viewModel.ActivePanel);
         await recorder.TerminalEnsureEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var closed = await viewModel.ClosePanelAsync(
-                terminal.Id,
-                CloseDecision.Confirm,
-                CancellationToken.None)
+        var workspace = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        var tab = workspace.Tabs.Single(item => item.Panels.Contains(terminal));
+        ValueTask<HostResult<CloseScopeResult>> Close(CloseDecision decision) => scope switch
+        {
+            CloseScopeKind.Panel => viewModel.ClosePanelAsync(terminal.Id, decision, CancellationToken.None),
+            CloseScopeKind.Tab => viewModel.CloseTabAsync(tab.Id, decision, CancellationToken.None),
+            CloseScopeKind.Workspace => viewModel.CloseWorkspaceAsync(workspace.Id, decision, CancellationToken.None),
+            _ => throw new InvalidOperationException("Unexpected test scope."),
+        };
+
+        var requested = await Close(CloseDecision.Request).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<CloseScopeResult.ConfirmationRequired>(
+            Assert.IsType<HostResult<CloseScopeResult>.Success>(requested).Value);
+        Assert.False(terminal.ConnectionAttemptToken.IsCancellationRequested);
+        var cancelled = await Close(CloseDecision.Cancel).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<HostResult<CloseScopeResult>.Success>(cancelled);
+        Assert.False(terminal.ConnectionAttemptToken.IsCancellationRequested);
+        Assert.False(recorder.TerminalEnsureCancelled.Task.IsCompleted);
+        Assert.DoesNotContain(recorder.SessionCloses, call => call.Request.Scope == scope);
+
+        if (scope is CloseScopeKind.Panel or CloseScopeKind.Tab)
+        {
+            recorder.RejectNextRegistration = true;
+            var removed = scope == CloseScopeKind.Panel
+                ? await viewModel.RemovePanelAsync(terminal.Id, retryAfterGraphChange: false)
+                : await viewModel.RemoveTabAsync(tab.Id, retryAfterGraphChange: false);
+            Assert.False(removed);
+            Assert.False(terminal.ConnectionAttemptToken.IsCancellationRequested);
+            Assert.False(recorder.TerminalEnsureCancelled.Task.IsCompleted);
+        }
+
+        var closed = await Close(CloseDecision.Confirm)
             .AsTask()
             .WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.IsType<HostResult<CloseScopeResult>.Success>(closed);
         await recorder.TerminalEnsureCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(await viewModel.RemovePanelAsync(terminal.Id));
+        if (scope == CloseScopeKind.Panel)
+        {
+            Assert.True(await viewModel.RemovePanelAsync(terminal.Id));
+        }
+    }
+
+    [Fact]
+    public async Task QueuedCatalogRefreshDoesNotTouchDisposedSettings()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var uiSession = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        Assert.True(await uiSession.Dispatch(async () =>
+        {
+            var (client, _) = CreateSessionClient();
+            var snapshot = CreateCatalogSnapshot();
+            using var viewModel = CreateViewModel(client, snapshot);
+            var presented = viewModel.Workspaces.ToArray();
+            // This is the same callback boundary queued by OnCatalogChanged.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                viewModel.RefreshCatalog(DefinitionCatalogSnapshot.Empty));
+            viewModel.Dispose();
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                () => { }, Avalonia.Threading.DispatcherPriority.Background);
+            Assert.Equal(presented, viewModel.Workspaces);
+            return true;
+        }, timeout.Token));
+    }
+
+    [Fact]
+    public async Task PrefixEnterShortcutIsClaimedBeforeItsAsynchronousCommandReachesTheTerminal()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var session = HeadlessUnitTestSession.StartNew(typeof(SqlEditorHeadlessApplication));
+        Assert.True(await session.Dispatch(async () =>
+        {
+            var prefix = new KeyStroke("B", GhostShell.Core.KeyModifiers.Control);
+            var keymap = new KeymapProfile(new KeymapProfileId("shortcut-race"), "Shortcut race",
+                KeymapLayer.Application,
+                [new CommandBinding(BuiltInCommands.SplitPanel, KeySequence.Of(prefix, new KeyStroke("Enter")),
+                    CommandContext.Workspace, new Dictionary<string, string>(StringComparer.Ordinal) { ["orientation"] = "left-right" })],
+                new PrefixConfiguration(prefix, TimeSpan.FromSeconds(5), false, FailedSequenceBehavior.DiscardAndShowHint));
+            var (client, recorder) = CreateSessionClient();
+            using var viewModel = CreateViewModel(client, CreateCatalogSnapshot() with { Keymaps = [Store(keymap)] });
+            Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+            var workspace = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+            var panelCount = workspace.ActiveTab!.Panels.Count;
+            var window = new MainWindow { DataContext = viewModel };
+            window.Show();
+            try
+            {
+                window.UpdateLayout();
+                var terminal = window.GetVisualDescendants().OfType<GhostShell.App.Controls.TerminalPresentationHost>().First();
+                var leaked = 0;
+                terminal.AddHandler(Avalonia.Input.InputElement.KeyDownEvent, (_, _) => leaked++,
+                    Avalonia.Interactivity.RoutingStrategies.Tunnel);
+                recorder.DelayNextRegistration = true;
+                var prefixEvent = new Avalonia.Input.KeyEventArgs
+                {
+                    RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent,
+                    Key = Avalonia.Input.Key.B,
+                    KeyModifiers = Avalonia.Input.KeyModifiers.Control,
+                };
+                terminal.RaiseEvent(prefixEvent);
+                var enterEvent = new Avalonia.Input.KeyEventArgs
+                {
+                    RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent,
+                    Key = Avalonia.Input.Key.Enter,
+                };
+                terminal.RaiseEvent(enterEvent);
+                await recorder.DelayedRegistrationEntered.Task.WaitAsync(timeout.Token);
+
+                Assert.True(prefixEvent.Handled);
+                Assert.True(enterEvent.Handled);
+                Assert.Equal(0, leaked);
+                recorder.AllowDelayedRegistration.TrySetResult();
+                await WaitForAsync(() => workspace.ActiveTab!.Panels.Count == panelCount + 1);
+            }
+            finally
+            {
+                recorder.AllowDelayedRegistration.TrySetResult();
+                window.Close();
+            }
+            return true;
+        }, timeout.Token));
     }
 
     [Fact]
@@ -1806,6 +1920,33 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
     }
 
     [Fact]
+    public async Task A_database_twin_keeps_the_live_target_and_temporary_tunnel()
+    {
+        var profile = new DatabaseConnectionProfile(new DatabaseConnectionProfileId("twin-saved"),
+            DatabaseConnectionProfile.CurrentSchemaVersion, "Original", "sqlite", "Data Source=original.db");
+        var snapshot = CreateCatalogSnapshot() with { DatabaseConnections = [Store(profile)] };
+        var (client, recorder) = CreateSessionClient();
+        recorder.AcceptDatabaseSessions = true;
+        using var viewModel = CreateViewModel(client, snapshot, databasePanelClient: new HostedDatabaseClient());
+        Assert.True(await viewModel.LaunchSavedDatabaseAsync(profile.Id));
+        var workspace = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        var source = Assert.IsType<DatabaseRuntimePanelViewModel>(workspace.ActiveTab!.ActivePanel);
+        await source.Initialization;
+        source.ConnectionString = "Data Source=switched.db";
+        var tunnel = new ConnectionProfile(new ConnectionId("temporary-twin-route"), ConnectionProfile.CurrentSchemaVersion,
+            "Temporary route", new ConnectionEndpoint.Ssh("bastion.test", username: "user"),
+            new ConnectionAuthentication.None(), ConnectionStartup.Default, ConnectionKeepAlive.Disabled, SshHostKeyPolicy.Strict);
+        source.SetTunnel(tunnel);
+        await WaitForAsync(() => !source.IsBusy);
+        Assert.True(await viewModel.OpenDatabaseInTabAsync(source));
+        var twin = Assert.IsType<DatabaseRuntimePanelViewModel>(workspace.ActiveTab!.ActivePanel);
+        Assert.NotSame(source, twin);
+        Assert.Equal("Data Source=switched.db", twin.ConnectionString);
+        Assert.Same(tunnel, twin.TunnelConnection);
+        Assert.Equal(profile.Id, twin.SavedConnectionId);
+    }
+
+    [Fact]
     public async Task Accepted_relational_database_panel_links_hosted_read_capabilities_without_graph_connection_material()
     {
         const string connectionString = "Data Source=/private/runtime-graph.sqlite";
@@ -2002,6 +2143,77 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
         Assert.True(recoveredPanel.IsConnected);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confidential_database_recovery_resolves_after_acceptance_and_honors_close(bool closeWhileResolving)
+    {
+        using var vault = new DatabaseRecoveryStateTests.TestVault();
+        var profile = new DatabaseConnectionProfile(DatabaseConnectionProfileId.New(), 1,
+            "Confidential target", "sqlite", "Data Source=initial-fixture");
+        var trustedRoute = new ConnectionProfile(ConnectionId.New(), 1, "Trusted fixture route",
+            new ConnectionEndpoint.Ssh("approved.invalid"), new ConnectionAuthentication.None(),
+            ConnectionStartup.Default, ConnectionKeepAlive.Disabled, SshHostKeyPolicy.Strict);
+        var otherRoute = new ConnectionProfile(ConnectionId.New(), 1, "Other fixture route",
+            new ConnectionEndpoint.Ssh("other.invalid"), new ConnectionAuthentication.None(),
+            ConnectionStartup.Default, ConnectionKeepAlive.Disabled, SshHostKeyPolicy.Strict);
+        var originalSnapshot = CreateCatalogSnapshot();
+        var snapshot = originalSnapshot with
+        {
+            DatabaseConnections = [Store(profile)],
+            Connections = [.. originalSnapshot.Connections, Store(trustedRoute), Store(otherRoute)],
+        };
+        var (sourceClient, _) = CreateSessionClient();
+        string recoveryPayload;
+        using (var source = CreateViewModel(sourceClient, snapshot, databasePanelClient: new HostedDatabaseClient(), secretVault: vault))
+        {
+            Assert.True(await source.LaunchSavedDatabaseAsync(profile.Id));
+            var sourcePanel = Assert.IsType<DatabaseRuntimePanelViewModel>(source.RuntimeWorkspace!.ActiveTab!.ActivePanel);
+            sourcePanel.ConnectionString = "Data Source=live-private-fixture";
+            sourcePanel.SetTunnel(trustedRoute);
+            await sourcePanel.ConnectAsync();
+            Assert.NotNull(DatabaseRecoveryToken.TryParse(sourcePanel.RecoveryTarget));
+            recoveryPayload = RuntimeWorkspaceRecoveryCodec.Serialize(source.RuntimeWorkspace);
+            Assert.DoesNotContain("live-private-fixture", recoveryPayload, StringComparison.Ordinal);
+            Assert.DoesNotContain("approved.invalid", recoveryPayload, StringComparison.Ordinal);
+            var tampered = System.Text.Json.Nodes.JsonNode.Parse(recoveryPayload)!;
+            tampered["workspace"]!["tabs"]![0]!["panels"]![0]!["connectionId"] = otherRoute.Id.Value;
+            recoveryPayload = tampered.ToJsonString();
+        }
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vault.BeforeResolve = async cancellationToken =>
+        {
+            entered.SetResult();
+            await release.Task.WaitAsync(cancellationToken);
+        };
+        var database = new HostedDatabaseClient();
+        var (recoveredClient, _) = CreateSessionClient();
+        using var recovered = CreateViewModel(recoveredClient, snapshot, databasePanelClient: database, secretVault: vault);
+        var recoverySnapshot = new RuntimeRecoverySnapshot("confidential-database", RuntimeWorkspaceRecoveryCodec.SnapshotKey,
+            RuntimeWorkspaceRecoveryCodec.SchemaVersion, recoveryPayload, DateTimeOffset.UtcNow);
+        Assert.True(await recovered.RestoreRuntimeSnapshotsAsync([recoverySnapshot]));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<PendingDatabaseRecoveryPanelViewModel>(recovered.RuntimeWorkspace!.ActiveTab!.ActivePanel);
+        Assert.Equal(0, database.ConnectCount);
+        if (closeWhileResolving)
+        {
+            recovered.Dispose();
+            release.TrySetResult();
+            await Task.Yield();
+            Assert.Equal(0, database.ConnectCount);
+        }
+        else
+        {
+            release.SetResult();
+            await WaitForAsync(() => recovered.RuntimeWorkspace.ActiveTab!.ActivePanel is DatabaseRuntimePanelViewModel { IsConnected: true });
+            var panel = Assert.IsType<DatabaseRuntimePanelViewModel>(recovered.RuntimeWorkspace.ActiveTab!.ActivePanel);
+            Assert.Equal("Data Source=live-private-fixture", panel.ConnectionString);
+            Assert.Equal("approved.invalid", Assert.IsType<ConnectionEndpoint.Ssh>(panel.TunnelConnection!.Endpoint).Host);
+            Assert.Equal(1, database.ConnectCount);
+        }
+    }
+
     [Fact]
     public async Task Accepted_docker_panel_links_hosted_read_capabilities_and_dispose_unlinks_session()
     {
@@ -2137,6 +2349,97 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             Assert.Equal(
                 layout.Slots.Select(slot => slot.Id.Value).Order(StringComparer.Ordinal),
                 tab.Panels.Select(panel => panel.SlotId.Value).Order(StringComparer.Ordinal));
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Layout_save_binds_startup_commands_to_exact_panel_and_current_persisted_configuration(
+        bool autoSave, bool unavailable)
+    {
+        var snapshot = CreateCatalogSnapshot();
+        var connection = unavailable ? new ConnectionId("temporarily-unavailable") : snapshot.Connections[0].Value.Id;
+        var first = new ScreenPanelDefinition(new ScreenPanelId("first"), new LayoutSlotId("left"),
+            ScreenPanelKind.Terminal, "First", connection,
+            new PanelStartupBehavior("/first", ["echo first"], StartupCommandDeliveryFailurePolicy.RetryWhileLive));
+        var second = new ScreenPanelDefinition(new ScreenPanelId("second"), new LayoutSlotId("middle"),
+            ScreenPanelKind.Terminal, "Second", connection,
+            new PanelStartupBehavior("/second", ["echo second"], StartupCommandDeliveryFailurePolicy.StopAfterFirstDeliveryFailure));
+        WorkspaceDefinition Definition(ScreenPanelDefinition currentSecond) => new(
+            WorkspaceId, WorkspaceDefinition.CurrentSchemaVersion, "Startup binding", null, null,
+            [new WorkspaceEntry.Tab(new WorkspaceEntryId("alpha"), "Alpha", snapshot.Layouts[0].Value.Id, [first, currentSecond])],
+            autoSave: autoSave);
+        snapshot = snapshot with { Workspaces = [Store(Definition(second))] };
+        var (client, _) = CreateSessionClient();
+        var catalog = DispatchProxy.Create<IDefinitionCatalog, RecordingAutoSaveCatalogProxy>();
+        var proxy = (RecordingAutoSaveCatalogProxy)(object)catalog;
+        proxy.Snapshot = snapshot;
+        using var viewModel = CreateViewModel(client, catalog);
+        Assert.True(await viewModel.OpenWorkspaceAsync(WorkspaceId));
+        var runtime = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        var tab = Assert.Single(runtime.Tabs);
+        var firstPanel = tab.Panels.Single(panel => panel.Title == "First");
+        var secondPanel = tab.Panels.Single(panel => panel.Title == "Second");
+        if (unavailable)
+        {
+            Assert.IsType<UnavailableRuntimePanelViewModel>(firstPanel);
+            Assert.IsType<UnavailableRuntimePanelViewModel>(secondPanel);
+        }
+
+        var documents = DockLayoutProjection.CollectRegions(tab.DockLayout).Select(region => region.Document).ToArray();
+        tab.DockFactory.MoveDockable(
+            Assert.IsAssignableFrom<Dock.Model.Core.IDock>(documents[0].Owner),
+            Assert.IsAssignableFrom<Dock.Model.Core.IDock>(documents[1].Owner), documents[0], documents[1]);
+        await SaveAsync();
+        var swapped = Assert.Single(proxy.SavedWorkspace!.Entries.OfType<WorkspaceEntry.Tab>());
+        Assert.Equal(["echo first"], swapped.Panels.Single(panel => panel.Id == first.Id).Startup.Commands);
+        Assert.Equal(["echo second"], swapped.Panels.Single(panel => panel.Id == second.Id).Startup.Commands);
+
+        _ = await viewModel.ClosePanelAsync(firstPanel.Id, CloseDecision.Confirm, CancellationToken.None);
+        Assert.True(await viewModel.RemovePanelAsync(firstPanel.Id));
+        await SaveAsync();
+        var retained = Assert.Single(Assert.Single(proxy.SavedWorkspace!.Entries.OfType<WorkspaceEntry.Tab>()).Panels);
+        Assert.Equal(second.Id, retained.Id);
+        Assert.Equal(secondPanel.Id.Value, retained.SlotId.Value);
+        Assert.Equal(["echo second"], retained.Startup.Commands);
+        Assert.Equal(StartupCommandDeliveryFailurePolicy.StopAfterFirstDeliveryFailure, retained.Startup.DeliveryFailurePolicy);
+
+        // The original in-memory provenance must not resurrect a command since removed by the user.
+        proxy.Snapshot = snapshot with { Workspaces = [Store(Definition(second with { Startup = new PanelStartupBehavior("/second") }))] };
+        Assert.True(await viewModel.RenameActiveTabAsync("Renamed"));
+        await SaveAsync();
+        var saved = proxy.SavedWorkspace!;
+        Assert.Equal(autoSave, saved.AutoSave);
+        Assert.Empty(Assert.Single(Assert.Single(saved.Entries.OfType<WorkspaceEntry.Tab>()).Panels).Startup.Commands);
+
+        var (reopenedClient, _) = CreateSessionClient();
+        var reopenedSnapshot = snapshot with
+        {
+            Workspaces = [Store(saved)],
+            Layouts = [.. snapshot.Layouts, .. proxy.SavedLayouts!
+                .GroupBy(layout => layout.Definition.Id)
+                .Select(group => Store(group.Last().Definition))],
+        };
+        using var reopened = CreateViewModel(reopenedClient, reopenedSnapshot);
+        Assert.True(await reopened.OpenWorkspaceAsync(WorkspaceId));
+        var reopenedPanel = Assert.Single(Assert.Single(reopened.RuntimeWorkspace!.Tabs).Panels);
+        Assert.Equal(second.Id, reopenedPanel.SourceDefinition!.Id);
+        Assert.Empty(reopenedPanel.SourceDefinition.Startup.Commands);
+
+        async Task SaveAsync()
+        {
+            if (autoSave)
+            {
+                viewModel.WorkspaceAutoSave.Queue();
+                await viewModel.WorkspaceAutoSave.FlushAsync();
+            }
+            else
+            {
+                Assert.Null(await viewModel.WorkspaceAutoSave.SaveLayoutAsync(runtime, WorkspaceId, CancellationToken.None));
+            }
         }
     }
 
@@ -3215,18 +3518,20 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
                         window.UpdateLayout();
                         Assert.True(simulatedInitialLayoutCorrection);
                         Assert.Equal(24, transcript.ItemCount);
-                        for (var attempt = 0;
-                             attempt < 80
-                             && !view.GetVisualDescendants()
-                                 .OfType<SelectableMarkdownDocument>()
-                                 .Any(document => document.Text.Contains(
-                                     expectedContent,
-                                     StringComparison.Ordinal));
-                             attempt++)
+                        // Markdown commits asynchronously and changes the
+                        // transcript extent. One rendered message is not the
+                        // completed tail, and follow runs at Loaded priority.
+                        await WaitForAsync(() =>
                         {
-                            await Task.Delay(10);
                             window.UpdateLayout();
-                        }
+                            return view.GetVisualDescendants()
+                                .OfType<MarkdownPreviewView>()
+                                .Any(preview => preview.IsVisible
+                                    && string.Equals(preview.Text, persistedMessages[^1].Content, StringComparison.Ordinal)
+                                    && preview.IsPresentationReady);
+                        });
+                        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                            () => window.UpdateLayout(), Avalonia.Threading.DispatcherPriority.Background);
 
                         Assert.Contains(
                             view.GetVisualDescendants()
@@ -3651,6 +3956,54 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             Assert.Null(browser.RendererView?.PresentationHost);
             return applied;
         }
+    }
+
+    [Fact]
+    public async Task New_local_file_panel_binds_agent_scope_to_the_visible_start_folder()
+    {
+        var root = new FilePanelLocation(
+            BuiltInFileProviders.HomeId.Value,
+            "local",
+            new FilePanelAddress.Hierarchical(FilePanelPath.Root));
+        var home = root.Child(new FilePanelPathSegment("Users"))
+            .Child(new FilePanelPathSegment("person"));
+        var files = new EmptyFileClients(
+        [
+            new FileProviderProfileDescriptor(
+                BuiltInFileProviders.HomeId.Value,
+                "Local",
+                FileProviderFamily.Posix,
+                root,
+                FilePanelCapability.List,
+                500,
+                1024 * 1024,
+                StartLocation: home),
+        ]);
+        var (client, recorder) = CreateSessionClient();
+        recorder.AcceptFilePanelSessions = true;
+        using var viewModel = CreateViewModel(
+            client,
+            CreateCatalogSnapshot(),
+            browserRendererFactory: new RecordingBrowserRendererViewFactory(),
+            filePanelClient: files,
+            fileTransferQueueClient: files);
+        Assert.True(await viewModel.OpenLocalBrowserWorkspaceAsync());
+        Assert.True(await viewModel.AddFileViewerTabAsync());
+        var workspace = Assert.IsType<RuntimeWorkspaceViewModel>(viewModel.RuntimeWorkspace);
+        var panel = Assert.IsType<FileRuntimePanelViewModel>(
+            Assert.Single(Assert.IsType<RuntimeTabViewModel>(workspace.ActiveTab).Panels));
+        await panel.Initialization.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var snapshot = Assert.IsType<HostResult<SessionSnapshot>.Success>(
+            await panel.HostedClient!.InitializeAsync(CancellationToken.None)).Value;
+        Assert.Equal(home, panel.CurrentLocation);
+        Assert.Equal(home, snapshot.Descriptor.FileMetadata!.TrustedRoot);
+        Assert.Equal(root, Assert.Single(panel.Profiles).Root);
+
+        await panel.NavigateUpAsync();
+        Assert.Equal(home.Parent, panel.CurrentLocation);
+        Assert.Equal(1, recorder.FilePanelEnsureCount);
+        Assert.Equal(home, snapshot.Descriptor.FileMetadata.TrustedRoot);
     }
 
     [Fact]
@@ -8339,6 +8692,7 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
 
     private sealed class HostedDatabaseClient(bool isFileBased = true) : IDatabasePanelClient
     {
+        public int ConnectCount { get; private set; }
         public IReadOnlyList<DatabaseDriverDescriptor> Drivers { get; } =
         [
             new(
@@ -8355,6 +8709,7 @@ public sealed class MainWindowRuntimeGraphIntegrationTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ConnectCount++;
             return Task.FromResult<IReadOnlyList<DatabaseTableDescriptor>>([]);
         }
 

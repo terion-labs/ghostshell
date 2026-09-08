@@ -917,7 +917,7 @@ public sealed partial class InMemorySessionHostClient
 
         var result = await dispatch.Automation!
             .PasteAsync(
-                new TerminalPasteInput(text, ConfirmedUnsafe: true),
+                new TerminalPasteInput(text),
                 cancellationToken)
             .ConfigureAwait(false);
         if (result.Sent && !result.RequiresConfirmation)
@@ -930,7 +930,7 @@ public sealed partial class InMemorySessionHostClient
             return HostResult<AgentTerminalActionResult>.Fail(
                 HostError.Create(
                     HostErrorCode.ConfirmationRequired,
-                    "Unsafe terminal paste requires explicit human approval or run-local YOLO."),
+                    "The terminal declined the approved paste and requires confirmation."),
                 dispatch.Revision);
         }
 
@@ -972,7 +972,7 @@ public sealed partial class InMemorySessionHostClient
 
         var result = await dispatch.Automation!
             .SubmitTextAsync(
-                new TerminalPasteInput(text, ConfirmedUnsafe: true),
+                new TerminalPasteInput(text),
                 cancellationToken)
             .ConfigureAwait(false);
         if (result.Sent && !result.RequiresConfirmation)

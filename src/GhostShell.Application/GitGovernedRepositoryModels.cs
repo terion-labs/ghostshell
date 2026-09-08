@@ -6,7 +6,8 @@ public sealed record GitRepositoryGuard(
     string? HeadSha,
     string IndexDigest,
     string WorktreeDigest,
-    string RefsDigest);
+    string RefsDigest,
+    string WorktreeContentIdentity = "");
 
 public sealed record GitGovernedState(
     GitRepositorySnapshot Snapshot,

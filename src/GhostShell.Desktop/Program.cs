@@ -22,6 +22,18 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Length == 1 && string.Equals(args[0], DatabaseOperationWorker.Marker, StringComparison.Ordinal))
+        {
+            Environment.ExitCode = DatabaseOperationWorker.RunChildAsync().GetAwaiter().GetResult();
+            return;
+        }
+
+        if (args.Length == 1 && string.Equals(args[0], DatabaseDiagramWorker.Marker, StringComparison.Ordinal))
+        {
+            Environment.ExitCode = DatabaseDiagramWorker.RunAsync().GetAwaiter().GetResult();
+            return;
+        }
+
         if (WorkspaceSshCommand.IsInvocation(args))
         {
             Environment.ExitCode = WorkspaceSshCommand
@@ -39,8 +51,6 @@ internal static class Program
                 .GetResult();
             return;
         }
-
-        VelopackStartup.Run(args);
 
         if (ConnectionCredentialProcessHost.IsPrivateHelperInvocation(args))
         {
@@ -79,6 +89,22 @@ internal static class Program
             return;
         }
 
+        DesktopProfileConfiguration profile;
+        try
+        {
+            profile = DesktopProfileConfiguration.FromCommandLine(args);
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            SecretSafeDiagnosticProjection.WriteStandardError("desktop.profile-selection.rejected", error);
+            Environment.ExitCode = 2;
+            return;
+        }
+        if (!profile.IsThrowaway)
+        {
+            VelopackStartup.Run(args);
+        }
+
         // macOS will only host the UI on the process's first thread, and an
         // async Main leaves it at the first await that does real work —
         // resolving an encryption key from the keychain, say. So this thread
@@ -87,7 +113,7 @@ internal static class Program
         // finalization out the same way. Private credential helpers have
         // already exited without loading CEF; normal runs and CEF --type
         // subprocesses preserve CEF's required first-dispatch ordering.
-        var prepared = PrepareAsync().GetAwaiter().GetResult();
+        var prepared = PrepareAsync(profile).GetAwaiter().GetResult();
         if (prepared is StartupPreparation.Failed failure)
         {
             // Preparation resumes on worker threads. Avalonia, including an
@@ -196,11 +222,25 @@ internal static class Program
                 // CEF closes browsers and stops its message pump.
                 TeardownPresentationOrReport(mainWindowViewModel);
                 QuiescePresentationOrReport(services);
-                if (cefInitialized
-                    && !BrowserEngineRuntime.Shutdown(
-                        services.GetRequiredService<CefBrowserProfileStore>()))
+                if (cefInitialized)
                 {
-                    Environment.ExitCode = 1;
+                    var profiles = services.GetRequiredService<CefBrowserProfileStore>();
+                    if (!BrowserEngineRuntime.Shutdown(profiles))
+                    {
+                        Environment.ExitCode = 1;
+                    }
+                    else
+                    {
+                        Func<string, string, CancellationToken, Task>? copyEngineSnapshot =
+                            OperatingSystem.IsMacOS()
+                                ? new BrowserEngineSnapshotCopy(services.GetRequiredService<IConnectionCommandRunner>()).CopyAsync
+                                : null;
+                        if (!BrowserEngineRuntime.SealStateAfterShutdownAsync(profiles, copyEngineSnapshot)
+                                .GetAwaiter().GetResult())
+                        {
+                            Environment.ExitCode = 1;
+                        }
+                    }
                 }
 
                 services.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -258,12 +298,12 @@ internal static class Program
     /// threads it needs. Null means an existing instance was activated. Errors
     /// are returned to Main for presentation on the process's original thread.
     /// </summary>
-    private static async Task<StartupPreparation?> PrepareAsync()
+    private static async Task<StartupPreparation?> PrepareAsync(DesktopProfileConfiguration profile)
     {
         ConfigureDockDiagnostics();
 
         var instanceStart = await SingleInstanceCoordinator.StartAsync(
-            GhostShellDataPaths.CreateDefault().DataDirectory,
+            profile.Data.DataDirectory,
             CancellationToken.None);
         if (instanceStart is SingleInstanceStartResult.ExistingInstanceActivated)
         {
@@ -279,7 +319,7 @@ internal static class Program
 
         var instanceCoordinator =
             ((SingleInstanceStartResult.Primary)instanceStart).Coordinator;
-        var services = DesktopComposition.CreateServiceProvider();
+        var services = DesktopComposition.CreateServiceProvider(profile);
         try
         {
             // Before anything opens the configuration database: an encrypted
@@ -380,8 +420,8 @@ internal static class Program
                 + $"({catalogResult.Error!.Code}).";
         }
 
-        // Failure-tolerant by design: unreadable settings mean the
-        // defaults, never a startup error.
+        // Preference failures do not prevent startup. Unreadable agent
+        // policy is surfaced in settings with capabilities disabled.
         await services.GetRequiredService<SqliteFilePreviewPreferences>()
             .InitializeAsync(CancellationToken.None);
         await services.GetRequiredService<SqliteBrowserProfilePreferences>()
@@ -453,7 +493,7 @@ internal static class Program
     private static BrowserEngineRuntimeOptions CreateBrowserEngineOptions(
         IServiceProvider services)
     {
-        var artifacts = LocalArtifactPaths.CreateDefault();
+        var artifacts = services.GetRequiredService<LocalArtifactPaths>();
         var browserPaths = services.GetRequiredService<BrowserProfileStoragePaths>();
         var version = typeof(Program).Assembly.GetName().Version;
         return new BrowserEngineRuntimeOptions(

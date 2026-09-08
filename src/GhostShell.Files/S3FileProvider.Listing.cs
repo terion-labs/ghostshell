@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Net;
 
 namespace GhostShell.Files;
@@ -40,6 +41,7 @@ public sealed partial class S3FileProvider
         var prefix = prefixResult.Value!;
         var scope = $"{ProfileId.Value}\n{Authority.Value}\n{prefix.Prefix}";
         string? remoteToken = null;
+        var seenTokens = ImmutableHashSet.Create<string>(StringComparer.Ordinal);
         if (request.ContinuationToken is { } continuation)
         {
             if (!_pageCursors.TryGet(continuation, out var cursor) || !string.Equals(cursor!.Scope, scope, StringComparison.Ordinal))
@@ -50,6 +52,7 @@ public sealed partial class S3FileProvider
             }
 
             remoteToken = cursor.RemoteToken;
+            seenTokens = cursor.SeenTokens;
         }
 
         var page = await _store.ListAsync(
@@ -94,7 +97,14 @@ public sealed partial class S3FileProvider
                     "The S3 service truncated a list response without a continuation token.");
             }
 
-            next = _pageCursors.Add(new S3PageCursor(scope, page.NextContinuationToken));
+            if (seenTokens.Contains(page.NextContinuationToken))
+            {
+                return Failure<FilePage>(FileProviderErrorCode.IoFailure,
+                    "The S3 service repeated a continuation token while listing this prefix.");
+            }
+
+            next = _pageCursors.Add(new S3PageCursor(scope, page.NextContinuationToken,
+                seenTokens.Add(page.NextContinuationToken)));
         }
 
         return FileProviderResult<FilePage>.Success(new FilePage(entries, next));

@@ -535,6 +535,12 @@ internal sealed class SqlServerDatabaseDriver : IDatabaseDriver
     public DbConnection CreateConnection(string connectionString) =>
         new SqlConnection(connectionString);
 
+    public DbConnection CreateRoutedConnection(string connectionString, string host, int port) =>
+        throw new NotSupportedException("Routed SQL Server requires a captured endpoint transport; a fixed loopback port cannot safely handle server redirects.");
+
+    public DbConnection CreateRoutedConnection(string connectionString, string host, int port, DatabaseConnectionRoute route) =>
+        new SqlConnection(connectionString) { TcpTransport = route.SqlTransport };
+
     public string ListDatabasesSql => """
         SELECT name FROM sys.databases
         WHERE state = 0

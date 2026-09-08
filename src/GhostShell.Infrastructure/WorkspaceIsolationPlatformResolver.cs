@@ -23,13 +23,13 @@ public sealed record WorkspaceIsolationRuntimeInstallation(
 
 public sealed class WorkspaceIsolationPlatformAdapter
 {
-    private readonly Func<string, IWorkspaceIsolationProvider> _createProvider;
+    private readonly Func<string, string?, IWorkspaceIsolationProvider> _createProvider;
 
     internal WorkspaceIsolationPlatformAdapter(
         WorkspaceIsolationProviderDescriptor descriptor,
         string runtimeExecutableName,
         WorkspaceIsolationRuntimeInstallation installation,
-        Func<string, IWorkspaceIsolationProvider> createProvider)
+        Func<string, string?, IWorkspaceIsolationProvider> createProvider)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeExecutableName);
@@ -46,10 +46,10 @@ public sealed class WorkspaceIsolationPlatformAdapter
 
     public WorkspaceIsolationRuntimeInstallation Installation { get; }
 
-    public IWorkspaceIsolationProvider CreateProvider(string runtimeExecutablePath)
+    public IWorkspaceIsolationProvider CreateProvider(string runtimeExecutablePath, string? stateRoot = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runtimeExecutablePath);
-        return _createProvider(runtimeExecutablePath);
+        return _createProvider(runtimeExecutablePath, stateRoot);
     }
 }
 
@@ -95,7 +95,7 @@ public sealed class WorkspaceIsolationPlatformResolver
                 "https://github.com/terion-labs/ghostshell/releases/latest",
                 UriKind.Absolute),
             "GhostSHELL could not open the application download page."),
-        executable => new WorkspaceSdkIsolationProvider(executable));
+        (executable, stateRoot) => new WorkspaceSdkIsolationProvider(executable, stateRoot));
 
     public WorkspaceIsolationPlatformSupport ResolveCurrent() =>
         Resolve(

@@ -1,4 +1,5 @@
 using System.Reflection;
+using GhostShell.App.ViewModels;
 using GhostShell.Application;
 using GhostShell.Core;
 
@@ -261,6 +262,82 @@ public sealed class SessionHostedFilePanelClientTests
         Assert.Equal(FilePanelErrorCode.InvalidLocation, result.Error!.Code);
         Assert.Empty(fixture.Host.EnsureRequests);
         Assert.False(client.IsInitialized);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Deferred_view_binds_the_resolved_saved_folder_and_keeps_human_navigation(
+        bool textLocation,
+        bool explicitFilesystemRoot)
+    {
+        var fixture = new Fixture();
+        using var client = fixture.CreateDeferredClient(
+            new FileProviderProfileId(fixture.Root.ProviderProfileId));
+        var expected = explicitFilesystemRoot
+            ? fixture.Root
+            : fixture.Root.Child(new FilePanelPathSegment("saved"))
+                .Child(new FilePanelPathSegment("project"));
+        var savedText = explicitFilesystemRoot ? "/" : "/saved/project";
+        using var panel = new FileRuntimePanelViewModel(
+            fixture.Owner.PanelId,
+            "Files",
+            client,
+            client,
+            new FileProviderProfileId(fixture.Root.ProviderProfileId),
+            initialLocation: textLocation ? null : expected,
+            initialLocationText: textLocation ? savedText : null,
+            deferInitialization: true);
+
+        Assert.IsType<HostResult<SessionSnapshot>.Failure>(
+            await client.InitializeAsync(CancellationToken.None));
+        Assert.Empty(fixture.Host.EnsureRequests);
+        await panel.StartInitialization();
+
+        var binding = Assert.Single(fixture.Host.EnsureRequests).Request.InitialLocation;
+        Assert.Equal(expected, binding);
+        Assert.Equal(expected, panel.CurrentLocation);
+        var metadata = new FileSessionMetadata(binding, FilePanelCapability.List, 250, 1024);
+        Assert.Equal(expected.Child(new FilePanelPathSegment("note.txt")),
+            AgentFileActionComposer.ResolveLocation(metadata, [new FilePanelPathSegment("note.txt")]));
+        Assert.Throws<ArgumentException>(() => new FilePanelPathSegment(".."));
+
+        await panel.NavigateUpAsync();
+        Assert.Equal(expected.Parent, panel.CurrentLocation);
+        Assert.Equal(expected.Parent, fixture.Host.ListRequests.Last().Request.Request.Location);
+        Assert.Single(fixture.Host.EnsureRequests);
+        Assert.Equal(fixture.Root, Assert.Single(panel.Profiles).Root);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Unresolved_saved_view_does_not_create_host_authority(bool missingProvider)
+    {
+        var fixture = new Fixture();
+        var profileId = new FileProviderProfileId(
+            missingProvider ? "unavailable.saved.provider" : fixture.Root.ProviderProfileId);
+        using var client = fixture.CreateDeferredClient(profileId);
+        using var panel = new FileRuntimePanelViewModel(
+            fixture.Owner.PanelId,
+            "Files",
+            client,
+            client,
+            profileId,
+            initialLocationText: missingProvider ? "/saved/project" : "/saved/../outside",
+            deferInitialization: true);
+
+        await panel.StartInitialization();
+
+        Assert.False(client.IsInitialized);
+        Assert.Empty(fixture.Host.EnsureRequests);
+        Assert.Empty(fixture.Host.ListRequests);
+        Assert.Null(panel.CurrentLocation);
+        Assert.NotNull(panel.ContentIssue);
+        Assert.False(panel.CanEditLocation);
+        Assert.False(panel.CanSelectProfile);
     }
 
     [Fact]
