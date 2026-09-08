@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using GhostShell.Application;
+using GhostShell.ConnectionBackend;
 using GhostShell.Core;
-using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 using GhostShell.Files;
 using GhostShell.Infrastructure;

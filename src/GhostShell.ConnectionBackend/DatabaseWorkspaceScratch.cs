@@ -1,6 +1,6 @@
 using GhostShell.Files;
 
-namespace GhostShell.DatabaseBackend;
+namespace GhostShell.ConnectionBackend;
 
 /// <summary>Only opaque operation IDs can address backend scratch; a live lease excludes cleanup.</summary>
 internal sealed class DatabaseWorkspaceScratch : IDisposable

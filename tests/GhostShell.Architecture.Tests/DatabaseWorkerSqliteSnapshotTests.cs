@@ -1,4 +1,4 @@
-using GhostShell.DatabaseBackend;
+using GhostShell.ConnectionBackend;
 using GhostShell.Databases;
 using GhostShell.Desktop;
 

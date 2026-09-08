@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
-namespace GhostShell.DatabaseBackend;
+namespace GhostShell.ConnectionBackend;
 
 /// <summary>Detached schema documents can span frames, but never exceed the result metadata budget.</summary>
 internal static class DatabaseMetadataProtocol

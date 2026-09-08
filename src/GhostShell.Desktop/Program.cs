@@ -8,7 +8,7 @@ using GhostShell.App.Controls;
 using GhostShell.App.ViewModels;
 using GhostShell.Application;
 using GhostShell.Browser;
-using GhostShell.DatabaseBackend;
+using GhostShell.ConnectionBackend;
 using GhostShell.Infrastructure;
 using GhostShell.SessionHost;
 using GhostShell.Terminal;

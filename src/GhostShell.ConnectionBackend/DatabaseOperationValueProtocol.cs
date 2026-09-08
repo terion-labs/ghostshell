@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 using GhostShell.Application;
 using GhostShell.Databases;
 
-namespace GhostShell.DatabaseBackend;
+namespace GhostShell.ConnectionBackend;
 
 internal enum DatabaseWireValueFormat { Null, Scalar, Text, Binary, Json, Array, NumericText, IpAddress, Sequence }
 

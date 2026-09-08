@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using GhostShell.Application;
-using GhostShell.DatabaseBackend;
+using GhostShell.ConnectionBackend;
 using GhostShell.Desktop;
 using GhostShell.Files;
 using GhostShell.Infrastructure;

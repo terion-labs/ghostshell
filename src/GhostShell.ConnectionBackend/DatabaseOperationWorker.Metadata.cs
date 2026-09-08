@@ -2,7 +2,7 @@ using System.Text.Json.Serialization.Metadata;
 using GhostShell.Application;
 using GhostShell.Databases;
 
-namespace GhostShell.DatabaseBackend;
+namespace GhostShell.ConnectionBackend;
 
 internal sealed partial class DatabaseOperationWorker
 {

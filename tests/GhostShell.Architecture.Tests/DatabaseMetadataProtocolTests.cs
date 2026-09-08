@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using GhostShell.Application;
-using GhostShell.DatabaseBackend;
+using GhostShell.ConnectionBackend;
 
 namespace GhostShell.Architecture.Tests;
 

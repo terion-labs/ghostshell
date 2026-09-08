@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using GhostShell.Application;
+using GhostShell.ConnectionBackend;
 using GhostShell.Core;
-using GhostShell.DatabaseBackend;
 using GhostShell.Databases;
 using GhostShell.Desktop;
 using GhostShell.Files;

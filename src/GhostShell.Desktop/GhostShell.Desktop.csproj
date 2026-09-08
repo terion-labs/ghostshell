@@ -7,7 +7,7 @@
     <ProjectReference Include="..\GhostShell.Application\GhostShell.Application.csproj" />
     <ProjectReference Include="..\GhostShell.Browser\GhostShell.Browser.csproj" />
     <ProjectReference Include="..\GhostShell.Databases\GhostShell.Databases.csproj" />
-    <ProjectReference Include="..\GhostShell.DatabaseBackend\GhostShell.DatabaseBackend.csproj" />
+    <ProjectReference Include="..\GhostShell.ConnectionBackend\GhostShell.ConnectionBackend.csproj" />
     <ProjectReference Include="..\GhostShell.Docker\GhostShell.Docker.csproj" />
     <ProjectReference Include="..\GhostShell.Git\GhostShell.Git.csproj" />
     <ProjectReference Include="..\GhostShell.Previews\GhostShell.Previews.csproj" />

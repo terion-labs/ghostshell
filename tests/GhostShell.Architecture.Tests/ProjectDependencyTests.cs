@@ -269,7 +269,7 @@ public sealed class ProjectDependencyTests
     [Fact]
     public void DatabaseBackendHasNoDesktopOrRenderingDependencies()
     {
-        var project = LoadProject("src/GhostShell.DatabaseBackend/GhostShell.DatabaseBackend.csproj");
+        var project = LoadProject("src/GhostShell.ConnectionBackend/GhostShell.ConnectionBackend.csproj");
         Assert.Empty(References(project, "PackageReference"));
         var references = References(project, "ProjectReference");
         Assert.All(references, reference => Assert.Contains(

@@ -3,8 +3,8 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
 using GhostShell.Application;
+using GhostShell.ConnectionBackend;
 using GhostShell.Core;
-using GhostShell.DatabaseBackend;
 using GhostShell.Files;
 using GhostShell.Infrastructure;
 
@@ -94,7 +94,7 @@ internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime command
                 var installationId = Guid.NewGuid().ToString("N");
                 var start = await PlanCommandAsync("/bin/sh", ["-c", InstallScript, "ghostshell-backend-install", archive.Hash, installationId], cancellationToken).ConfigureAwait(false);
                 using var process = Process.Start(start) ?? throw new IOException("The workspace backend installer could not start.");
-                using var stop = cancellationToken.Register(() => DatabaseBackend.DatabaseOperationWorker.StopOwnedProcess(process));
+                using var stop = cancellationToken.Register(() => DatabaseOperationWorker.StopOwnedProcess(process));
                 var output = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
                 var error = process.StandardError.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
                 var installationFailed = false;

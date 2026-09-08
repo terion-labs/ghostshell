@@ -11,7 +11,7 @@ Moving only query execution missed metadata and schema-renderer connections.
 
 ## Decision
 
-Extract the existing owned database worker into `GhostShell.DatabaseBackend`
+Extract the existing owned database worker into `GhostShell.ConnectionBackend`
 and give it a UI-free `GhostShell.Backend database` executable. Keep the current
 application contracts and provider implementations. All eleven SQL operation
 families, including connectivity probes, catalogs, object metadata and counts,
