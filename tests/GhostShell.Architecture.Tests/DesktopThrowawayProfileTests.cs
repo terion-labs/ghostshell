@@ -2,6 +2,7 @@ using System.Reflection;
 using GhostShell.App;
 using GhostShell.Application;
 using GhostShell.Core;
+using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 using GhostShell.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;

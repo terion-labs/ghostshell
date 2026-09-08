@@ -4,7 +4,7 @@ using System.Net;
 using System.Text;
 using GhostShell.Application;
 
-namespace GhostShell.Desktop;
+namespace GhostShell.DatabaseBackend;
 
 internal sealed record DatabaseProviderDiagnostic(string Message, string? SqlState, int? Number, int? Line, int? Position)
 {

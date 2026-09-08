@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using GhostShell.Application;
 using GhostShell.Databases;
 
-namespace GhostShell.Desktop;
+namespace GhostShell.DatabaseBackend;
 
 /// <summary>
 /// Transfers the existing read-only preview image, not its parent-local token.

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using GhostShell.Application;
 using GhostShell.Core;
+using GhostShell.DatabaseBackend;
 using GhostShell.Databases;
 using GhostShell.Desktop;
 using GhostShell.Files;
@@ -110,7 +111,7 @@ public sealed class DatabaseSqlClientCompositionTests
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "global.json"))) { root = root.Parent; }
         var dotnet = Path.Combine(root!.FullName, ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-        return new SelfReentryLaunch(dotnet, [typeof(DatabaseOperationWorker).Assembly.Location], dotnet);
+        return new SelfReentryLaunch(dotnet, [typeof(Program).Assembly.Location], dotnet);
     }
 
     private sealed class CapturedFactory(CancellationToken lifetime, Func<string, int, int> resolvePort) : IDatabaseTunnelFactory

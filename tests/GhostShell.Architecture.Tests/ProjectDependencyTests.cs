@@ -267,6 +267,23 @@ public sealed class ProjectDependencyTests
     }
 
     [Fact]
+    public void DatabaseBackendHasNoDesktopOrRenderingDependencies()
+    {
+        var project = LoadProject("src/GhostShell.DatabaseBackend/GhostShell.DatabaseBackend.csproj");
+        Assert.Empty(References(project, "PackageReference"));
+        var references = References(project, "ProjectReference");
+        Assert.All(references, reference => Assert.Contains(
+            Path.GetFileName(reference.Replace('\\', Path.DirectorySeparatorChar)),
+            [
+                "GhostShell.Application.csproj",
+                "GhostShell.Core.csproj",
+                "GhostShell.Databases.csproj",
+                "GhostShell.Files.csproj",
+                "GhostShell.Infrastructure.csproj",
+            ], StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void DesktopCompositionOwnsConcreteEngineAndHostReferences()
     {
         var references = References(

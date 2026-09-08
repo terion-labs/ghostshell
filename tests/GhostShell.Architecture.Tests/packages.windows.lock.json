@@ -866,6 +866,7 @@
           "GhostShell.App": "[1.0.0, )",
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Browser": "[1.0.0, )",
+          "GhostShell.DatabaseBackend": "[1.0.0, )",
           "GhostShell.Databases": "[1.0.0, )",
           "GhostShell.Docker": "[1.0.0, )",
           "GhostShell.Files": "[1.0.0, )",
@@ -948,6 +949,16 @@
       },
       "ghostshell.core": {
         "type": "Project"
+      },
+      "ghostshell.databasebackend": {
+        "type": "Project",
+        "dependencies": {
+          "GhostShell.Application": "[1.0.0, )",
+          "GhostShell.Core": "[1.0.0, )",
+          "GhostShell.Databases": "[1.0.0, )",
+          "GhostShell.Files": "[1.0.0, )",
+          "GhostShell.Infrastructure": "[1.0.0, )"
+        }
       },
       "ghostshell.databases": {
         "type": "Project",

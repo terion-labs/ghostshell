@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GhostShell.Application;
 using GhostShell.Core;
+using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 
 namespace GhostShell.Architecture.Tests;

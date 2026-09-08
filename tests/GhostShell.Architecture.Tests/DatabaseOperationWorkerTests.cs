@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using GhostShell.Application;
+using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 using GhostShell.Files;
 using GhostShell.Infrastructure;
@@ -43,7 +44,7 @@ public sealed class DatabaseOperationWorkerTests(ITestOutputHelper output)
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        start.ArgumentList.Add(typeof(DatabaseOperationWorker).Assembly.Location);
+        start.ArgumentList.Add(typeof(Program).Assembly.Location);
         start.ArgumentList.Add(DatabaseOperationWorker.Marker);
         using var child = Process.Start(start)!;
         using var sampling = new CancellationTokenSource();
@@ -441,7 +442,7 @@ public sealed class DatabaseOperationWorkerTests(ITestOutputHelper output)
             while (root is not null && !File.Exists(System.IO.Path.Combine(root.FullName, "global.json"))) { root = root.Parent; }
             var dotnet = System.IO.Path.Combine(root!.FullName, ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
             return new(store ?? (() => new DatabaseResultContentStore(System.IO.Path.Combine(_directory.FullName, "results"))),
-                new SelfReentryLaunch(dotnet, [typeof(DatabaseOperationWorker).Assembly.Location], dotnet), sample);
+                new SelfReentryLaunch(dotnet, [typeof(Program).Assembly.Location], dotnet), sample);
         }
         public async Task ExecuteAsync(string sql)
         {

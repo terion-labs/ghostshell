@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 using GhostShell.Application;
 using GhostShell.Core;
 
-namespace GhostShell.Desktop;
+namespace GhostShell.DatabaseBackend;
 
 internal sealed record DatabaseEndpointRequest(long Id, string Host, int Port);
 internal sealed record DatabaseEndpointReply(long Id, int? LocalPort);

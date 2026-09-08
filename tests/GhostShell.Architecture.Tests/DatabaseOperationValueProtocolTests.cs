@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using GhostShell.Application;
+using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 
 namespace GhostShell.Architecture.Tests;

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using GhostShell.Application;
+using GhostShell.DatabaseBackend;
 using GhostShell.Desktop;
 using GhostShell.Files;
 using GhostShell.Infrastructure;
@@ -22,7 +23,7 @@ public sealed class DatabaseOperationBoundaryReviewTests
         {
             using var worker = new DatabaseOperationWorker(
                 () => new DatabaseResultContentStore(Path.Combine(directory.FullName, "content")),
-                new SelfReentryLaunch(dotnet, [typeof(DatabaseOperationWorker).Assembly.Location], dotnet));
+                new SelfReentryLaunch(dotnet, [typeof(Program).Assembly.Location], dotnet));
             using var result = await worker.QueryAsync(new("duckdb", "DataSource=:memory:"),
                 "SELECT 'ok'::ENUM('sad', 'ok') AS mood", 1, false, timeout.Token);
             var value = Assert.Single(Assert.Single(result.ValueRows));
@@ -49,7 +50,7 @@ public sealed class DatabaseOperationBoundaryReviewTests
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        start.ArgumentList.Add(typeof(DatabaseOperationWorker).Assembly.Location);
+        start.ArgumentList.Add(typeof(Program).Assembly.Location);
         start.ArgumentList.Add(DatabaseOperationWorker.Marker);
         using var child = Process.Start(start);
         Assert.NotNull(child);

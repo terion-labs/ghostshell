@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using GhostShell.Application;
 
-namespace GhostShell.Desktop;
+namespace GhostShell.DatabaseBackend;
 
 internal enum DatabaseWorkerOperation { Query, ReadQuery, ReadTable, ApplyChanges }
 

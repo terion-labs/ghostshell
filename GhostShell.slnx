@@ -8,6 +8,7 @@
     <Project Path="src/GhostShell.Browser/GhostShell.Browser.csproj" />
     <Project Path="src/GhostShell.Core/GhostShell.Core.csproj" />
     <Project Path="src/GhostShell.Databases/GhostShell.Databases.csproj" />
+    <Project Path="src/GhostShell.DatabaseBackend/GhostShell.DatabaseBackend.csproj" />
     <Project Path="src/GhostShell.Docker/GhostShell.Docker.csproj" />
     <Project Path="src/GhostShell.Desktop/GhostShell.Desktop.csproj" />
     <Project Path="src/GhostShell.Docking/GhostShell.Docking.csproj" />

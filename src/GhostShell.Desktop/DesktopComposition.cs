@@ -7,6 +7,7 @@ using GhostShell.Application.ApplicationUpdates;
 using GhostShell.Application.Previews;
 using GhostShell.Browser;
 using GhostShell.Core;
+using GhostShell.DatabaseBackend;
 using GhostShell.Databases;
 using GhostShell.Docker;
 using GhostShell.Files;

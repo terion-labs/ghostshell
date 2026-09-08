@@ -6,7 +6,7 @@ using GhostShell.Databases;
 using GhostShell.Files;
 using GhostShell.Infrastructure;
 
-namespace GhostShell.Desktop;
+namespace GhostShell.DatabaseBackend;
 
 /// <summary>
 /// One owned child per complete provider operation. The ready/execute handshake
