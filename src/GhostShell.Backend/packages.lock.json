@@ -319,7 +319,7 @@
         "dependencies": {
           "ClickHouse.Client": "[7.14.0, )",
           "DuckDB.NET.Data.Full": "[1.5.5, )",
-          "FirebirdSql.Data.FirebirdClient": "[10.3.1, )",
+          "FirebirdSql.Data.FirebirdClient": "[10.3.4, )",
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[6.0.2, )",
@@ -414,9 +414,9 @@
       },
       "FirebirdSql.Data.FirebirdClient": {
         "type": "CentralTransitive",
-        "requested": "[10.3.1, )",
-        "resolved": "10.3.1",
-        "contentHash": "LDKlTIH3Tivi8sMkwrolVcIZWJDTwxBCugE+eEZRY6pFnK75gmJnV0u4FkC73M6ERbCKUvY7m5ox8VkicJZubg=="
+        "requested": "[10.3.4, )",
+        "resolved": "10.3.4",
+        "contentHash": "lmaY+XQvnhPl1YRrY+lzTZPD88YDbllelN5RhFMrzinqSmjWpWZRE0A4AI1L2mPBNAI346Q8MHAvnJjDPd7VnQ=="
       },
       "FluentFTP": {
         "type": "CentralTransitive",
