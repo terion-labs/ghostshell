@@ -664,6 +664,12 @@ public sealed class MacOsAppBundleBuilder
         {
             root = resourcesDirectory;
         }
+        if (string.Equals(relativePath,
+                Path.Combine("runtimes", "linux-arm64", "workspace-backend", "backend-assets.json"),
+                StringComparison.Ordinal))
+        {
+            root = resourcesDirectory;
+        }
         return Path.Combine(root, relativePath);
     }
 

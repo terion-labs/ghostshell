@@ -1,6 +1,7 @@
 using GhostShell.App;
 using GhostShell.Application;
 using GhostShell.Core;
+using GhostShell.DatabaseBackend;
 using GhostShell.Databases;
 using GhostShell.Docker;
 using GhostShell.Files;
@@ -129,12 +130,15 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
         var tunnelFactory = new WorkspaceNetworkDatabaseTunnelFactory(
             socksProxy,
             route => new SshNetDatabaseTunnelFactory(secretVault, knownHosts, request.ConnectionRuntime, route));
+        var backend = new WorkspaceDatabaseBackend(commandRuntime);
+        var workspaceDatabaseOperations = new DatabaseOperationWorker(databaseContentStores, workspaceLaunch: backend.PlanAsync);
         var databases = new DatabasePanelClient(
             tunnelFactory,
             GhostShell.Core.BuiltInConnections.Local,
             diagramWorkers,
             databaseContentStores,
-            databaseOperations);
+            databaseOperations,
+            workspaceDatabaseOperations);
         var docker = new DockerEngineClient(executor, timeProvider);
         var git = new GitRepositoryClient(executor, timeProvider);
         var redis = new RedisPanelSessionFactory(
@@ -169,6 +173,8 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
         var lifetime = new IsolatedWorkspaceRuntimeLifetime(
             routedFiles,
             databases,
+            workspaceDatabaseOperations,
+            backend,
             socksProxy,
             sessionRegistrations,
             monitorRegistration,
@@ -288,6 +294,8 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
     private sealed class IsolatedWorkspaceRuntimeLifetime(
         CatalogFileProviderRuntime files,
         DatabasePanelClient databasePanelClient,
+        DatabaseOperationWorker workspaceDatabaseOperations,
+        WorkspaceDatabaseBackend backend,
         WorkspaceIsolationSocksProxy socksProxy,
         IDisposable sessionRegistrations,
         IDisposable monitorRegistration,
@@ -296,6 +304,7 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
         private readonly SemaphoreSlim _disposeGate = new(1, 1);
         private bool _filesDisposed;
         private bool _databaseDisposed;
+        private bool _backendDisposed;
         private bool _sessionRegistrationsDisposed;
         private bool _monitorFactoryDisposed;
         private bool _monitorRegistrationDisposed;
@@ -307,6 +316,15 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
             try
             {
                 List<Exception> errors = [];
+                await TryDisposeAsync(
+                    _backendDisposed,
+                    async () =>
+                    {
+                        workspaceDatabaseOperations.Dispose();
+                        await backend.DisposeAsync().ConfigureAwait(false);
+                    },
+                    () => _backendDisposed = true,
+                    errors).ConfigureAwait(false);
                 await TryDisposeAsync(
                     _sessionRegistrationsDisposed,
                     () => DisposeAsync(sessionRegistrations),

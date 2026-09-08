@@ -54,6 +54,26 @@ The .NET provider retains the existing `IWorkspaceIsolationProvider` contract.
 SDK network metadata is distinct from legacy guest-helper metadata. The backend
 must not issue guest router or guest firewall commands for an SDK binding.
 
+## Memory ceiling
+
+The desktop requests automatic sizing instead of a fixed 1 GiB guest limit.
+At VM creation, the runtime budgets half the host's physical RAM, rounded down
+to a MiB and capped by Virtualization.framework's supported maximum. The guest
+limit excludes the SDK's explicit 128 MiB VM overhead. Small hosts retain the
+256 MiB minimum guest limit only if the host and framework can accommodate it.
+Explicit numeric limits remain available to the native test/runtime contract;
+they are validated before the SDK can silently clamp them.
+
+This is a hard guest ceiling, **not** a reservation of that much physical memory,
+an unlimited soft limit, or a promise about currently free RAM. Each workspace
+can reach its own ceiling; several busy VMs compete with each other and host
+applications. macOS backs actual demand and may swap under pressure. Apple's
+[memory documentation](https://github.com/apple/container/blob/main/docs/technical-overview.md#releasing-container-memory-to-macos)
+also notes that guest-freed pages are not necessarily returned to the host;
+high-water usage may persist until a VM stops. No unverified ballooning or
+automatic workspace restart policy is installed. A changed ceiling takes effect
+on a new VM launch, not by restarting active user processes behind their back.
+
 ## Persistence and rollout
 
 Workspace state lives outside the replaceable app bundle. Stopping a VM never

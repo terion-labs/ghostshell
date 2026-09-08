@@ -67,24 +67,6 @@ public sealed class WorkspaceIsolationSelectedRouteTests
         Assert.Equal(0, extraLength);
     }
 
-    [Fact]
-    public async Task DatabaseTunnelPlansItsRelayThroughTheSelectedConnection()
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var connection = SshConnection();
-        var runtime = new RecordingCommandRuntime();
-        var factory = new WorkspaceIsolationTcpTunnelFactory(runtime);
-        await using var tunnel = await factory.OpenAsync(
-            connection,
-            "database.internal",
-            5432,
-            timeout.Token);
-        using var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, tunnel.LocalPort, timeout.Token);
-
-        Assert.Equal(connection.Id, await runtime.PlannedConnection.WaitAsync(timeout.Token));
-    }
-
     private static ConnectionProfile SshConnection() => new(
         new ConnectionId("isolated-route-test"),
         ConnectionProfile.CurrentSchemaVersion,

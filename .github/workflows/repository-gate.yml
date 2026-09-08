@@ -362,6 +362,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           cd "${GHOSTSHELL_RELEASE_SOURCE_ROOT}"
+          python3 ./scripts/package-workspace-backend.py verify-release-clearance .
           dotnet run \
             --project tools/GhostShell.Packaging/GhostShell.Packaging.csproj \
             --configuration Release \
@@ -402,6 +403,7 @@ jobs:
           ./scripts/build-libghostty-vt.sh --rid osx-arm64
           ./scripts/build-workspace-network-gateway.sh --rid osx-arm64
           ./scripts/build-workspace-runtime.sh
+          ./scripts/build-workspace-backend.sh
           ./scripts/build-openvpn-engine.sh
           ./scripts/build-macos-connection-engines.sh
           ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
@@ -580,6 +582,8 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip.sha256" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-arm64.tar.gz" \
+            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-arm64.tar.gz.sha256" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip.sha256" \
             "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip" \

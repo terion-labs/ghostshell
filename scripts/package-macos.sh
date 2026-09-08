@@ -436,6 +436,7 @@ for required in "${required_native[@]}"; do
     fi
 done
 "${repository_dir}/scripts/build-workspace-runtime.sh" --verify
+"${repository_dir}/scripts/build-workspace-backend.sh" --verify
 for required in \
     "${connection_engine_code_files[@]}" \
     "${connection_engine_legal_files[@]}" \

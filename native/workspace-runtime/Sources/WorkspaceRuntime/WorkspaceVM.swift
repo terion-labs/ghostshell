@@ -2,6 +2,7 @@ import Containerization
 import ContainerizationOS
 import Darwin
 import Foundation
+import Virtualization
 
 /// The VM owns the persistent disk for its entire lifetime; stop never deletes it.
 final class WorkspaceVM: @unchecked Sendable {
@@ -36,7 +37,11 @@ final class WorkspaceVM: @unchecked Sendable {
         format: "ext4", source: configuration.initfsPath, destination: "/", options: ["ro"]))
     var config = LinuxContainer.Configuration()
     config.cpus = configuration.cpus
-    config.memoryInBytes = configuration.memoryBytes
+    config.memoryInBytes = try WorkspaceMemoryBudget.guestBytes(
+      requested: configuration.memoryBytes,
+      hostPhysicalBytes: ProcessInfo.processInfo.physicalMemory,
+      maximumVirtualMachineBytes: VZVirtualMachineConfiguration.maximumAllowedMemorySize)
+    config.memoryOverhead = WorkspaceMemoryBudget.virtualMachineOverheadBytes
     config.hostname = configuration.hostname ?? configuration.id
     config.interfaces = [nic]
     config.dns = DNS(

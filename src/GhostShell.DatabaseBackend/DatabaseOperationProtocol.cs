@@ -7,7 +7,11 @@ using GhostShell.Application;
 
 namespace GhostShell.DatabaseBackend;
 
-internal enum DatabaseWorkerOperation { Query, ReadQuery, ReadTable, ApplyChanges }
+internal enum DatabaseWorkerOperation
+{
+    Query, ReadQuery, ReadTable, ApplyChanges,
+    ListTables, SchemaGraph, SqlCatalog, ListDatabases, DescribeSession, ObjectDetails, CountQueryRows,
+}
 
 internal sealed class DatabaseResultRetentionException : IOException
 {
@@ -36,6 +40,13 @@ internal sealed record DatabaseResultShape(int Columns, int Rows, bool Truncated
 [JsonSerializable(typeof(DatabaseMutationResult))]
 [JsonSerializable(typeof(DatabaseProviderDiagnostic))]
 [JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(DatabaseTableDescriptor[]))]
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(DatabaseSchemaGraph))]
+[JsonSerializable(typeof(SqlCatalogSnapshot))]
+[JsonSerializable(typeof(DatabaseSessionInfo))]
+[JsonSerializable(typeof(DatabaseObjectDetails))]
 internal sealed partial class DatabaseOperationJsonContext : JsonSerializerContext;
 
 /// <summary>Bounded metadata frames and individually streamed values, never a whole-result JSON document.</summary>

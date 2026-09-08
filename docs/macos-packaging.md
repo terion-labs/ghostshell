@@ -141,6 +141,31 @@ final bundle byte-for-byte. Packaging also re-hashes the dependency manifest
 and third-party notices before publish, after publish, and in the assembled
 bundle; all three copies must match the receipt.
 
+The isolated workspace backend is a separate on-demand download, never Linux
+code embedded in the macOS app. `./scripts/build-workspace-backend.sh` uses the
+repository-pinned SDK and locked Linux ARM64 dependency graph to publish the
+UI-free `GhostShell.Backend` with self-contained .NET 10.0.11. It rejects browser
+and Avalonia assemblies, non-ARM64 native libraries, links, and unsafe paths.
+Its deterministic `GhostShell-workspace-backend-arm64.tar.gz` includes a
+`MANIFEST.sha256` for verifying extracted files; the signed app contains only
+`Contents/Resources/runtimes/linux-arm64/workspace-backend/backend-assets.json`,
+which pins the archive hash, length, and executable. Rehearsal builds this
+sidecar locally, packaging rejects stale build receipts, and the release uploads
+it beside the boot archive. Development uses the same descriptor and sets
+`GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE` to the local sidecar. The development
+launcher rebuilds a stale backend before starting the app.
+
+Linux backend publication is currently blocked by `ghostshell-90w9` and
+`licenses/workspace-backend-release-legal.json`. The existing macOS owner
+decision is not reused as Linux approval. Local backend builds and tests remain
+available; signed release assembly, rehearsal, and the tag lane require the
+backend's own recorded decision before expensive packaging or publication.
+The sidecar retains runtime, application, managed-package and SqlClient notices,
+plus SMBLibrary license/source/replacement records. Its `.deps.json` identifies
+the actual backend subset; inherited desktop notices also describe components
+that are not in this headless payload. The pending review must reconcile the
+precise Linux closure and separately replaceable managed libraries.
+
 The temporary Native AOT executable's `LC_BUILD_VERSION` SDK field is updated to macOS 26.0
 before package fingerprinting and is ad-hoc signed so the candidate remains
 launchable. This opts native window chrome into the current macOS appearance;

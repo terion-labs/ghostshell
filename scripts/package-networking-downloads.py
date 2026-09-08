@@ -20,6 +20,14 @@ def stream_digest(stream):
     return checksum.hexdigest()
 
 
+def copy_pinned_archive(source, destination, pin):
+    shutil.copyfile(source, destination)
+    # A rebuild can atomically replace the source after its initial validation.
+    # Bind the bytes actually staged for upload to the signed app descriptor.
+    if digest(destination) != pin["sha256"] or destination.stat().st_size != pin["size"]:
+        raise ValueError(f"Staged sidecar differs from signed app pin: {destination.name}")
+
+
 def main():
     repository, app, output = map(pathlib.Path, sys.argv[1:])
     runtime = repository / "native/artifacts/osx-arm64/workspace-runtime"
@@ -30,6 +38,10 @@ def main():
         if path.name in ("kernel.bin", "initfs.ext4") or path.name.endswith((".tar.xz", ".tar.gz")):
             raise ValueError(f"On-demand or source payload leaked into app: {path}")
     boot = repository / "native/artifacts/workspace-runtime-build/distribution/GhostShell-workspace-boot-arm64.zip"
+    backend = repository / "native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
+    backend_pin = json.loads((app / "Contents/Resources/runtimes/linux-arm64/workspace-backend/backend-assets.json").read_text())
+    if backend_pin != {"sha256": digest(backend), "size": backend.stat().st_size, "executable": "GhostShell.Backend"}:
+        raise ValueError("Backend sidecar differs from signed app pin")
     assert digest(boot) == pin["sha256"] and boot.stat().st_size == pin["size"], "Boot sidecar differs from signed app pin"
     with zipfile.ZipFile(boot) as archive:
         assert sorted(archive.namelist()) == sorted(pin["files"])
@@ -38,15 +50,16 @@ def main():
                 assert stream_digest(stream) == expected["sha256"]
             assert archive.getinfo(name).file_size == expected["size"]
     output.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(boot, output / boot.name)
+    copy_pinned_archive(boot, output / boot.name, pin)
+    copy_pinned_archive(backend, output / backend.name, backend_pin)
     sources = output / "GhostShell-networking-sources.zip"
     with zipfile.ZipFile(sources, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for root, prefix in ((runtime / "legal", "workspace-runtime"), (engines, "connection-engines")):
             for path in sorted(root.rglob("*")):
                 if path.is_file() and (root != engines or path.suffix in (".txt", ".md", ".sha256", ".gz")):
                     archive.write(path, f"{prefix}/{path.relative_to(root)}")
-    for path in (output / boot.name, sources):
-        path.with_suffix(".zip.sha256").write_text(f"{digest(path)}  {path.name}\n")
+    for path in (output / boot.name, output / backend.name, sources):
+        path.with_name(path.name + ".sha256").write_text(f"{digest(path)}  {path.name}\n")
 
 
 if __name__ == "__main__":

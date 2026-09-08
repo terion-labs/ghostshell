@@ -363,6 +363,7 @@ export NUGET_PACKAGES="${nuget_packages}"
 
 version="${tag#v}"
 cd "${sealed_source}"
+python3 ./scripts/package-workspace-backend.py verify-release-clearance .
 "${dotnet}" run \
     --project tools/GhostShell.Packaging/GhostShell.Packaging.csproj \
     --configuration Release \
@@ -375,6 +376,7 @@ cd "${sealed_source}"
 ./scripts/build-libghostty-vt.sh --rid osx-arm64
 ./scripts/build-workspace-network-gateway.sh --rid osx-arm64
 ./scripts/build-workspace-runtime.sh
+./scripts/build-workspace-backend.sh
 ./scripts/build-openvpn-engine.sh
 ./scripts/build-macos-connection-engines.sh
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64

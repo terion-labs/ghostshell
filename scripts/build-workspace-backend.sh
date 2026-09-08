@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repository_dir="$(cd "${script_dir}/.." && pwd)"
+build_dir="${repository_dir}/native/artifacts/workspace-backend-build"
+distribution="${build_dir}/distribution"
+project="${repository_dir}/src/GhostShell.Backend/GhostShell.Backend.csproj"
+dotnet="${GHOSTSHELL_DOTNET:-${repository_dir}/.dotnet/dotnet}"
+packager="${script_dir}/package-workspace-backend.py"
+
+case "${1:-}" in
+    --verify)
+        python3 "${packager}" verify "${repository_dir}" "${distribution}"
+        exit 0 ;;
+    --help|-h)
+        echo "Usage: ./scripts/build-workspace-backend.sh [--verify]"
+        exit 0 ;;
+    "") ;;
+    *) echo "Unknown workspace backend build option." >&2; exit 64 ;;
+esac
+[[ $# -eq 0 ]] || { echo "Unexpected backend build arguments." >&2; exit 64; }
+[[ -x "${dotnet}" ]] || { echo "Install the repository-pinned .NET SDK first." >&2; exit 1; }
+expected_sdk="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sdk"]["version"])' "${repository_dir}/global.json")"
+[[ "$("${dotnet}" --version)" == "${expected_sdk}" ]] || { echo "The backend requires the repository-pinned SDK." >&2; exit 1; }
+export NUGET_PACKAGES="${NUGET_PACKAGES:-${repository_dir}/.nuget/packages}"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_NOLOGO=1
+mkdir -p "${build_dir}"
+staging="$(mktemp -d "${build_dir}/payload.XXXXXX")"
+trap 'rm -rf -- "${staging}"' EXIT
+source_digest="$(python3 "${packager}" source-digest "${repository_dir}")"
+
+# Separate artifacts keep this cross-RID publish away from active desktop builds
+# and permit the release pipeline to use a sealed read-only source checkout.
+"${dotnet}" publish "${project}" --configuration Release --runtime linux-arm64 \
+    --self-contained true --artifacts-path "${build_dir}/dotnet" --output "${staging}" \
+    -p:RestoreLockedMode=true \
+    -p:PublishAot=false -p:PublishTrimmed=false -p:UseAppHost=true \
+    -p:DebugType=None -p:DebugSymbols=false
+mkdir -p "${staging}/legal"
+runtime_package="${NUGET_PACKAGES}/microsoft.netcore.app.runtime.linux-arm64/10.0.11"
+cp "${runtime_package}/LICENSE.TXT" "${staging}/legal/DOTNET-LICENSE.txt"
+cp "${runtime_package}/THIRD-PARTY-NOTICES.TXT" "${staging}/legal/DOTNET-THIRD-PARTY-NOTICES.txt"
+cp "${repository_dir}/LICENSE" "${staging}/legal/GHOSTSHELL-LICENSE.txt"
+cp "${repository_dir}/licenses/SMBLIBRARY-LGPL-3.0.txt" \
+    "${repository_dir}/licenses/GPL-3.0.txt" \
+    "${repository_dir}/licenses/SMBLIBRARY-SOURCE.json" \
+    "${repository_dir}/licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md" \
+    "${repository_dir}/licenses/THIRD-PARTY-NOTICES.md" \
+    "${staging}/legal/"
+cp "${repository_dir}/vendor/sqlclient/upstream/LICENSE" "${staging}/legal/SqlClient-MIT.txt"
+cp "${repository_dir}/vendor/sqlclient/routed-transport.patch" "${staging}/legal/SqlClient-routed-transport.patch"
+python3 "${packager}" build "${repository_dir}" "${distribution}" "${staging}" "${source_digest}" "${expected_sdk}"
+python3 "${packager}" verify "${repository_dir}" "${distribution}"
+echo "Built on-demand Linux ARM64 backend at ${distribution}."

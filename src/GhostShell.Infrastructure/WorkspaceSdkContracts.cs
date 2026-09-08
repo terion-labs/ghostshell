@@ -12,7 +12,7 @@ internal sealed record WorkspaceSdkConfiguration(
     string InitfsPath,
     string GatewayExecutablePath,
     int Cpus,
-    ulong MemoryBytes,
+    ulong? MemoryBytes,
     string Hostname,
     IReadOnlyList<WorkspaceSdkMount> Mounts,
     IReadOnlyList<string> InitialArguments);

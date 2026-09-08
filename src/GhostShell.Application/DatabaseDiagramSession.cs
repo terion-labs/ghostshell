@@ -34,9 +34,18 @@ public enum DatabaseDiagramPurpose
     SourceExport,
 }
 
-/// <summary>The connection material is consumed only over private worker IPC, never command arguments.</summary>
+/// <summary>
+/// Starts an owned renderer from detached metadata or an explicit provider request.
+/// Connection material, when needed, travels only through private worker IPC.
+/// </summary>
 public interface IDatabaseDiagramWorkerFactory
 {
+    /// <summary>Renders detached metadata without granting the renderer a database connection.</summary>
+    Task<IDatabaseDiagramSession> OpenAsync(
+        DatabaseSchemaGraph graph,
+        CancellationToken cancellationToken,
+        DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display);
+
     Task<IDatabaseDiagramSession> OpenAsync(
         DatabaseWorkerConnection connection,
         CancellationToken cancellationToken,

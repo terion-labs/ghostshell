@@ -417,7 +417,7 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         return new(ResourceName(request.WorkspaceId), socket, rootfs,
             Path.Combine(assetDirectory, "kernel.bin"),
             Path.Combine(assetDirectory, "initfs.ext4"), _gatewayExecutable,
-            1, 1024UL * 1024 * 1024, ResourceName(request.WorkspaceId),
+            1, null, ResourceName(request.WorkspaceId),
             [.. request.Mounts.Select(static mount => new WorkspaceSdkMount(mount.HostSource, mount.GuestDestination, mount.IsReadOnly))],
             initialArguments);
     }

@@ -92,6 +92,7 @@
     <GhostShellConnectionEnginesRequired Condition="'$(GhostShellConnectionEnginesRequired)' == ''">false</GhostShellConnectionEnginesRequired>
     <GhostShellConnectionEnginesDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/connection-engines</GhostShellConnectionEnginesDirectory>
     <GhostShellWorkspaceRuntimeDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/workspace-runtime</GhostShellWorkspaceRuntimeDirectory>
+    <GhostShellWorkspaceBackendDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/workspace-backend-build/distribution</GhostShellWorkspaceBackendDirectory>
     <GhostShellWorkspaceRuntimeRequired Condition="'$(GhostShellWorkspaceRuntimeRequired)' == ''">false</GhostShellWorkspaceRuntimeRequired>
     <GhostShellWorkspaceRuntimePayloadAvailable Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' and Exists('$(GhostShellWorkspaceRuntimeDirectory)/workspace-runtime') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/kernel.bin') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/initfs.ext4') and Exists('$(GhostShellWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256')">true</GhostShellWorkspaceRuntimePayloadAvailable>
     <GhostShellConnectionEnginesPayloadAvailable Condition="'$(GhostShellConnectionEnginesSupported)' == 'true' and Exists('$(GhostShellConnectionEnginesDirectory)/ghostshell-openvpn-engine') and Exists('$(GhostShellConnectionEnginesDirectory)/openconnect') and Exists('$(GhostShellConnectionEnginesDirectory)/libopenconnect.5.dylib') and Exists('$(GhostShellConnectionEnginesDirectory)/tailscale') and Exists('$(GhostShellConnectionEnginesDirectory)/tailscaled') and Exists('$(GhostShellConnectionEnginesDirectory)/MANIFEST.sha256') and Exists('$(GhostShellConnectionEnginesDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellConnectionEnginesDirectory)/OPENCONNECT-SOURCE-AND-RELINKING.md') and Exists('$(GhostShellConnectionEnginesDirectory)/OPENVPN-VERSIONS.txt') and Exists('$(GhostShellConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz')">true</GhostShellConnectionEnginesPayloadAvailable>
@@ -304,7 +305,13 @@
         Text="The bundled connection engine payload is incomplete; missing %(GhostShellConnectionEnginesRequiredFile.Identity). Run ./scripts/build-macos-connection-engines.sh." />
   </Target>
 
+  <ItemGroup Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' and Exists('$(GhostShellWorkspaceBackendDirectory)/backend-assets.json')">
+    <!-- Only the signed pin ships in the app; Linux code is provisioned on demand. -->
+    <Content Include="$(GhostShellWorkspaceBackendDirectory)/backend-assets.json" Link="runtimes/linux-arm64/workspace-backend/backend-assets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="ValidateWorkspaceRuntimePayload" BeforeTargets="PrepareForBuild;Publish" Condition="'$(GhostShellWorkspaceRuntimeRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(GhostShellWorkspaceBackendDirectory)/backend-assets.json')" Text="The on-demand workspace backend descriptor is missing. Run ./scripts/build-workspace-backend.sh." />
     <Error Condition="'$(GhostShellEffectiveRuntimeIdentifier)' != 'osx-arm64'" Text="The SDK workspace runtime is supported only by the osx-arm64 application." />
     <Error Condition="!Exists('%(GhostShellWorkspaceRuntimeRequiredFile.Identity)')" Text="The bundled workspace runtime is incomplete; missing %(GhostShellWorkspaceRuntimeRequiredFile.Identity). Run ./scripts/build-workspace-runtime.sh." />
   </Target>

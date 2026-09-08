@@ -56,6 +56,38 @@ public sealed class DatabaseWorkerRoute(
 /// </summary>
 public interface IDatabaseOperationExecutor
 {
+    Task<IReadOnlyList<DatabaseTableDescriptor>> ListTablesAsync(
+        DatabaseWorkerConnection connection,
+        CancellationToken cancellationToken);
+
+    Task<DatabaseSchemaGraph> GetDatabaseSchemaGraphAsync(
+        DatabaseWorkerConnection connection,
+        CancellationToken cancellationToken);
+
+    Task<SqlCatalogSnapshot> GetSqlCatalogAsync(
+        DatabaseWorkerConnection connection,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<string>> ListDatabasesAsync(
+        DatabaseWorkerConnection connection,
+        CancellationToken cancellationToken);
+
+    Task<DatabaseSessionInfo> DescribeSessionAsync(
+        DatabaseWorkerConnection connection,
+        CancellationToken cancellationToken);
+
+    Task<DatabaseObjectDetails> GetObjectDetailsAsync(
+        DatabaseWorkerConnection connection,
+        DatabaseTableDescriptor databaseObject,
+        CancellationToken cancellationToken);
+
+    Task<long> CountQueryRowsAsync(
+        DatabaseWorkerConnection connection,
+        string sourceSql,
+        IReadOnlyList<DatabaseColumnDescriptor> sourceColumns,
+        IReadOnlyList<DatabaseFilterCondition> filters,
+        CancellationToken cancellationToken);
+
     Task<DatabaseQueryPage> QueryAsync(
         DatabaseWorkerConnection connection,
         string sql,

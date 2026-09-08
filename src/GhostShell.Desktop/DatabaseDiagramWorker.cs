@@ -14,13 +14,26 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
     internal const string Marker = "--ghostshell-database-diagram-worker";
     private static readonly SemaphoreSlim Admission = new(2, 2);
 
-    public async Task<IDatabaseDiagramSession> OpenAsync(DatabaseWorkerConnection connection, CancellationToken cancellationToken,
+    public Task<IDatabaseDiagramSession> OpenAsync(DatabaseSchemaGraph graph, CancellationToken cancellationToken,
+        DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        return OpenCoreAsync(null, session => session.InitializeAsync(graph, purpose, cancellationToken), cancellationToken);
+    }
+
+    public Task<IDatabaseDiagramSession> OpenAsync(DatabaseWorkerConnection connection, CancellationToken cancellationToken,
         DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display)
     {
         if (string.Equals(connection.DriverId, "sqlserver", StringComparison.Ordinal) && connection.LocalRoutePort is not null && connection.Route is null)
         {
             throw new NotSupportedException("Routed SQL Server requires a captured endpoint transport, not a fixed loopback port.");
         }
+        return OpenCoreAsync(connection.Route, session => session.InitializeAsync(connection, purpose, cancellationToken), cancellationToken);
+    }
+
+    private async Task<IDatabaseDiagramSession> OpenCoreAsync(DatabaseWorkerRoute? route,
+        Func<WorkerSession, Task> initialize, CancellationToken cancellationToken)
+    {
         var launch = selfReentry ?? SelfReentryLaunch.Detect();
         var start = new ProcessStartInfo(launch.Executable)
         {
@@ -41,7 +54,7 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
         try
         {
             var process = Process.Start(start) ?? throw new IOException("The database schema worker could not start.");
-            session = new WorkerSession(process, connection.Route);
+            session = new WorkerSession(process, route);
         }
         catch
         {
@@ -50,7 +63,7 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
         }
         try
         {
-            await session.InitializeAsync(connection, purpose, cancellationToken).ConfigureAwait(false);
+            await initialize(session).ConfigureAwait(false);
             return session;
         }
         catch
@@ -69,8 +82,15 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
         try
         {
             var request = await DatabaseDiagramProtocol.ReadRequestAsync(input, CancellationToken.None).ConfigureAwait(false);
-            if (request.Operation is not "open" and not "open-source"
-                || request.DriverId is null || request.ConnectionString is null)
+            var detachedGraph = request.Operation is "open-graph" or "open-graph-source";
+            if (!detachedGraph && (request.Operation is not "open" and not "open-source"
+                || request.DriverId is null || request.ConnectionString is null))
+            {
+                return 64;
+            }
+
+            if (detachedGraph && (request.DriverId is not null || request.ConnectionString is not null
+                || request.LocalRoutePort is not null || request.DynamicRoute || request.SqliteSnapshotBytes is not null))
             {
                 return 64;
             }
@@ -85,20 +105,11 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
             {
                 return 64;
             }
-            using var previewImage = request.SqliteSnapshotBytes is { } length
-                ? await DatabaseWorkerSqliteSnapshot.ReceiveAsync(length, input, output, CancellationToken.None).ConfigureAwait(false)
-                : null;
-            if (previewImage is not null) { request = request with { ConnectionString = previewImage.ConnectionString }; }
-
-            await using var parentRoute = request.DynamicRoute ? new ParentEndpointTunnelFactory(input, output) : null;
-            await using var client = new DatabasePanelClient(
-                (IDatabaseTunnelFactory?)parentRoute ?? (request.LocalRoutePort is { } port ? new ParentOwnedRoute(port) : null),
-                parentRoute is not null || request.LocalRoutePort is not null ? BuiltInConnections.Local : null);
-            var source = await ReadSourceAsync(client, request.DriverId, request.ConnectionString).ConfigureAwait(false);
-            // Only schema extraction uses the provider. Rendering/export owns
-            // immutable source and retains route lifetime, not idle DB forwards.
-            await client.DisposeAsync().ConfigureAwait(false);
-            using var diagram = string.Equals(request.Operation, "open-source", StringComparison.Ordinal)
+            var source = detachedGraph
+                ? DatabaseMermaidErDiagram.CreateSource(await DatabaseMetadataProtocol.ReadAsync(input,
+                    DatabaseOperationJsonContext.Default.DatabaseSchemaGraph, CancellationToken.None).ConfigureAwait(false))
+                : await ReadConnectionSourceAsync(request, input, output).ConfigureAwait(false);
+            using var diagram = request.Operation is "open-source" or "open-graph-source"
                 ? null
                 : new DatabaseDiagramPicture(source);
             await DatabaseDiagramProtocol.WriteFrameAsync(output, "ready"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
@@ -172,9 +183,18 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
         }
     }
 
-    private static async Task<string> ReadSourceAsync(DatabasePanelClient client, string driver, string connection)
+    private static async Task<string> ReadConnectionSourceAsync(DatabaseDiagramRequest request, Stream input, Stream output)
     {
-        var graph = await client.GetDatabaseSchemaGraphAsync(driver, connection, null, CancellationToken.None).ConfigureAwait(false);
+        using var previewImage = request.SqliteSnapshotBytes is { } length
+            ? await DatabaseWorkerSqliteSnapshot.ReceiveAsync(length, input, output, CancellationToken.None).ConfigureAwait(false)
+            : null;
+        if (previewImage is not null) { request = request with { ConnectionString = previewImage.ConnectionString }; }
+        await using var parentRoute = request.DynamicRoute ? new ParentEndpointTunnelFactory(input, output) : null;
+        await using var client = new DatabasePanelClient(
+            (IDatabaseTunnelFactory?)parentRoute ?? (request.LocalRoutePort is { } port ? new ParentOwnedRoute(port) : null),
+            parentRoute is not null || request.LocalRoutePort is not null ? BuiltInConnections.Local : null);
+        var graph = await client.GetDatabaseSchemaGraphAsync(request.DriverId!, request.ConnectionString!, null, CancellationToken.None)
+            .ConfigureAwait(false);
         return DatabaseMermaidErDiagram.CreateSource(graph);
     }
 
@@ -203,6 +223,17 @@ internal sealed class DatabaseDiagramWorker(SelfReentryLaunch? selfReentry = nul
             () => { if (!process.HasExited) { process.Kill(entireProcessTree: false); } });
         private int _disposed;
         private bool _operationFailed;
+
+        public Task InitializeAsync(DatabaseSchemaGraph graph, DatabaseDiagramPurpose purpose, CancellationToken token) =>
+            RunAsync(async cancellation =>
+            {
+                await SendAsync(new DatabaseDiagramRequest(
+                    purpose == DatabaseDiagramPurpose.SourceExport ? "open-graph-source" : "open-graph"), cancellation).ConfigureAwait(false);
+                await DatabaseMetadataProtocol.WriteAsync(process.StandardInput.BaseStream, graph,
+                    DatabaseOperationJsonContext.Default.DatabaseSchemaGraph, cancellation).ConfigureAwait(false);
+                await ExpectControlAsync("ready"u8.ToArray(), cancellation).ConfigureAwait(false);
+                return true;
+            }, token);
 
         public async Task InitializeAsync(DatabaseWorkerConnection connection, DatabaseDiagramPurpose purpose, CancellationToken token)
         {

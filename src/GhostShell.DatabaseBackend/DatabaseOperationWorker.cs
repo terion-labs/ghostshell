@@ -13,15 +13,17 @@ namespace GhostShell.DatabaseBackend;
 /// separates parameter decoding from execution; losing an executed operation is
 /// never reported as rollback and never retried here.
 /// </summary>
-internal sealed class DatabaseOperationWorker(
+internal sealed partial class DatabaseOperationWorker(
     Func<DatabaseValueContentStore> createStore,
     SelfReentryLaunch? selfReentry = null,
-    Func<Process, long>? sampleMemory = null) : IDatabaseOperationExecutor, IDisposable
+    Func<Process, long>? sampleMemory = null,
+    Func<CancellationToken, Task<DatabaseWorkspaceOperationLaunch>>? workspaceLaunch = null) : IDatabaseOperationExecutor, IDisposable
 {
     internal const string Marker = "--ghostshell-database-operation-worker";
     internal const long MaximumWorkingSetBytes = 2L * 1024 * 1024 * 1024;
     private static readonly SemaphoreSlim Admission = new(2, 2);
     private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
 
     public async Task<DatabaseQueryPage> QueryAsync(DatabaseWorkerConnection connection, string sql, int maximumRows,
         bool requestProvenance, CancellationToken cancellationToken)
@@ -76,23 +78,24 @@ internal sealed class DatabaseOperationWorker(
             request.Connection.Route?.Lifetime ?? CancellationToken.None);
         await Admission.WaitAsync(cancellation.Token).ConfigureAwait(false);
         DirectoryInfo? directory = null;
+        DatabaseWorkspaceOperationLaunch? workspaceOperation = null;
         var operationFailed = false;
         T? completedResult = default;
         try
         {
             directory = Directory.CreateTempSubdirectory("ghostshell-database-worker-");
             PrivateContentPathGuard.ValidatePrivateDirectory(directory.FullName);
-            var launch = selfReentry ?? SelfReentryLaunch.Detect();
-            var start = new ProcessStartInfo(launch.Executable)
+            if (workspaceLaunch is not null && (request.Connection.Route is not null || request.Connection.LocalRoutePort is not null))
             {
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            foreach (var prefix in launch.PrefixArguments) { start.ArgumentList.Add(prefix); }
-            start.ArgumentList.Add(Marker);
+                throw new InvalidOperationException("A workspace backend cannot use host loopback routes.");
+            }
+            workspaceOperation = workspaceLaunch is null ? null : await workspaceLaunch(cancellation.Token).ConfigureAwait(false);
+            var start = workspaceOperation?.StartInfo ?? CreateLocalLaunch();
+            start.UseShellExecute = false;
+            start.RedirectStandardInput = true;
+            start.RedirectStandardOutput = true;
+            start.RedirectStandardError = true;
+            start.CreateNoWindow = true;
             using var process = Process.Start(start) ?? throw new IOException("The database operation worker could not start.");
             using var terminate = cancellation.Token.Register(() => StopOwnedProcess(process));
             var drain = process.StandardError.BaseStream.CopyToAsync(Stream.Null, cancellation.Token);
@@ -104,7 +107,7 @@ internal sealed class DatabaseOperationWorker(
                 await DatabaseOperationProtocol.WriteMetadataAsync(process.StandardInput.BaseStream,
                     request with
                     {
-                        ContentDirectory = directory.FullName,
+                        ContentDirectory = workspaceLaunch is null ? directory.FullName : string.Empty,
                         DynamicRoute = request.Connection.Route is not null,
                         SqliteSnapshotBytes = previewImage?.Length,
                         Connection = previewImage is null ? request.Connection
@@ -187,6 +190,7 @@ internal sealed class DatabaseOperationWorker(
             try
             {
                 await RunCleanupAsync(operationFailed,
+                    () => workspaceOperation?.CleanupAsync() ?? Task.CompletedTask,
                     () =>
                     {
                         DeleteWorkerDirectory(directory, (completedResult as DatabaseTablePage)?.Result);
@@ -287,14 +291,28 @@ internal sealed class DatabaseOperationWorker(
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
         _lifetime.Cancel();
         _lifetime.Dispose();
     }
 
-    public static async Task<int> RunChildAsync()
+    private ProcessStartInfo CreateLocalLaunch()
+    {
+        var launch = selfReentry ?? SelfReentryLaunch.Detect();
+        var start = new ProcessStartInfo(launch.Executable);
+        foreach (var prefix in launch.PrefixArguments) { start.ArgumentList.Add(prefix); }
+        start.ArgumentList.Add(Marker);
+        return start;
+    }
+
+    public static async Task<int> RunChildAsync(bool privateWorkspace = false, string? workspaceOperationId = null)
     {
         await using var input = Console.OpenStandardInput();
         await using var output = Console.OpenStandardOutput();
+        using var workspaceScratch = privateWorkspace ? DatabaseWorkspaceScratch.Acquire(
+            workspaceOperationId ?? throw new InvalidDataException("The workspace operation identifier is missing.")) : null;
+        using var ownProcess = privateWorkspace ? Process.GetCurrentProcess() : null;
+        await using var workspaceMemory = ownProcess is null ? null : new MemoryMonitor(ownProcess, null);
         try
         {
             var request = await DatabaseOperationProtocol.ReadMetadataAsync(input,
@@ -310,12 +328,20 @@ internal sealed class DatabaseOperationWorker(
             {
                 return 64;
             }
+            if (privateWorkspace && (request.DynamicRoute || request.Connection.LocalRoutePort is not null || request.ContentDirectory.Length != 0))
+            {
+                return 64;
+            }
             using var previewImage = request.SqliteSnapshotBytes is { } length
                 ? await DatabaseWorkerSqliteSnapshot.ReceiveAsync(length, input, output, CancellationToken.None).ConfigureAwait(false)
                 : null;
             if (previewImage is not null)
             {
                 request = request with { Connection = request.Connection with { ConnectionString = previewImage.ConnectionString } };
+            }
+            if (privateWorkspace)
+            {
+                request = request with { ContentDirectory = workspaceScratch!.ContentDirectoryPath };
             }
             PrivateContentPathGuard.ValidatePrivateDirectory(request.ContentDirectory);
             Parameters parameters;
@@ -346,7 +372,11 @@ internal sealed class DatabaseOperationWorker(
             using (result)
             {
                 await DatabaseOperationProtocol.WriteFrameAsync(output, "result"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
-                if (result.Mutation is { } mutation)
+                if (result.WriteMetadata is { } writeMetadata)
+                {
+                    await writeMetadata(output).ConfigureAwait(false);
+                }
+                else if (result.Mutation is { } mutation)
                 {
                     await DatabaseOperationProtocol.WriteMetadataAsync(output, mutation,
                         DatabaseOperationJsonContext.Default.DatabaseMutationResult, CancellationToken.None).ConfigureAwait(false);
@@ -376,7 +406,7 @@ internal sealed class DatabaseOperationWorker(
         var columns = new List<DatabaseColumnDescriptor>();
         DatabaseTableQuery? query = null;
         DatabaseTableChanges? changes = null;
-        if (request.Operation is DatabaseWorkerOperation.Query or DatabaseWorkerOperation.ReadQuery)
+        if (request.Operation is DatabaseWorkerOperation.Query or DatabaseWorkerOperation.ReadQuery or DatabaseWorkerOperation.CountQueryRows)
         {
             sql = await DatabaseOperationValueProtocol.ReadParameterAsync(input, CancellationToken.None).ConfigureAwait(false) as string
                 ?? throw new InvalidDataException("The database statement is invalid.");
@@ -387,7 +417,7 @@ internal sealed class DatabaseOperationWorker(
             columns.Add(await DatabaseOperationProtocol.ReadMetadataAsync(input,
                 DatabaseOperationJsonContext.Default.DatabaseColumnDescriptor, CancellationToken.None).ConfigureAwait(false));
         }
-        if (request.Operation is DatabaseWorkerOperation.ReadQuery or DatabaseWorkerOperation.ReadTable)
+        if (request.Operation is DatabaseWorkerOperation.ReadQuery or DatabaseWorkerOperation.ReadTable or DatabaseWorkerOperation.CountQueryRows)
         {
             query = await DatabaseOperationProtocol.ReadQueryAsync(input, CancellationToken.None).ConfigureAwait(false);
         }
@@ -399,7 +429,7 @@ internal sealed class DatabaseOperationWorker(
     }
 
     private sealed record ChildResult(DatabaseQueryPage? Result = null, DatabaseTablePage? Page = null,
-        DatabaseMutationResult? Mutation = null) : IDisposable
+        DatabaseMutationResult? Mutation = null, Func<Stream, Task>? WriteMetadata = null) : IDisposable
     {
         public void Dispose() => Result?.Dispose();
     }
@@ -414,6 +444,10 @@ internal sealed class DatabaseOperationWorker(
             contentStoreFactory: () => new DatabaseResultContentStore(request.ContentDirectory));
         try
         {
+            if (await ExecuteMetadataAsync(client, request, parameters).ConfigureAwait(false) is { } metadata)
+            {
+                return metadata;
+            }
             if (request.Operation == DatabaseWorkerOperation.ApplyChanges)
             {
                 var mutation = await client.ApplyTableChangesAsync(target.DriverId, target.ConnectionString, null,

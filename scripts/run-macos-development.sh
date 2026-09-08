@@ -149,7 +149,14 @@ resources_directory="${contents}/Resources"
 mkdir -p -- "${macos_directory}" "${frameworks_directory}" "${resources_directory}"
 
 echo "Assembling the macOS CEF development bundle..." >&2
+if ! "${repository_dir}/scripts/build-workspace-backend.sh" --verify >/dev/null 2>&1; then
+    "${repository_dir}/scripts/build-workspace-backend.sh"
+fi
 /usr/bin/ditto --clone --noqtn "${target_directory}" "${macos_directory}"
+backend_resources="${resources_directory}/runtimes/linux-arm64/workspace-backend"
+mkdir -p "${backend_resources}"
+cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/backend-assets.json" "${backend_resources}/"
+rm -f -- "${macos_directory}/runtimes/linux-arm64/workspace-backend/backend-assets.json"
 # Incremental managed output may still contain the retired in-guest helper.
 # The SDK runtime never mounts application code into the guest.
 rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
@@ -222,6 +229,7 @@ echo "Launching ${app_bundle}" >&2
 # Development uses the same verified provisioning path without fetching an
 # unpublished app version from GitHub. Do not copy the sidecar into the bundle.
 export GHOSTSHELL_WORKSPACE_BOOT_ARCHIVE="${repository_dir}/native/artifacts/workspace-runtime-build/distribution/GhostShell-workspace-boot-arm64.zip"
+export GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE="${repository_dir}/native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
 if [[ ${#application_arguments[@]} -eq 0 ]]; then
     exec "${app_bundle}/Contents/MacOS/GhostShell"
 fi

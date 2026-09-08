@@ -71,6 +71,7 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
         Assert.Equal("serve", serve.Arguments[0]);
         using var config = JsonDocument.Parse(await File.ReadAllTextAsync(serve.Arguments[2], CancellationToken.None));
         Assert.Equal(disk, config.RootElement.GetProperty("rootfsPath").GetString());
+        Assert.Equal(JsonValueKind.Null, config.RootElement.GetProperty("memoryBytes").ValueKind);
         Assert.Equal(Path.GetFullPath("/app/kernel.bin"), config.RootElement.GetProperty("kernelPath").GetString());
         Assert.Equal(Path.GetFullPath("/app/initfs.ext4"), config.RootElement.GetProperty("initfsPath").GetString());
         Assert.Equal("/sbin/init", config.RootElement.GetProperty("initialArguments")[0].GetString());

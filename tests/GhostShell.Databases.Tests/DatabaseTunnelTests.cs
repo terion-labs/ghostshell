@@ -297,6 +297,9 @@ public sealed class DatabaseTunnelTests
 
     private sealed class RecordingDiagramWorkers : IDatabaseDiagramWorkerFactory
     {
+        public Task<IDatabaseDiagramSession> OpenAsync(DatabaseSchemaGraph graph, CancellationToken cancellationToken,
+            DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display) => throw new NotSupportedException();
+
         public bool Fail { get; init; }
         public DatabaseWorkerConnection? Connection { get; private set; }
         public DiagramSession Session { get; } = new();

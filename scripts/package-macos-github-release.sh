@@ -132,6 +132,9 @@ if [[ -n "${sign_identity}" && -z "${notary_profile}" \
     echo "Developer ID release assembly requires both signing identity and notary profile." >&2
     exit 64
 fi
+if [[ -n "${notary_profile}" ]]; then
+    python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
+fi
 if [[ -n "${notary_profile}" \
     && ( -z "${release_evidence_dir}" \
         || -z "${source_seal}" \

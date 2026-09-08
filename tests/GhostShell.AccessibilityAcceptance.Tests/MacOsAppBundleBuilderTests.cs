@@ -95,6 +95,20 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
     }
 
     [Fact]
+    public void Workspace_backend_descriptor_is_a_resource_not_linux_app_code()
+    {
+        var publish = CreatePublishPayload();
+        var relative = Path.Combine("runtimes", "linux-arm64", "workspace-backend", "backend-assets.json");
+        var descriptor = Path.Combine(publish, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(descriptor)!);
+        File.WriteAllText(descriptor, "backend pin");
+        var output = OutputPath();
+        _ = new MacOsAppBundleBuilder().Build(Request(publish, output));
+        Assert.Equal("backend pin", File.ReadAllText(Path.Combine(output, "Contents", "Resources", relative)));
+        Assert.False(File.Exists(Path.Combine(output, "Contents", "MacOS", relative)));
+    }
+
+    [Fact]
     public void Builder_creates_the_exact_acceptance_bundle_without_modifying_publish_payload()
     {
         var publish = CreatePublishPayload();

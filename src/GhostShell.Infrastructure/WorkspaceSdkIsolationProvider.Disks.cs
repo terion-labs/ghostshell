@@ -15,7 +15,7 @@ public sealed partial class WorkspaceSdkIsolationProvider
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
         dpkg --configure -a || apt-get -f install -y --no-install-recommends
-        apt-get install -y --no-install-recommends bash ca-certificates curl dbus git iproute2 iputils-ping less locales man-db openssh-client procps sudo systemd systemd-sysv tzdata vim-tiny wget
+        apt-get install -y --no-install-recommends bash ca-certificates curl dbus git iproute2 iputils-ping less libicu74 libgssapi-krb5-2 locales man-db openssh-client procps sudo systemd systemd-sysv tzdata vim-tiny wget
         apt-get clean
         rm -rf /var/lib/apt/lists/*
         : > /etc/machine-id

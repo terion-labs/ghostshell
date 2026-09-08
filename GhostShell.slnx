@@ -5,6 +5,7 @@
     <Project Path="src/GhostShell.Agent.Providers/GhostShell.Agent.Providers.csproj" />
     <Project Path="src/GhostShell.Agent.Runtime/GhostShell.Agent.Runtime.csproj" />
     <Project Path="src/GhostShell.Application/GhostShell.Application.csproj" />
+    <Project Path="src/GhostShell.Backend/GhostShell.Backend.csproj" />
     <Project Path="src/GhostShell.Browser/GhostShell.Browser.csproj" />
     <Project Path="src/GhostShell.Core/GhostShell.Core.csproj" />
     <Project Path="src/GhostShell.Databases/GhostShell.Databases.csproj" />

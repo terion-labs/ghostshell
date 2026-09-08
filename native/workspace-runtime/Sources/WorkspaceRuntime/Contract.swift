@@ -19,7 +19,8 @@ struct ServeConfiguration: Codable, Sendable {
   let initfsPath: String
   let gatewayExecutablePath: String
   let cpus: Int
-  let memoryBytes: UInt64
+  // A missing limit selects the host-scaled memory policy at VM creation.
+  let memoryBytes: UInt64?
   let hostname: String?
   let mounts: [Share]
   let initialArguments: [String]?
@@ -27,7 +28,8 @@ struct ServeConfiguration: Codable, Sendable {
   func validate() throws {
     guard !id.isEmpty, id.count <= 64,
       id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }),
-      (1...64).contains(cpus), memoryBytes >= 268_435_456,
+      (1...64).contains(cpus),
+      memoryBytes.map({ $0 >= WorkspaceMemoryBudget.minimumGuestBytes }) ?? true,
       [rootfsPath, kernelPath, initfsPath, gatewayExecutablePath].allSatisfy({
         $0.hasPrefix("/") && !$0.contains("\0")
       })

@@ -251,6 +251,9 @@ public sealed class DatabaseConnectionRouteTests
 
     private sealed class DiagramWorkers : IDatabaseDiagramWorkerFactory
     {
+        public Task<IDatabaseDiagramSession> OpenAsync(DatabaseSchemaGraph graph, CancellationToken cancellationToken,
+            DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display) => throw new NotSupportedException();
+
         public DatabaseWorkerConnection? Last { get; private set; }
         public Task<IDatabaseDiagramSession> OpenAsync(DatabaseWorkerConnection connection, CancellationToken cancellationToken,
             DatabaseDiagramPurpose purpose = DatabaseDiagramPurpose.Display)

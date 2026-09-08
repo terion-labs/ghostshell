@@ -37,10 +37,40 @@
     <ProjectReference Include="..\..\src\GhostShell.Agent.Runtime\GhostShell.Agent.Runtime.csproj" />
     <ProjectReference Include="..\..\src\GhostShell.Desktop\GhostShell.Desktop.csproj" />
     <ProjectReference
+      Include="..\..\src\GhostShell.Backend\GhostShell.Backend.csproj"
+      OutputItemType="_DatabaseBackendTargetPath"
+      ReferenceOutputAssembly="false" />
+    <ProjectReference
       Include="..\..\tools\GhostShell.SingleInstanceTestHost\GhostShell.SingleInstanceTestHost.csproj"
       OutputItemType="_SingleInstanceTestHostTargetPath"
       ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target
+    Name="AddDatabaseBackendPath"
+    BeforeTargets="GetAssemblyAttributes"
+    DependsOnTargets="ResolveProjectReferences">
+    <Error
+      Condition="'@(_DatabaseBackendTargetPath)' == ''"
+      Text="The database backend target path was not resolved." />
+    <ItemGroup>
+      <AssemblyMetadata Include="DatabaseBackendPath">
+        <Value>@(_DatabaseBackendTargetPath->'%(FullPath)')</Value>
+      </AssemblyMetadata>
+    </ItemGroup>
+  </Target>
+
+  <Target
+    Name="CopyDatabaseBackendForArchitectureAudit"
+    AfterTargets="Build"
+    DependsOnTargets="ResolveProjectReferences">
+    <!-- The out-of-process product executable must also pass the compiled
+         first-party diagnostic-sink audit; it is not a test assembly reference. -->
+    <Copy
+      SourceFiles="@(_DatabaseBackendTargetPath)"
+      DestinationFolder="$(OutDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
 
   <Target
     Name="AddSingleInstanceTestHostPath"

@@ -33,6 +33,13 @@ public sealed partial class DatabasePanelClient
     {
         var workers = _diagramWorkers ?? throw new NotSupportedException(
             "The isolated database schema renderer is unavailable.");
+        if (_operationExecutor is not null)
+        {
+            var graph = await GetDatabaseSchemaGraphAsync(driverId, connectionString, tunnel, cancellationToken)
+                .ConfigureAwait(false);
+            return await workers.OpenAsync(graph, cancellationToken, purpose).ConfigureAwait(false);
+        }
+
         var driver = Resolve(driverId);
         var normalized = driver.NormalizeConnectionString(connectionString);
         tunnel ??= driver.Descriptor.DefaultPort is null ? null : _defaultTunnel;

@@ -10,6 +10,43 @@ namespace GhostShell.Architecture.Tests;
 public sealed class DatabaseDiagramWorkerTests
 {
     [Fact]
+    public async Task Detached_schema_renders_without_connection_material()
+    {
+        var table = new DatabaseTableDescriptor("detached_table", DatabaseTableKind.Table, Schema: "private_schema");
+        var graph = new DatabaseSchemaGraph([new DatabaseSchemaTable(table,
+            [new DatabaseColumnSchema("id", 0, "integer", DatabaseValueKind.SignedInteger, IsPrimaryKey: true)], [])]);
+        var dotnet = Path.Combine(FindRepositoryRoot(), ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        var factory = new DatabaseDiagramWorker(new SelfReentryLaunch(dotnet,
+            [typeof(DatabaseDiagramWorker).Assembly.Location], dotnet));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await using var session = await factory.OpenAsync(graph, deadline.Token);
+        var image = await session.RenderViewportAsync(new DatabaseDiagramViewport(320, 240, 1, 0, 0), deadline.Token);
+        Assert.True(image.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
+        using var source = new MemoryStream();
+        await session.ExportAsync(source, DatabaseDiagramExport.MermaidMarkdown, deadline.Token);
+        Assert.Equal("```mermaid\n" + DatabaseMermaidErDiagram.CreateSource(graph) + "\n```\n", Encoding.UTF8.GetString(source.ToArray()));
+    }
+
+    [Fact]
+    public async Task Detached_whole_schema_source_spans_metadata_frames_without_truncation()
+    {
+        var graph = new DatabaseSchemaGraph([.. Enumerable.Range(0, 500)
+            .Select(index => new DatabaseSchemaTable(
+                new DatabaseTableDescriptor($"detached_table_{index}", DatabaseTableKind.Table),
+                [new DatabaseColumnSchema("id", 0, "integer", DatabaseValueKind.SignedInteger, IsPrimaryKey: true)], []))]);
+        var dotnet = Path.Combine(FindRepositoryRoot(), ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
+        var factory = new DatabaseDiagramWorker(new SelfReentryLaunch(dotnet,
+            [typeof(DatabaseDiagramWorker).Assembly.Location], dotnet));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        await using var session = await factory.OpenAsync(graph, deadline.Token, DatabaseDiagramPurpose.SourceExport);
+        using var source = new MemoryStream();
+        await session.ExportAsync(source, DatabaseDiagramExport.MermaidMarkdown, deadline.Token);
+        Assert.Equal("```mermaid\n" + DatabaseMermaidErDiagram.CreateSource(graph) + "\n```\n", Encoding.UTF8.GetString(source.ToArray()));
+    }
+
+    [Fact]
     public async Task RealDiagramWorkerUsesParentEndpointDuringSchemaLoadAndDenialDoesNotFallBack()
     {
         var dotnet = Path.Combine(FindRepositoryRoot(), ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
