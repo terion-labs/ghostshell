@@ -1,4 +1,5 @@
 using GhostShell.Application;
+using GhostShell.ConnectionBackend;
 using GhostShell.Core;
 
 namespace GhostShell.Desktop;
@@ -11,10 +12,11 @@ internal sealed class WorkspaceNetworkRouteRegistry : IWorkspaceNetworkRouteReso
     public IDisposable Register(
         WorkspaceInstanceId workspaceId,
         IWorkspaceNetworkConnector connector,
-        IConnectionCommandRuntime? isolatedCommandRuntime)
+        IConnectionCommandRuntime? isolatedCommandRuntime,
+        WorkspaceConnectionBackendFactory.Session? backend = null)
     {
         ArgumentNullException.ThrowIfNull(connector);
-        var route = new Route(connector, isolatedCommandRuntime);
+        var route = new Route(connector, isolatedCommandRuntime, backend);
         lock (_gate)
         {
             if (!_routes.TryAdd(workspaceId, route))
@@ -33,6 +35,29 @@ internal sealed class WorkspaceNetworkRouteRegistry : IWorkspaceNetworkRouteReso
         {
             return _routes.GetValueOrDefault(workspaceId)?.Connector;
         }
+    }
+
+    public HttpMessageHandler CreateHttpHandler(Uri proxy)
+    {
+        ArgumentNullException.ThrowIfNull(proxy);
+        lock (_gate)
+        {
+            foreach (var route in _routes.Values)
+            {
+                var expected = new UriBuilder(route.Connector.LocalProxyEndpoint);
+                if (route.Connector.LocalProxyCredentials is { } credentials)
+                {
+                    expected.UserName = credentials.Username;
+                    expected.Password = credentials.Password;
+                }
+                if (string.Equals(expected.Uri.AbsoluteUri, proxy.AbsoluteUri, StringComparison.Ordinal)
+                    && route.Backend is { } backend)
+                {
+                    return new WorkspaceHttpMessageHandler(token => backend.PlanAsync("http", null, token));
+                }
+            }
+        }
+        throw new InvalidOperationException("The workspace HTTP route is no longer registered. No host-network fallback was attempted.");
     }
 
     public IConnectionCommandRuntime? IsolatedCommandRuntimeFor(
@@ -58,7 +83,8 @@ internal sealed class WorkspaceNetworkRouteRegistry : IWorkspaceNetworkRouteReso
 
     private sealed record Route(
         IWorkspaceNetworkConnector Connector,
-        IConnectionCommandRuntime? IsolatedCommandRuntime);
+        IConnectionCommandRuntime? IsolatedCommandRuntime,
+        WorkspaceConnectionBackendFactory.Session? Backend);
 
     private sealed class Registration(
         WorkspaceNetworkRouteRegistry owner,

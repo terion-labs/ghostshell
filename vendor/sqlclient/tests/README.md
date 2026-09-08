@@ -4,7 +4,9 @@ The `upstream` subtree is the TDS, TDS.EndPoint and TDS.Servers
 test tooling from SqlClient 6.0.2, commit
 `b16dec0a5622fd5b3d5311191bac4cafadc43e60`. Its source archive SHA-256 is
 `f4c2cfd1a7a48f5e4f0b6b97639e5c17730fca1eade31668732280b82df21870`.
-The parent `../upstream/LICENSE` is the retained MIT license.
+The retained MIT license is `../../../licenses/SQLCLIENT-MIT.txt`.
+Production uses the unmodified Microsoft.Data.SqlClient NuGet package. This
+directory contains only its test-server tooling; no driver source is vendored.
 
 `Tds.TestSupport.csproj` combines those test sources in one test-only
 assembly. It uses the Unix SSPI stub on every host: these tests use synthetic SQL

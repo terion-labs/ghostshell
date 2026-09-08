@@ -19,9 +19,11 @@ internal sealed class DatabaseResultRetentionException : IOException
         : base("The result's column and display metadata exceeds the available retention budget, capped at 256 MiB.") { }
 }
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DatabaseOperationRequest(DatabaseWorkerOperation Operation, DatabaseWorkerConnection Connection,
     string ContentDirectory, int MaximumRows = 0, bool Provenance = false, DatabaseTableDescriptor? Table = null,
-    int SourceColumns = 0, bool DynamicRoute = false, long? SqliteSnapshotBytes = null);
+    int SourceColumns = 0, long? SqliteSnapshotBytes = null,
+    DatabaseConnectionMaterial[]? ConnectionMaterials = null);
 internal sealed record DatabaseQueryShape(int Filters, IReadOnlyList<DatabaseSort> Sorts, int Offset, int Limit,
     IReadOnlyList<string>? Columns, IReadOnlyList<string>? ExcludeColumns);
 internal sealed record DatabaseFilterShape(string ColumnName, DatabaseFilterOperator Operator);
@@ -333,7 +335,15 @@ internal static class DatabaseOperationProtocol
         }
 
         var bytes = new byte[length];
-        await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
-        return bytes;
+        try
+        {
+            await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+            return bytes;
+        }
+        catch
+        {
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes);
+            throw;
+        }
     }
 }

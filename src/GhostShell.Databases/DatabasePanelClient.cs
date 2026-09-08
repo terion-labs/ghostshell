@@ -11,10 +11,8 @@ namespace GhostShell.Databases;
 /// The generic ADO.NET query surface behind <see cref="IDatabasePanelClient"/>.
 /// Connections are opened per call — ADO.NET pooling makes that cheap for the
 /// server drivers, and it keeps a panel from pinning a file lock or a socket
-/// while idle. SSH tunnels are the exception: a handshake per statement would
-/// dominate every query, so opened forwards are cached per connection and
-/// target. Only definitively closed forwards are released and reopened; a
-/// query error or canceled caller does not invalidate another pooled user.
+/// while idle. Routed callers select a connection backend before any provider
+/// opens; this client never rewrites endpoints or supplies driver sockets.
 /// </summary>
 public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDisposable
 {
@@ -32,50 +30,46 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
     private static readonly TimeSpan SqlCatalogExtractionTimeout = TimeSpan.FromSeconds(15);
 
     private readonly IReadOnlyDictionary<string, IDatabaseDriver> _drivers;
-    private readonly IDatabaseTunnelFactory? _tunnelFactory;
     private readonly ConnectionProfile? _defaultTunnel;
     private readonly IDatabaseDiagramWorkerFactory? _diagramWorkers;
     private readonly Func<DatabaseValueContentStore>? _contentStoreFactory;
     private readonly IDatabaseOperationExecutor? _operationExecutor;
-    private readonly IDatabaseOperationExecutor? _workspaceOperationExecutor;
-    private readonly object _routeGate = new();
-    private readonly Dictionary<(ConnectionProfile Profile, CancellationToken Generation, string Driver, DatabaseEndpoint Target), DatabaseConnectionRoute> _routes = [];
+    private readonly Func<DatabaseDriverDescriptor, ConnectionProfile?, CancellationToken, ValueTask<IDatabaseOperationExecutor>>? _operationExecutorSelector;
     private bool _disposed;
 
     public DatabasePanelClient(
-        IDatabaseTunnelFactory? tunnelFactory = null,
         ConnectionProfile? defaultTunnel = null,
         IDatabaseDiagramWorkerFactory? diagramWorkers = null,
         Func<DatabaseValueContentStore>? contentStoreFactory = null,
         IDatabaseOperationExecutor? operationExecutor = null,
-        IDatabaseOperationExecutor? workspaceOperationExecutor = null)
-        : this(BuiltInDatabaseDrivers.All, tunnelFactory, defaultTunnel, diagramWorkers, contentStoreFactory, operationExecutor, workspaceOperationExecutor)
+        Func<DatabaseDriverDescriptor, ConnectionProfile?, CancellationToken, ValueTask<IDatabaseOperationExecutor>>? operationExecutorSelector = null)
+        : this(BuiltInDatabaseDrivers.All, defaultTunnel, diagramWorkers, contentStoreFactory, operationExecutor, operationExecutorSelector)
     {
     }
 
     public DatabasePanelClient(
         IReadOnlyList<IDatabaseDriver> drivers,
-        IDatabaseTunnelFactory? tunnelFactory = null,
         ConnectionProfile? defaultTunnel = null,
         IDatabaseDiagramWorkerFactory? diagramWorkers = null,
         Func<DatabaseValueContentStore>? contentStoreFactory = null,
         IDatabaseOperationExecutor? operationExecutor = null,
-        IDatabaseOperationExecutor? workspaceOperationExecutor = null)
+        Func<DatabaseDriverDescriptor, ConnectionProfile?, CancellationToken, ValueTask<IDatabaseOperationExecutor>>? operationExecutorSelector = null)
     {
         ArgumentNullException.ThrowIfNull(drivers);
         _drivers = drivers.ToDictionary(
             driver => driver.Descriptor.Id,
             StringComparer.Ordinal);
-        _tunnelFactory = tunnelFactory;
         _defaultTunnel = defaultTunnel;
         _diagramWorkers = diagramWorkers;
         _contentStoreFactory = contentStoreFactory;
-        _operationExecutor = operationExecutor ?? workspaceOperationExecutor;
-        _workspaceOperationExecutor = workspaceOperationExecutor;
+        _operationExecutor = operationExecutor;
+        _operationExecutorSelector = operationExecutorSelector;
         Drivers = [.. drivers.Select(driver => driver.Descriptor)];
     }
 
     public IReadOnlyList<DatabaseDriverDescriptor> Drivers { get; }
+
+    private bool ExecutesInWorker => _operationExecutorSelector is not null || _operationExecutor is not null;
 
     public async Task<IReadOnlyList<DatabaseTableDescriptor>> ListTablesAsync(
         string driverId,
@@ -84,14 +78,14 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.ListTablesAsync(target, token),
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -111,7 +105,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.GetDatabaseSchemaGraphAsync(target, token),
@@ -119,7 +113,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -150,7 +144,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.GetSqlCatalogAsync(target, token),
@@ -158,7 +152,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1006,7 +1000,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.ListDatabasesAsync(target, token),
@@ -1018,7 +1012,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
             return [];
         }
 
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1051,14 +1045,14 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.DescribeSessionAsync(target, token),
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1124,14 +1118,14 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxRows, 1);
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.QueryAsync(target, sql, maxRows, requestKeyInfo, token),
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1182,7 +1176,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
     {
         ArgumentNullException.ThrowIfNull(databaseObject);
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.GetObjectDetailsAsync(target, databaseObject, token),
@@ -1190,7 +1184,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1221,7 +1215,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         ArgumentOutOfRangeException.ThrowIfLessThan(query.Limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(query.Limit, MaximumTablePageSize);
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.ReadQueryAsync(target, sourceSql, sourceColumns, query, token),
@@ -1229,7 +1223,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1302,7 +1296,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         ArgumentNullException.ThrowIfNull(sourceColumns);
         ArgumentNullException.ThrowIfNull(filters);
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.CountQueryRowsAsync(target, sourceSql, sourceColumns, filters, token),
@@ -1310,7 +1304,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1341,7 +1335,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         ArgumentOutOfRangeException.ThrowIfLessThan(query.Limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(query.Limit, MaximumTablePageSize);
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.ReadTableAsync(target, table, query, token),
@@ -1349,7 +1343,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1437,7 +1431,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var driver = Resolve(driverId);
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             return await ExecuteInWorkerAsync(driver, connectionString, tunnel,
                 (executor, target, token) => executor.ApplyTableChangesAsync(target, table, changes, token),
@@ -1445,7 +1439,7 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         }
 
         var dialect = DatabaseSqlDialect.For(driverId);
-        return await ExecuteThroughTunnelAsync(
+        return await ExecuteWithConnectionAsync(
             driver,
             driver.NormalizeConnectionString(connectionString),
             tunnel,
@@ -1550,17 +1544,10 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         return Resolve(driverId).BuildConnectionString(details);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        DatabaseConnectionRoute[] routes;
-        lock (_routeGate)
-        {
-            if (_disposed) { return; }
-            _disposed = true;
-            routes = [.. _routes.Values];
-            _routes.Clear();
-        }
-        await Task.WhenAll(routes.Select(route => route.DisposeAsync().AsTask())).ConfigureAwait(false);
+        _disposed = true;
+        return ValueTask.CompletedTask;
     }
 
     private async Task<TResult> ExecuteInWorkerAsync<TResult>(
@@ -1571,123 +1558,38 @@ public sealed partial class DatabasePanelClient : IDatabasePanelClient, IAsyncDi
         CancellationToken cancellationToken)
     {
         var normalized = driver.NormalizeConnectionString(connectionString);
-        if (_workspaceOperationExecutor is { } workspace && (tunnel ?? _defaultTunnel)?.Endpoint is null or ConnectionEndpoint.Local)
+        var selectedRoute = tunnel ?? _defaultTunnel;
+        if (_operationExecutorSelector is { } selectExecutor)
         {
-            // The provider runs behind the VM's ordinary default gateway. It
-            // receives the original server identity, never a host relay port.
-            using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,
-                _tunnelFactory?.RouteLifetime ?? CancellationToken.None);
-            return await operation(workspace, new DatabaseWorkerConnection(driver.Descriptor.Id, normalized), lifetime.Token).ConfigureAwait(false);
+            var executor = await selectExecutor(driver.Descriptor, selectedRoute, cancellationToken).ConfigureAwait(false);
+            return await operation(executor, new DatabaseWorkerConnection(driver.Descriptor.Id, normalized), cancellationToken).ConfigureAwait(false);
         }
-        return await ExecuteThroughRouteAsync(driver, normalized, tunnel,
-            (route, token) => operation(_operationExecutor!, new DatabaseWorkerConnection(driver.Descriptor.Id, normalized)
-            { Route = route?.WorkerCapability }, token),
-            cancellationToken).ConfigureAwait(false);
+        RejectUnselectedSshRoute(selectedRoute);
+        return await operation(_operationExecutor!, new DatabaseWorkerConnection(driver.Descriptor.Id, normalized), cancellationToken).ConfigureAwait(false);
     }
 
-    private Task<TResult> ExecuteThroughTunnelAsync<TResult>(
+    private Task<TResult> ExecuteWithConnectionAsync<TResult>(
         IDatabaseDriver driver,
         string connectionString,
         ConnectionProfile? tunnel,
         Func<Func<DbConnection>, CancellationToken, Task<TResult>> operation,
-        CancellationToken cancellationToken) =>
-        ExecuteThroughRouteAsync(driver, connectionString, tunnel,
-            async (route, token) =>
-            {
-                if (route is null) { return await operation(() => driver.CreateConnection(connectionString), token).ConfigureAwait(false); }
-                var endpoint = driver.GetEndpoint(connectionString)
-                    ?? throw new InvalidOperationException("The database has no routeable endpoint.");
-                var port = await route.GetLocalPortAsync(endpoint.Host, endpoint.Port, token).ConfigureAwait(false);
-                return await operation(() => driver.CreateRoutedConnection(connectionString, "127.0.0.1", port, route), token).ConfigureAwait(false);
-            },
-            cancellationToken);
-
-    private async Task<TResult> ExecuteThroughRouteAsync<TResult>(
-        IDatabaseDriver driver,
-        string connectionString,
-        ConnectionProfile? tunnel,
-        Func<DatabaseConnectionRoute?, CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken)
     {
-        tunnel ??= driver.Descriptor.DefaultPort is null
-            ? null
-            : _defaultTunnel;
-        if (tunnel is null)
-        {
-            return await operation(null, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (_tunnelFactory is null)
-        {
-            throw new InvalidOperationException(
-                "SSH tunneling is unavailable in this build.");
-        }
-
-        var endpoint = driver.GetEndpoint(connectionString)
-            ?? throw new InvalidOperationException(
-                $"{driver.Descriptor.DisplayName} connections cannot be tunneled: "
-                + "the connection string has no network endpoint.");
-        var route = await GetRouteAsync(tunnel, driver.Descriptor.Id, endpoint).ConfigureAwait(false);
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, route.Lifetime);
-        try
-        {
-            return await operation(route, cancellation.Token).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is not DatabaseMutationOutcomeUnknownException
-            && DatabaseRouteEndpointBudgetException.IsCauseOf(exception))
-        {
-            throw new DatabaseRouteEndpointBudgetException("This database target retained 32 route endpoints. Restart GhostShell to release retained forwards before opening another endpoint.");
-        }
-        catch (ObjectDisposedException) when (cancellation.IsCancellationRequested)
-        {
-            // Provider login may observe route socket disposal before its
-            // cancellation callback. Preserve ordinary cancellation UX, never
-            // normalize the worker's post-dispatch outcome-unknown exception.
-            throw new OperationCanceledException("The database route was canceled.", cancellation.Token);
-        }
+        RejectUnselectedSshRoute(tunnel ?? _defaultTunnel);
+        return operation(() => driver.CreateConnection(connectionString), cancellationToken);
     }
 
-    private async Task<DatabaseConnectionRoute> GetRouteAsync(ConnectionProfile profile, string driverId, DatabaseEndpoint target)
+    private static void RejectUnselectedSshRoute(ConnectionProfile? route)
     {
-        var captured = _tunnelFactory!.CaptureRoute();
-        DatabaseConnectionRoute route;
-        List<DatabaseConnectionRoute> stale = [];
-        var usedCapture = false;
-        try
+        if (route?.Endpoint is ConnectionEndpoint.Ssh)
         {
-            lock (_routeGate)
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                captured.RouteLifetime.ThrowIfCancellationRequested();
-                var key = (profile, captured.RouteLifetime, driverId, target);
-                if (!_routes.TryGetValue(key, out route!))
-                {
-                    foreach (var previous in _routes.Where(pair => pair.Key.Profile.Id == profile.Id
-                        && (pair.Key.Profile != profile || pair.Key.Generation != captured.RouteLifetime)).ToArray())
-                    {
-                        _routes.Remove(previous.Key);
-                        stale.Add(previous.Value);
-                    }
-                    route = new DatabaseConnectionRoute(captured, !ReferenceEquals(captured, _tunnelFactory), profile);
-                    _routes.Add(key, route);
-                    usedCapture = true;
-                }
-            }
-            await Task.WhenAll(stale.Select(previous => previous.DisposeAsync().AsTask())).ConfigureAwait(false);
-            return route;
-        }
-        finally
-        {
-            if (!usedCapture && !ReferenceEquals(captured, _tunnelFactory))
-            {
-                if (captured is IAsyncDisposable asyncDisposable) { await asyncDisposable.DisposeAsync().ConfigureAwait(false); }
-                else if (captured is IDisposable disposable) { disposable.Dispose(); }
-            }
+            throw new InvalidOperationException("SSH database operations require the selected connection backend.");
         }
     }
 
     private IDatabaseDriver Resolve(string driverId)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(driverId);
         return _drivers.TryGetValue(driverId, out var driver)
             ? driver

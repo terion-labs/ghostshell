@@ -56,7 +56,6 @@
   <Folder Name="/vendor/">
     <Project Path="vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj" />
     <Project Path="vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj" />
-    <Project Path="vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj" />
     <Project Path="vendor/sqlclient/tests/Tds.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">

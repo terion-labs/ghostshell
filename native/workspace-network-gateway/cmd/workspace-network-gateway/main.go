@@ -170,6 +170,7 @@ func runHost(arguments []string) error {
 	upstreamPort := flags.Uint("upstream-port", 0, "proxy port")
 	mtu := flags.Uint("mtu", 1280, "guest TUN MTU")
 	doh := flags.Bool("dns-over-https", false, "translate guest DNS to HTTPS inside the selected proxy")
+	names := flags.Bool("resolve-proxy-names", false, "resolve service-VM names at the SOCKS5 endpoint using private synthetic DNS")
 	udp := flags.Bool("allow-udp-associate", false, "verify and enable an owned loopback SOCKS5 UDP route")
 	var dns addressList
 	flags.Var(&dns, "dns", "DNS server IP address (repeatable)")
@@ -188,6 +189,7 @@ func runHost(arguments []string) error {
 		SocketPath: *socketPath, Mode: *mode, UpstreamHost: *upstreamHost,
 		UpstreamPort: uint16(*upstreamPort), MTU: uint16(*mtu), DNSServers: dns,
 		DNSOverHTTPS:      *doh,
+		ResolveProxyNames: *names,
 		AllowUDPAssociate: *udp,
 		KeyInput:          os.Stdin, Ready: os.Stdout,
 	})

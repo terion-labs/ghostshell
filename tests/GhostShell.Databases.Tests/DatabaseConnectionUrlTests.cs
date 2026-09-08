@@ -105,32 +105,29 @@ public sealed class DatabaseConnectionUrlTests
     {
         var driver = Driver(driverId);
         var normalized = driver.NormalizeConnectionString(url);
-        var endpoint = driver.GetEndpoint(normalized);
         var details = driver.ParseDetails(normalized);
 
-        Assert.NotNull(endpoint);
-        Assert.Equal("db.example.test", endpoint!.Host);
-        Assert.Equal(1433, endpoint.Port);
+        Assert.Equal("db.example.test", details.Host);
+        Assert.Equal(1433, details.Port);
         Assert.Equal("app", details.Database);
         Assert.Equal("sa", details.Username);
         Assert.Equal("secret", details.Password);
     }
 
     /// <summary>
-    /// Oracle's URL becomes Easy Connect — host:port/service — which is the one
-    /// address form the tunnel can also rewrite.
+    /// Oracle's URL becomes Easy Connect — host:port/service — without
+    /// transport-specific endpoint rewriting.
     /// </summary>
     [Fact]
-    public void An_oracle_url_becomes_the_address_form_that_can_be_tunnelled()
+    public void An_oracle_url_preserves_its_easy_connect_address()
     {
         var driver = Driver("oracle");
         var normalized = driver.NormalizeConnectionString(
             "oracle://app:secret@db.example.test:1521/FREEPDB1");
-        var endpoint = driver.GetEndpoint(normalized);
+        var details = driver.ParseDetails(normalized);
 
-        Assert.NotNull(endpoint);
-        Assert.Equal("db.example.test", endpoint!.Host);
-        Assert.Equal(1521, endpoint.Port);
+        Assert.Equal("db.example.test", details.Host);
+        Assert.Equal(1521, details.Port);
         Assert.Contains("FREEPDB1", normalized, StringComparison.Ordinal);
         Assert.Equal("app", driver.ParseDetails(normalized).Username);
     }

@@ -13,13 +13,20 @@ namespace GhostShell.Architecture.Tests;
 public sealed class DatabaseOperationWorkerTests(ITestOutputHelper output)
 {
     [Fact]
-    public async Task FixedPortSqlServerCannotEnterOperationOrDiagramWorkers()
+    public async Task RevokedServiceLaunchNeverStartsAProcessAndStillCleansItsOwnedOperation()
     {
-        using var fixture = new Fixture();
-        using var worker = fixture.Worker();
-        var connection = new DatabaseWorkerConnection("sqlserver", "Server=db.internal,1433", 44001);
-        await Assert.ThrowsAsync<NotSupportedException>(() => worker.QueryAsync(connection, "SELECT 1", 1, false, CancellationToken.None));
-        await Assert.ThrowsAsync<NotSupportedException>(() => new DatabaseDiagramWorker().OpenAsync(connection, CancellationToken.None));
+        using var lifetime = new CancellationTokenSource();
+        await lifetime.CancelAsync();
+        var cleaned = false;
+        using var worker = new DatabaseOperationWorker(() => throw new InvalidOperationException("No result should be created."),
+            workspaceLaunch: _ => Task.FromResult(
+            new DatabaseWorkspaceOperationLaunch(new ProcessStartInfo("must-not-start-this-program"),
+                () => { cleaned = true; return Task.CompletedTask; }, lifetime.Token)));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.ListTablesAsync(
+            new DatabaseWorkerConnection("sqlite", "Data Source=:memory:"), CancellationToken.None));
+
+        Assert.True(cleaned);
     }
 
     [Theory]
@@ -154,49 +161,7 @@ public sealed class DatabaseOperationWorkerTests(ITestOutputHelper output)
         finally { GhostShell.Databases.SqliteInMemoryDatabases.Unregister(target); }
     }
 
-    [Fact]
-    public async Task RealWorkerRouteRevocationAfterExecutePreservesUnknownOutcomeWithoutRetry()
-    {
-        using var fixture = new Fixture();
-        using var worker = fixture.Worker();
-        using var routeLifetime = new CancellationTokenSource();
-        var opens = 0;
-        var connection = new DatabaseWorkerConnection("postgres", "Host=private-route.invalid;Port=15432;Username=fixture;Password=private-fixture")
-        {
-            Route = new DatabaseWorkerRoute((_, _, _) =>
-            {
-                ++opens;
-                routeLifetime.Cancel();
-                throw new ObjectDisposedException("revoked-route");
-            }, routeLifetime.Token),
-        };
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var error = await Assert.ThrowsAsync<DatabaseMutationOutcomeUnknownException>(() => worker.QueryAsync(connection,
-            "SELECT 1", 1, false, deadline.Token));
-        Assert.Equal(1, opens);
-        Assert.Contains("may have completed", error.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("revoked-route", error.Message, StringComparison.Ordinal);
-    }
 
-    [Fact]
-    public async Task RealWorkerRequestsParentEndpointAfterExecuteAndCannotFallBackOnDenial()
-    {
-        using var fixture = new Fixture();
-        using var worker = fixture.Worker();
-        var requested = new List<(string Host, int Port)>();
-        var connection = new DatabaseWorkerConnection("postgres", "Host=private-route.invalid;Port=15432;Username=fixture;Password=private-fixture")
-        {
-            Route = new DatabaseWorkerRoute((host, port, _) =>
-            {
-                requested.Add((host, port));
-                throw new IOException("Parent denied fixture endpoint");
-            }, CancellationToken.None),
-        };
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await Assert.ThrowsAsync<DatabaseMutationOutcomeUnknownException>(() => worker.QueryAsync(connection,
-            "SELECT 1", 1, false, deadline.Token));
-        Assert.Equal([("private-route.invalid", 15432)], requested);
-    }
 
     [Fact]
     public async Task CleanupAttemptsEveryStepWithoutReplacingThePrimaryFailure()

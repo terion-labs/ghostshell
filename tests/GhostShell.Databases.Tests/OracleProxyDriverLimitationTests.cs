@@ -10,9 +10,10 @@ public sealed class OracleProxyDriverLimitationTests
     [Fact]
     public async Task Pinned_Oracle_driver_loses_unresolved_host_in_its_HTTP_CONNECT_authority()
     {
-        // Regression canary for the reason Oracle TCPS is still refused by the
-        // workspace relay. Remove the refusal only after remote DNS and logical
-        // certificate validation work through a real route-aware transport.
+        // Regression canary for the driver's built-in HTTP proxy API, which
+        // cannot preserve an unresolved authority. Production routed Oracle
+        // uses the service backend's network boundary, not this proxy API.
+        // This canary does not establish service-backend TCPS interoperability.
         using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

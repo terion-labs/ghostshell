@@ -21,7 +21,59 @@ public sealed class DatabaseMetadataExecutorTests
     [InlineData("session")]
     [InlineData("details")]
     [InlineData("count")]
-    public async Task Workspace_metadata_stays_in_guest_and_route_revocation_cancels_it(string operation)
+    public async Task Selected_service_executor_receives_original_connection_and_never_captures_host_route(string operation)
+    {
+        var driver = new RejectingHostDriver();
+        var host = new RecordingExecutor();
+        var selected = new RecordingExecutor();
+        var profile = new ConnectionProfile(new ConnectionId("fixture-ssh"), ConnectionProfile.CurrentSchemaVersion,
+            "Fixture SSH", new ConnectionEndpoint.Ssh("ssh.internal", username: "fixture"),
+            new ConnectionAuthentication.None(), ConnectionStartup.Default, ConnectionKeepAlive.Disabled,
+            SshHostKeyPolicy.AcceptNew);
+        using var cancellation = new CancellationTokenSource();
+        var selections = 0;
+        await using var client = new DatabasePanelClient([driver], operationExecutor: host,
+            operationExecutorSelector: (descriptor, route, token) =>
+            {
+                Assert.Same(driver.Descriptor, descriptor);
+                Assert.Same(profile, route);
+                Assert.Equal(cancellation.Token, token);
+                selections++;
+                return ValueTask.FromResult<IDatabaseOperationExecutor>(selected);
+            });
+
+        await InvokeAsync(client, operation, cancellation.Token, profile);
+
+        Assert.Equal(1, selections);
+        Assert.Equal(new DatabaseWorkerConnection("sqlite", "normalized:" + ConnectionString), selected.Connection);
+        Assert.Equal(0, host.CallCount);
+        Assert.Equal(0, driver.CreateCount);
+    }
+
+    [Fact]
+    public async Task Failed_service_selection_does_not_fall_back_to_host_executor()
+    {
+        var driver = new RejectingHostDriver();
+        var host = new RecordingExecutor();
+        await using var client = new DatabasePanelClient([driver], operationExecutor: host,
+            operationExecutorSelector: (_, _, _) => ValueTask.FromException<IDatabaseOperationExecutor>(
+                new IOException("The service route is unavailable.")));
+
+        await Assert.ThrowsAsync<IOException>(() => client.ListTablesAsync("sqlite", ConnectionString, null, CancellationToken.None));
+
+        Assert.Equal(0, host.CallCount);
+        Assert.Equal(0, driver.CreateCount);
+    }
+
+    [Theory]
+    [InlineData("tables")]
+    [InlineData("schema")]
+    [InlineData("catalog")]
+    [InlineData("databases")]
+    [InlineData("session")]
+    [InlineData("details")]
+    [InlineData("count")]
+    public async Task Selected_guest_metadata_receives_cancellation_without_host_fallback(string operation)
     {
         foreach (var explicitLocal in new[] { false, true })
         {
@@ -29,26 +81,23 @@ public sealed class DatabaseMetadataExecutorTests
             var host = new RecordingExecutor();
             var guest = new RecordingExecutor();
             using var lifetime = new CancellationTokenSource();
-            var tunnels = new RejectingTunnelFactory(lifetime.Token);
-            await using var client = new DatabasePanelClient([driver], tunnels,
-                operationExecutor: host, workspaceOperationExecutor: guest);
+            await using var client = new DatabasePanelClient([driver], operationExecutor: host,
+                operationExecutorSelector: (_, _, _) => ValueTask.FromResult<IDatabaseOperationExecutor>(guest));
             var profile = explicitLocal ? BuiltInConnections.Local : null;
 
-            await InvokeAsync(client, operation, CancellationToken.None, profile);
+            await InvokeAsync(client, operation, lifetime.Token, profile);
 
             Assert.Equal(new DatabaseWorkerConnection("sqlite", "normalized:" + ConnectionString), guest.Connection);
             Assert.Equal(0, host.CallCount);
-            Assert.Equal(0, tunnels.CaptureCount);
             Assert.Equal(0, driver.CreateCount);
             guest.BeforeResult = async token =>
             {
                 await lifetime.CancelAsync();
                 token.ThrowIfCancellationRequested();
             };
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InvokeAsync(client, operation, CancellationToken.None, profile));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InvokeAsync(client, operation, lifetime.Token, profile));
             Assert.True(guest.Token.IsCancellationRequested);
             Assert.Equal(0, host.CallCount);
-            Assert.Equal(0, tunnels.CaptureCount);
         }
     }
 
@@ -60,27 +109,17 @@ public sealed class DatabaseMetadataExecutorTests
     [InlineData("session")]
     [InlineData("details")]
     [InlineData("count")]
-    public async Task Explicit_SSH_metadata_uses_host_executor_with_route_capability(string operation)
+    public async Task Explicit_SSH_without_a_backend_selector_fails_before_host_provider_or_executor(string operation)
     {
-        var driver = new RejectingHostDriver { Endpoint = new DatabaseEndpoint("db.internal", 5432) };
+        var driver = new RejectingHostDriver();
         var host = new RecordingExecutor();
-        var guest = new RecordingExecutor();
-        var tunnels = new RejectingTunnelFactory(CancellationToken.None);
         var profile = new ConnectionProfile(new ConnectionId("fixture-ssh"), ConnectionProfile.CurrentSchemaVersion,
             "Fixture SSH", new ConnectionEndpoint.Ssh("ssh.internal", username: "fixture"),
             new ConnectionAuthentication.None(), ConnectionStartup.Default, ConnectionKeepAlive.Disabled,
             SshHostKeyPolicy.AcceptNew);
-        await using var client = new DatabasePanelClient([driver], tunnels,
-            operationExecutor: host, workspaceOperationExecutor: guest);
-
-        await InvokeAsync(client, operation, CancellationToken.None, profile);
-
-        Assert.Equal(1, host.CallCount);
-        Assert.Equal(0, guest.CallCount);
-        Assert.Equal(1, tunnels.CaptureCount);
-        Assert.Equal("normalized:" + ConnectionString, host.Connection!.ConnectionString);
-        Assert.NotNull(host.Connection.Route);
-        Assert.Null(host.Connection.LocalRoutePort);
+        await using var client = new DatabasePanelClient([driver], operationExecutor: host);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => InvokeAsync(client, operation, CancellationToken.None, profile));
+        Assert.Equal(0, host.CallCount);
         Assert.Equal(0, driver.CreateCount);
     }
 
@@ -255,7 +294,6 @@ public sealed class DatabaseMetadataExecutorTests
     private sealed class RejectingHostDriver : IDatabaseDriver
     {
         public int CreateCount { get; private set; }
-        public DatabaseEndpoint? Endpoint { get; init; }
         public DatabaseDriverDescriptor Descriptor { get; } = new("sqlite", "Fixture", "", IsFileBased: true);
         public string ListTablesSql => throw new InvalidOperationException("Host catalog SQL must not be read.");
         public string? ListDatabasesSql => throw new InvalidOperationException("Host catalog SQL must not be read.");
@@ -267,29 +305,12 @@ public sealed class DatabaseMetadataExecutorTests
         }
 
         public string NormalizeConnectionString(string connectionString) => "normalized:" + connectionString;
-        public DatabaseEndpoint? GetEndpoint(string connectionString) => Endpoint;
         public string QuoteIdentifier(string identifier) => throw new NotSupportedException();
         public string BuildPreviewQuery(string tableName, int limit) => throw new NotSupportedException();
-        public string RewriteEndpoint(string connectionString, string host, int port) => throw new NotSupportedException();
         public DatabaseConnectionDetails ParseDetails(string connectionString) => throw new NotSupportedException();
         public string BuildConnectionString(DatabaseConnectionDetails details) => throw new NotSupportedException();
     }
 
-    private sealed class RejectingTunnelFactory(CancellationToken lifetime) : IDatabaseTunnelFactory
-    {
-        public CancellationToken RouteLifetime => lifetime;
-        public int CaptureCount { get; private set; }
-
-        public IDatabaseTunnelFactory CaptureRoute()
-        {
-            CaptureCount++;
-            return this;
-        }
-
-        public ValueTask<IDatabaseTunnelLease> OpenAsync(ConnectionProfile connection, string targetHost,
-            int targetPort, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Metadata dispatch must not open a host loopback forward.");
-    }
 
     private sealed class RecordingDiagramWorkers : IDatabaseDiagramWorkerFactory
     {

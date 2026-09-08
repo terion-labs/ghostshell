@@ -71,8 +71,15 @@ internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime command
         fi
         """;
 
-    internal async Task<DatabaseWorkspaceOperationLaunch> PlanAsync(CancellationToken cancellationToken)
+    internal Task<DatabaseWorkspaceOperationLaunch> PlanAsync(CancellationToken cancellationToken) =>
+        PlanAsync("database", cancellationToken);
+
+    internal async Task<DatabaseWorkspaceOperationLaunch> PlanAsync(string capability, CancellationToken cancellationToken)
     {
+        if (capability is not ("database" or "redis" or "files" or "http"))
+        {
+            throw new ArgumentException("The workspace backend capability is not supported.", nameof(capability));
+        }
         await _installation.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -130,7 +137,7 @@ internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime command
             try
             {
                 await RunBackendControlAsync("prepare", operationId, cancellationToken).ConfigureAwait(false);
-                var start = await PlanCommandAsync(_executable, ["database", operationId], cancellationToken).ConfigureAwait(false);
+                var start = await PlanCommandAsync(_executable, [capability, operationId], cancellationToken).ConfigureAwait(false);
                 var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (_operationGate) { _operations.Add(completion); }
                 var cleaned = 0;

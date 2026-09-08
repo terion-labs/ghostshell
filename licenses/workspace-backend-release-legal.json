@@ -14,8 +14,8 @@
     "reviewedAtUtc": null
   },
   "reviewedInputs": {
-    "src/GhostShell.Backend/packages.linux-arm64.lock.json": "3a9a9fe1ffa4104f0afb6c8409f7f2ff54616332d3e1651d98a021dfab0f3f55",
-    "licenses/managed-components.json": "d64e478096efde396d9da9cfa67ba09959f85d9febf5ef3994e1c8ad3bab146a",
+    "src/GhostShell.Backend/packages.linux-arm64.lock.json": "110a2948f95397bc8463e0648b17454bc581949626b4a04be440d393c714bda8",
+    "licenses/workspace-backend-managed-components.json": "2634b0dd83aa78df286c9a12d6e6a4284596600697213d85f445935e2d5d8c4f",
     "licenses/SMBLIBRARY-SOURCE.json": "808c6618b7bf37420456bc4d310ce70601016053e326d5d01a0088027f2571b4"
   }
 }

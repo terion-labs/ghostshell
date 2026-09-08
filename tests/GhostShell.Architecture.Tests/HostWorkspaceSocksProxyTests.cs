@@ -338,33 +338,6 @@ public sealed class HostWorkspaceSocksProxyTests
             StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task Database_relay_opens_its_real_socket_through_workspace_connector()
-    {
-        using var destination = new TcpListener(IPAddress.Loopback, 0);
-        destination.Start();
-        var destinationPort = ((IPEndPoint)destination.LocalEndpoint).Port;
-        var echo = EchoOnceAsync(destination);
-        await using var proxy = new HostWorkspaceSocksProxy();
-        var tunnels = new WorkspaceNetworkDatabaseTunnelFactory(
-            proxy,
-            _ => new RejectingSshTunnelFactory());
-        await using var tunnel = await tunnels.OpenAsync(
-            BuiltInConnections.Local,
-            "127.0.0.1",
-            destinationPort,
-            CancellationToken.None);
-        using var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, tunnel.LocalPort);
-
-        await client.GetStream().WriteAsync("ping"u8.ToArray());
-        var reply = new byte[4];
-        await ReadRequiredAsync(client.GetStream(), reply);
-
-        Assert.Equal("pong", Encoding.ASCII.GetString(reply));
-        client.Dispose();
-        await echo;
-    }
 
     private static async Task<TcpClient> OpenAsync(
         HostWorkspaceSocksProxy proxy,
@@ -529,14 +502,4 @@ public sealed class HostWorkspaceSocksProxyTests
             CancellationToken cancellationToken) => throw new InvalidOperationException("No isolate command may run in this test.");
     }
 
-    private sealed class RejectingSshTunnelFactory : IDatabaseTunnelFactory
-    {
-        public ValueTask<IDatabaseTunnelLease> OpenAsync(
-            ConnectionProfile connection,
-            string targetHost,
-            int targetPort,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromException<IDatabaseTunnelLease>(
-                new InvalidOperationException("The test does not use an SSH tunnel."));
-    }
 }

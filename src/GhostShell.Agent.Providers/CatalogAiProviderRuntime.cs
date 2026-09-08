@@ -45,7 +45,8 @@ public sealed class CatalogAiProviderRuntime :
         IDefinitionCatalog catalog,
         ISecretVault secretVault,
         AiProviderRuntimeLimits? limits = null,
-        AiProviderOAuthOptions? oauthOptions = null)
+        AiProviderOAuthOptions? oauthOptions = null,
+        Func<Uri, HttpMessageHandler>? routedHandlerFactory = null)
         : this(
             catalog,
             new AiProviderFactory(
@@ -54,7 +55,9 @@ public sealed class CatalogAiProviderRuntime :
                 oauthOptions),
             proxy => new AiProviderFactory(
                 secretVault,
-                AiProviderHttpTransport.CreateHandler(CreateWebProxy(proxy)),
+                routedHandlerFactory is null
+                    ? AiProviderHttpTransport.CreateHandler(CreateWebProxy(proxy))
+                    : routedHandlerFactory(proxy),
                 limits,
                 oauthOptions))
     {

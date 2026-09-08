@@ -83,6 +83,53 @@ public sealed class WorkspaceSdkIsolationProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Service_vm_has_explicit_bounded_memory_instead_of_half_host_budget()
+    {
+        var disk = await SeedDiskAsync();
+        var provider = new WorkspaceSdkIsolationProvider("/app/workspace-runtime", Path.Combine(_directory, "state"),
+            "/app/workspace-network-gateway", _runner, 501, 20,
+            (_, _) => Task.FromResult("/app"), serviceIsolate: true);
+        var binding = Success(await provider.PrepareAsync(new WorkspaceIsolationPrepareRequest(_workspace), CancellationToken.None));
+        using var config = JsonDocument.Parse(await File.ReadAllTextAsync(_runner.Starts[0].Arguments[2], CancellationToken.None));
+        Assert.Equal(1024UL * 1024 * 1024, config.RootElement.GetProperty("memoryBytes").GetUInt64());
+        Assert.Empty(config.RootElement.GetProperty("mounts").EnumerateArray());
+        _ = Success(await provider.StopAsync(binding, CancellationToken.None));
+        Assert.False(File.Exists(disk));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(disk)));
+        Assert.True(Directory.Exists(Path.Combine(_directory, "state")));
+        _ = Success(await provider.StopAsync(binding, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Failed_service_start_removes_only_its_private_state()
+    {
+        var disk = await SeedDiskAsync();
+        var unrelated = Path.Combine(_directory, "state", "unrelated-workspace");
+        Directory.CreateDirectory(unrelated);
+        _runner.Readiness = "invalid readiness";
+        var provider = new WorkspaceSdkIsolationProvider("/app/workspace-runtime", Path.Combine(_directory, "state"),
+            "/app/workspace-network-gateway", _runner, 501, 20,
+            (_, _) => Task.FromResult("/app"), serviceIsolate: true);
+        _ = Assert.IsType<WorkspaceIsolationResult<WorkspaceIsolationBinding>.Failure>(
+            await provider.PrepareAsync(new WorkspaceIsolationPrepareRequest(_workspace), CancellationToken.None));
+        Assert.False(File.Exists(disk));
+        Assert.True(Directory.Exists(unrelated));
+        Assert.All(_runner.Processes, static process => Assert.True(process.Disposed));
+    }
+
+    [Fact]
+    public async Task Service_vm_rejects_host_mounts_before_preparing_any_resource()
+    {
+        var provider = new WorkspaceSdkIsolationProvider("/app/workspace-runtime", Path.Combine(_directory, "state"),
+            "/app/workspace-network-gateway", _runner, 501, 20, serviceIsolate: true);
+        await Assert.ThrowsAsync<ArgumentException>(async () => await provider.PrepareAsync(
+            new WorkspaceIsolationPrepareRequest(_workspace, [new WorkspaceIsolationMount(_directory, "/work", false)]),
+            CancellationToken.None));
+        Assert.Empty(_runner.Starts);
+        Assert.Empty(_runner.Commands);
+    }
+
+    [Fact]
     public async Task Shared_leases_start_one_vm_and_stop_only_after_last_release()
     {
         _ = await SeedDiskAsync();

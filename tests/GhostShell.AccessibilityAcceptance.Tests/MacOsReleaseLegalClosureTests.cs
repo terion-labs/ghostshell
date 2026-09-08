@@ -15,6 +15,7 @@ public sealed class MacOsReleaseLegalClosureTests : IDisposable
         "licenses/SMBLIBRARY-LGPL-3.0.txt",
         "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md",
         "licenses/SMBLIBRARY-SOURCE.json",
+        "licenses/SQLCLIENT-MIT.txt",
         "licenses/THIRD-PARTY-NOTICES.md",
         "licenses/cef-runtime-components.json",
         "licenses/managed-components.json",
@@ -60,9 +61,9 @@ public sealed class MacOsReleaseLegalClosureTests : IDisposable
             Path.Combine(repositoryRoot, "licenses", "macos-release-legal.json"),
             repositoryRoot);
 
-        Assert.True(inspection.LegalClearance);
-        Assert.Empty(inspection.ReleaseBlockers);
-        MacOsReleaseLegalClosure.RequirePublicationClearance(inspection);
+        Assert.False(inspection.LegalClearance);
+        Assert.NotEmpty(inspection.ReleaseBlockers);
+        Assert.Throws<InvalidDataException>(() => MacOsReleaseLegalClosure.RequirePublicationClearance(inspection));
     }
 
     [Fact]

@@ -8,7 +8,6 @@ using GhostShell.Files;
 using GhostShell.Git;
 using GhostShell.Infrastructure;
 using GhostShell.Monitoring;
-using GhostShell.Redis;
 
 namespace GhostShell.Desktop;
 
@@ -30,7 +29,8 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
     PreviewContentCache previewContentCache,
     IDatabaseDiagramWorkerFactory diagramWorkers,
     Func<DatabaseValueContentStore> databaseContentStores,
-    IDatabaseOperationExecutor databaseOperations) : IWorkspaceRuntimeServicesFactory
+    IDatabaseOperationExecutor databaseOperations,
+    WorkspaceConnectionBackendFactory connectionBackends) : IWorkspaceRuntimeServicesFactory
 {
     public WorkspaceRuntimeServices Create(WorkspaceRuntimeServicesRequest request)
     {
@@ -48,28 +48,21 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
                 executableLocator);
             var hostSecurity = new ConnectionSecurityRuntime(
                 request.ConnectionRuntime, secretVault, hostKeyStore, timeProvider, gateway);
-            var files = new CatalogFileProviderRuntime(
-                definitionCatalog,
-                secretVault,
-                knownHosts,
-                hostSecurity,
-                request.ConnectionRuntime,
-                previewContentCache,
-                gateway);
-            var tunnels = new WorkspaceNetworkDatabaseTunnelFactory(
-                gateway,
-                route => new SshNetDatabaseTunnelFactory(secretVault, knownHosts, request.ConnectionRuntime, route));
+            var connections = connectionBackends.Create(request.WorkspaceId, gateway,
+                request.ConnectionRuntime, workspaceCommands: null);
+            var fileProviders = new WorkspaceFileProviderFactory(secretVault, knownHosts,
+                request.ConnectionRuntime, token => connections.PlanAsync("files", null, token));
+            var files = new CatalogFileProviderRuntime(definitionCatalog, fileProviders.CreateAsync,
+                hostSecurity, previewContentCache);
             var hostDatabases = new DatabasePanelClient(
-                tunnels,
                 GhostShell.Core.BuiltInConnections.Local,
                 diagramWorkers,
                 databaseContentStores,
-                databaseOperations);
+                databaseOperations,
+                operationExecutorSelector: connections.SelectDatabaseAsync);
             var hostDocker = new DockerEngineClient(hostExecutor, timeProvider);
             var hostGit = new GitRepositoryClient(hostExecutor, timeProvider, gateway);
-            var hostRedis = new RedisPanelSessionFactory(
-                tunnels,
-                GhostShell.Core.BuiltInConnections.Local);
+            var hostRedis = new RedisWorkspaceSessionFactory((hop, token) => connections.PlanAsync("redis", hop, token));
             var hostMonitors = new SystemMonitorPanelSessionFactory(hostExecutor, timeProvider);
             var hostMonitorRegistration = systemMonitorFactory.Register(
                 request.WorkspaceId,
@@ -86,10 +79,12 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
                 new DockerPanelSessionFactory(hostDocker, timeProvider),
                 new GitPanelSessionFactory(hostGit, gitMutationCoordinator, timeProvider),
                 gateway,
-                isolatedCommandRuntime: null);
-            var hostLifetime = new HostWorkspaceRuntimeLifetime(
+                isolatedCommandRuntime: null,
+                connections);
+            var hostLifetime = new WorkspaceRuntimeLifetime(
                 files,
                 hostDatabases,
+                connections,
                 gateway,
                 hostSessionRegistrations,
                 hostMonitorRegistration,
@@ -127,31 +122,21 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
             $"workspace:{binding.WorkspaceId.Value}");
         var workspaceSecurity = new ConnectionSecurityRuntime(
             request.ConnectionRuntime, secretVault, hostKeyStore, timeProvider, socksProxy);
-        var tunnelFactory = new WorkspaceNetworkDatabaseTunnelFactory(
-            socksProxy,
-            route => new SshNetDatabaseTunnelFactory(secretVault, knownHosts, request.ConnectionRuntime, route));
-        var backend = new WorkspaceDatabaseBackend(commandRuntime);
-        var workspaceDatabaseOperations = new DatabaseOperationWorker(databaseContentStores, workspaceLaunch: backend.PlanAsync);
+        var workspaceConnections = connectionBackends.Create(request.WorkspaceId, socksProxy,
+            request.ConnectionRuntime, commandRuntime);
         var databases = new DatabasePanelClient(
-            tunnelFactory,
             GhostShell.Core.BuiltInConnections.Local,
             diagramWorkers,
             databaseContentStores,
             databaseOperations,
-            workspaceDatabaseOperations);
+            operationExecutorSelector: workspaceConnections.SelectDatabaseAsync);
         var docker = new DockerEngineClient(executor, timeProvider);
         var git = new GitRepositoryClient(executor, timeProvider);
-        var redis = new RedisPanelSessionFactory(
-            tunnelFactory,
-            GhostShell.Core.BuiltInConnections.Local);
-        var routedFiles = new CatalogFileProviderRuntime(
-            definitionCatalog,
-            secretVault,
-            knownHosts,
-            workspaceSecurity,
-            request.ConnectionRuntime,
-            previewContentCache,
-            socksProxy);
+        var redis = new RedisWorkspaceSessionFactory((hop, token) => workspaceConnections.PlanAsync("redis", hop, token));
+        var workspaceFileProviders = new WorkspaceFileProviderFactory(secretVault, knownHosts,
+            request.ConnectionRuntime, token => workspaceConnections.PlanAsync("files", null, token), localInWorkspace: true);
+        var routedFiles = new CatalogFileProviderRuntime(definitionCatalog, workspaceFileProviders.CreateAsync,
+            workspaceSecurity, previewContentCache);
         var workspaceFiles = new WorkspaceFilePanelClient(
             new IsolatedPosixFilePanelClient(executor),
             routedFiles);
@@ -169,12 +154,12 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
             new DockerPanelSessionFactory(docker, timeProvider),
             new GitPanelSessionFactory(git, gitMutationCoordinator, timeProvider),
             socksProxy,
-            commandRuntime);
-        var lifetime = new IsolatedWorkspaceRuntimeLifetime(
+            commandRuntime,
+            workspaceConnections);
+        var lifetime = new WorkspaceRuntimeLifetime(
             routedFiles,
             databases,
-            workspaceDatabaseOperations,
-            backend,
+            workspaceConnections,
             socksProxy,
             sessionRegistrations,
             monitorRegistration,
@@ -206,7 +191,8 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
         IDockerPanelSessionFactory docker,
         IGitPanelSessionFactory git,
         IWorkspaceNetworkConnector connector,
-        IConnectionCommandRuntime? isolatedCommandRuntime)
+        IConnectionCommandRuntime? isolatedCommandRuntime,
+        WorkspaceConnectionBackendFactory.Session connections)
     {
         List<IDisposable> registrations = [];
         try
@@ -218,7 +204,8 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
             registrations.Add(networkRouteRegistry.Register(
                 workspaceId,
                 connector,
-                isolatedCommandRuntime));
+                isolatedCommandRuntime,
+                connections));
             return new WorkspaceSessionFactoryRegistrations(registrations);
         }
         catch
@@ -232,74 +219,14 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
         }
     }
 
-    private sealed class HostWorkspaceRuntimeLifetime(
-        CatalogFileProviderRuntime files,
-        DatabasePanelClient databases,
-        HostWorkspaceSocksProxy socksProxy,
+    internal sealed class WorkspaceRuntimeLifetime(
+        IDisposable files,
+        IAsyncDisposable databasePanelClient,
+        IAsyncDisposable connections,
+        IAsyncDisposable socksProxy,
         IDisposable sessionRegistrations,
         IDisposable monitorRegistration,
-        SystemMonitorPanelSessionFactory monitorFactory) : IAsyncDisposable
-    {
-        private int _disposed;
-
-        public async ValueTask DisposeAsync()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
-            {
-                return;
-            }
-
-            List<Exception> errors = [];
-            TryDispose(sessionRegistrations, errors);
-            TryDispose(files, errors);
-            await TryDisposeAsync(databases.DisposeAsync, errors).ConfigureAwait(false);
-            await TryDisposeAsync(socksProxy.DisposeAsync, errors).ConfigureAwait(false);
-            TryDispose(monitorRegistration, errors);
-            TryDispose(monitorFactory, errors);
-            if (errors.Count > 0)
-            {
-                throw new AggregateException(
-                    "One or more workspace runtime services could not be disposed.",
-                    errors);
-            }
-        }
-
-        private static void TryDispose(IDisposable disposable, ICollection<Exception> errors)
-        {
-            try
-            {
-                disposable.Dispose();
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-        }
-
-        private static async ValueTask TryDisposeAsync(
-            Func<ValueTask> disposeAsync,
-            ICollection<Exception> errors)
-        {
-            try
-            {
-                await disposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
-            }
-        }
-    }
-
-    private sealed class IsolatedWorkspaceRuntimeLifetime(
-        CatalogFileProviderRuntime files,
-        DatabasePanelClient databasePanelClient,
-        DatabaseOperationWorker workspaceDatabaseOperations,
-        WorkspaceDatabaseBackend backend,
-        WorkspaceIsolationSocksProxy socksProxy,
-        IDisposable sessionRegistrations,
-        IDisposable monitorRegistration,
-        SystemMonitorPanelSessionFactory monitorFactory) : IAsyncDisposable
+        IDisposable monitorFactory) : IAsyncDisposable
     {
         private readonly SemaphoreSlim _disposeGate = new(1, 1);
         private bool _filesDisposed;
@@ -318,11 +245,7 @@ internal sealed class DesktopWorkspaceRuntimeServicesFactory(
                 List<Exception> errors = [];
                 await TryDisposeAsync(
                     _backendDisposed,
-                    async () =>
-                    {
-                        workspaceDatabaseOperations.Dispose();
-                        await backend.DisposeAsync().ConfigureAwait(false);
-                    },
+                    connections.DisposeAsync,
                     () => _backendDisposed = true,
                     errors).ConfigureAwait(false);
                 await TryDisposeAsync(

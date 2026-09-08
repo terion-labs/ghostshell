@@ -8,7 +8,6 @@ internal sealed class WorkspaceDockerPanelSessionFactory(
     DockerPanelSessionFactory hostFactory) : IDockerPanelSessionFactory
 {
     private readonly WorkspaceSessionFactoryRegistry<IDockerPanelSessionFactory> _factories = new(
-        hostFactory,
         "The workspace already has a Docker-panel factory.");
 
     public CapabilitySet Capabilities => hostFactory.Capabilities;

@@ -70,8 +70,8 @@ recorded provenance exception for the exact macOS SQL worker closure.
 
 SPDX license texts are available from <https://spdx.org/licenses/>.
 The table below is the conservative managed third-party inventory in the
-current `osx-arm64` release catalog. It contains 129 NuGet packages and three
-separately licensed vendored projects, including the two Exclr8CEF bindings.
+current `osx-arm64` release catalog. It contains the NuGet package closure and
+the two separately licensed Exclr8CEF binding projects.
 First-party GhostSHELL project assemblies are omitted; the self-contained
 .NET runtimepack is indexed by the retained .NET license and notice files
 rather than duplicated here.
@@ -82,12 +82,11 @@ output before distribution. This table does not claim a cross-target inventory
 and does not substitute for the release's exact native software bill of
 materials and platform-specific owner decision.
 
-The patched SqlClient source build is identified separately from stock NuGet
-binaries. Its complete MIT notice and reviewed source inventories/runtime patch
-are included under `Licenses` and `Licenses/Sources`. SSH.NET and SharpCompress
-use stock NuGet package provenance. The managed SPDX record for SqlClient hashes the actual published assembly,
-records the pinned upstream archive, and binds the reviewed source inputs. Public
-strong-name identity compatibility is not an upstream private-signature claim.
+Microsoft.Data.SqlClient, SSH.NET and SharpCompress use unmodified NuGet packages.
+Their managed SPDX records bind the package hash, license evidence and published
+assets. SqlClient's retained TDS test-server sources are test-only and are not
+part of the application or on-demand backend distribution. The backend keeps
+its own .NET runtime and dependency notices beside its verified Linux payload.
 
 | Package | Version | License |
 |---|---:|---|
@@ -146,7 +145,7 @@ strong-name identity compatibility is not an upstream private-signature claim.
 | `MicroCom.Runtime` | `0.11.4` | MIT |
 | `Microsoft.Bcl.AsyncInterfaces` | `1.1.1` | MIT |
 | `Microsoft.Bcl.Cryptography` | `9.0.4` | MIT |
-| `Microsoft.Data.SqlClient` | `6.0.2` | MIT, patched source build; local project identity `Microsoft.Data.SqlClient.Routed/6.0.2`; `sqlclient-MIT.txt` |
+| `Microsoft.Data.SqlClient` | `6.0.2` | MIT |
 | `Microsoft.Data.Sqlite.Core` | `10.0.10` | MIT |
 | `Microsoft.Extensions.AI.Abstractions` | `10.5.2` | MIT |
 | `Microsoft.Extensions.Caching.Abstractions` | `9.0.4` | MIT |

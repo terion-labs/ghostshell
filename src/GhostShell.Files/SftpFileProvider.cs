@@ -24,7 +24,7 @@ public sealed class SftpFileProvider : RemoteHierarchicalFileProvider, IDisposab
         ISshHostKeyTrustStore knownHosts,
         SftpFileProviderOptions options,
         IConnectionRuntime? connectionRuntime,
-        IWorkspaceNetworkConnector? networkConnector = null)
+        ISshAgentIdentitySource? agentIdentitySource = null)
         : this(
             new RetainedRemoteFileSessionFactory(
                 new SshNetSftpSessionFactory(
@@ -32,7 +32,7 @@ public sealed class SftpFileProvider : RemoteHierarchicalFileProvider, IDisposab
                     knownHosts ?? throw new ArgumentNullException(nameof(knownHosts)),
                     options ?? throw new ArgumentNullException(nameof(options)),
                     connectionRuntime,
-                    networkConnector: networkConnector)),
+                    agentIdentitySource)),
             options)
     {
     }

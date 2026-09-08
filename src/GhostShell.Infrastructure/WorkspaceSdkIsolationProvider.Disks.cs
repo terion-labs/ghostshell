@@ -16,6 +16,9 @@ public sealed partial class WorkspaceSdkIsolationProvider
         apt-get update
         dpkg --configure -a || apt-get -f install -y --no-install-recommends
         apt-get install -y --no-install-recommends bash ca-certificates curl dbus git iproute2 iputils-ping less libicu74 libgssapi-krb5-2 locales man-db openssh-client procps sudo systemd systemd-sysv tzdata vim-tiny wget
+        if [ "${1:-}" = service ]; then
+            apt-get install -y --no-install-recommends nftables
+        fi
         apt-get clean
         rm -rf /var/lib/apt/lists/*
         : > /etc/machine-id
@@ -33,13 +36,37 @@ public sealed partial class WorkspaceSdkIsolationProvider
         IProgress<WorkspaceIsolationProgress>? progress,
         CancellationToken cancellationToken)
     {
+        if (_serviceIsolate)
+        {
+            // The template has no user mounts, credentials, account or connection
+            // state. Provision it once, then clone a private mutable disk per route.
+            var identity = $"service-v1-capacity4096MiB\n{FullyQualifiedImage(request.ImageReference ?? WorkspaceIsolationImages.Default)}\n{BootstrapScript}";
+            await WorkspaceServiceDiskTemplate.CloneAsync(Path.Combine(_stateRoot, "service-templates"), identity,
+                rootfs, (template, token) => PrepareFreshDiskAsync(request, template, progress, token),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        await PrepareFreshDiskAsync(request, rootfs, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask PrepareFreshDiskAsync(
+        WorkspaceIsolationPrepareRequest request,
+        string rootfs,
+        IProgress<WorkspaceIsolationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         var pending = Path.Combine(Path.GetDirectoryName(rootfs)!, "preparing.ext4");
         if (!File.Exists(pending))
         {
+            var prepareArguments = new List<string>
+            {
+                "prepare", "--image", FullyQualifiedImage(request.ImageReference ?? WorkspaceIsolationImages.Default),
+                "--rootfs", pending, "--state-directory", Path.Combine(_stateRoot, "images"),
+            };
+            if (_serviceIsolate) { prepareArguments.AddRange(["--capacity-mib", "4096"]); }
             var prepared = await _processes.RunAsync(
                     new WorkspaceGatewayProcessRequest(_executable,
-                        ["prepare", "--image", FullyQualifiedImage(request.ImageReference ?? WorkspaceIsolationImages.Default),
-                            "--rootfs", pending, "--state-directory", Path.Combine(_stateRoot, "images")],
+                        prepareArguments,
                         ReadOnlyMemory<byte>.Empty),
                     TimeSpan.FromMinutes(15), cancellationToken)
                 .ConfigureAwait(false);
@@ -109,7 +136,8 @@ public sealed partial class WorkspaceSdkIsolationProvider
             }
 
             var launch = ExecLaunch(control, new WorkspaceSdkExecRequest(
-                ["/bin/sh", "-c", BootstrapScript], EmptyEnvironment, "/", 0, 0));
+                ["/bin/sh", "-c", BootstrapScript, "ghostshell-bootstrap", _serviceIsolate ? "service" : "workspace"],
+                EmptyEnvironment, "/", 0, 0));
             using var routeLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             void RouteExited(object? sender, EventArgs arguments)
             {

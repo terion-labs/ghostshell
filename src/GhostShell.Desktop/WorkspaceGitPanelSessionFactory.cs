@@ -8,7 +8,6 @@ internal sealed class WorkspaceGitPanelSessionFactory(
     GitPanelSessionFactory hostFactory) : IGitPanelSessionFactory
 {
     private readonly WorkspaceSessionFactoryRegistry<IGitPanelSessionFactory> _factories = new(
-        hostFactory,
         "The workspace already has a Git-panel factory.");
 
     public CapabilitySet Capabilities => hostFactory.Capabilities;

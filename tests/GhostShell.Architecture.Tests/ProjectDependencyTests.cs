@@ -9,7 +9,6 @@ public sealed class ProjectDependencyTests
     [Theory]
     [InlineData("vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj")]
     [InlineData("vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj")]
-    [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj")]
     [InlineData("vendor/sqlclient/tests/Tds.TestSupport.csproj")]
     public void ActiveVendorProjectsHaveNormalSolutionConfigurationMapping(string projectPath)
     {
@@ -17,17 +16,6 @@ public sealed class ProjectDependencyTests
         var project = Assert.Single(LoadProject("GhostShell.slnx").Descendants("Project"), element =>
             string.Equals((string?)element.Attribute("Path"), projectPath, StringComparison.Ordinal));
         Assert.Empty(project.Elements());
-    }
-
-    [Theory]
-    [InlineData("vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj",
-        "Microsoft.Data.SqlClient.Routed", "Microsoft.Data.SqlClient")]
-    public void PatchedProjectNamesMatchRestoreIdentityWithoutChangingClrNames(string projectPath, string packageId, string assemblyName)
-    {
-        var project = LoadProject(projectPath);
-        Assert.Equal(packageId, Path.GetFileNameWithoutExtension(projectPath));
-        Assert.Equal(packageId, Assert.Single(project.Descendants("PackageId")).Value);
-        Assert.Equal(assemblyName, Assert.Single(project.Descendants("AssemblyName")).Value);
     }
 
     [Theory]
@@ -219,11 +207,6 @@ public sealed class ProjectDependencyTests
         var projectReferences = References(
                 LoadProject("src/GhostShell.Databases/GhostShell.Databases.csproj"),
                 "ProjectReference");
-        // The pinned provider keeps SQL redirects inside the captured route.
-        Assert.Contains(
-            "../../vendor/sqlclient/upstream/src/Microsoft.Data.SqlClient/netcore/src/Microsoft.Data.SqlClient.Routed.csproj",
-            projectReferences,
-            StringComparer.Ordinal);
         var references = projectReferences
             .Select(reference => Path.GetFileName(
                 reference.Replace('\\', Path.DirectorySeparatorChar)))
@@ -231,7 +214,7 @@ public sealed class ProjectDependencyTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "GhostShell.Application.csproj", "GhostShell.Core.csproj", "Microsoft.Data.SqlClient.Routed.csproj" },
+            new[] { "GhostShell.Application.csproj", "GhostShell.Core.csproj" },
             references);
 
         var sourceRoot = Path.Combine(RepositoryRoot, "src/GhostShell.Databases");
@@ -267,7 +250,7 @@ public sealed class ProjectDependencyTests
     }
 
     [Fact]
-    public void DatabaseBackendHasNoDesktopOrRenderingDependencies()
+    public void ConnectionBackendHasNoDesktopOrRenderingDependencies()
     {
         var project = LoadProject("src/GhostShell.ConnectionBackend/GhostShell.ConnectionBackend.csproj");
         Assert.Empty(References(project, "PackageReference"));
@@ -278,6 +261,7 @@ public sealed class ProjectDependencyTests
                 "GhostShell.Application.csproj",
                 "GhostShell.Core.csproj",
                 "GhostShell.Databases.csproj",
+                "GhostShell.Redis.csproj",
                 "GhostShell.Files.csproj",
                 "GhostShell.Infrastructure.csproj",
             ], StringComparer.Ordinal));

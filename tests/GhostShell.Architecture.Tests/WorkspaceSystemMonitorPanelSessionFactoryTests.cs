@@ -13,12 +13,13 @@ public sealed class WorkspaceSystemMonitorPanelSessionFactoryTests
     private static readonly WorkspaceInstanceId OtherWorkspaceId = new("plain-workspace");
 
     [Fact]
-    public async Task RegistrationRoutesOnlyItsWorkspaceAndDisposalRestoresHostRouting()
+    public async Task RegistrationRoutesOnlyItsWorkspaceAndDisposalRejectsNewSessions()
     {
         using var host = new SystemMonitorPanelSessionFactory(TimeProvider.System);
         using var isolated = new RecordingMonitorFactory();
         var factory = new WorkspaceSystemMonitorPanelSessionFactory(host);
 
+        using var hostRegistration = factory.Register(OtherWorkspaceId, host);
         await using var firstHostSession = await factory.CreateStatisticsAsync(
             OtherWorkspaceId,
             SessionId.New(),
@@ -38,11 +39,9 @@ public sealed class WorkspaceSystemMonitorPanelSessionFactoryTests
                 CancellationToken.None);
         }
 
-        await using var secondHostSession = await factory.CreateStatisticsAsync(
-            WorkspaceId,
-            SessionId.New(),
-            BuiltInConnections.Local,
-            CancellationToken.None);
+        var error = Assert.Throws<InvalidOperationException>(() => factory.CreateStatisticsAsync(
+            WorkspaceId, SessionId.New(), BuiltInConnections.Local, CancellationToken.None));
+        Assert.Contains("No host fallback", error.Message, StringComparison.Ordinal);
 
         Assert.Equal(1, isolated.StatisticsCreateCount);
         Assert.Equal(1, isolated.ProcessMonitorCreateCount);

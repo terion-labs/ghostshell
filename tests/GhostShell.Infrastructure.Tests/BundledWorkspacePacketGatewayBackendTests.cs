@@ -7,6 +7,28 @@ namespace GhostShell.Infrastructure.Tests;
 public sealed class BundledWorkspacePacketGatewayBackendTests
 {
     [Fact]
+    public async Task Service_proxy_skips_provider_and_external_dns_and_keeps_authentication_on_stdin()
+    {
+        var guest = new RecordingGuestLauncher();
+        var processes = new RecordingProcessRunner(FullReadiness());
+        var backend = new BundledWorkspacePacketGatewayBackend([], guest, processes, "/bundle/helper", new StaticDnsSource());
+        var baseRequest = Request();
+        var proxy = new WorkspacePacketGatewayServiceProxy(new Uri("socks5://127.0.0.1:4321"),
+            new WorkspaceNetworkProxyCredentials("usér", "pässword"));
+        await using var session = Success(await backend.OpenAsync(new WorkspacePacketGatewayOpenRequest(
+            baseRequest.WorkspaceId, baseRequest.Isolation, serviceProxy: proxy), null, CancellationToken.None));
+        Assert.Contains("--resolve-proxy-names", processes.Request!.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("--dns", processes.Request.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("--dns-over-https", processes.Request.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("usér", processes.Request.Arguments, StringComparer.Ordinal);
+        Assert.DoesNotContain("pässword", processes.Request.Arguments, StringComparer.Ordinal);
+        var expected = BundledWorkspacePacketGatewayBackend.CreateHostInput(guest.AuthenticationKey, proxy);
+        Assert.Equal(expected, processes.AuthenticationKey);
+        Assert.Equal(5, expected[32]);
+        Assert.Equal(9, expected[38]);
+    }
+
+    [Fact]
     public async Task Direct_route_starts_guest_and_host_with_one_stdin_only_key()
     {
         var guest = new RecordingGuestLauncher();

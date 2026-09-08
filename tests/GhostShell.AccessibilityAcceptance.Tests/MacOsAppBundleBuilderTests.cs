@@ -26,6 +26,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
         "GhostShell.App",
         "GhostShell.Application",
         "GhostShell.Browser",
+        "GhostShell.ConnectionBackend",
         "GhostShell.Core",
         "GhostShell.Databases",
         "GhostShell.Docker",
@@ -179,6 +180,8 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
             "Resources",
             "Licenses",
             "GHOSTTY-LICENSE")));
+        Assert.Equal("fixture SqlClient MIT license", File.ReadAllText(Path.Combine(
+            output, "Contents", "Resources", "Licenses", "SQLCLIENT-MIT.txt")));
         Assert.True(File.Exists(Path.Combine(
             output,
             "Contents",
@@ -300,7 +303,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 .GetProperty("packages")
                 .EnumerateArray()
                 .ToArray();
-            Assert.Equal(ProjectAssemblyNames.Length + VendorFixtures.Length + 6, packages.Length);
+            Assert.Equal(ProjectAssemblyNames.Length + 7, packages.Length);
             AssertProjectPackage(
                 packages,
                 "Exclr8Cef",
@@ -368,7 +371,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 "DESCRIBES",
                 StringComparison.Ordinal));
             Assert.Equal(
-                ProjectAssemblyNames.Length + VendorFixtures.Length + 5,
+                ProjectAssemblyNames.Length + 6,
                 relationships.Count(relationship =>
                     string.Equals(
                         relationship.GetProperty("relationshipType").GetString(),
@@ -402,19 +405,21 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
             File.ReadAllBytes(SpdxPath(secondOutput)));
     }
 
-    [Fact]
-    public void Builder_rejects_packaged_legal_evidence_that_differs_from_reviewed_source()
+    [Theory]
+    [InlineData("SMBLIBRARY-SOURCE.json")]
+    [InlineData("SQLCLIENT-MIT.txt")]
+    public void Builder_rejects_packaged_legal_evidence_that_differs_from_reviewed_source(string fileName)
     {
         var publish = CreatePublishPayload();
         File.AppendAllText(
-            Path.Combine(publish, "SMBLIBRARY-SOURCE.json"),
+            Path.Combine(publish, fileName),
             "drift");
 
         var exception = Assert.Throws<InvalidDataException>(() =>
             new MacOsAppBundleBuilder().Build(Request(publish, OutputPath())));
 
         Assert.Contains(
-            "packaged legal file SMBLIBRARY-SOURCE.json differs",
+            $"packaged legal file {fileName} differs",
             exception.Message,
             StringComparison.Ordinal);
     }
@@ -591,8 +596,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                     maximumFiles,
                     maximumEntries,
                     maximumBytes,
-                    MaximumRelativePathDepth: 61),
-                inputs.ProductIdentitySourceRoot));
+                    MaximumRelativePathDepth: 61)));
 
         Assert.Contains(
             "incremental file, entry, byte, or path-depth budget",
@@ -1093,6 +1097,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
     [InlineData("THIRD-PARTY-NOTICES.md")]
     [InlineData("DOTNET-LICENSE.txt")]
     [InlineData("DOTNET-THIRD-PARTY-NOTICES.txt")]
+    [InlineData("SQLCLIENT-MIT.txt")]
     [InlineData("GhostShell.deps.json")]
     [InlineData("GhostShell.runtimeconfig.json")]
     public void Builder_fails_closed_when_a_required_file_is_missing(string missingFile)
@@ -1822,6 +1827,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
             includeNotices: true);
         var sharpCompress = CreateNuGetPackage(packageRoot, "SharpCompress", "0.50.3", includeNotices: false);
         var sshNet = CreateNuGetPackage(packageRoot, "SSH.NET", "2026.0.0", includeNotices: false);
+        var sqlClient = CreateNuGetPackage(packageRoot, "Microsoft.Data.SqlClient", "6.0.2", includeNotices: false);
         var runtime = CreateNuGetPackage(
             packageRoot,
             "Microsoft.NETCore.App.Runtime.osx-arm64",
@@ -1867,10 +1873,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 });
         }
 
-        AddVendoredProjectFixtures(publishDirectory, productIdentity.SourceRoot,
-            libraries, selectedTarget, catalogDependencies);
-
-        foreach (var package in new[] { harfBuzz, skia, sharpCompress, sshNet })
+        foreach (var package in new[] { harfBuzz, skia, sharpCompress, sshNet, sqlClient })
         {
             libraries.Add(
                 package.Identity,
@@ -2307,6 +2310,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
         {
             ["LICENSE"] = "fixture MIT license"u8.ToArray(),
             ["licenses/GPL-3.0.txt"] = "fixture GPL license"u8.ToArray(),
+            ["licenses/SQLCLIENT-MIT.txt"] = "fixture SqlClient MIT license"u8.ToArray(),
             ["licenses/SMBLIBRARY-LGPL-3.0.txt"] =
                 "fixture LGPL license"u8.ToArray(),
             ["licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md"] =
@@ -2392,6 +2396,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
             ["GHOSTSHELL-LICENSE.txt"] = sourceFiles["LICENSE"],
             ["MACOS-RELEASE-LEGAL.json"] = record,
             ["GPL-3.0.txt"] = sourceFiles["licenses/GPL-3.0.txt"],
+            ["SQLCLIENT-MIT.txt"] = sourceFiles["licenses/SQLCLIENT-MIT.txt"],
             ["SMBLIBRARY-LGPL-3.0.txt"] =
                 sourceFiles["licenses/SMBLIBRARY-LGPL-3.0.txt"],
             ["SMBLIBRARY-SOURCE-AND-RELINKING.md"] =

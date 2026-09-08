@@ -288,7 +288,8 @@ public sealed class SshNetBrowserTunnelFactory(
         private readonly AuthenticatedSshSocksProxy _forward;
         private readonly IReadOnlyList<byte[]> _ownedBuffers;
         private readonly IReadOnlyList<IDisposable> _ownedDisposables;
-        private bool _disposed;
+        private readonly CancellationTokenSource _lifetime = new();
+        private int _disposed;
 
         internal SshBrowserTunnel(
             SshClient client,
@@ -306,13 +307,15 @@ public sealed class SshNetBrowserTunnelFactory(
             LocalPort = forward.LocalPort;
             ProxyCredentials = proxyCredentials;
             ProfileRouteIdentity = profileRouteIdentity;
+            Lifetime = _lifetime.Token;
+            _forward.Closing += OnForwardClosing;
             _client.ErrorOccurred += OnErrorOccurred;
             // A clean SSH_MSG_DISCONNECT raises this public concrete-session event
             // without ErrorOccurred. Use the existing session accessor, not polling.
             _session.Disconnected += OnDisconnected;
             if (!_client.IsConnected)
             {
-                _forward.Dispose();
+                StopForward();
             }
         }
 
@@ -322,14 +325,27 @@ public sealed class SshNetBrowserTunnelFactory(
 
         public string ProfileRouteIdentity { get; }
 
+        public CancellationToken Lifetime { get; }
+
         public void Dispose()
         {
-            if (_disposed)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
                 return;
             }
 
-            _disposed = true;
+            StopForward();
+            _forward.Closing -= OnForwardClosing;
+            _client.ErrorOccurred -= OnErrorOccurred;
+            _session.Disconnected -= OnDisconnected;
+            TryDispose(_client);
+            DisposeAuthentication(_ownedBuffers, _ownedDisposables);
+            _lifetime.Dispose();
+        }
+
+        private void StopForward()
+        {
+            CancelLifetime();
             try
             {
                 _forward.Dispose();
@@ -339,14 +355,19 @@ public sealed class SshNetBrowserTunnelFactory(
                 // The SSH session may already have stopped the forward.
             }
 
-            _client.ErrorOccurred -= OnErrorOccurred;
-            _session.Disconnected -= OnDisconnected;
-            TryDispose(_client);
-            DisposeAuthentication(_ownedBuffers, _ownedDisposables);
         }
 
-        private void OnErrorOccurred(object? sender, Renci.SshNet.Common.ExceptionEventArgs eventArgs) => _forward.Dispose();
+        private void CancelLifetime()
+        {
+            try { _lifetime.Cancel(); }
+            catch (AggregateException) { /* A consumer callback cannot prevent route revocation. */ }
+            catch (ObjectDisposedException) { /* A queued SSH event may finish after disposal. */ }
+        }
 
-        private void OnDisconnected(object? sender, EventArgs eventArgs) => _forward.Dispose();
+        private void OnForwardClosing(object? sender, EventArgs eventArgs) => CancelLifetime();
+
+        private void OnErrorOccurred(object? sender, Renci.SshNet.Common.ExceptionEventArgs eventArgs) => StopForward();
+
+        private void OnDisconnected(object? sender, EventArgs eventArgs) => StopForward();
     }
 }

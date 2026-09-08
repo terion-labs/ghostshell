@@ -12,6 +12,7 @@ internal static class Program
             return args.FirstOrDefault()?.ToLowerInvariant() switch
             {
                 "macos" => BuildMacOs(MacOsPackagingCommand.Parse(args[1..])),
+                "workspace-backend-evidence" => WriteBackendEvidence(args[1..]),
                 "native-signature-removed-sha256" => PrintNativeContentDigest(args[1..]),
                 "macos-release-legal" => ValidateMacOsReleaseLegal(args[1..]),
                 "cef-runtime-receipt" => CreateCefRuntimeReceipt(
@@ -39,6 +40,48 @@ internal static class Program
         {
             Console.Error.WriteLine($"GhostSHELL packaging failed: {exception.Message}");
             return FailedExitCode;
+        }
+    }
+
+    private static int WriteBackendEvidence(IReadOnlyList<string> arguments)
+    {
+        if (arguments.Count != 5 || arguments.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new PackagingUsageException("workspace-backend-evidence requires publish directory, license directory, catalog path, NuGet root, and product version.");
+        }
+        var result = ManagedComponentEvidenceBuilder.Build(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
+            new(1024, 100000, 64L * 1024 * 1024, 16), ManagedEvidenceProfile.LinuxBackend);
+        // The caller chooses the parent location, but payload-controlled links
+        // must never redirect generated legal evidence outside that payload.
+        RequireUnlinkedEvidenceDirectory(arguments[0]);
+        var legalDirectory = Path.Combine(arguments[0], "legal");
+        RequireUnlinkedEvidenceDirectory(legalDirectory);
+        var destination = Path.Combine(legalDirectory, "managed");
+        RequireUnlinkedEvidenceDirectory(destination);
+        if (Directory.Exists(destination) || File.Exists(destination))
+        {
+            throw new InvalidDataException("The backend evidence output must not already exist.");
+        }
+        Directory.CreateDirectory(destination);
+        foreach (var file in result.Files)
+        {
+            var path = Path.Combine(destination, file.RelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stream.Write(file.Content);
+        }
+        Console.WriteLine("Verified exact Linux backend managed package closure and generated SPDX/license evidence.");
+        return 0;
+    }
+
+    private static void RequireUnlinkedEvidenceDirectory(string path)
+    {
+        var directory = new DirectoryInfo(path);
+        if (directory.LinkTarget is not null
+            || (directory.Exists && directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            || File.Exists(path))
+        {
+            throw new InvalidDataException("Backend evidence directories must be ordinary, unlinked directories.");
         }
     }
 
@@ -149,6 +192,9 @@ internal static class Program
             GhostSHELL packaging
 
               native-signature-removed-sha256 <Mach-O-file>
+
+              workspace-backend-evidence <publish-directory> <license-directory>
+                    <component-catalog> <nuget-packages-directory> <product-version>
 
               macos --publish <native-aot-directory>
                     --managed-evidence <self-contained-directory>

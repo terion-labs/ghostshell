@@ -334,26 +334,10 @@ public sealed partial class RepositoryConventionTests
                     StringComparison.Ordinal)
                 || component.GetProperty("identity").GetString()!.StartsWith(
                     "Exclr8Cef",
-                    StringComparison.Ordinal)
-                || component.TryGetProperty("vendorSource", out _))
+                    StringComparison.Ordinal))
             .Select(component =>
             {
                 var identity = component.GetProperty("identity").GetString()!;
-                if (component.TryGetProperty("vendorSource", out var vendorSource))
-                {
-                    var upstream = vendorSource.GetProperty("upstreamIdentity").GetString()!;
-                    var notice = identity switch
-                    {
-                        "Microsoft.Data.SqlClient.Routed/6.0.2" => "sqlclient-MIT.txt",
-                        _ => throw new InvalidOperationException("Unreviewed source-built notice identity."),
-                    };
-                    var upstreamSeparator = upstream.LastIndexOf('/');
-                    var localIdentity = string.Equals(identity, upstream, StringComparison.Ordinal)
-                        ? string.Empty
-                        : $" local project identity `{identity}`;";
-                    return $"| `{upstream[..upstreamSeparator]}` | `{upstream[(upstreamSeparator + 1)..]}` | "
-                        + $"MIT, patched source build;{localIdentity} `{notice}` |";
-                }
                 var separator = identity.LastIndexOf('/');
                 var name = identity[..separator];
                 var version = identity[(separator + 1)..];
@@ -379,9 +363,9 @@ public sealed partial class RepositoryConventionTests
             noticeLines[(tableStart + 2)..tableEnd],
             StringComparer.Ordinal);
         Assert.Equal(132, expectedRows.Length);
-        Assert.Equal(129, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+        Assert.Equal(130, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => string.Equals(component.GetProperty("kind").GetString(), "nuget", StringComparison.Ordinal)));
-        Assert.Equal(1, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+        Assert.Equal(0, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => component.TryGetProperty("vendorSource", out _)));
         Assert.Contains(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.5.5` | MIT", StringComparison.Ordinal));
         Assert.DoesNotContain(expectedRows, row => row.Contains("DuckDB.NET.Bindings.Full` | `1.2.1`", StringComparison.Ordinal));

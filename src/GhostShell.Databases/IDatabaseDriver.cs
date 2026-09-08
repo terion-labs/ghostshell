@@ -15,17 +15,6 @@ public interface IDatabaseDriver
     DbConnection CreateConnection(string connectionString);
 
     /// <summary>
-    /// Opens a relayed transport while retaining the original server identity
-    /// for protocol authentication. Drivers with TLS overrides apply them here.
-    /// </summary>
-    DbConnection CreateRoutedConnection(string connectionString, string host, int port) =>
-        CreateConnection(RewriteEndpoint(connectionString, host, port));
-
-    /// <summary>Uses the captured route for engines whose server can redirect transport endpoints.</summary>
-    DbConnection CreateRoutedConnection(string connectionString, string host, int port, DatabaseConnectionRoute route) =>
-        CreateRoutedConnection(connectionString, host, port);
-
-    /// <summary>
     /// Maps friendly input onto the provider's syntax before anything parses
     /// it — file engines accept a bare path here. The default keeps the input.
     /// </summary>
@@ -101,15 +90,6 @@ public interface IDatabaseDriver
     string QuoteIdentifier(string identifier);
 
     string BuildPreviewQuery(string tableName, int limit);
-
-    /// <summary>
-    /// The network endpoint the connection string points at, or null for
-    /// file-based engines that have nothing to tunnel.
-    /// </summary>
-    DatabaseEndpoint? GetEndpoint(string connectionString);
-
-    /// <summary>Repoints the connection string at a forwarded local endpoint.</summary>
-    string RewriteEndpoint(string connectionString, string host, int port);
 
     /// <summary>Decomposes a connection string for the details dialog.</summary>
     DatabaseConnectionDetails ParseDetails(string connectionString);

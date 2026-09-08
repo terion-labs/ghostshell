@@ -33,7 +33,7 @@ public sealed partial class DatabasePanelClient
     {
         var workers = _diagramWorkers ?? throw new NotSupportedException(
             "The isolated database schema renderer is unavailable.");
-        if (_operationExecutor is not null)
+        if (ExecutesInWorker)
         {
             var graph = await GetDatabaseSchemaGraphAsync(driverId, connectionString, tunnel, cancellationToken)
                 .ConfigureAwait(false);
@@ -41,22 +41,8 @@ public sealed partial class DatabasePanelClient
         }
 
         var driver = Resolve(driverId);
-        var normalized = driver.NormalizeConnectionString(connectionString);
-        tunnel ??= driver.Descriptor.DefaultPort is null ? null : _defaultTunnel;
-        if (tunnel is null)
-        {
-            return await workers.OpenAsync(new DatabaseWorkerConnection(driverId, normalized), cancellationToken, purpose).ConfigureAwait(false);
-        }
-
-        var endpoint = driver.GetEndpoint(normalized)
-            ?? throw new InvalidOperationException("The database has no routeable endpoint.");
-        if (_tunnelFactory is null)
-        {
-            throw new InvalidOperationException("The database route is unavailable.");
-        }
-
-        var route = await GetRouteAsync(tunnel, driver.Descriptor.Id, endpoint).ConfigureAwait(false);
-        return await workers.OpenAsync(new DatabaseWorkerConnection(driverId, normalized)
-        { Route = route.WorkerCapability }, cancellationToken, purpose).ConfigureAwait(false);
+        RejectUnselectedSshRoute(tunnel ?? _defaultTunnel);
+        return await workers.OpenAsync(new DatabaseWorkerConnection(driverId, driver.NormalizeConnectionString(connectionString)),
+            cancellationToken, purpose).ConfigureAwait(false);
     }
 }

@@ -5,14 +5,13 @@ using GhostShell.Application;
 
 namespace GhostShell.Desktop;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DatabaseDiagramRequest(
     string Operation,
     string? DriverId = null,
     string? ConnectionString = null,
     DatabaseDiagramViewport? Viewport = null,
     DatabaseDiagramExport Format = DatabaseDiagramExport.MermaidMarkdown,
-    int? LocalRoutePort = null,
-    bool DynamicRoute = false,
     long? SqliteSnapshotBytes = null);
 
 [JsonSerializable(typeof(DatabaseDiagramRequest))]

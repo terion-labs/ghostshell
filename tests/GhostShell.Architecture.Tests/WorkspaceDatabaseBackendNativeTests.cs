@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 
 namespace GhostShell.Architecture.Tests;
 
-public sealed class WorkspaceDatabaseBackendNativeTests(ITestOutputHelper output)
+public sealed partial class WorkspaceDatabaseBackendNativeTests(ITestOutputHelper output)
 {
     private const string GuestDatabase = "/home/ghostshell/workspace-backend-test.db";
 
@@ -48,6 +48,10 @@ public sealed class WorkspaceDatabaseBackendNativeTests(ITestOutputHelper output
                 workspaceLaunch: backend.PlanAsync);
             await VerifyDatabaseAsync(worker, deadline.Token);
             await VerifyDuckDbAsync(worker, deadline.Token);
+            await VerifyGuestFileProviderAsync(backend, commands, deadline.Token);
+            await ProvisionGuestNetworkFixturesAsync(assets, binding, deadline.Token);
+            await VerifyGuestSftpAsync(backend, commands, deadline.Token);
+            await VerifyGuestRedisAndHttpAsync(backend, commands, deadline.Token);
             await VerifyCanceledSpillCleanupAsync(backend, commands, directory.FullName, deadline.Token);
             Assert.Equal("guest-file", await RunShellAsync(commands,
                 "test -f \"$1\" && printf guest-file", [GuestDatabase], deadline.Token));

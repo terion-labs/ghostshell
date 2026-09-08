@@ -8,7 +8,6 @@ internal sealed class WorkspaceDatabasePanelSessionFactory(
     DatabasePanelSessionFactory hostFactory) : IDatabasePanelSessionFactory
 {
     private readonly WorkspaceSessionFactoryRegistry<IDatabasePanelSessionFactory> _factories = new(
-        hostFactory,
         "The workspace already has a database-panel factory.");
 
     public CapabilitySet RelationalCapabilities => hostFactory.RelationalCapabilities;

@@ -57,10 +57,14 @@ struct RuntimeCommand {
       try await server.run()
       return 0
     case "prepare", "prepare-initfs":
+      if command == "prepare-initfs", options["--capacity-mib"] != nil {
+        throw RuntimeFailure("Initfs capacity is supplied by its pinned image.")
+      }
       let output = try required(command == "prepare" ? "--rootfs" : "--output")
       try await prepare(
         image: required("--image"), output: output, stateDirectory: required("--state-directory"),
-        initfs: command == "prepare-initfs")
+        initfs: command == "prepare-initfs",
+        capacity: rootFilesystemCapacity(options["--capacity-mib"]))
       print("READY v1")
       return 0
     case "exec":
@@ -92,7 +96,19 @@ struct RuntimeCommand {
     }
   }
 
-  private static func prepare(image: String, output: String, stateDirectory: String, initfs: Bool)
+  // Interactive workspaces retain their existing 32 GiB disk. A service caller
+  // can request a smaller bounded disk so verified immutable templates stay cheap.
+  static func rootFilesystemCapacity(_ value: String?) throws -> UInt64 {
+    guard let value else { return 32 * 1024 * 1024 * 1024 }
+    guard !value.isEmpty, value.allSatisfy({ $0.isASCII && $0.isNumber }),
+      let mib = UInt64(value), (1024...32768).contains(mib)
+    else { throw RuntimeFailure("Filesystem capacity must be 1024–32768 MiB.") }
+    return mib * 1024 * 1024
+  }
+
+  private static func prepare(
+    image: String, output: String, stateDirectory: String, initfs: Bool, capacity: UInt64
+  )
     async throws
   {
     guard output.hasPrefix("/"), stateDirectory.hasPrefix("/") else {
@@ -114,7 +130,7 @@ struct RuntimeCommand {
       _ = try await image.initBlock(at: temporary, for: .linuxArm)
     } else {
       let image = try await store.get(reference: image, pull: true)
-      _ = try await EXT4Unpacker(capacityInBytes: 32 * 1024 * 1024 * 1024).unpack(
+      _ = try await EXT4Unpacker(capacityInBytes: capacity).unpack(
         image, for: .init(arch: "arm64", os: "linux"), at: temporary)
     }
     guard chmod(temporary.path, 0o600) == 0 else { throw POSIXError(.EIO) }

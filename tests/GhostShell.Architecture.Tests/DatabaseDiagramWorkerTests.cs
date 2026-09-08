@@ -46,25 +46,6 @@ public sealed class DatabaseDiagramWorkerTests
         Assert.Equal("```mermaid\n" + DatabaseMermaidErDiagram.CreateSource(graph) + "\n```\n", Encoding.UTF8.GetString(source.ToArray()));
     }
 
-    [Fact]
-    public async Task RealDiagramWorkerUsesParentEndpointDuringSchemaLoadAndDenialDoesNotFallBack()
-    {
-        var dotnet = Path.Combine(FindRepositoryRoot(), ".dotnet", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-        var factory = new DatabaseDiagramWorker(new SelfReentryLaunch(dotnet,
-            [typeof(DatabaseDiagramWorker).Assembly.Location], dotnet));
-        var requested = new List<(string Host, int Port)>();
-        var connection = new DatabaseWorkerConnection("postgres", "Host=private-route.invalid;Port=15432;Username=fixture;Password=private-fixture")
-        {
-            Route = new DatabaseWorkerRoute((host, port, _) =>
-            {
-                requested.Add((host, port));
-                throw new IOException("Parent denied fixture endpoint");
-            }, CancellationToken.None),
-        };
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await Assert.ThrowsAsync<IOException>(() => factory.OpenAsync(connection, deadline.Token));
-        Assert.Equal([("private-route.invalid", 15432)], requested);
-    }
 
     [Theory]
     [InlineData(false)]

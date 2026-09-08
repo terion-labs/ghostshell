@@ -63,6 +63,7 @@ public sealed class MacOsAppBundleBuilder
         "SMBLIBRARY-SOURCE-AND-RELINKING.md";
     private const string SmbLicenseFileName = "SMBLIBRARY-LGPL-3.0.txt";
     private const string GplLicenseFileName = "GPL-3.0.txt";
+    private const string SqlClientLicenseFileName = "SQLCLIENT-MIT.txt";
     private const string NativeResourcesDirectoryName = "Native";
     private const string SqlLanguageResourcesDirectoryName = "SqlLanguage";
 
@@ -88,6 +89,7 @@ public sealed class MacOsAppBundleBuilder
         SmbRelinkingFileName,
         SmbLicenseFileName,
         GplLicenseFileName,
+        SqlClientLicenseFileName,
     ];
 
     private static readonly IReadOnlyDictionary<string, string>
@@ -114,6 +116,7 @@ public sealed class MacOsAppBundleBuilder
             [SmbRelinkingFileName] = SmbRelinkingFileName,
             [SmbLicenseFileName] = SmbLicenseFileName,
             [GplLicenseFileName] = GplLicenseFileName,
+            [SqlClientLicenseFileName] = SqlClientLicenseFileName,
         };
 
     public MacOsAppBundleResult Build(MacOsAppBundleRequest request)
@@ -213,8 +216,7 @@ public sealed class MacOsAppBundleBuilder
                 request.ComponentCatalogPath,
                 request.NuGetPackageRoot,
                 request.ProductVersion,
-                evidenceLimits,
-                request.ProductIdentitySourceRoot);
+                evidenceLimits);
             EnsureEvidenceDestinationsAreAvailable(
                 licenseDirectory,
                 managedEvidence.Files);
@@ -610,6 +612,7 @@ public sealed class MacOsAppBundleBuilder
             [MacOsLegalRecordFileName] = legalClosure.Record,
             [ProjectLicenseFileName] = legalClosure.Evidence["LICENSE"],
             [GplLicenseFileName] = legalClosure.Evidence["licenses/GPL-3.0.txt"],
+            [SqlClientLicenseFileName] = legalClosure.Evidence["licenses/SQLCLIENT-MIT.txt"],
             [SmbLicenseFileName] =
                 legalClosure.Evidence["licenses/SMBLIBRARY-LGPL-3.0.txt"],
             [SmbRelinkingFileName] = legalClosure.Evidence[

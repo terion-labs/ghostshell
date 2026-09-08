@@ -89,7 +89,11 @@ internal sealed class WorkspaceFilePanelClient(
         ClientFor(request.Location).SetAccessControlAsync(request, cancellationToken);
 
     private IFilePanelClient ClientFor(FilePanelLocation location) =>
+        // Hidden host-home IDs can survive in imported/restored panel state.
+        // Let the workspace client reject an unknown ID; never delegate it to
+        // the host catalog merely because it is absent from the visible list.
         _workspaceProfileIds.Contains(location.ProviderProfileId)
+            || string.Equals(location.ProviderProfileId, BuiltInFileProviders.HomeId.Value, StringComparison.Ordinal)
             ? workspaceFiles
             : routedProviders;
 

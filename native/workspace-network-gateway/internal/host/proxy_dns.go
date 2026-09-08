@@ -23,6 +23,7 @@ type tcpDNSProxy struct {
 	servers  []netip.Addr
 	doh      *http.Client
 	allowUDP bool
+	names    *proxyDNSNames
 }
 
 func newTCPDNSProxy(upstream proxy.Proxy, servers []netip.Addr, doh bool) *tcpDNSProxy {
@@ -52,7 +53,13 @@ func (value *tcpDNSProxy) isDNS(metadata *M.Metadata) bool {
 }
 
 func (value *tcpDNSProxy) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
-	if !value.isDNS(metadata) || value.doh == nil {
+	if !value.isDNS(metadata) {
+		if value.names != nil {
+			return value.names.dial(ctx, metadata)
+		}
+		return value.Proxy.DialContext(ctx, metadata)
+	}
+	if value.doh == nil && value.names == nil {
 		return value.Proxy.DialContext(ctx, metadata)
 	}
 	return value.dnsPipe(metadata), nil
@@ -98,6 +105,9 @@ func (value *tcpDNSProxy) exchange(ctx context.Context, metadata *M.Metadata, qu
 	defer cancel()
 	if len(query) < 12 {
 		return nil, errors.New("invalid DNS query")
+	}
+	if value.names != nil {
+		return value.names.answer(query)
 	}
 	var response []byte
 	if value.doh != nil {

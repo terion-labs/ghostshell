@@ -51,7 +51,6 @@ cd "${repository_dir}"
     --verify-no-changes \
     --no-restore \
     --exclude vendor/exclr8cef \
-    --exclude vendor/sqlclient/upstream \
     --exclude vendor/sqlclient/tests/upstream \
     --severity warn
 "${dotnet}" build GhostShell.slnx \

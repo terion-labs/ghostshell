@@ -2,51 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace GhostShell.Application;
 
-/// <summary>A route resource refusal, never an instruction to retry a statement.</summary>
-public sealed class DatabaseRouteEndpointBudgetException(string message = "The database operation reached its 32 retained route-endpoint budget.") : IOException(message)
+/// <summary>Logical server identity; transport is owned by the selected backend.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record DatabaseWorkerConnection(string DriverId, string ConnectionString)
 {
-    public static bool IsCauseOf(Exception exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            if (current is DatabaseRouteEndpointBudgetException) { return true; }
-        }
-        return false;
-    }
-}
-
-/// <summary>Logical server identity and optional parent-owned transport route.</summary>
-public sealed record DatabaseWorkerConnection(string DriverId, string ConnectionString, int? LocalRoutePort = null)
-{
-    [JsonIgnore]
-    public DatabaseWorkerRoute? Route { get; init; }
-
     public override string ToString() => "[private database worker connection]";
-}
-
-/// <summary>
-/// Parent-only authority for endpoint opens on an already-selected route. The
-/// opener returns independently owned leases, never a shared cached lease.
-/// Neither this delegate nor its authority is serialized to a worker.
-/// </summary>
-public sealed class DatabaseWorkerRoute(
-    Func<string, int, CancellationToken, ValueTask<IDatabaseTunnelLease>> open,
-    CancellationToken lifetime)
-{
-    public CancellationToken Lifetime { get; } = lifetime;
-
-    public async ValueTask<IDatabaseTunnelLease> OpenAsync(string host, int port, CancellationToken cancellationToken)
-    {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, Lifetime);
-        linked.Token.ThrowIfCancellationRequested();
-        var lease = await open(host, port, linked.Token).ConfigureAwait(false);
-        if (linked.IsCancellationRequested)
-        {
-            await lease.DisposeAsync().ConfigureAwait(false);
-            linked.Token.ThrowIfCancellationRequested();
-        }
-        return lease;
-    }
 }
 
 /// <summary>

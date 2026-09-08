@@ -23,6 +23,8 @@ internal sealed record ManagedComponentEvidenceLimits(
     long MaximumBytes,
     int MaximumRelativePathDepth);
 
+internal enum ManagedEvidenceProfile { MacOsDesktop, LinuxBackend }
+
 internal static partial class ManagedComponentEvidenceBuilder
 {
     private const int MaximumCatalogBytes = 4 * 1024 * 1024;
@@ -37,8 +39,6 @@ internal static partial class ManagedComponentEvidenceBuilder
     private const string NoAssertion = "NOASSERTION";
     private const string ProductVersionPlaceholder = "${productVersion}";
     private const string BaseRuntimeTargetName = ".NETCoreApp,Version=v10.0";
-    private const string SelectedRuntimeTargetName =
-        ".NETCoreApp,Version=v10.0/osx-arm64";
     private static readonly string GeneratorCreator = CreateGeneratorCreator();
     private static readonly string[] RequiredRuntimeFallbacks =
     [
@@ -53,7 +53,6 @@ internal static partial class ManagedComponentEvidenceBuilder
     [
         "Exclr8Cef.dll",
         "Exclr8Cef.WebView.dll",
-        "Microsoft.Data.SqlClient.dll",
         "GhostShell.dll",
         "GhostShell.Agent.dll",
         "GhostShell.Agent.Providers.dll",
@@ -61,6 +60,7 @@ internal static partial class ManagedComponentEvidenceBuilder
         "GhostShell.App.dll",
         "GhostShell.Application.dll",
         "GhostShell.Browser.dll",
+        "GhostShell.ConnectionBackend.dll",
         "GhostShell.Core.dll",
         "GhostShell.Databases.dll",
         "GhostShell.Docker.dll",
@@ -89,6 +89,24 @@ internal static partial class ManagedComponentEvidenceBuilder
         "SkiaSharp.NativeAssets.macOS",
     ];
 
+    private sealed record TargetProfile(string Root, string Rid, string[] ProjectFiles,
+        string[] Fallbacks, string[] NoticePackages, string[] NativeFiles)
+    {
+        internal string RuntimeTarget => BaseRuntimeTargetName + "/" + Rid;
+
+        internal static TargetProfile For(ManagedEvidenceProfile profile) => profile switch
+        {
+            ManagedEvidenceProfile.MacOsDesktop => new("GhostShell", "osx-arm64", RequiredProjectFiles,
+                RequiredRuntimeFallbacks, RequiredNoticePackageIds, TerminalNativeFiles),
+            ManagedEvidenceProfile.LinuxBackend => new("GhostShell.Backend", "linux-arm64",
+                ["GhostShell.Backend.dll", "GhostShell.ConnectionBackend.dll", "GhostShell.Application.dll",
+                    "GhostShell.Core.dll", "GhostShell.Databases.dll", "GhostShell.Files.dll",
+                    "GhostShell.Infrastructure.dll", "GhostShell.Redis.dll"],
+                ["linux", "unix-arm64", "unix", "any", "base"], [], []),
+            _ => throw new ArgumentOutOfRangeException(nameof(profile)),
+        };
+    }
+
     private static readonly HashSet<string> SupportedNuspecNamespaces =
     [
         "http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd",
@@ -115,7 +133,7 @@ internal static partial class ManagedComponentEvidenceBuilder
         string nugetPackageRoot,
         string productVersion,
         ManagedComponentEvidenceLimits limits,
-        string? sourceRoot = null)
+        ManagedEvidenceProfile profile = ManagedEvidenceProfile.MacOsDesktop)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             publishDirectory,
@@ -130,6 +148,7 @@ internal static partial class ManagedComponentEvidenceBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(productVersion, nameof(productVersion));
         ValidateEvidenceLimits(limits);
 
+        var target = TargetProfile.For(profile);
         var catalogBytes = ReadRegularFile(
             catalogPath,
             MaximumCatalogBytes,
@@ -137,12 +156,12 @@ internal static partial class ManagedComponentEvidenceBuilder
         var catalog = ParseCatalog(catalogBytes, productVersion);
         var dependenciesPath = Path.Combine(
             publishDirectory,
-            "GhostShell.deps.json");
+            target.Root + ".deps.json");
         var dependenciesBytes = ReadRegularFile(
             dependenciesPath,
             MaximumCatalogBytes,
             "publish dependency manifest");
-        var dependencyManifest = ParseDependencyManifest(dependenciesBytes);
+        var dependencyManifest = ParseDependencyManifest(dependenciesBytes, target);
         ValidateExactDependencySet(
             catalog.Dependencies,
             dependencyManifest.Libraries);
@@ -157,9 +176,7 @@ internal static partial class ManagedComponentEvidenceBuilder
                 "project" => ValidateProject(
                     publishDirectory,
                     dependency,
-                    dependencyManifest.Libraries[dependency.Identity],
-                    sourceRoot,
-                    evidence),
+                    dependencyManifest.Libraries[dependency.Identity], target),
                 "nuget" or "runtime" => ValidateNuGetPackage(
                     nugetPackageRoot,
                     dependency,
@@ -170,9 +187,9 @@ internal static partial class ManagedComponentEvidenceBuilder
             });
         }
 
-        ValidateRequiredProjectSet(catalog.Dependencies);
-        ValidateRequiredNoticeSet(catalog.Dependencies);
-        ValidateRequiredNativeSet(catalog.AdditionalComponents);
+        ValidateRequiredProjectSet(catalog.Dependencies, target);
+        ValidateRequiredNoticeSet(catalog.Dependencies, target);
+        ValidateRequiredNativeSet(catalog.AdditionalComponents, target);
         foreach (var component in catalog.AdditionalComponents
                      .OrderBy(component => component.Identity, StringComparer.Ordinal))
         {
@@ -409,16 +426,6 @@ internal static partial class ManagedComponentEvidenceBuilder
                     component.Identity,
                     "nuspecLicense");
                 RequireEmpty(component.Notices, component.Identity, "notices");
-                if (VendoredProjects.TryGetValue(component.Identity, out var vendor))
-                {
-                    ValidateVendoredCatalogEntry(component, vendor);
-                    break;
-                }
-                if (component.VendorSource is not null
-                    || VendoredProjects.Values.Any(reviewed => string.Equals(reviewed.File, component.File, StringComparison.Ordinal)))
-                {
-                    throw CatalogError($"component {component.Identity} is not a reviewed vendor identity");
-                }
                 RequireEqual(
                     component.LicenseDeclared,
                     NoAssertion,
@@ -429,10 +436,6 @@ internal static partial class ManagedComponentEvidenceBuilder
                 break;
             case "nuget":
             case "runtime":
-                if (component.VendorSource is not null || VendoredProjects.ContainsKey(component.Identity))
-                {
-                    throw CatalogError($"component {component.Identity} cannot claim stock package provenance");
-                }
                 RequireEqual(
                     component.DepsType,
 string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepack" : "package",
@@ -594,7 +597,7 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
         }
     }
 
-    private static DependencyManifest ParseDependencyManifest(byte[] bytes)
+    private static DependencyManifest ParseDependencyManifest(byte[] bytes, TargetProfile target)
     {
         try
         {
@@ -707,7 +710,7 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
                         hashPath));
             }
 
-            ValidateRuntimeTargetGraph(document.RootElement, result);
+            ValidateRuntimeTargetGraph(document.RootElement, result, target);
             return new DependencyManifest(result);
         }
         catch (JsonException exception)
@@ -720,7 +723,8 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
 
     private static void ValidateRuntimeTargetGraph(
         JsonElement root,
-        IReadOnlyDictionary<string, DependencyManifestEntry> libraries)
+        IReadOnlyDictionary<string, DependencyManifestEntry> libraries,
+        TargetProfile profile)
     {
         if (!root.TryGetProperty("runtimeTarget", out var runtimeTarget)
             || runtimeTarget.ValueKind != JsonValueKind.Object)
@@ -739,12 +743,12 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
             "name");
         if (!string.Equals(
                 selectedTargetName,
-                SelectedRuntimeTargetName,
+                profile.RuntimeTarget,
                 StringComparison.Ordinal))
         {
             throw new InvalidDataException(
                 $"GhostShell.deps.json runtimeTarget must be "
-                + $"{SelectedRuntimeTargetName}.");
+                + $"{profile.RuntimeTarget}.");
         }
 
         var signature = ReadRequiredManifestString(
@@ -770,14 +774,14 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
             .ToHashSet(StringComparer.Ordinal);
         if (targetNames.Count != 2
             || !targetNames.SetEquals(
-                [BaseRuntimeTargetName, SelectedRuntimeTargetName])
+                [BaseRuntimeTargetName, profile.RuntimeTarget])
             || !targets.TryGetProperty(
                 BaseRuntimeTargetName,
                 out var baseTarget)
             || baseTarget.ValueKind != JsonValueKind.Object
             || baseTarget.EnumerateObject().Any()
             || !targets.TryGetProperty(
-                SelectedRuntimeTargetName,
+                profile.RuntimeTarget,
                 out var selectedTarget)
             || selectedTarget.ValueKind != JsonValueKind.Object)
         {
@@ -786,7 +790,7 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
                 + "one selected osx-arm64 target.");
         }
 
-        ValidateRuntimeFallbacks(root);
+        ValidateRuntimeFallbacks(root, profile);
         var selectedKeys = selectedTarget.EnumerateObject()
             .Select(component => component.Name)
             .ToHashSet(StringComparer.Ordinal);
@@ -825,21 +829,22 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
                     libraries));
         }
 
-        ValidateDependencyGraph(dependencyGraph);
+        ValidateDependencyGraph(dependencyGraph, profile);
     }
 
-    private static void ValidateRuntimeFallbacks(JsonElement root)
+    private static void ValidateRuntimeFallbacks(JsonElement root, TargetProfile profile)
     {
         if (!root.TryGetProperty("runtimes", out var runtimes)
             || runtimes.ValueKind != JsonValueKind.Object
-            || !HasExactJsonProperties(runtimes, ["osx-arm64"])
-            || runtimes.GetProperty("osx-arm64").ValueKind != JsonValueKind.Array)
+            || !HasExactJsonProperties(runtimes, string.Equals(profile.Rid, "linux-arm64", StringComparison.Ordinal)
+                ? ["android-arm64", "linux-arm64", "linux-bionic-arm64", "linux-musl-arm64"] : [profile.Rid])
+            || runtimes.GetProperty(profile.Rid).ValueKind != JsonValueKind.Array)
         {
             throw new InvalidDataException(
                 "GhostShell.deps.json has an invalid osx-arm64 runtime fallback map.");
         }
 
-        var actual = runtimes.GetProperty("osx-arm64")
+        var actual = runtimes.GetProperty(profile.Rid)
             .EnumerateArray()
             .Select(item =>
             {
@@ -853,19 +858,36 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
             })
             .ToArray();
         if (!actual.SequenceEqual(
-                RequiredRuntimeFallbacks,
+                profile.Fallbacks,
                 StringComparer.Ordinal))
         {
             throw new InvalidDataException(
                 "GhostShell.deps.json has an unexpected osx-arm64 runtime fallback chain.");
         }
+        if (string.Equals(profile.Rid, "linux-arm64", StringComparison.Ordinal))
+        {
+            ValidateFallback("android-arm64", ["android", "linux-bionic-arm64", "linux-bionic", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
+            ValidateFallback("linux-bionic-arm64", ["linux-bionic", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
+            ValidateFallback("linux-musl-arm64", ["linux-musl", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
+        }
+
+        void ValidateFallback(string rid, string[] expected)
+        {
+            var value = runtimes.GetProperty(rid);
+            if (value.ValueKind != JsonValueKind.Array
+                || !value.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : null)
+                    .SequenceEqual(expected, StringComparer.Ordinal))
+            {
+                throw new InvalidDataException("The backend runtime fallback graph differs from its reviewed profile.");
+            }
+        }
     }
 
     private static void ValidateDependencyGraph(
-        IReadOnlyDictionary<string, IReadOnlyList<string>> graph)
+        IReadOnlyDictionary<string, IReadOnlyList<string>> graph, TargetProfile profile)
     {
         var roots = graph.Keys
-            .Where(identity => string.Equals(ParseIdentity(identity).Name, "GhostShell", StringComparison.Ordinal))
+            .Where(identity => string.Equals(ParseIdentity(identity).Name, profile.Root, StringComparison.Ordinal))
             .ToArray();
         if (roots.Length != 1)
         {
@@ -1207,8 +1229,7 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
         string publishDirectory,
         CatalogDependency component,
         DependencyManifestEntry manifest,
-        string? sourceRoot,
-        EvidenceAccumulator evidence)
+        TargetProfile profile)
     {
         if (!string.Equals(manifest.Type, "project", StringComparison.Ordinal))
         {
@@ -1217,10 +1238,6 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
         }
 
         var file = component.File!;
-        if (VendoredProjects.TryGetValue(component.Identity, out var vendor))
-        {
-            return ValidateVendoredProject(publishDirectory, sourceRoot, component, vendor, evidence);
-        }
         var checksum = HashPublishedFile(
             Path.Combine(publishDirectory, file),
             file);
@@ -1235,7 +1252,7 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
             $"SHA-256 was computed from the published project assembly {file}.",
             null,
             "Managed project assembly from GhostSHELL.",
-            IsRoot: string.Equals(file, "GhostShell.dll", StringComparison.Ordinal));
+            IsRoot: string.Equals(file, profile.Root + ".dll", StringComparison.Ordinal));
     }
 
     private static PackageEvidence ValidateNuGetPackage(
@@ -1723,13 +1740,13 @@ string.Equals(component.Kind, "runtime"
     }
 
     private static void ValidateRequiredProjectSet(
-        IReadOnlyList<CatalogDependency> dependencies)
+        IReadOnlyList<CatalogDependency> dependencies, TargetProfile profile)
     {
         var projectFiles = dependencies
             .Where(component => string.Equals(component.Kind, "project", StringComparison.Ordinal))
             .Select(component => component.File!)
             .ToHashSet(StringComparer.Ordinal);
-        if (!projectFiles.SetEquals(RequiredProjectFiles))
+        if (!projectFiles.SetEquals(profile.ProjectFiles))
         {
             throw CatalogError(
                 "project entries must model the exact GhostSHELL and vendored binding assemblies");
@@ -1740,7 +1757,7 @@ string.Equals(component.Kind, "runtime"
             .ToArray();
         if (runtimeComponents.Length != 1
             || !string.Equals(runtimeComponents[0].NuGetId
-, "Microsoft.NETCore.App.Runtime.osx-arm64", StringComparison.Ordinal))
+, "Microsoft.NETCore.App.Runtime." + profile.Rid, StringComparison.Ordinal))
         {
             throw CatalogError(
                 "dependencies must model the exact macOS arm64 .NET runtime package");
@@ -1748,9 +1765,9 @@ string.Equals(component.Kind, "runtime"
     }
 
     private static void ValidateRequiredNoticeSet(
-        IReadOnlyList<CatalogDependency> dependencies)
+        IReadOnlyList<CatalogDependency> dependencies, TargetProfile profile)
     {
-        foreach (var requiredId in RequiredNoticePackageIds)
+        foreach (var requiredId in profile.NoticePackages)
         {
             var component = dependencies.SingleOrDefault(candidate =>
                 string.Equals(
@@ -1772,13 +1789,13 @@ string.Equals(component.Kind, "runtime"
     }
 
     private static void ValidateRequiredNativeSet(
-        IReadOnlyList<CatalogNativeComponent> components)
+        IReadOnlyList<CatalogNativeComponent> components, TargetProfile profile)
     {
         var files = components
             .Select(component => component.File)
             .ToHashSet(StringComparer.Ordinal);
-        if (components.Count != TerminalNativeFiles.Length
-            || !files.SetEquals(TerminalNativeFiles))
+        if (components.Count != profile.NativeFiles.Length
+            || !files.SetEquals(profile.NativeFiles))
         {
             throw CatalogError(
                 "additionalComponents must model the published libghostty-vt payload");
@@ -2563,7 +2580,6 @@ string.Equals(component.Kind, "runtime"
 
         public List<CatalogNotice> Notices { get; init; } = [];
 
-        public CatalogVendorSource? VendorSource { get; init; }
     }
 
     private sealed class CatalogNotice

@@ -31,10 +31,11 @@ def source_digest(repository):
     inputs.extend(repository / name for name in (
         "global.json", "NuGet.Config", "LICENSE", "scripts/build-workspace-backend.sh",
         "scripts/package-workspace-backend.py", "licenses/SMBLIBRARY-LGPL-3.0.txt",
-        "licenses/GPL-3.0.txt", "licenses/SMBLIBRARY-SOURCE.json",
-        "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md", "licenses/THIRD-PARTY-NOTICES.md"))
+        "licenses/GPL-3.0.txt", "licenses/SMBLIBRARY-SOURCE.json", "licenses/SQLCLIENT-MIT.txt",
+        "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md", "licenses/THIRD-PARTY-NOTICES.md",
+        "licenses/workspace-backend-managed-components.json"))
     excluded = {"bin", "obj", ".git", ".build", "node_modules", "artifacts", "__pycache__"}
-    for source in (repository / "src", repository / "vendor"):
+    for source in (repository / "src", repository / "vendor", repository / "tools" / "GhostShell.Packaging"):
         for directory, children, filenames in os.walk(source):
             children[:] = sorted(child for child in children if child not in excluded)
             if any((pathlib.Path(directory) / child).is_symlink() for child in children):
@@ -174,7 +175,7 @@ def verify_release_clearance(repository):
                    for key in ("basis", "reviewedBy", "reviewedAtUtc"))):
         raise ValueError("Linux workspace backend publication is blocked pending its recorded project-owner review (ghostshell-90w9)")
     required = {"src/GhostShell.Backend/packages.linux-arm64.lock.json",
-                "licenses/managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"}
+                "licenses/workspace-backend-managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"}
     inputs = record.get("reviewedInputs", {})
     if set(inputs) != required or any(digest(repository / name) != inputs[name] for name in required):
         raise ValueError("Linux workspace backend legal evidence changed after review")

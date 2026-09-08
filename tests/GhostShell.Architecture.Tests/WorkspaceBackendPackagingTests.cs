@@ -128,7 +128,7 @@ public sealed class WorkspaceBackendPackagingTests : IDisposable
             return;
         }
         var inputs = new Dictionary<string, string>(StringComparer.Ordinal);
-        string[] names = ["src/GhostShell.Backend/packages.linux-arm64.lock.json", "licenses/managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"];
+        string[] names = ["src/GhostShell.Backend/packages.linux-arm64.lock.json", "licenses/workspace-backend-managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"];
         foreach (var name in names)
         {
             var path = Path.Combine(_directory, name);

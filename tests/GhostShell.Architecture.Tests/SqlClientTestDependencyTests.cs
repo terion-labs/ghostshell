@@ -5,6 +5,19 @@ namespace GhostShell.Architecture.Tests;
 public sealed class SqlClientTestDependencyTests
 {
     [Fact]
+    public void ProductionUsesPublishedSqlClientPackageWithoutSourceFork()
+    {
+        var project = XDocument.Load(Path.Combine(FindRepositoryRoot(),
+            "src/GhostShell.Databases/GhostShell.Databases.csproj"));
+        var package = Assert.Single(project.Descendants("PackageReference"),
+            reference => string.Equals((string?)reference.Attribute("Include"), "Microsoft.Data.SqlClient", StringComparison.Ordinal));
+        Assert.Null(package.Attribute("Version"));
+        Assert.DoesNotContain(project.Descendants("ProjectReference"), reference =>
+            ((string?)reference.Attribute("Include"))?.Contains("sqlclient/upstream", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.Null(typeof(Microsoft.Data.SqlClient.SqlConnection).GetProperty("TcpTransport"));
+    }
+
+    [Fact]
     public void TdsServerDependencyIsTestOnly()
     {
         var root = FindRepositoryRoot();

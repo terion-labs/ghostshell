@@ -13,7 +13,7 @@ public sealed class WorkspaceFilePanelSessionFactoryTests
     private static readonly WorkspaceInstanceId OtherWorkspaceId = new("plain-workspace");
 
     [Fact]
-    public async Task RegistrationRoutesOnlyItsWorkspaceAndDisposalRestoresHostRouting()
+    public async Task RegistrationRoutesOnlyItsWorkspaceAndDisposalRejectsNewSessions()
     {
         await using var services = DesktopComposition.CreateServiceProvider();
         var routes = services.GetRequiredService<WorkspaceFilePanelSessionFactory>();
@@ -27,6 +27,7 @@ public sealed class WorkspaceFilePanelSessionFactoryTests
             .StartLocation;
         var workspace = new RecordingFilePanelSessionFactory(host);
 
+        using var hostRegistration = routes.Register(OtherWorkspaceId, host);
         await using var firstHostSession = await routes.CreateAsync(
             OtherWorkspaceId,
             SessionId.New(),
@@ -41,11 +42,9 @@ public sealed class WorkspaceFilePanelSessionFactoryTests
                 CancellationToken.None);
         }
 
-        await using var secondHostSession = await routes.CreateAsync(
-            WorkspaceId,
-            SessionId.New(),
-            initialLocation,
-            CancellationToken.None);
+        var error = Assert.Throws<InvalidOperationException>(() => routes.CreateAsync(
+            WorkspaceId, SessionId.New(), initialLocation, CancellationToken.None));
+        Assert.Contains("No host fallback", error.Message, StringComparison.Ordinal);
 
         Assert.Equal(1, workspace.CreateCount);
         Assert.Equal(WorkspaceId, workspace.LastWorkspaceId);

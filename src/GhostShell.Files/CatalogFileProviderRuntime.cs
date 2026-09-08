@@ -17,7 +17,8 @@ public sealed class CatalogFileProviderRuntime :
 {
     private readonly object _gate = new();
     private readonly IDefinitionCatalog _catalog;
-    private readonly FileProviderAdapterFactory _factory;
+    private readonly Func<FileProviderProfile, IReadOnlyDictionary<ConnectionId, ConnectionProfile>, CancellationToken,
+        ValueTask<OwnedFileProviderRegistration>> _createAdapter;
     private readonly IConnectionSecurityRuntime? _connectionSecurityRuntime;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -34,16 +35,24 @@ public sealed class CatalogFileProviderRuntime :
         ISshHostKeyTrustStore knownHosts,
         IConnectionSecurityRuntime? connectionSecurityRuntime = null,
         IConnectionRuntime? connectionRuntime = null,
-        PreviewContentCache? contentCache = null,
-        IWorkspaceNetworkConnector? networkConnector = null)
+        PreviewContentCache? contentCache = null)
+        : this(catalog, new FileProviderAdapterFactory(
+            secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
+            knownHosts ?? throw new ArgumentNullException(nameof(knownHosts)),
+            connectionRuntime).CreateAsync, connectionSecurityRuntime, contentCache)
+    {
+    }
+
+    internal CatalogFileProviderRuntime(
+        IDefinitionCatalog catalog,
+        Func<FileProviderProfile, IReadOnlyDictionary<ConnectionId, ConnectionProfile>, CancellationToken,
+            ValueTask<OwnedFileProviderRegistration>> createAdapter,
+        IConnectionSecurityRuntime? connectionSecurityRuntime = null,
+        PreviewContentCache? contentCache = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _contentCache = contentCache;
-        _factory = new FileProviderAdapterFactory(
-            secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
-            knownHosts ?? throw new ArgumentNullException(nameof(knownHosts)),
-            connectionRuntime,
-            networkConnector);
+        _createAdapter = createAdapter ?? throw new ArgumentNullException(nameof(createAdapter));
         _connectionSecurityRuntime = connectionSecurityRuntime;
         _active = CreateBuiltInGeneration();
         Attach(_active);
@@ -249,7 +258,7 @@ public sealed class CatalogFileProviderRuntime :
         FilePanelClient? client = null;
         try
         {
-            owned = await _factory.CreateAsync(
+            owned = await _createAdapter(
                 profile,
                 ConnectionsById(_catalog.Snapshot),
                 cancellationToken).ConfigureAwait(false);
@@ -646,7 +655,7 @@ public sealed class CatalogFileProviderRuntime :
         {
             try
             {
-                registrations.Add(await _factory.CreateAsync(
+                registrations.Add(await _createAdapter(
                     ConnectionFileProviderProfiles.Create(connection),
                     connections,
                     cancellationToken).ConfigureAwait(false));
@@ -683,7 +692,7 @@ public sealed class CatalogFileProviderRuntime :
 
             try
             {
-                registrations.Add(await _factory.CreateAsync(
+                registrations.Add(await _createAdapter(
                     stored.Value,
                     connections,
                     cancellationToken).ConfigureAwait(false));

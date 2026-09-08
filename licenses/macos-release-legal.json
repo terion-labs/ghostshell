@@ -2,23 +2,25 @@
   "schemaVersion": 1,
   "format": "ghostshell-macos-release-legal-closure-v1",
   "platform": "macos-arm64",
-  "legalClearance": true,
-  "releaseBlockers": [],
+  "legalClearance": false,
+  "releaseBlockers": [
+    "ghostshell-90w9: Renew the managed-closure approval for stock SqlClient and the shared connection backend before publication."
+  ],
   "excludedPlatforms": [
     "windows",
     "linux"
   ],
   "review": {
-    "status": "accepted-by-project-owner",
-    "basis": "documented-engineering-evidence-without-independent-legal-review",
-    "reviewedBy": "Terion Labs project owner",
-    "reviewedAtUtc": "2026-09-08T13:15:12Z"
+    "status": "pending-project-owner-decision",
+    "basis": null,
+    "reviewedBy": null,
+    "reviewedAtUtc": null
   },
   "dispositions": {
     "managedComponents": {
-      "status": "accepted-by-owner-for-macos",
+      "status": "pending-project-owner-decision",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the documented SMBLibrary Native AOT replacement path and the remaining Inter package provenance uncertainty for this exact macOS closure, including the pinned patched MIT source build of Microsoft.Data.SqlClient 6.0.2 with its retained source, patch, license and assembly evidence, and the official MIT NuGet packages SSH.NET 2026.0.0 and SharpCompress 0.50.3 replacing their source forks with reviewed package hash and license evidence."
+      "comment": "The previous owner decision accepted the documented SMBLibrary Native AOT replacement path, remaining Inter provenance exception, SSH.NET 2026.0.0 and SharpCompress 0.50.3 without independent legal review. Those exceptions are retained. This revised closure replaces the SqlClient source fork with official Microsoft.Data.SqlClient 6.0.2 MIT NuGet provenance and adds the first-party connection backend; renewed owner acceptance is pending. The Linux sidecar has a separate exact catalog and approval record."
     },
     "nativeTerminalAndShell": {
       "status": "accepted-by-owner-for-macos",
@@ -62,8 +64,12 @@
       "sha256": "808c6618b7bf37420456bc4d310ce70601016053e326d5d01a0088027f2571b4"
     },
     {
+      "path": "licenses/SQLCLIENT-MIT.txt",
+      "sha256": "5ef55bcff6ee707c7c7c5c0239848d8690c547971e979e43e169b2dc8c787b9b"
+    },
+    {
       "path": "licenses/THIRD-PARTY-NOTICES.md",
-      "sha256": "5ee01cfccfe290d5d91a48eac5f430445a45fd5b48046df2e373f4d54ec4c198"
+      "sha256": "1d1d20a547c40c87dc85bc774ec5591bc540c1c466f9ca69110375c3e38e88f6"
     },
     {
       "path": "licenses/cef-runtime-components.json",
@@ -71,7 +77,7 @@
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "d64e478096efde396d9da9cfa67ba09959f85d9febf5ef3994e1c8ad3bab146a"
+      "sha256": "6ca32ea27d0ff0f5e0b62b8db6e992a3c04621521ed920ffe983236b3dae4d00"
     },
     {
       "path": "licenses/native-terminal-components.json",

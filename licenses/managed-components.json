@@ -571,6 +571,13 @@
       "file": "GhostShell.Browser.dll"
     },
     {
+      "identity": "GhostShell.ConnectionBackend/${productVersion}",
+      "kind": "project",
+      "depsType": "project",
+      "licenseDeclared": "NOASSERTION",
+      "file": "GhostShell.ConnectionBackend.dll"
+    },
+    {
       "identity": "GhostShell.Core/${productVersion}",
       "kind": "project",
       "depsType": "project",
@@ -815,20 +822,15 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Data.SqlClient.Routed/6.0.2",
-      "kind": "project",
-      "depsType": "project",
+      "identity": "Microsoft.Data.SqlClient/6.0.2",
+      "kind": "nuget",
+      "depsType": "package",
       "licenseDeclared": "MIT",
-      "file": "Microsoft.Data.SqlClient.dll",
-      "vendorSource": {
-        "upstreamIdentity": "Microsoft.Data.SqlClient/6.0.2",
-        "archiveUrl": "https://github.com/dotnet/SqlClient/archive/b16dec0a5622fd5b3d5311191bac4cafadc43e60.tar.gz",
-        "archiveSha256": "f4c2cfd1a7a48f5e4f0b6b97639e5c17730fca1eade31668732280b82df21870",
-        "upstreamManifestSha256": "04f5dbc9fee31a1600e4fc2ffa143e8c12112e1f75bb9ea345cbff9118fb58e7",
-        "sourceManifestSha256": "241d5f4a51547be51c6546150d0bf2c3a77aa9800f0a0e9b214fa363542588ad",
-        "patchSha256": "d8d836079399bbc0f1d579159117ef6a9b7b76f3a915418376aec05a9c56656a",
-        "licenseSha256": "9fa73cb72fb654d029c9214f0e3eec32c301a0c23be71b50fe3910e61553fa34"
-      }
+      "nuGetId": "Microsoft.Data.SqlClient",
+      "contentHash": "RDqwzNu5slSqGy0eSgnN4fuLdGI1w9ZHBRNALrbUsykOIbXtGCpyotG0r5zz+HHtzxbe6LtcAyWcOiu0a+Fx/A==",
+      "nupkgSha512": "SCw4XQfsGrrtasiUzeM4ejjNjs9Igum8aKvvdX2zWyhsoiQLaSlBwDeLPHqH93IfdVqz7Sx2UNKMny8go7m79g==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
     },
     {
       "identity": "Microsoft.Data.Sqlite.Core/10.0.10",

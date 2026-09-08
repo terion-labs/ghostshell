@@ -188,6 +188,17 @@ public static class DesktopComposition
         services.AddSingleton<IConnectionRuntimeAdapter, WslConnectionRuntimeAdapter>();
         services.AddSingleton<IConnectionRuntime, ConnectionRuntime>();
         services.AddSingleton<IConnectionCommandExecutor, ConnectionCommandExecutor>();
+        services.AddSingleton(provider => new WorkspaceConnectionBackendFactory(
+            () => WorkspaceSdkIsolationProvider.FindBundledRuntime() is { } executable
+                ? WorkspaceSdkIsolationProvider.CreateServiceProvider(executable,
+                    Path.Combine(profile.Data.DataDirectory, "connection-services"))
+                : null,
+            provider.GetRequiredService<IWorkspacePacketGatewayRuntime>(),
+            provider.GetRequiredService<ISecretVault>(),
+            provider.GetRequiredService<ISshHostKeyTrustStore>(),
+            provider.GetRequiredService<Func<DatabaseValueContentStore>>(),
+            provider.GetRequiredService<IDatabaseOperationExecutor>(),
+            SelfReentryLaunch.Detect()));
         services.AddSingleton<IWorkspaceRuntimeServicesFactory,
             DesktopWorkspaceRuntimeServicesFactory>();
         services.AddSingleton<IDockerEngineClient, DockerEngineClient>();
@@ -291,7 +302,11 @@ public static class DesktopComposition
         // renderer as an unsupported preview rather than a failure.
         services.AddSingleton<IFileProviderProfileRuntime>(provider =>
             provider.GetRequiredService<CatalogFileProviderRuntime>());
-        services.AddSingleton<CatalogAiProviderRuntime>();
+        services.AddSingleton(provider => new CatalogAiProviderRuntime(
+            provider.GetRequiredService<IDefinitionCatalog>(),
+            provider.GetRequiredService<ISecretVault>(),
+            oauthOptions: provider.GetRequiredService<AiProviderOAuthOptions>(),
+            routedHandlerFactory: provider.GetRequiredService<WorkspaceNetworkRouteRegistry>().CreateHttpHandler));
         services.AddSingleton<IAiProviderProfileRuntime>(provider =>
             provider.GetRequiredService<CatalogAiProviderRuntime>());
         services.AddSingleton(_ => new AiProviderOAuthOptions(

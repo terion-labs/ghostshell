@@ -221,7 +221,8 @@ public sealed record WorkspacePacketGatewayOpenRequest
         WorkspaceInstanceId workspaceId,
         WorkspaceIsolationBinding isolation,
         NetworkConnectionProfile? connection = null,
-        SecretMaterial? transientPassword = null)
+        SecretMaterial? transientPassword = null,
+        WorkspacePacketGatewayServiceProxy? serviceProxy = null)
     {
         if (string.IsNullOrWhiteSpace(workspaceId.Value))
         {
@@ -237,8 +238,14 @@ public sealed record WorkspacePacketGatewayOpenRequest
                 nameof(transientPassword));
         }
 
+        if (serviceProxy is not null && (connection is not null || transientPassword is not null))
+        {
+            throw new ArgumentException("A service proxy cannot also start a network provider.", nameof(serviceProxy));
+        }
+
         Connection = connection;
         TransientPassword = transientPassword;
+        ServiceProxy = serviceProxy;
     }
 
     public WorkspaceInstanceId WorkspaceId { get; }
@@ -251,7 +258,10 @@ public sealed record WorkspacePacketGatewayOpenRequest
     /// </summary>
     public NetworkConnectionProfile? Connection { get; }
 
-    public bool IsDirect => Connection is null;
+    public bool IsDirect => Connection is null && ServiceProxy is null;
+
+    /// <summary>A captured host-owned SOCKS route for backend service isolates. Never persisted.</summary>
+    public WorkspacePacketGatewayServiceProxy? ServiceProxy { get; }
 
     /// <summary>
     /// Session-only password owned by the caller. The gateway may read it only while

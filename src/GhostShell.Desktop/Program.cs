@@ -23,6 +23,13 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], ConnectionBackendCommand.Marker, StringComparison.Ordinal))
+        {
+            Environment.ExitCode = args.Length == 3
+                ? ConnectionBackendCommand.RunAsync(args[1], args[2]).GetAwaiter().GetResult() : 64;
+            return;
+        }
+
         if (args.Length == 1 && string.Equals(args[0], DatabaseOperationWorker.Marker, StringComparison.Ordinal))
         {
             Environment.ExitCode = DatabaseOperationWorker.RunChildAsync().GetAwaiter().GetResult();

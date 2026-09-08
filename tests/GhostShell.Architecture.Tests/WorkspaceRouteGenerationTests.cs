@@ -58,32 +58,6 @@ public sealed class WorkspaceRouteGenerationTests
         Assert.False(upstream.Pending());
     }
 
-    [Fact]
-    public async Task Captured_database_factory_passes_the_same_frozen_route_to_ssh()
-    {
-        await using var proxy = new HostWorkspaceSocksProxy();
-        IWorkspaceNetworkConnector? sshRoute = null;
-        var factory = new WorkspaceNetworkDatabaseTunnelFactory(proxy, route =>
-        {
-            sshRoute = route;
-            return new RejectingSshFactory();
-        });
-        var captured = factory.CaptureRoute();
-        var connection = new ConnectionProfile(
-            new ConnectionId("synthetic-ssh"), 1, "Synthetic SSH",
-            new ConnectionEndpoint.Ssh("synthetic.invalid", 22, "user"),
-            new ConnectionAuthentication.None(), BuiltInConnections.Local.Startup,
-            BuiltInConnections.Local.KeepAlive, SshHostKeyPolicy.Strict);
-        await Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await captured.OpenAsync(connection, "database.invalid", 1433, CancellationToken.None));
-        Assert.NotNull(sshRoute);
-        Assert.Equal(captured.RouteLifetime, sshRoute.RouteLifetime);
-        Assert.NotEqual(proxy.LocalProxyCredentials.Password, sshRoute.LocalProxyCredentials!.Password, StringComparer.Ordinal);
-        proxy.Apply(WorkspaceNetworkEgress.Blocked);
-        Assert.True(captured.RouteLifetime.IsCancellationRequested);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await captured.OpenAsync(connection, "redirect.invalid", 15433, CancellationToken.None));
-    }
 
     [Fact]
     public async Task Current_snapshot_and_stable_browser_credentials_work_after_apply()
@@ -128,9 +102,4 @@ public sealed class WorkspaceRouteGenerationTests
             CancellationToken cancellationToken) => throw new InvalidOperationException("No isolate command may run in this test.");
     }
 
-    private sealed class RejectingSshFactory : IDatabaseTunnelFactory
-    {
-        public ValueTask<IDatabaseTunnelLease> OpenAsync(ConnectionProfile connection,
-            string targetHost, int targetPort, CancellationToken cancellationToken) => throw new NotSupportedException();
-    }
 }

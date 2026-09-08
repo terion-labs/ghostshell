@@ -489,7 +489,14 @@ internal sealed class BundledWorkspacePacketGatewayBackend : IHostWorkspacePacke
 
             Uri? upstream = null;
             IReadOnlyList<IPAddress> dnsServers;
-            if (request.Connection is { } connection)
+            if (request.ServiceProxy is { } serviceProxy)
+            {
+                // This route was authenticated by the workspace/SSH owner. Probing a
+                // public address here would incorrectly reject private-only SSH routes.
+                upstream = serviceProxy.Endpoint;
+                dnsServers = [];
+            }
+            else if (request.Connection is { } connection)
             {
                 var providerResult = await OpenProviderAsync(
                         request,
@@ -542,17 +549,27 @@ internal sealed class BundledWorkspacePacketGatewayBackend : IHostWorkspacePacke
             }
 
             progress?.Report(new NetworkConnectionProgress("Connecting the host packet gateway…"));
-            var started = await _processes.StartAsync(
+            var hostInput = CreateHostInput(authenticationKey, request.ServiceProxy);
+            WorkspaceGatewayProcessStart started;
+            try
+            {
+                started = await _processes.StartAsync(
                     new WorkspaceGatewayProcessRequest(
                         _hostHelperExecutable,
                         HostArguments(packetSocketPath, upstream, dnsServers,
                             request.Connection?.ConnectionKind == NetworkConnectionKind.Proxy,
                             request.Connection?.ConnectionKind == NetworkConnectionKind.Tailscale
-                                && providerSession?.SupportsUdpAssociate == true),
-                        authenticationKey),
+                                && providerSession?.SupportsUdpAssociate == true,
+                            request.ServiceProxy is not null),
+                        hostInput),
                     ReadinessTimeout,
                     cancellationToken)
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(hostInput);
+            }
             host = started.Process;
             var capabilities = CapabilitiesForAttachment(ParseCapabilities(started.ReadinessLine), network);
             if (guest.HasExited || host.HasExited || ProviderHasFailed(providerSession))
@@ -686,7 +703,8 @@ internal sealed class BundledWorkspacePacketGatewayBackend : IHostWorkspacePacke
         Uri? upstream,
         IReadOnlyList<IPAddress> dnsServers,
         bool dnsOverHttps,
-        bool allowUdpAssociate)
+        bool allowUdpAssociate,
+        bool resolveProxyNames)
     {
         var arguments = new List<string>
         {
@@ -711,6 +729,11 @@ internal sealed class BundledWorkspacePacketGatewayBackend : IHostWorkspacePacke
             arguments.Add("--dns-over-https");
         }
 
+        if (resolveProxyNames)
+        {
+            arguments.Add("--resolve-proxy-names");
+        }
+
         if (allowUdpAssociate)
         {
             arguments.Add("--allow-udp-associate");
@@ -723,6 +746,21 @@ internal sealed class BundledWorkspacePacketGatewayBackend : IHostWorkspacePacke
         }
 
         return arguments;
+    }
+
+    internal static byte[] CreateHostInput(ReadOnlySpan<byte> authenticationKey, WorkspacePacketGatewayServiceProxy? proxy)
+    {
+        if (proxy is null) { return authenticationKey.ToArray(); }
+        var usernameBytes = Encoding.UTF8.GetByteCount(proxy.Credentials.Username);
+        var passwordBytes = Encoding.UTF8.GetByteCount(proxy.Credentials.Password);
+        var result = new byte[authenticationKey.Length + 2 + usernameBytes + passwordBytes];
+        authenticationKey.CopyTo(result);
+        var offset = authenticationKey.Length;
+        result[offset++] = checked((byte)usernameBytes);
+        offset += Encoding.UTF8.GetBytes(proxy.Credentials.Username, result.AsSpan(offset));
+        result[offset++] = checked((byte)passwordBytes);
+        _ = Encoding.UTF8.GetBytes(proxy.Credentials.Password, result.AsSpan(offset));
+        return result;
     }
 
     private static bool IsUsableLoopbackUpstream(Uri? endpoint) =>

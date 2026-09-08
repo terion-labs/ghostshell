@@ -46,6 +46,7 @@ type Options struct {
 	MTU               uint16
 	DNSServers        []netip.Addr
 	DNSOverHTTPS      bool
+	ResolveProxyNames bool
 	AllowUDPAssociate bool
 	KeyInput          io.Reader
 	Ready             io.Writer
@@ -71,6 +72,11 @@ func Run(ctx context.Context, options Options) error {
 	if options.MTU < 1280 {
 		return errors.New("--mtu must be at least 1280")
 	}
+	if options.ResolveProxyNames {
+		// This is a virtual service owned by this gateway, not an external
+		// resolver. DNS packets are answered by the per-VM name table below.
+		options.DNSServers = []netip.Addr{proxyNamesIPv4.Addr()}
+	}
 	configuration, err := networkConfiguration(options)
 	if err != nil {
 		return err
@@ -79,20 +85,29 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+	var authenticationKey []byte
+	var credentials *proxyNameCredentials
+	if options.ResolveProxyNames {
+		authenticationKey, credentials, err = readServiceAuthentication(options.KeyInput)
+	} else {
+		authenticationKey, err = readAuthenticationKey(options.KeyInput)
+	}
+	if err != nil {
+		return err
+	}
+	defer clearBytes(authenticationKey)
 	if options.Mode != "direct" {
 		dnsProxy := newTCPDNSProxy(upstream, options.DNSServers, options.DNSOverHTTPS)
+		if options.ResolveProxyNames {
+			dnsProxy.names = newProxyDNSNames(net.JoinHostPort(options.UpstreamHost, strconv.Itoa(int(options.UpstreamPort))))
+			dnsProxy.names.credentials = credentials
+		}
 		dnsProxy.allowUDP = options.AllowUDPAssociate
 		upstream = dnsProxy
 		if dnsProxy.doh != nil {
 			defer dnsProxy.doh.CloseIdleConnections()
 		}
 	}
-	authenticationKey, err := readAuthenticationKey(options.KeyInput)
-	if err != nil {
-		return err
-	}
-	defer clearBytes(authenticationKey)
-
 	dialer := net.Dialer{Timeout: connectTimeout}
 	connection, err := dialer.DialContext(ctx, "unix", options.SocketPath)
 	if err != nil {
@@ -163,6 +178,9 @@ func networkConfiguration(options Options) (protocol.NetworkConfiguration, error
 func prefixPointer(value netip.Prefix) *netip.Prefix { return &value }
 
 func newUpstream(options Options) (proxy.Proxy, Capabilities, error) {
+	if options.ResolveProxyNames && (options.Mode != "socks5" || options.DNSOverHTTPS || options.AllowUDPAssociate) {
+		return nil, Capabilities{}, errors.New("proxy-name resolution requires a TCP-only SOCKS5 route without DNS-over-HTTPS")
+	}
 	if options.AllowUDPAssociate && options.Mode != "socks5" {
 		return nil, Capabilities{}, errors.New("UDP association requires a SOCKS5 route")
 	}
@@ -281,13 +299,15 @@ type dataPlane struct {
 	tunnel   *tunnel.Tunnel
 	done     chan struct{}
 	once     sync.Once
+	tcpRoute *tcpRouteForwarder
 }
 
 func newDataPlane(stream io.ReadWriteCloser, mtu uint32, upstream proxy.Proxy) (*dataPlane, error) {
 	// The upstream stack logs destination addresses at info level. Keep the
 	// helper silent so workspace traffic metadata does not enter application logs.
 	gatewaylog.SetLogger(gatewaylog.Must(gatewaylog.NewLeveled(gatewaylog.SilentLevel)))
-	endpoint, err := iobased.New(stream, mtu, 0)
+	starting := &startingPacketStream{ReadWriteCloser: stream, ready: make(chan struct{})}
+	endpoint, err := iobased.New(starting, mtu, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -295,10 +315,14 @@ func newDataPlane(stream io.ReadWriteCloser, mtu uint32, upstream proxy.Proxy) (
 	transport.ProcessAsync()
 	networkStack, err := core.CreateStack(&core.Config{LinkEndpoint: endpoint, TransportHandler: transport})
 	if err != nil {
+		close(starting.ready)
+		stream.Close()
 		transport.Close()
 		return nil, err
 	}
-	result := &dataPlane{stream: stream, endpoint: endpoint, stack: networkStack, tunnel: transport, done: make(chan struct{})}
+	result := &dataPlane{stream: stream, endpoint: endpoint, stack: networkStack, tunnel: transport, done: make(chan struct{}),
+		tcpRoute: installTCPRoute(networkStack, upstream)}
+	close(starting.ready)
 	go func() {
 		endpoint.Wait()
 		close(result.done)
@@ -308,9 +332,11 @@ func newDataPlane(stream io.ReadWriteCloser, mtu uint32, upstream proxy.Proxy) (
 
 func (plane *dataPlane) Close() {
 	plane.once.Do(func() {
+		plane.tcpRoute.stop()
 		_ = plane.stream.Close()
 		<-plane.done
 		plane.stack.Close()
+		plane.tcpRoute.active.Wait()
 		plane.stack.Wait()
 		plane.tunnel.Close()
 	})

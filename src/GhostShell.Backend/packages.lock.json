@@ -226,6 +226,11 @@
         "resolved": "3.2.2",
         "contentHash": "dmju5W0UYC3QP/UJM0juKAZkH0HSDMp0gH91A0+mT9M0kgyM2Jm67hUZPl/WRQLq8Lijjqmdk8kyAViWFWM7dA=="
       },
+      "RESPite": {
+        "type": "Transitive",
+        "resolved": "3.0.17",
+        "contentHash": "68slEMyRTUNLc75DruEDsEohFmFfNwkHLLtwQ46bobF+8Tl+UXMKM1kM87ihhKy6JdAqy1RrvAfvBWeLmcY9Gg=="
+      },
       "SQLite3MC.PCLRaw.lib": {
         "type": "Transitive",
         "resolved": "2.4.0",
@@ -279,6 +284,11 @@
           "Microsoft.IdentityModel.Tokens": "7.5.0"
         }
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.5",
+        "contentHash": "8IBJWcCT9+e4Bmevm4T7+fQEiAh133KGiz4oiVTgJckd3Q76OFdR1falgn9lpz7+C4HJvogCDJeAa2QmvbeVtg=="
+      },
       "System.Memory.Data": {
         "type": "Transitive",
         "resolved": "1.0.2",
@@ -290,9 +300,6 @@
           "GhostShell.Core": "[1.0.0, )"
         }
       },
-      "ghostshell.core": {
-        "type": "Project"
-      },
       "ghostshell.connectionbackend": {
         "type": "Project",
         "dependencies": {
@@ -300,8 +307,12 @@
           "GhostShell.Core": "[1.0.0, )",
           "GhostShell.Databases": "[1.0.0, )",
           "GhostShell.Files": "[1.0.0, )",
-          "GhostShell.Infrastructure": "[1.0.0, )"
+          "GhostShell.Infrastructure": "[1.0.0, )",
+          "GhostShell.Redis": "[1.0.0, )"
         }
+      },
+      "ghostshell.core": {
+        "type": "Project"
       },
       "ghostshell.databases": {
         "type": "Project",
@@ -311,7 +322,7 @@
           "FirebirdSql.Data.FirebirdClient": "[10.3.1, )",
           "GhostShell.Application": "[1.0.0, )",
           "GhostShell.Core": "[1.0.0, )",
-          "Microsoft.Data.SqlClient.Routed": "[6.0.2, )",
+          "Microsoft.Data.SqlClient": "[6.0.2, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.10, )",
           "MySqlConnector": "[2.4.0, )",
           "Npgsql": "[9.0.3, )",
@@ -345,18 +356,12 @@
           "System.Security.Cryptography.ProtectedData": "[10.0.10, )"
         }
       },
-      "microsoft.data.sqlclient.routed": {
+      "ghostshell.redis": {
         "type": "Project",
         "dependencies": {
-          "Azure.Identity": "[1.11.4, )",
-          "Microsoft.Bcl.Cryptography": "[9.0.4, )",
-          "Microsoft.Data.SqlClient.SNI.runtime": "[6.0.2, )",
-          "Microsoft.Extensions.Caching.Memory": "[9.0.4, )",
-          "Microsoft.IdentityModel.JsonWebTokens": "[7.5.0, )",
-          "Microsoft.IdentityModel.Protocols.OpenIdConnect": "[7.5.0, )",
-          "Microsoft.SqlServer.Server": "[1.0.0, )",
-          "System.Configuration.ConfigurationManager": "[9.0.4, )",
-          "System.Security.Cryptography.Pkcs": "[9.0.4, )"
+          "GhostShell.Application": "[1.0.0, )",
+          "GhostShell.Core": "[1.0.0, )",
+          "StackExchange.Redis": "[3.0.17, )"
         }
       },
       "AWSSDK.S3": {
@@ -430,6 +435,23 @@
         "requested": "[9.0.4, )",
         "resolved": "9.0.4",
         "contentHash": "YgZYAWzyNuPVtPq6WNm0bqOWNjYaWgl5mBWTGZyNoXitYBUYSp6iUB9AwK0V1mo793qRJUXz2t6UZrWITZSvuQ=="
+      },
+      "Microsoft.Data.SqlClient": {
+        "type": "CentralTransitive",
+        "requested": "[6.0.2, )",
+        "resolved": "6.0.2",
+        "contentHash": "RDqwzNu5slSqGy0eSgnN4fuLdGI1w9ZHBRNALrbUsykOIbXtGCpyotG0r5zz+HHtzxbe6LtcAyWcOiu0a+Fx/A==",
+        "dependencies": {
+          "Azure.Identity": "1.11.4",
+          "Microsoft.Bcl.Cryptography": "9.0.4",
+          "Microsoft.Data.SqlClient.SNI.runtime": "6.0.2",
+          "Microsoft.Extensions.Caching.Memory": "9.0.4",
+          "Microsoft.IdentityModel.JsonWebTokens": "7.5.0",
+          "Microsoft.IdentityModel.Protocols.OpenIdConnect": "7.5.0",
+          "Microsoft.SqlServer.Server": "1.0.0",
+          "System.Configuration.ConfigurationManager": "9.0.4",
+          "System.Security.Cryptography.Pkcs": "9.0.4"
+        }
       },
       "Microsoft.Data.SqlClient.SNI.runtime": {
         "type": "CentralTransitive",
@@ -565,6 +587,17 @@
         "contentHash": "1Q31ysRgeCBCa6rm87AWe+Tert+Pbk2cRovf+Owr04yDwv5kVaSZdilzgG3XYdriH06FWz/8H9A/uR1cKIIIew==",
         "dependencies": {
           "SSH.NET": "[2026.0.0, 2027.0.0)"
+        }
+      },
+      "StackExchange.Redis": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.17, )",
+        "resolved": "3.0.17",
+        "contentHash": "ItAm9lokZ1mWsQLF3u4Yw4eb/gvkX6Rp9bLAe1KUKgKAjPkALoQwTc6jJLtBZoOv9LT7RwvSIXZZb9FF30QhOg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.5",
+          "RESPite": "3.0.17",
+          "System.IO.Hashing": "10.0.5"
         }
       },
       "System.Configuration.ConfigurationManager": {

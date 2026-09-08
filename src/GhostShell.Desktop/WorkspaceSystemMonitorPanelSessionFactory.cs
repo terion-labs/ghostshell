@@ -11,8 +11,8 @@ namespace GhostShell.Desktop;
 internal sealed class WorkspaceSystemMonitorPanelSessionFactory(
     SystemMonitorPanelSessionFactory hostFactory) : ISystemMonitorPanelSessionFactory
 {
-    private readonly object _gate = new();
-    private readonly Dictionary<WorkspaceInstanceId, ISystemMonitorPanelSessionFactory> _factories = [];
+    private readonly WorkspaceSessionFactoryRegistry<ISystemMonitorPanelSessionFactory> _factories = new(
+        "The workspace already has a system-monitor factory.");
 
     public CapabilitySet StatisticsCapabilities => hostFactory.StatisticsCapabilities;
 
@@ -20,27 +20,14 @@ internal sealed class WorkspaceSystemMonitorPanelSessionFactory(
 
     public IDisposable Register(
         WorkspaceInstanceId workspaceId,
-        ISystemMonitorPanelSessionFactory factory)
-    {
-        ArgumentNullException.ThrowIfNull(factory);
-        lock (_gate)
-        {
-            if (!_factories.TryAdd(workspaceId, factory))
-            {
-                throw new InvalidOperationException(
-                    "The workspace already has a system-monitor factory.");
-            }
-        }
-
-        return new Registration(this, workspaceId, factory);
-    }
+        ISystemMonitorPanelSessionFactory factory) => _factories.Register(workspaceId, factory);
 
     public ValueTask<IStatisticsPanelSession> CreateStatisticsAsync(
         WorkspaceInstanceId workspaceId,
         SessionId sessionId,
         ConnectionProfile connection,
         CancellationToken cancellationToken) =>
-        FactoryFor(workspaceId).CreateStatisticsAsync(
+        _factories.Resolve(workspaceId).CreateStatisticsAsync(
             workspaceId,
             sessionId,
             connection,
@@ -51,47 +38,10 @@ internal sealed class WorkspaceSystemMonitorPanelSessionFactory(
         SessionId sessionId,
         ConnectionProfile connection,
         CancellationToken cancellationToken) =>
-        FactoryFor(workspaceId).CreateProcessMonitorAsync(
+        _factories.Resolve(workspaceId).CreateProcessMonitorAsync(
             workspaceId,
             sessionId,
             connection,
             cancellationToken);
 
-    private ISystemMonitorPanelSessionFactory FactoryFor(WorkspaceInstanceId workspaceId)
-    {
-        lock (_gate)
-        {
-            return _factories.GetValueOrDefault(workspaceId, hostFactory);
-        }
-    }
-
-    private void Unregister(
-        WorkspaceInstanceId workspaceId,
-        ISystemMonitorPanelSessionFactory factory)
-    {
-        lock (_gate)
-        {
-            if (_factories.TryGetValue(workspaceId, out var current)
-                && ReferenceEquals(current, factory))
-            {
-                _factories.Remove(workspaceId);
-            }
-        }
-    }
-
-    private sealed class Registration(
-        WorkspaceSystemMonitorPanelSessionFactory owner,
-        WorkspaceInstanceId workspaceId,
-        ISystemMonitorPanelSessionFactory factory) : IDisposable
-    {
-        private int _disposed;
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            {
-                owner.Unregister(workspaceId, factory);
-            }
-        }
-    }
 }

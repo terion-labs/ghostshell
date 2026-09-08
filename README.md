@@ -20,6 +20,7 @@ Early alpha, but the core loop is real:
 
 - Workspaces hold their own tabs, connections, and saved multi-panel layouts, and everything survives a restart. Recent-session history stores metadata only, never terminal contents.
 - Optional workspace isolation: flip a switch and the whole workspace runs in its own persistent Linux VM (Apple Containerization on macOS), with explicit host mounts and its own network namespace. Installed packages survive across sessions; the host stays clean. See [ADR 0053](./docs/adr/0053-persistent-workspace-execution-isolation.md).
+- Connection work has an owned, UI-free backend. Isolated workspaces use their VM; custom-network and SSH-routed connections use a private service VM on supported macOS builds. Non-isolated Direct connections use host children. The Linux backend downloads on demand, outside the app archive. See [ADR 0056](./docs/adr/0056-workspace-database-backend.md) for routing, resource limits and protocol boundaries.
 - Panels for the daily set: terminal, embedded Chromium browser, files, databases, Redis, Docker, Git, process monitor, and live system statistics.
 - The docked agent streams its reasoning and token usage, takes images where the provider supports them, searches the web, and accepts steering and queued follow-ups mid-run. You approve each action, and you can cancel at any point.
 - The agent types into the same terminal you do. The moment you touch the keyboard, it stops.
@@ -210,6 +211,8 @@ A few platform specifics worth knowing:
 | `src/GhostShell.Browser` | the CEF engine runtime and per-workspace browser profiles, including SSH-routed network contexts |
 | `src/GhostShell.Files` | file providers (local, SFTP, FTP, S3, WebDAV, SMB), transfer sessions, and the SSH tunnel factories |
 | `src/GhostShell.Databases` | the database panel client and SQL dialects for the supported engines |
+| `src/GhostShell.ConnectionBackend` | bounded SQL, Redis, file and HTTP IPC, owned worker lifetimes and host credential callbacks |
+| `src/GhostShell.Backend` | UI-free on-demand Linux backend entry point |
 | `src/GhostShell.Redis` | Redis panel sessions |
 | `src/GhostShell.Docker` | the Docker engine client for local and remote daemons |
 | `src/GhostShell.Git` | the Git panel over a CLI adapter |

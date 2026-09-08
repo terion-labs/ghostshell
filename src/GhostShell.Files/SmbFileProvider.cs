@@ -12,13 +12,11 @@ public sealed class SmbFileProvider : RemoteHierarchicalFileProvider
 
     public SmbFileProvider(
         ISecretVault secretVault,
-        SmbFileProviderOptions options,
-        IWorkspaceNetworkConnector? networkConnector = null)
+        SmbFileProviderOptions options)
         : this(
             new SmbLibrarySessionFactory(
                 secretVault ?? throw new ArgumentNullException(nameof(secretVault)),
-                options ?? throw new ArgumentNullException(nameof(options)),
-                networkConnector),
+                options ?? throw new ArgumentNullException(nameof(options))),
             options)
     {
     }

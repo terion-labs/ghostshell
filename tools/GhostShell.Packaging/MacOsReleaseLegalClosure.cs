@@ -34,6 +34,7 @@ internal static class MacOsReleaseLegalClosure
         "licenses/SMBLIBRARY-LGPL-3.0.txt",
         "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md",
         "licenses/SMBLIBRARY-SOURCE.json",
+        "licenses/SQLCLIENT-MIT.txt",
         "licenses/THIRD-PARTY-NOTICES.md",
         "licenses/cef-runtime-components.json",
         "licenses/managed-components.json",

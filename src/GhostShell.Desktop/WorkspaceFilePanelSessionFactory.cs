@@ -12,7 +12,6 @@ internal sealed class WorkspaceFilePanelSessionFactory(
     FilePanelSessionFactory hostFactory) : IFilePanelSessionFactory
 {
     private readonly WorkspaceSessionFactoryRegistry<IFilePanelSessionFactory> _factories = new(
-        hostFactory,
         "The workspace already has a file-panel factory.");
 
     public CapabilitySet Capabilities => hostFactory.Capabilities;

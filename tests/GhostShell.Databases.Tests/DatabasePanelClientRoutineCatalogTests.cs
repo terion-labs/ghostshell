@@ -421,11 +421,6 @@ public sealed class DatabasePanelClientRoutineCatalogTests : IDisposable
         public string BuildPreviewQuery(string tableName, int limit) =>
             $"SELECT * FROM {QuoteIdentifier(tableName)} LIMIT {limit};";
 
-        public DatabaseEndpoint? GetEndpoint(string connectionString) => null;
-
-        public string RewriteEndpoint(string connectionString, string host, int port) =>
-            throw new NotSupportedException();
-
         public DatabaseConnectionDetails ParseDetails(string connectionString) => new();
 
         public string BuildConnectionString(DatabaseConnectionDetails details) => string.Empty;

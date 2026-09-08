@@ -182,25 +182,13 @@ or upstream proxy that intentionally blocks TCP/853 makes peer-bound agent fetch
 later settings contract may offer additional audited resolvers without introducing host-resolution
 bootstrap or direct fallback.
 
-SMB uses a per-session loopback relay whose upstream TCP/445 stream is opened by the workspace
-connector. A version-checked SMBLibrary compatibility boundary preserves the logical server name used by
-SMB negotiation. If that boundary is incompatible, or a routed session requires unsupported DFS
-referrals, the operation fails before file access and never falls back to an untracked direct
-socket.
-
-Database clients retain logical TLS identities independently of relay addresses where the driver
-supports that boundary (PostgreSQL family, SQL Server's certificate hostname, ClickHouse, Redis).
-Redis uses its per-destination tunnel hook for seed and discovered endpoints. The pinned MySQL
-driver has no separate TLS-target/transport hook; its supported validation callback preserves
-VerifyFull's logical hostname, CA trust, server-auth usage, expiry and revocation checks while
-the socket connects to the relay. SNI still uses the relay address, so SNI-dependent MySQL
-virtual hosts remain a limitation. OS certificate revocation downloads follow OS networking,
-as they do in the original provider; this is not a universal host-process network boundary.
-SQL Server server-initiated redirection still needs a transport-aware boundary, tracked in
-`ghostshell-ntw.24`. A universal application-owned database topology guarantee remains unresolved
-until that path is contained.
-Oracle TCPS/TNS remains explicitly unsupported through the relay. The pinned ODP.NET 23.7 driver
-resolves the logical hostname on the host before constructing its HTTPS CONNECT request; an
-unresolved private hostname produces an empty authority. A real loopback regression test captures
-this limitation. A safe solution needs routed DNS and preserved TLS identity, not hostname guessing
-or global driver settings (`ghostshell-ntw.25`).
+ADR 0056 supersedes the per-driver connection relays. Routed SQL, Redis and remote
+file operations now run inside the owned connection backend, using the guest
+default gateway and original hostnames. This removes the SqlClient source fork,
+SQL endpoint/TLS rewriting and SMB private-field reflection. Driver-created
+redirects, retries, referrals and certificate checks inherit the guest network
+boundary. Non-isolated Direct operations use an explicitly selected host child;
+neither a failed route nor a closed workspace can select that child implicitly.
+Service VMs carry TCP with route-resolved A/AAAA DNS; discovery requiring other
+DNS record types or UDP is not silently sent through a host resolver. Explicit
+certificate files use bounded private IPC import rather than host mounts.

@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using GhostShell.Application;
 using GhostShell.ConnectionBackend;
 using GhostShell.Desktop;
@@ -50,30 +53,6 @@ public sealed class DatabaseMetadataWorkerTests
         Assert.Equal(2L, count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task WorkspaceLauncherRejectsHostRoutesBeforeStartingProcess(bool dynamicRoute)
-    {
-        using var fixture = new Fixture();
-        var launches = 0;
-        using var worker = new DatabaseOperationWorker(
-            () => new DatabaseResultContentStore(fixture.ResultPath),
-            workspaceLaunch: _ =>
-            {
-                launches++;
-                return Task.FromResult(fixture.BackendLaunch());
-            });
-        var connection = fixture.Connection with
-        {
-            LocalRoutePort = dynamicRoute ? null : 44001,
-            Route = dynamicRoute ? new DatabaseWorkerRoute(
-                (_, _, _) => throw new InvalidOperationException("A host tunnel must not open."), CancellationToken.None) : null,
-        };
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => worker.ListTablesAsync(connection, CancellationToken.None));
-        Assert.Equal(0, launches);
-    }
 
     [Theory]
     [InlineData("content-directory")]
@@ -95,15 +74,17 @@ public sealed class DatabaseMetadataWorkerTests
             var errors = process.StandardError.ReadToEndAsync(timeout.Token);
             var output = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, timeout.Token);
             var request = new DatabaseOperationRequest(DatabaseWorkerOperation.ListTables,
-                fixture.Connection with { LocalRoutePort = string.Equals(field, "fixed-route", StringComparison.Ordinal) ? 44001 : null },
-                string.Equals(field, "content-directory", StringComparison.Ordinal) ? fixture.ResultPath : string.Empty,
-                DynamicRoute: string.Equals(field, "dynamic-route", StringComparison.Ordinal));
-            await DatabaseOperationProtocol.WriteMetadataAsync(process.StandardInput.BaseStream, request,
-                DatabaseOperationJsonContext.Default.DatabaseOperationRequest, timeout.Token);
+                fixture.Connection, string.Equals(field, "content-directory", StringComparison.Ordinal) ? fixture.ResultPath : string.Empty);
+            var payload = JsonNode.Parse(JsonSerializer.SerializeToUtf8Bytes(request,
+                DatabaseOperationJsonContext.Default.DatabaseOperationRequest))!.AsObject();
+            if (string.Equals(field, "dynamic-route", StringComparison.Ordinal)) { payload["DynamicRoute"] = true; }
+            if (string.Equals(field, "fixed-route", StringComparison.Ordinal)) { payload["Connection"]!.AsObject()["LocalRoutePort"] = 44001; }
+            await DatabaseOperationProtocol.WriteFrameAsync(process.StandardInput.BaseStream,
+                Encoding.UTF8.GetBytes(payload.ToJsonString()), timeout.Token);
             process.StandardInput.Close();
             await process.WaitForExitAsync(timeout.Token);
             await output;
-            Assert.Equal(64, process.ExitCode);
+            Assert.Equal(string.Equals(field, "content-directory", StringComparison.Ordinal) ? 64 : 70, process.ExitCode);
             Assert.Empty(await errors);
             Assert.False(File.Exists(fixture.DatabasePath));
         }

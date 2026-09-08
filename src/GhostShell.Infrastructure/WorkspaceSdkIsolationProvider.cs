@@ -36,11 +36,23 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
     private readonly IWorkspaceGatewayProcessRunner _processes;
     private readonly uint _uid;
     private readonly uint _gid;
+    private readonly bool _serviceIsolate;
+    // Service VMs run connection workers, not an interactive development environment.
+    // Keep their guest ceiling bounded independently of the host-scaled workspace policy.
+    internal const ulong ServiceMemoryBytes = 1024UL * 1024 * 1024;
     private readonly Func<IProgress<WorkspaceIsolationProgress>?, CancellationToken, Task<string>> _prepareBootAssets;
     private string? _bootDirectory;
     private readonly ConcurrentDictionary<WorkspaceId, WorkspaceState> _workspaces = new();
 
     public WorkspaceSdkIsolationProvider(string executable, string? stateRoot = null)
+        : this(executable, stateRoot, serviceIsolate: false)
+    {
+    }
+
+    public static WorkspaceSdkIsolationProvider CreateServiceProvider(string executable, string stateRoot) =>
+        new(executable, stateRoot, serviceIsolate: true);
+
+    private WorkspaceSdkIsolationProvider(string executable, string? stateRoot, bool serviceIsolate)
         : this(
             executable,
             stateRoot ?? Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "sdk-workspaces"),
@@ -48,7 +60,8 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
                 ?? Path.Combine(AppContext.BaseDirectory, "workspace-network-gateway"),
             new WorkspaceGatewayProcessRunner(),
             OperatingSystem.IsMacOS() ? GetEffectiveUserId() : 1000,
-            OperatingSystem.IsMacOS() ? GetEffectiveGroupId() : 1000)
+            OperatingSystem.IsMacOS() ? GetEffectiveGroupId() : 1000,
+            serviceIsolate: serviceIsolate)
     {
     }
 
@@ -59,7 +72,8 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         IWorkspaceGatewayProcessRunner processes,
         uint uid,
         uint gid,
-        Func<IProgress<WorkspaceIsolationProgress>?, CancellationToken, Task<string>>? prepareBootAssets = null)
+        Func<IProgress<WorkspaceIsolationProgress>?, CancellationToken, Task<string>>? prepareBootAssets = null,
+        bool serviceIsolate = false)
     {
         _executable = Path.GetFullPath(executable);
         _stateRoot = Path.GetFullPath(stateRoot);
@@ -67,6 +81,7 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         _processes = processes;
         _uid = uid;
         _gid = gid;
+        _serviceIsolate = serviceIsolate;
         _prepareBootAssets = prepareBootAssets ?? PrepareBootAssetsAsync;
         // macOS Unix socket paths are short. The private root identity separates users
         // and installations without exposing workspace names in /tmp.
@@ -97,6 +112,10 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (_serviceIsolate && request.Mounts.Count != 0)
+        {
+            throw new ArgumentException("Connection service isolates cannot mount host directories.", nameof(request));
+        }
         var state = _workspaces.GetOrAdd(request.WorkspaceId, static _ => new WorkspaceState());
         await state.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -178,6 +197,15 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
                 state.Process = null;
             }
 
+            if (_serviceIsolate)
+            {
+                try { DeleteServiceState(request.WorkspaceId); }
+                catch (Exception cleanupFailure) when (cleanupFailure is IOException or UnauthorizedAccessException)
+                {
+                    SecretSafeDiagnosticProjection.WriteTrace("workspace.service.prepare-cleanup.failed", cleanupFailure);
+                    return Failure("The connection service failed to start and its private state could not be removed.");
+                }
+            }
             if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
             {
                 return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Fail(WorkspaceIsolationErrorCode.Cancelled);
@@ -302,10 +330,14 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
                 state.Process = null;
             }
 
+            if (_serviceIsolate)
+            {
+                DeleteServiceState(binding.WorkspaceId);
+            }
             state.Leases.TryRemove(binding.LeaseId, out _);
             return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Succeed(binding);
         }
-        catch (Exception exception) when (exception is IOException or OperationCanceledException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             SecretSafeDiagnosticProjection.WriteTrace("workspace.sdk.stop.failed", exception);
             return WorkspaceIsolationResult<WorkspaceIsolationBinding>.Fail(WorkspaceIsolationErrorCode.StopFailed, binding);
@@ -410,6 +442,21 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
 
     private string SocketDirectory(WorkspaceId workspaceId) => Path.Combine(_socketRoot, ResourceName(workspaceId)[^20..]);
 
+    private void DeleteServiceState(WorkspaceId workspaceId)
+    {
+        // These exact hash-named children are created solely by this service provider.
+        // Never retire an interactive workspace, delete a state root, or follow a link.
+        foreach (var path in new[] { WorkspaceDirectory(workspaceId), SocketDirectory(workspaceId) })
+        {
+            var directory = new DirectoryInfo(path);
+            if (directory.LinkTarget is not null)
+            {
+                throw new IOException("The service state directory was replaced by a symbolic link.");
+            }
+            if (directory.Exists) { directory.Delete(recursive: true); }
+        }
+    }
+
     private WorkspaceSdkConfiguration Configuration(
         WorkspaceIsolationPrepareRequest request, string rootfs, string socket, IReadOnlyList<string> initialArguments)
     {
@@ -417,7 +464,7 @@ public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationP
         return new(ResourceName(request.WorkspaceId), socket, rootfs,
             Path.Combine(assetDirectory, "kernel.bin"),
             Path.Combine(assetDirectory, "initfs.ext4"), _gatewayExecutable,
-            1, null, ResourceName(request.WorkspaceId),
+            1, _serviceIsolate ? ServiceMemoryBytes : null, ResourceName(request.WorkspaceId),
             [.. request.Mounts.Select(static mount => new WorkspaceSdkMount(mount.HostSource, mount.GuestDestination, mount.IsReadOnly))],
             initialArguments);
     }

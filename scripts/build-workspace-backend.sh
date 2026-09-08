@@ -49,8 +49,12 @@ cp "${repository_dir}/licenses/SMBLIBRARY-LGPL-3.0.txt" \
     "${repository_dir}/licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md" \
     "${repository_dir}/licenses/THIRD-PARTY-NOTICES.md" \
     "${staging}/legal/"
-cp "${repository_dir}/vendor/sqlclient/upstream/LICENSE" "${staging}/legal/SqlClient-MIT.txt"
-cp "${repository_dir}/vendor/sqlclient/routed-transport.patch" "${staging}/legal/SqlClient-routed-transport.patch"
+cp "${repository_dir}/licenses/SQLCLIENT-MIT.txt" "${staging}/legal/SqlClient-MIT.txt"
+backend_version="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(k.split("/",1)[1] for k,v in d["libraries"].items() if k.startswith("GhostShell.Backend/") and v["type"]=="project"))' "${staging}/GhostShell.Backend.deps.json")"
+"${dotnet}" run --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --configuration Release --artifacts-path "${build_dir}/packaging-dotnet" -p:RestoreLockedMode=true -- \
+    workspace-backend-evidence "${staging}" "${repository_dir}/licenses" \
+    "${repository_dir}/licenses/workspace-backend-managed-components.json" "${NUGET_PACKAGES}" "${backend_version}"
 python3 "${packager}" build "${repository_dir}" "${distribution}" "${staging}" "${source_digest}" "${expected_sdk}"
 python3 "${packager}" verify "${repository_dir}" "${distribution}"
 echo "Built on-demand Linux ARM64 backend at ${distribution}."

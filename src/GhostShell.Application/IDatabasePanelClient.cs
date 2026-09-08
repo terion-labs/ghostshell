@@ -43,7 +43,6 @@ public sealed record DatabaseConnectionDetails(
     string? Options = null);
 
 /// <summary>The network endpoint a connection string points at.</summary>
-public sealed record DatabaseEndpoint(string Host, int Port);
 
 /// <summary>A held local port-forward. Disposing tears the forward down.</summary>
 public interface IDatabaseTunnelLease : IAsyncDisposable

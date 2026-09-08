@@ -10,6 +10,7 @@
     <ProjectReference Include="..\GhostShell.Databases\GhostShell.Databases.csproj" />
     <ProjectReference Include="..\GhostShell.Files\GhostShell.Files.csproj" />
     <ProjectReference Include="..\GhostShell.Infrastructure\GhostShell.Infrastructure.csproj" />
+    <ProjectReference Include="..\GhostShell.Redis\GhostShell.Redis.csproj" />
   </ItemGroup>
 
   <ItemGroup>

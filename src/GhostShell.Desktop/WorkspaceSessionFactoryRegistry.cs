@@ -3,7 +3,6 @@ using GhostShell.Core;
 namespace GhostShell.Desktop;
 
 internal sealed class WorkspaceSessionFactoryRegistry<TFactory>(
-    TFactory hostFactory,
     string duplicateRegistrationMessage)
     where TFactory : class
 {
@@ -28,7 +27,10 @@ internal sealed class WorkspaceSessionFactoryRegistry<TFactory>(
     {
         lock (_gate)
         {
-            return _factories.GetValueOrDefault(workspaceId, hostFactory);
+            return _factories.TryGetValue(workspaceId, out var factory)
+                ? factory
+                : throw new InvalidOperationException(
+                    "The workspace runtime is not registered or has closed. No host fallback was attempted.");
         }
     }
 

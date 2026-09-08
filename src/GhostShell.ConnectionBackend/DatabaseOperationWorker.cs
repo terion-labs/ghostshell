@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
 using GhostShell.Application;
-using GhostShell.Core;
 using GhostShell.Databases;
 using GhostShell.Files;
 using GhostShell.Infrastructure;
@@ -17,7 +16,8 @@ internal sealed partial class DatabaseOperationWorker(
     Func<DatabaseValueContentStore> createStore,
     SelfReentryLaunch? selfReentry = null,
     Func<Process, long>? sampleMemory = null,
-    Func<CancellationToken, Task<DatabaseWorkspaceOperationLaunch>>? workspaceLaunch = null) : IDatabaseOperationExecutor, IDisposable
+    Func<CancellationToken, Task<DatabaseWorkspaceOperationLaunch>>? workspaceLaunch = null,
+    bool importHostConnectionFiles = false) : IDatabaseOperationExecutor, IDisposable
 {
     internal const string Marker = "--ghostshell-database-operation-worker";
     internal const long MaximumWorkingSetBytes = 2L * 1024 * 1024 * 1024;
@@ -69,13 +69,8 @@ internal sealed partial class DatabaseOperationWorker(
     private async Task<T> RunAsync<T>(DatabaseOperationRequest request, Func<Stream, Task> writeParameters,
         Func<Stream, CancellationToken, Task<T>> readResult, CancellationToken token)
     {
-        if (string.Equals(request.Connection.DriverId, "sqlserver", StringComparison.Ordinal) && request.Connection.LocalRoutePort is not null && request.Connection.Route is null)
-        {
-            throw new NotSupportedException("Routed SQL Server requires a captured endpoint transport, not a fixed loopback port.");
-        }
         await using var previewImage = DatabaseWorkerSqliteSnapshot.Borrow(request.Connection);
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token,
-            request.Connection.Route?.Lifetime ?? CancellationToken.None);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
         await Admission.WaitAsync(cancellation.Token).ConfigureAwait(false);
         DirectoryInfo? directory = null;
         DatabaseWorkspaceOperationLaunch? workspaceOperation = null;
@@ -83,13 +78,22 @@ internal sealed partial class DatabaseOperationWorker(
         T? completedResult = default;
         try
         {
+            if (importHostConnectionFiles && workspaceLaunch is null)
+            {
+                throw new InvalidOperationException("Host database material imports require an owned service backend.");
+            }
+            using var materials = importHostConnectionFiles
+                ? await DatabaseConnectionMaterials.ReadHostAsync(request.Connection, cancellation.Token).ConfigureAwait(false) : null;
             directory = Directory.CreateTempSubdirectory("ghostshell-database-worker-");
             PrivateContentPathGuard.ValidatePrivateDirectory(directory.FullName);
-            if (workspaceLaunch is not null && (request.Connection.Route is not null || request.Connection.LocalRoutePort is not null))
-            {
-                throw new InvalidOperationException("A workspace backend cannot use host loopback routes.");
-            }
             workspaceOperation = workspaceLaunch is null ? null : await workspaceLaunch(cancellation.Token).ConfigureAwait(false);
+            using var workspaceLifetime = (workspaceOperation?.Lifetime ?? CancellationToken.None).Register(
+                static state =>
+                {
+                    try { ((CancellationTokenSource)state!).Cancel(); }
+                    catch (AggregateException) { /* Cancellation must still close the operation if a callback fails. */ }
+                }, cancellation);
+            cancellation.Token.ThrowIfCancellationRequested();
             var start = workspaceOperation?.StartInfo ?? CreateLocalLaunch();
             start.UseShellExecute = false;
             start.RedirectStandardInput = true;
@@ -100,7 +104,6 @@ internal sealed partial class DatabaseOperationWorker(
             using var terminate = cancellation.Token.Register(() => StopOwnedProcess(process));
             var drain = process.StandardError.BaseStream.CopyToAsync(Stream.Null, cancellation.Token);
             await using var monitor = new MemoryMonitor(process, sampleMemory);
-            var routing = new DatabaseWorkerRouting(request.Connection.Route);
             var dispatched = false;
             try
             {
@@ -108,20 +111,24 @@ internal sealed partial class DatabaseOperationWorker(
                     request with
                     {
                         ContentDirectory = workspaceLaunch is null ? directory.FullName : string.Empty,
-                        DynamicRoute = request.Connection.Route is not null,
                         SqliteSnapshotBytes = previewImage?.Length,
-                        Connection = previewImage is null ? request.Connection
+                        ConnectionMaterials = materials?.Descriptors,
+                        Connection = previewImage is null ? materials?.Connection ?? request.Connection
                             : request.Connection with { ConnectionString = "Data Source=:memory:" },
                     },
                     DatabaseOperationJsonContext.Default.DatabaseOperationRequest, cancellation.Token).ConfigureAwait(false);
+                if (materials is not null)
+                {
+                    await materials.WriteAsync(process.StandardInput.BaseStream, cancellation.Token).ConfigureAwait(false);
+                }
                 if (previewImage is not null)
                 {
                     await DatabaseWorkerSqliteSnapshot.SendAsync(previewImage, process.StandardOutput.BaseStream,
                         process.StandardInput.BaseStream, cancellation.Token).ConfigureAwait(false);
                 }
                 await writeParameters(process.StandardInput.BaseStream).ConfigureAwait(false);
-                var ready = await routing.ReadControlAsync(process.StandardOutput.BaseStream, process.StandardInput.BaseStream,
-                    allowEndpointOpen: false, cancellation.Token).ConfigureAwait(false);
+                var ready = await DatabaseOperationProtocol.ReadFrameAsync(process.StandardOutput.BaseStream,
+                    DatabaseOperationProtocol.MaximumMetadataBytes, cancellation.Token).ConfigureAwait(false);
                 if (ready.AsSpan().SequenceEqual("unsupported-array"u8))
                 {
                     throw new NotSupportedException("This runtime cannot reconstruct an array with these bounds. No database statement was executed. Use a supported runtime to apply this value.");
@@ -134,9 +141,8 @@ internal sealed partial class DatabaseOperationWorker(
                 // Set before writing: a partial/failed write can still reach the child.
                 dispatched = true;
                 await DatabaseOperationProtocol.WriteFrameAsync(process.StandardInput.BaseStream, "execute"u8.ToArray(), cancellation.Token).ConfigureAwait(false);
-                var response = await routing.ReadControlAsync(process.StandardOutput.BaseStream, process.StandardInput.BaseStream,
-                    allowEndpointOpen: true, cancellation.Token).ConfigureAwait(false);
-                if (response.AsSpan().SequenceEqual("endpoint-budget"u8)) { throw new DatabaseRouteEndpointBudgetException(); }
+                var response = await DatabaseOperationProtocol.ReadFrameAsync(process.StandardOutput.BaseStream,
+                    DatabaseOperationProtocol.MaximumMetadataBytes, cancellation.Token).ConfigureAwait(false);
                 if (response.AsSpan().SequenceEqual("provider-failed"u8))
                 {
                     var diagnostic = await DatabaseOperationProtocol.ReadMetadataAsync(process.StandardOutput.BaseStream,
@@ -154,8 +160,6 @@ internal sealed partial class DatabaseOperationWorker(
                 if (!dispatched || exception is DatabaseProviderOperationException) { throw; }
                 var reason = monitor.Exceeded
                     ? "The database operation exceeded its 2 GiB worker budget."
-                    : exception is DatabaseRouteEndpointBudgetException
-                        ? "The database operation reached its 32 retained route-endpoint budget."
                     : exception is DatabaseResultRetentionException
                         ? "The result exceeded its available column and display metadata budget, capped at 256 MiB."
                         : "The database worker stopped before confirming the complete outcome.";
@@ -175,8 +179,7 @@ internal sealed partial class DatabaseOperationWorker(
                         catch (IOException) when (cancellation.IsCancellationRequested) { }
                     },
                     async () => await process.WaitForExitAsync(CancellationToken.None)
-                        .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false),
-                    async () => await routing.DisposeAsync().ConfigureAwait(false)).ConfigureAwait(false);
+                        .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
             }
         }
         catch
@@ -318,9 +321,7 @@ internal sealed partial class DatabaseOperationWorker(
             var request = await DatabaseOperationProtocol.ReadMetadataAsync(input,
                 DatabaseOperationJsonContext.Default.DatabaseOperationRequest, CancellationToken.None).ConfigureAwait(false);
             if (!Enum.IsDefined(request.Operation) || request.Connection is null
-                || string.IsNullOrWhiteSpace(request.Connection.DriverId) || string.IsNullOrWhiteSpace(request.Connection.ConnectionString)
-                || request.Connection.LocalRoutePort is < 1 or > 65535
-                || (string.Equals(request.Connection.DriverId, "sqlserver", StringComparison.Ordinal) && request.Connection.LocalRoutePort is not null && !request.DynamicRoute))
+                || string.IsNullOrWhiteSpace(request.Connection.DriverId) || string.IsNullOrWhiteSpace(request.Connection.ConnectionString))
             {
                 return 64;
             }
@@ -328,9 +329,18 @@ internal sealed partial class DatabaseOperationWorker(
             {
                 return 64;
             }
-            if (privateWorkspace && (request.DynamicRoute || request.Connection.LocalRoutePort is not null || request.ContentDirectory.Length != 0))
+            if (privateWorkspace && request.ContentDirectory.Length != 0)
             {
                 return 64;
+            }
+            if (request.ConnectionMaterials is not null && !privateWorkspace) { return 64; }
+            if (request.ConnectionMaterials is { Length: > 0 } material)
+            {
+                request = request with
+                {
+                    Connection = await DatabaseConnectionMaterials.ReceiveAsync(request.Connection,
+                    material, input, workspaceScratch!.DirectoryPath, CancellationToken.None).ConfigureAwait(false)
+                };
             }
             using var previewImage = request.SqliteSnapshotBytes is { } length
                 ? await DatabaseWorkerSqliteSnapshot.ReceiveAsync(length, input, output, CancellationToken.None).ConfigureAwait(false)
@@ -353,14 +363,8 @@ internal sealed partial class DatabaseOperationWorker(
             }
             await DatabaseOperationProtocol.WriteFrameAsync(output, "ready"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
             await DatabaseOperationProtocol.ExpectAsync(input, "execute"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
-            await using var parentRoute = request.DynamicRoute ? new ParentEndpointTunnelFactory(input, output) : null;
             ChildResult result;
-            try { result = await ExecuteChildAsync(request, parameters, parentRoute).ConfigureAwait(false); }
-            catch (DatabaseRouteEndpointBudgetException)
-            {
-                await DatabaseOperationProtocol.WriteFrameAsync(output, "endpoint-budget"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
-                return 75;
-            }
+            try { result = await ExecuteChildAsync(request, parameters).ConfigureAwait(false); }
             catch (DatabaseProviderOperationException failure)
             {
                 await DatabaseOperationProtocol.WriteFrameAsync(output, "provider-failed"u8.ToArray(), CancellationToken.None).ConfigureAwait(false);
@@ -434,14 +438,10 @@ internal sealed partial class DatabaseOperationWorker(
         public void Dispose() => Result?.Dispose();
     }
 
-    private static async Task<ChildResult> ExecuteChildAsync(DatabaseOperationRequest request, Parameters parameters,
-        IDatabaseTunnelFactory? parentRoute)
+    private static async Task<ChildResult> ExecuteChildAsync(DatabaseOperationRequest request, Parameters parameters)
     {
         var target = request.Connection;
-        await using var client = new DatabasePanelClient(
-            parentRoute ?? (target.LocalRoutePort is { } port ? new ParentOwnedRoute(port) : null),
-            parentRoute is not null || target.LocalRoutePort is not null ? BuiltInConnections.Local : null,
-            contentStoreFactory: () => new DatabaseResultContentStore(request.ContentDirectory));
+        await using var client = new DatabasePanelClient(contentStoreFactory: () => new DatabaseResultContentStore(request.ContentDirectory));
         try
         {
             if (await ExecuteMetadataAsync(client, request, parameters).ConfigureAwait(false) is { } metadata)
@@ -472,29 +472,10 @@ internal sealed partial class DatabaseOperationWorker(
             }
             return new(result, page);
         }
-        catch (Exception exception) when (DatabaseRouteEndpointBudgetException.IsCauseOf(exception))
-        {
-            throw new DatabaseRouteEndpointBudgetException();
-        }
         catch (Exception exception) when (exception is DbException or ArgumentException or InvalidOperationException or NotSupportedException)
         {
             throw new DatabaseProviderOperationException(DatabaseProviderDiagnostic.Create(exception, target, client));
         }
     }
 
-    // The child can use only the initial parent-held forward. Redirect routing
-    // requires a separate approved endpoint callback, never reuse of this port.
-    private sealed class ParentOwnedRoute(int port) : IDatabaseTunnelFactory
-    {
-        public ValueTask<IDatabaseTunnelLease> OpenAsync(ConnectionProfile connection, string targetHost, int targetPort, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTask.FromResult<IDatabaseTunnelLease>(new RouteLease(port));
-        }
-    }
-    private sealed class RouteLease(int port) : IDatabaseTunnelLease
-    {
-        public int LocalPort => port;
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }
