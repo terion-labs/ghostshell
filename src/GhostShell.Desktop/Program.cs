@@ -436,17 +436,15 @@ internal static class Program
             .InitializeAsync(CancellationToken.None);
         await services.GetRequiredService<AgentPolicyCoordinator>()
             .InitializeAsync(CancellationToken.None);
-        await DesktopMcpServer.StartIfEnabledAsync(
-            services.GetRequiredService<GhostShell.Mcp.Server.WorkspaceMcpServer>(),
-            services.GetRequiredService<DesktopProfileConfiguration>(),
-            CancellationToken.None);
+        await services.GetRequiredService<GhostShell.Mcp.Server.LocalMcpServerControl>()
+            .InitializeAsync(CancellationToken.None);
         startupState.MarkProfileInitialized();
         return null;
     }
 
     private static async Task FinalizeAsync(ServiceProvider services)
     {
-        await services.GetRequiredService<GhostShell.Mcp.Server.WorkspaceMcpServer>()
+        await services.GetRequiredService<GhostShell.Mcp.Server.LocalMcpServerControl>()
             .DisposeAsync().ConfigureAwait(false);
         // The run began either before the lifetime or, with sealed keys,
         // behind the lock screen; quitting at the lock screen means no run

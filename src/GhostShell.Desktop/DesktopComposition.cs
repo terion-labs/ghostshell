@@ -321,6 +321,11 @@ public static class DesktopComposition
         services.AddSingleton<IAgentApprovalPrincipal, DesktopAgentApprovalPrincipal>();
         services.AddSingleton<IAgentProviderResolver, CatalogAgentProviderResolver>();
         services.AddSingleton<GhostShell.Mcp.Server.WorkspaceMcpServer>();
+        services.AddSingleton(provider => new GhostShell.Mcp.Server.LocalMcpServerControl(
+            provider.GetRequiredService<GhostShell.Mcp.Server.WorkspaceMcpServer>(),
+            provider.GetRequiredService<DesktopProfileConfiguration>().Data.DataDirectory));
+        services.AddSingleton<ILocalMcpServerControl>(provider =>
+            provider.GetRequiredService<GhostShell.Mcp.Server.LocalMcpServerControl>());
         services.AddSingleton<IAgentSessionCheckpointStore, SqliteAgentSessionCheckpointStore>();
         services.AddSingleton<IAgentModelFavoriteStore, SqliteAgentModelFavoriteStore>();
         services.AddSingleton<IAgentPolicyPreferenceStore,

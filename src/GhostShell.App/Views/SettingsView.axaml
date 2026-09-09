@@ -1380,6 +1380,7 @@
               </StackPanel>
 
               <StackPanel x:Name="McpSettingsSection" Spacing="{DynamicResource ShellSpaceLg}">
+              <settingsPages:LocalMcpServerSettingsView DataContext="{Binding LocalMcpServerSettings}" />
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
                 <components:SettingsPageHeader
                     Heading="MCP servers"

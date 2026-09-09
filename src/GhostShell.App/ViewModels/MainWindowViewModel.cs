@@ -179,12 +179,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         WorkspaceDefinitionOccupancy? workspaceDefinitionOccupancy = null,
         IWorkspaceIsolationRuntimeInstaller? workspaceIsolationRuntimeInstaller = null,
         IWorkspaceRuntimeServicesFactory? workspaceRuntimeServicesFactory = null,
-        IWorkspaceNetworkRuntime? workspaceNetworkRuntime = null)
+        IWorkspaceNetworkRuntime? workspaceNetworkRuntime = null,
+        ILocalMcpServerControl? localMcpServerControl = null)
     {
         SessionClient = sessionClient ?? throw new ArgumentNullException(nameof(sessionClient));
         _workspaceDefinitionOccupancy = workspaceDefinitionOccupancy
             ?? new WorkspaceDefinitionOccupancy();
         _uiThreadDispatcher = uiThreadDispatcher ?? AvaloniaUiThreadDispatcher.Instance;
+        LocalMcpServerSettings = new(localMcpServerControl, _uiThreadDispatcher);
         _workspaceNetworkRuntime = workspaceNetworkRuntime;
         _inactiveWorkspaceNetwork = new WorkspaceNetworkControlViewModel(
             new WorkspaceNetworkPolicyUpdate(NetworkPolicy.Direct, []),
@@ -488,6 +490,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
     public TerminalConnectionSettingsViewModel TerminalConnectionSettings { get; }
 
     public McpServerSettingsViewModel McpServerSettings { get; }
+
+    public LocalMcpServerSettingsViewModel LocalMcpServerSettings { get; }
 
     public DatabaseConnectionSettingsCoordinator DatabaseConnectionSettings { get; }
 
@@ -12715,6 +12719,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable,
         SavedScreenSettings.Dispose();
         TerminalConnectionSettings.Dispose();
         McpServerSettings.Dispose();
+        LocalMcpServerSettings.Dispose();
         FileProviderSettings.Dispose();
         AiProviderSettings.Dispose();
         AgentWorkspaceScope.Dispose();

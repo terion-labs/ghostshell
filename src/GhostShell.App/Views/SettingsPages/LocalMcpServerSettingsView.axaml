@@ -1,0 +1,46 @@
+<UserControl
+    x:Class="GhostShell.App.Views.SettingsPages.LocalMcpServerSettingsView"
+    x:DataType="vm:LocalMcpServerSettingsViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:GhostShell.App.ViewModels"
+    xmlns:controls="using:GhostShell.App.Controls">
+  <controls:SettingsGroup Heading="Use GhostSHELL with another agent"
+      Description="Let an agent on this computer use GhostSHELL's tools through MCP. Your workspace permissions and approval prompts still apply.">
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <controls:SettingRow Label="Enable MCP server"
+          Description="Starts immediately and remembers your choice when you reopen GhostSHELL.">
+        <ToggleSwitch x:Name="EnableServerToggle" IsChecked="{Binding Enabled, Mode=OneWay}"
+            IsCheckedChanged="OnEnabledChanged" IsEnabled="{Binding CanEdit}"
+            AutomationProperties.Name="Enable GhostSHELL MCP server" />
+      </controls:SettingRow>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+          AutomationProperties.Name="GhostSHELL MCP server status" />
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <controls:LabeledField Label="Port">
+          <TextBox Text="{Binding Port}" IsEnabled="{Binding CanEdit}" MaxLength="5"
+              AutomationProperties.Name="GhostSHELL MCP server port" />
+        </controls:LabeledField>
+        <Button Grid.Column="1" Content="Apply / retry" Classes="SecondaryButton"
+            VerticalAlignment="Bottom" Click="OnApplyClick" IsEnabled="{Binding CanEdit}"
+            AutomationProperties.Name="Apply GhostSHELL MCP server port or retry" />
+      </Grid>
+      <controls:LabeledField Label="Server URL">
+        <TextBox Text="{Binding Endpoint}" IsReadOnly="True"
+            AutomationProperties.Name="GhostSHELL MCP server URL" />
+      </controls:LabeledField>
+      <WrapPanel Orientation="Horizontal" ItemSpacing="{DynamicResource ShellSpaceSm}"
+          LineSpacing="{DynamicResource ShellSpaceSm}">
+        <Button Content="Copy URL" Classes="SecondaryButton" Click="OnCopyUrlClick"
+            IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Copy GhostSHELL MCP server URL" />
+        <Button Content="Copy token" Classes="SecondaryButton" Click="OnCopyTokenClick"
+            IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Copy GhostSHELL MCP authentication token" />
+        <Button Content="Replace token" Classes="SecondaryButton" Click="OnRotateTokenClick"
+            IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Replace GhostSHELL MCP authentication token" />
+      </WrapPanel>
+      <TextBlock Text="Choose Streamable HTTP in your agent's MCP settings. Use the server URL and token above. For clients that ask for headers, use Authorization: Bearer followed by the token. Replacing the token disconnects existing clients; reconnect them with the new token."
+          TextWrapping="Wrap" Classes="Muted" />
+      <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+    </StackPanel>
+  </controls:SettingsGroup>
+</UserControl>

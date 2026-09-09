@@ -98,7 +98,9 @@ public sealed partial class WorkspaceMcpServer : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => StopAsync();
+
+    public async ValueTask StopAsync()
     {
         if (Interlocked.Exchange(ref _application, null) is { } app)
         {
