@@ -9,13 +9,13 @@ import stat
 import sys
 import tarfile
 
-ARCHITECTURE = os.environ.get("GHOSTSHELL_BACKEND_ARCH", "arm64")
+ARCHITECTURE = os.environ.get("ASURA_BACKEND_ARCH", "arm64")
 if ARCHITECTURE not in ("arm64", "x64"):
     raise ValueError("Unsupported backend architecture")
-ARCHIVE = f"GhostShell-workspace-backend-{ARCHITECTURE}.tar.gz"
-EXECUTABLE = "GhostShell.Backend"
+ARCHIVE = f"Asura-workspace-backend-{ARCHITECTURE}.tar.gz"
+EXECUTABLE = "Asura.Backend"
 RUNTIME = "10.0.11"
-FORBIDDEN = ("avalonia", "exclr8", "libcef", "chromium", "ghostshell.app.", "ghostshell.browser.", "ghostshell.desktop.")
+FORBIDDEN = ("avalonia", "exclr8", "libcef", "chromium", "asura.app.", "asura.browser.", "asura.desktop.")
 
 
 def digest(path):
@@ -39,7 +39,7 @@ def source_digest(repository):
         "licenses/workspace-backend-managed-components.json", "licenses/workspace-backend-x64-managed-components.json"))
     excluded = {"bin", "obj", ".git", ".build", "node_modules", "artifacts", "__pycache__"}
     inputs.append(repository / "scripts/build-workspace-network-gateway.sh")
-    for source in (repository / "src", repository / "vendor", repository / "tools" / "GhostShell.Packaging", repository / "native/workspace-network-gateway"):
+    for source in (repository / "src", repository / "vendor", repository / "tools" / "Asura.Packaging", repository / "native/workspace-network-gateway"):
         for directory, children, filenames in os.walk(source):
             children[:] = sorted(child for child in children if child not in excluded)
             if any((pathlib.Path(directory) / child).is_symlink() for child in children):
@@ -171,7 +171,7 @@ def verify_release_clearance(repository):
     prefix = "workspace-backend" if ARCHITECTURE == "arm64" else "workspace-backend-x64"
     record = json.loads((repository / f"licenses/{prefix}-release-legal.json").read_text())
     if (record.get("schemaVersion") != 1
-            or record.get("format") != "ghostshell-workspace-backend-release-legal-v1"
+            or record.get("format") != "asura-workspace-backend-release-legal-v1"
             or record.get("platform") != f"linux-{ARCHITECTURE}" or record.get("runtime") != RUNTIME):
         raise ValueError("Invalid Linux workspace backend legal record")
     review = record.get("review", {})
@@ -179,8 +179,8 @@ def verify_release_clearance(repository):
             or review.get("status") != "accepted-by-project-owner"
             or any(not isinstance(review.get(key), str) or not review[key].strip()
                    for key in ("basis", "reviewedBy", "reviewedAtUtc"))):
-        raise ValueError("Linux workspace backend publication is blocked pending its recorded project-owner review (ghostshell-90w9)")
-    required = {f"src/GhostShell.Backend/packages.linux-{ARCHITECTURE}.lock.json",
+        raise ValueError("Linux workspace backend publication is blocked pending its recorded project-owner review (asura-90w9)")
+    required = {f"src/Asura.Backend/packages.linux-{ARCHITECTURE}.lock.json",
                 f"licenses/{prefix}-managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"}
     inputs = record.get("reviewedInputs", {})
     if set(inputs) != required or any(digest(repository / name) != inputs[name] for name in required):

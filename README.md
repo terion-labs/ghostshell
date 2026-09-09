@@ -1,10 +1,10 @@
-# ▵ GhostSHELL
+# ▵ Asura
 
-A ghost in your shell. GhostSHELL is a native terminal workspace with an in-process AI agent that operates local and remote sessions. One window holds terminals, an embedded Chromium browser, files, databases, Redis, Docker, Git, and system monitors. The agent is plain .NET running inside the desktop process. There is no Node.js sidecar on your machine and nothing to install on remote hosts.
+Asura is a native terminal workspace with an in-process AI agent that operates local and remote sessions. One window holds terminals, an embedded Chromium browser, files, databases, Redis, Docker, Git, and system monitors. The agent is plain .NET running inside the desktop process. There is no Node.js sidecar on your machine and nothing to install on remote hosts.
 
-GhostSHELL is free and open-source software under the [MIT license](./LICENSE).
+Asura is free and open-source software under the [MIT license](./LICENSE).
 
-Website: [ghostshell.terion.name](https://ghostshell.terion.name). Early alpha. A macOS Apple-silicon build ships from [Releases](https://github.com/terion-labs/ghostshel/releases/latest); other platforms build from source.
+Website: [asura.sh](https://asura.sh). Early alpha. A macOS Apple-silicon build ships from [Releases](https://github.com/terion-labs/asura/releases/latest); other platforms build from source.
 
 Agent tools support ordered sequences with optional delays. An opt-in authenticated localhost MCP server exposes native tools to external harnesses using MCP 2026-07-28, with legacy client support. See [tool sequences and MCP setup](./docs/agent-tool-sequences-and-mcp.md).
 
@@ -39,7 +39,7 @@ Everything above sits under deterministic test suites, from domain logic down to
 - [libghostty-vt](https://github.com/ghostty-org/ghostty) through an isolated C ABI for canonical terminal state and protocol encoding
 - [Porta.Pty](https://github.com/IvanJosipovic/Porta.Pty) for PTY process transport on every supported desktop OS
 
-libghostty-vt's API is not stable yet, so GhostSHELL pins Ghostty commit `08f039fbb3dea9c6b1cdb5ff4550666598122346` and applies a narrow, reviewed patch overlay in a disposable checkout. Every Ghostty C declaration stays private to `GhostShell.Terminal`. The overlay exposes normalized OSC 133 lifecycle events, canonical virtual Kitty placement geometry, and Ghostty-backed full-scrollback search. It also enables Ghostty's Wuffs PNG decoder and publishes an exact extension-ABI marker. Application-owned render DTOs carry damage, live cursor state, underline variants and colors, and Kitty image placement into the Avalonia control. No Ghostty or Porta.Pty type crosses into Core, Protocol, SessionHost, or App.
+libghostty-vt's API is not stable yet, so Asura pins Ghostty commit `08f039fbb3dea9c6b1cdb5ff4550666598122346` and applies a narrow, reviewed patch overlay in a disposable checkout. Every Ghostty C declaration stays private to `Asura.Terminal`. The overlay exposes normalized OSC 133 lifecycle events, canonical virtual Kitty placement geometry, and Ghostty-backed full-scrollback search. It also enables Ghostty's Wuffs PNG decoder and publishes an exact extension-ABI marker. Application-owned render DTOs carry damage, live cursor state, underline variants and colors, and Kitty image placement into the Avalonia control. No Ghostty or Porta.Pty type crosses into Core, Protocol, SessionHost, or App.
 
 The terminal is not a native child view. All three OSes share the same Avalonia presentation and input path; there is no embedded `NSView`, no `NativeControlHost`, no IOSurface handoff. [ADR 0040](./docs/adr/0040-cross-platform-libghostty-vt-terminal.md) explains why.
 
@@ -48,26 +48,26 @@ The terminal is not a native child view. All three OSes share the same Avalonia 
 Install the workspace-local .NET SDK, then build the pinned native runtimes for the current host:
 
 ```sh
-GHOSTSHELL_SKIP_NATIVE=1 ./scripts/bootstrap.sh
+ASURA_SKIP_NATIVE=1 ./scripts/bootstrap.sh
 ./scripts/build-libghostty-vt.sh
 ./scripts/build-cef-runtime.sh --rid osx-arm64
 ```
 
-The first native build downloads the pinned Zig toolchain and Ghostty source, so expect several minutes. It applies the reviewed overlay to a disposable checkout, runs Ghostty's patched VT tests, verifies every managed import plus the exact GhostSHELL extension ABI, and publishes the library with its export manifest, license, and build receipt under `native/artifacts/<rid>`. It also fetches JetBrains Mono 2.304 as declared by the Ghostty pin, verifies all four faces and the OFL by exact hash, and publishes them under `native/artifacts/common`.
+The first native build downloads the pinned Zig toolchain and Ghostty source, so expect several minutes. It applies the reviewed overlay to a disposable checkout, runs Ghostty's patched VT tests, verifies every managed import plus the exact Asura extension ABI, and publishes the library with its export manifest, license, and build receipt under `native/artifacts/<rid>`. It also fetches JetBrains Mono 2.304 as declared by the Ghostty pin, verifies all four faces and the OFL by exact hash, and publishes them under `native/artifacts/common`.
 
 Then build, test, and run:
 
 ```sh
 ./scripts/check.sh --full
-./.dotnet/dotnet run --project src/GhostShell.Desktop/GhostShell.Desktop.csproj
+./.dotnet/dotnet run --project src/Asura.Desktop/Asura.Desktop.csproj
 ```
 
-On macOS, `dotnet run` first assembles the framework-dependent build into a private development `.app` under `src/GhostShell.Desktop/obj`. CEF needs its `Contents/Frameworks` layout, and this preserves it without weakening the native-payload checks that release packaging relies on.
+On macOS, `dotnet run` first assembles the framework-dependent build into a private development `.app` under `src/Asura.Desktop/obj`. CEF needs its `Contents/Frameworks` layout, and this preserves it without weakening the native-payload checks that release packaging relies on.
 
 To exercise the real PTY and libghostty-vt pipeline, split UTF-8 input, render damage, cursor and underline state, semantic shell events, PTY flush, and process exit:
 
 ```sh
-./.dotnet/dotnet test tests/GhostShell.Terminal.Tests/GhostShell.Terminal.Tests.csproj
+./.dotnet/dotnet test tests/Asura.Terminal.Tests/Asura.Terminal.Tests.csproj
 ```
 
 ## The check gate
@@ -76,9 +76,9 @@ The repository gate is deterministic and warning-free on purpose. It uses the ex
 
 Day-to-day verification is local: the pre-commit and pre-push hooks run the gate before anything leaves your machine. A `v<major>.<minor>.<patch>` tag has a stronger pre-push gate: [`scripts/rehearse-macos-release.sh`](scripts/rehearse-macos-release.sh) must first build the read-only sealed source with the same native toolchains, produce a Developer-ID signed and notarized Velopack application, prove that its portable archive and full update package contain the same app, verify the extracted archive with Gatekeeper, and revalidate its exact security evidence. The rehearsal needs full Xcode 26+, GraalVM 25.0.4, LLVM lld 22, and the same six `APPLE_*` release environment variables consumed by GitHub Actions. It imports the certificate and notary key into an ephemeral keychain and deletes that keychain on exit. Docker cannot reproduce this boundary because Xcode, Developer ID signing, notarization, stapling, and Gatekeeper require macOS; the script instead uses disposable source, dependency, build, signing, and evidence roots and deletes them after verification.
 
-Only after that local receipt exists does GitHub Actions run for the tag, entirely on Apple-silicon macOS runners. It builds the verified native runtime first, runs the managed suite as six parallel sections (core, agent, app, services, data-browser, terminal-host) next to a complete Release build and a format-and-boundaries job, then repeats Velopack assembly, signing, notarization, stapling, Gatekeeper validation, and exact evidence assembly before publication. The release contains the stable `GhostShell-macOS-arm64.zip` bootstrap archive and checksum plus the `osx-arm64-stable` full package, feed, and checksums used by in-app updates. The [archive](https://github.com/terion-labs/ghostshell/releases/latest/download/GhostShell-macOS-arm64.zip) and [checksum](https://github.com/terion-labs/ghostshell/releases/latest/download/GhostShell-macOS-arm64.zip.sha256) retain permanent URLs. The release fails closed if legal clearance, exact package/feed validation, or release credentials are absent. A separate path-filtered workflow runs the database-viewer integration suite on pull requests that touch it.
+Only after that local receipt exists does GitHub Actions run for the tag, entirely on Apple-silicon macOS runners. It builds the verified native runtime first, runs the managed suite as six parallel sections (core, agent, app, services, data-browser, terminal-host) next to a complete Release build and a format-and-boundaries job, then repeats Velopack assembly, signing, notarization, stapling, Gatekeeper validation, and exact evidence assembly before publication. The release contains the stable `Asura-macOS-arm64.zip` bootstrap archive and checksum plus the `osx-arm64-stable` full package, feed, and checksums used by in-app updates. The [archive](https://github.com/terion-labs/asura/releases/latest/download/Asura-macOS-arm64.zip) and [checksum](https://github.com/terion-labs/asura/releases/latest/download/Asura-macOS-arm64.zip.sha256) retain permanent URLs. The release fails closed if legal clearance, exact package/feed validation, or release credentials are absent. A separate path-filtered workflow runs the database-viewer integration suite on pull requests that touch it.
 
-Updates are user initiated. GhostSHELL never contacts GitHub in the background. A direct GitHub installation can check from About, download the exact Velopack package, and restart into it after a graceful shutdown. Store and package-manager installations defer to their platform channel, development builds do not update, and direct bundles under `/Applications` remain download/apply-disabled until the privileged replacement boundary is separately closed. The GitHub Releases ZIP remains the initial-install and manual-recovery path.
+Updates are user initiated. Asura never contacts GitHub in the background. A direct GitHub installation can check from About, download the exact Velopack package, and restart into it after a graceful shutdown. Store and package-manager installations defer to their platform channel, development builds do not update, and direct bundles under `/Applications` remain download/apply-disabled until the privileged replacement boundary is separately closed. The GitHub Releases ZIP remains the initial-install and manual-recovery path.
 
 ### Run the local macOS release control build
 
@@ -97,8 +97,8 @@ APPLE_NOTARY_KEY_ID='replace-with-app-store-connect-key-id'
 APPLE_NOTARY_PRIVATE_KEY_BASE64="$(/usr/bin/base64 -i .apple/AuthKey_KEYID.p8 | tr -d '\n')"
 
 GRAALVM_HOME='/absolute/path/to/graalvm-25.0.4'
-GHOSTSHELL_XCODE_APP='/Applications/Xcode.app'
-GHOSTSHELL_NATIVE_AOT_LINKER='/opt/homebrew/opt/lld@22/bin/ld64.lld'
+ASURA_XCODE_APP='/Applications/Xcode.app'
+ASURA_NATIVE_AOT_LINKER='/opt/homebrew/opt/lld@22/bin/ld64.lld'
 ```
 
 The two Apple keys are not interchangeable. `APPLE_CERTIFICATE_P12_BASE64` must decode to a password-protected PKCS#12 file containing the Developer ID Application certificate and its matching private key. A `.cer` file and its CSR contain no signing private key and are not enough. `APPLE_NOTARY_PRIVATE_KEY_BASE64` must decode to the App Store Connect API `.p8` key used by `notarytool`. Base64 only transports these files; it does not encrypt them.
@@ -111,7 +111,7 @@ Commit the exact release source, create an annotated tag at `HEAD`, load the env
 release_tag='v<major>.<minor>.<patch>' # Replace this with the next unused version.
 
 git status --short # This must print nothing.
-git tag -a "$release_tag" -m "GhostShell ${release_tag#v}"
+git tag -a "$release_tag" -m "Asura ${release_tag#v}"
 
 set -a
 source ./.env
@@ -120,7 +120,7 @@ set +a
 ./scripts/rehearse-macos-release.sh --tag "$release_tag"
 ```
 
-The script rejects a dirty tracked tree, a tag that does not resolve to `HEAD`, the wrong toolchain versions, missing credentials, an unusable signing identity, and failed notarization. A pass writes a receipt under `.git/ghostshell-release-rehearsals/` bound to the tag, commit, and tree. Any source change requires a new commit, a new tag or corrected unpublished tag, and another rehearsal. Never move a tag that has already been pushed.
+The script rejects a dirty tracked tree, a tag that does not resolve to `HEAD`, the wrong toolchain versions, missing credentials, an unusable signing identity, and failed notarization. A pass writes a receipt under `.git/asura-release-rehearsals/` bound to the tag, commit, and tree. Any source change requires a new commit, a new tag or corrected unpublished tag, and another rehearsal. Never move a tag that has already been pushed.
 
 After the rehearsal passes, push the commit and that exact tag. The pre-push hook reuses only a receipt that still matches all three identities; GitHub Actions then rebuilds and publishes from the tag.
 
@@ -133,21 +133,21 @@ git push --atomic origin main "$release_tag"
 A dependency bump has to refresh every lock graph that CI and release packaging read: the ordinary and Windows-targeted managed graphs, each reviewed desktop RID, and the macOS Native AOT graph. Regenerate them deliberately, review the lock-file diffs, then run the full gate:
 
 ```sh
-./.dotnet/dotnet restore GhostShell.slnx --force-evaluate
-./.dotnet/dotnet restore GhostShell.slnx \
-  -p:GhostShellWindowsBuild=true --force-evaluate
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+./.dotnet/dotnet restore Asura.slnx --force-evaluate
+./.dotnet/dotnet restore Asura.slnx \
+  -p:AsuraWindowsBuild=true --force-evaluate
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime linux-x64 --force-evaluate
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime linux-arm64 --force-evaluate
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime osx-x64 --force-evaluate
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime osx-arm64 --force-evaluate
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime osx-arm64 --force-evaluate \
-  -p:GhostShellMacReleaseNativeAot=true
-./.dotnet/dotnet restore src/GhostShell.Desktop/GhostShell.Desktop.csproj \
+  -p:AsuraMacReleaseNativeAot=true
+./.dotnet/dotnet restore src/Asura.Desktop/Asura.Desktop.csproj \
   --runtime win-x64 --force-evaluate
 ./scripts/check.sh --full
 ```
@@ -157,21 +157,21 @@ A dependency bump has to refresh every lock graph that CI and release packaging 
 GitHub Copilot device authorization uses GitHub's public first-party Copilot client identity by default. A distribution with its own registered GitHub OAuth app can override it before launching the desktop process:
 
 ```sh
-export GHOSTSHELL_GITHUB_OAUTH_CLIENT_ID="your-ghostshell-oauth-app-client-id"
+export ASURA_GITHUB_OAUTH_CLIENT_ID="your-asura-oauth-app-client-id"
 ```
 
-OpenAI browser and device authorization use OpenAI's public Codex client identity and need no variable. Browser login owns the registered `http://localhost:1455/auth/callback` listener for the duration of the flow; if another process holds that port, login fails closed. GitHub's long-lived device token stays in the vault as refresh material only. GhostSHELL exchanges it locally for a bounded Copilot API token before any provider traffic and repeats the exchange when that token expires.
+OpenAI browser and device authorization use OpenAI's public Codex client identity and need no variable. Browser login owns the registered `http://localhost:1455/auth/callback` listener for the duration of the flow; if another process holds that port, login fails closed. GitHub's long-lived device token stays in the vault as refresh material only. Asura exchanges it locally for a bounded Copilot API token before any provider traffic and repeats the exchange when that token expires.
 
 ## macOS packaging
 
-To build a non-launching, ad-hoc sealed macOS arm64 Native AOT bundle candidate, install LLVM's `ld64.lld` first (or point `GHOSTSHELL_NATIVE_AOT_LINKER` at it):
+To build a non-launching, ad-hoc sealed macOS arm64 Native AOT bundle candidate, install LLVM's `ld64.lld` first (or point `ASURA_NATIVE_AOT_LINKER` at it):
 
 ```sh
 mkdir -p artifacts/macos-arm64-rc
 ./scripts/package-macos.sh \
   --version 0.1.0 \
   --build-version 1 \
-  --output artifacts/macos-arm64-rc/GhostShell.app
+  --output artifacts/macos-arm64-rc/Asura.app
 ```
 
 To exercise the complete direct-distribution format locally, including
@@ -202,30 +202,30 @@ A few platform specifics worth knowing:
 
 | Project | What it holds |
 | --- | --- |
-| `src/GhostShell.Core` | framework-independent IDs, definitions, invariants, and state machines |
-| `src/GhostShell.Application` | typed application and session operations, lifecycle, capability, attachment, input-lease, and engine ports |
-| `src/GhostShell.Protocol` | versioned transport envelopes and stream contracts |
-| `src/GhostShell.Agent` | the provider-neutral conversation loop: strict stream reduction, inert tool batches, steering, cancellation fencing, compaction, checkpoints |
-| `src/GhostShell.Agent.Providers` | native provider adapters, API-key and OAuth resolution, device/browser authorization, HTTP/SSE parsing, model discovery |
-| `src/GhostShell.Agent.Runtime` | workspace-scoped provider and tool orchestration; the full tool registry stays in context and actions validate against live panels |
-| `src/GhostShell.Mcp` | stdio and Streamable HTTP MCP sessions with bounded discovery and frozen run manifests |
-| `src/GhostShell.SessionHost` | the in-process runtime registry: ordered events, revisions, attachments, leases, browser action guards, close policy |
-| `src/GhostShell.Terminal` | the libghostty-vt state/input adapter and Porta.Pty transport behind render, automation, input, and lifecycle ports |
-| `src/GhostShell.Browser` | the CEF engine runtime and per-workspace browser profiles, including SSH-routed network contexts |
-| `src/GhostShell.Files` | file providers (local, SFTP, FTP, S3, WebDAV, SMB), transfer sessions, and the SSH tunnel factories |
-| `src/GhostShell.Databases` | the database panel client and SQL dialects for the supported engines |
-| `src/GhostShell.ConnectionBackend` | bounded SQL, Redis, file and HTTP IPC, owned worker lifetimes and host credential callbacks |
-| `src/GhostShell.Backend` | UI-free on-demand Linux backend entry point |
-| `src/GhostShell.Redis` | Redis panel sessions |
-| `src/GhostShell.Docker` | the Docker engine client for local and remote daemons |
-| `src/GhostShell.Git` | the Git panel over a CLI adapter |
-| `src/GhostShell.Docking` | panel docking and layout |
-| `src/GhostShell.Monitoring` | package-free local resource sampling behind privacy-bounded statistics and process ports |
-| `src/GhostShell.Previews` | file content previews |
-| `src/GhostShell.Infrastructure` | encrypted persistence, OS vaults, startup protection, and platform adapters |
-| `src/GhostShell.App` | Avalonia presentation; depends only on application ports and Core projections |
-| `src/GhostShell.Desktop` | the executable composition root and platform registrations |
-| `tools/GhostShell.Packaging` | fail-closed release-candidate bundle assembly |
+| `src/Asura.Core` | framework-independent IDs, definitions, invariants, and state machines |
+| `src/Asura.Application` | typed application and session operations, lifecycle, capability, attachment, input-lease, and engine ports |
+| `src/Asura.Protocol` | versioned transport envelopes and stream contracts |
+| `src/Asura.Agent` | the provider-neutral conversation loop: strict stream reduction, inert tool batches, steering, cancellation fencing, compaction, checkpoints |
+| `src/Asura.Agent.Providers` | native provider adapters, API-key and OAuth resolution, device/browser authorization, HTTP/SSE parsing, model discovery |
+| `src/Asura.Agent.Runtime` | workspace-scoped provider and tool orchestration; the full tool registry stays in context and actions validate against live panels |
+| `src/Asura.Mcp` | stdio and Streamable HTTP MCP sessions with bounded discovery and frozen run manifests |
+| `src/Asura.SessionHost` | the in-process runtime registry: ordered events, revisions, attachments, leases, browser action guards, close policy |
+| `src/Asura.Terminal` | the libghostty-vt state/input adapter and Porta.Pty transport behind render, automation, input, and lifecycle ports |
+| `src/Asura.Browser` | the CEF engine runtime and per-workspace browser profiles, including SSH-routed network contexts |
+| `src/Asura.Files` | file providers (local, SFTP, FTP, S3, WebDAV, SMB), transfer sessions, and the SSH tunnel factories |
+| `src/Asura.Databases` | the database panel client and SQL dialects for the supported engines |
+| `src/Asura.ConnectionBackend` | bounded SQL, Redis, file and HTTP IPC, owned worker lifetimes and host credential callbacks |
+| `src/Asura.Backend` | UI-free on-demand Linux backend entry point |
+| `src/Asura.Redis` | Redis panel sessions |
+| `src/Asura.Docker` | the Docker engine client for local and remote daemons |
+| `src/Asura.Git` | the Git panel over a CLI adapter |
+| `src/Asura.Docking` | panel docking and layout |
+| `src/Asura.Monitoring` | package-free local resource sampling behind privacy-bounded statistics and process ports |
+| `src/Asura.Previews` | file content previews |
+| `src/Asura.Infrastructure` | encrypted persistence, OS vaults, startup protection, and platform adapters |
+| `src/Asura.App` | Avalonia presentation; depends only on application ports and Core projections |
+| `src/Asura.Desktop` | the executable composition root and platform registrations |
+| `tools/Asura.Packaging` | fail-closed release-candidate bundle assembly |
 | `native/ghostty-vt` | the reviewed patch overlay and notices for the pinned libghostty-vt build |
 | `website/` | the marketing site (Nuxt, deployed to GitHub Pages by `.github/workflows/website.yml`) |
 | `tests/*` | domain, application, protocol, terminal, session-host, provider, persistence, desktop, and architecture suites |

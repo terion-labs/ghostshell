@@ -1,0 +1,326 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dock="using:Dock.Avalonia.Controls"
+    xmlns:proportional="using:Dock.Controls.ProportionalStackPanel"
+    xmlns:dockSettings="using:Dock.Settings">
+  <!--
+    Dock owns the drag state and hit testing; Asura owns its appearance.
+    Keep Dock's PART_* names and operation metadata intact so a theme change
+    cannot quietly turn a visual adjustment into a docking-behaviour change.
+  -->
+  <Styles.Resources>
+    <ControlTheme
+        x:Key="AsuraDockTargetSelectorTheme"
+        TargetType="ContentControl">
+      <Setter Property="Width" Value="{DynamicResource DockTargetSelectorSize}" />
+      <Setter Property="Height" Value="{DynamicResource DockTargetSelectorSize}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <!--
+            The zone is a padded rounded plate, not a glyph-sized square: it is a
+            drop target the pointer has to land on mid-drag, so the whole plate
+            reads and hits, and the glyph floats inside it. The fill is truly
+            translucent — a separate layer under the stroke — because the plate
+            sits over live panel content during the drag and should not blank it;
+            keeping the opacity off the stroke and glyph keeps both fully accented.
+          -->
+          <Grid Margin="{DynamicResource ShellInsetXs}">
+            <Border
+                x:Name="PART_AccentSurface"
+                Background="{DynamicResource ShellAccentBrush}"
+                CornerRadius="{DynamicResource ShellCardCornerRadius}"
+                Opacity="0.16" />
+            <Border
+                x:Name="PART_ZoneOutline"
+                BorderBrush="{DynamicResource ShellAccentBrush}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource ShellCardCornerRadius}"
+                Opacity="0.7" />
+            <ContentPresenter
+                Margin="{DynamicResource ShellInsetSm}"
+                Content="{TemplateBinding Content}"
+                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+
+      <!-- The zone the pointer is over answers by filling in further. -->
+      <Style Selector="^:pointerover /template/ Border#PART_AccentSurface">
+        <Setter Property="Opacity" Value="0.32" />
+      </Style>
+      <Style Selector="^:pointerover /template/ Border#PART_ZoneOutline">
+        <Setter Property="Opacity" Value="1" />
+      </Style>
+    </ControlTheme>
+
+    <ControlTheme
+        x:Key="AsuraDockTargetTheme"
+        TargetType="dock:DockTarget">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid
+              x:Name="PART_IndicatorGrid"
+              RowDefinitions="*,*"
+              ColumnDefinitions="*,*">
+            <Panel
+                x:Name="PART_TopIndicator"
+                Grid.Row="0"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="{TemplateBinding ShowVerticalTargets}"
+                Opacity="0"
+                dockSettings:DockProperties.IndicatorDockOperation="Top" />
+            <Panel
+                x:Name="PART_BottomIndicator"
+                Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="{TemplateBinding ShowVerticalTargets}"
+                Opacity="0"
+                dockSettings:DockProperties.IndicatorDockOperation="Bottom" />
+            <Panel
+                x:Name="PART_LeftIndicator"
+                Grid.Row="0"
+                Grid.Column="0"
+                Grid.RowSpan="2"
+                Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                Opacity="0"
+                dockSettings:DockProperties.IndicatorDockOperation="Left" />
+            <Panel
+                x:Name="PART_RightIndicator"
+                Grid.Row="0"
+                Grid.Column="1"
+                Grid.RowSpan="2"
+                Background="{DynamicResource ShellAccentBrush}"
+                IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                Opacity="0"
+                dockSettings:DockProperties.IndicatorDockOperation="Right" />
+            <Panel
+                x:Name="PART_CenterIndicator"
+                Grid.Row="0"
+                Grid.Column="0"
+                Grid.RowSpan="2"
+                Grid.ColumnSpan="2"
+                Background="{DynamicResource ShellAccentBrush}"
+                Opacity="0"
+                dockSettings:DockProperties.IndicatorDockOperation="Fill" />
+
+            <Panel
+                x:Name="PART_SelectorPanel"
+                Grid.Row="0"
+                Grid.Column="0"
+                Grid.RowSpan="2"
+                Grid.ColumnSpan="2">
+              <Grid
+                  x:Name="PART_SelectorGrid"
+                  RowDefinitions="*,*,*"
+                  ColumnDefinitions="*,*,*"
+                  MaxWidth="{DynamicResource DockTargetSelectorGridMaxSize}"
+                  MaxHeight="{DynamicResource DockTargetSelectorGridMaxSize}">
+                <ContentControl
+                    x:Name="PART_TopSelector"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowVerticalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Top">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M3 9 H21 M9 16 L12 13 L15 16" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_BottomSelector"
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowVerticalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Bottom">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M3 15 H21 M15 8 L12 11 L9 8" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_LeftSelector"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Left">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M9 3 V21 M16 15 L13 12 L16 9" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_RightSelector"
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Right">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M15 3 V21 M8 9 L11 12 L8 15" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_CenterSelector"
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Fill">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M3 7 V5 A2 2 0 0 1 5 3 H7 M17 3 H19 A2 2 0 0 1 21 5 V7 M21 17 V19 A2 2 0 0 1 19 21 H17 M7 21 H5 A2 2 0 0 1 3 19 V17 M8 8 H16 A1 1 0 0 1 17 9 V15 A1 1 0 0 1 16 16 H8 A1 1 0 0 1 7 15 V9 A1 1 0 0 1 8 8 Z" />
+                </ContentControl>
+              </Grid>
+            </Panel>
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+
+      <Style Selector="^/template/ Panel#PART_SelectorPanel">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+      <Style Selector="^[ShowIndicatorsOnly=True] /template/ Panel#PART_SelectorPanel">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+    </ControlTheme>
+
+    <ControlTheme
+        x:Key="AsuraGlobalDockTargetTheme"
+        TargetType="dock:GlobalDockTarget">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Panel>
+            <proportional:ProportionalStackPanel Orientation="Horizontal">
+              <Panel
+                  x:Name="PART_LeftIndicator"
+                  Background="{DynamicResource ShellAccentBrush}"
+                  Opacity="0"
+                  proportional:ProportionalStackPanel.Proportion="{x:Static dockSettings:DockSettings.GlobalDockingProportion}"
+                  dockSettings:DockProperties.IndicatorDockOperation="Left" />
+              <Border />
+              <Panel
+                  x:Name="PART_RightIndicator"
+                  Background="{DynamicResource ShellAccentBrush}"
+                  Opacity="0"
+                  proportional:ProportionalStackPanel.Proportion="{x:Static dockSettings:DockSettings.GlobalDockingProportion}"
+                  dockSettings:DockProperties.IndicatorDockOperation="Right" />
+            </proportional:ProportionalStackPanel>
+            <proportional:ProportionalStackPanel Orientation="Vertical">
+              <Panel
+                  x:Name="PART_TopIndicator"
+                  Background="{DynamicResource ShellAccentBrush}"
+                  Opacity="0"
+                  proportional:ProportionalStackPanel.Proportion="{x:Static dockSettings:DockSettings.GlobalDockingProportion}"
+                  dockSettings:DockProperties.IndicatorDockOperation="Top" />
+              <Border />
+              <Panel
+                  x:Name="PART_BottomIndicator"
+                  Background="{DynamicResource ShellAccentBrush}"
+                  Opacity="0"
+                  proportional:ProportionalStackPanel.Proportion="{x:Static dockSettings:DockSettings.GlobalDockingProportion}"
+                  dockSettings:DockProperties.IndicatorDockOperation="Bottom" />
+            </proportional:ProportionalStackPanel>
+
+            <Grid
+                x:Name="PART_IndicatorGrid"
+                RowDefinitions="*,*"
+                ColumnDefinitions="*,*">
+              <Panel
+                  x:Name="PART_SelectorPanel"
+                  Grid.Row="0"
+                  Grid.Column="0"
+                  Grid.RowSpan="2"
+                  Grid.ColumnSpan="2">
+                <ContentControl
+                    x:Name="PART_TopSelector"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowVerticalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Top">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M3 9 H21 M9 16 L12 13 L15 16" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_BottomSelector"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowVerticalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Bottom">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M3 15 H21 M15 8 L12 11 L9 8" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_LeftSelector"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Left">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M9 3 V21 M16 15 L13 12 L16 9" />
+                </ContentControl>
+                <ContentControl
+                    x:Name="PART_RightSelector"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Theme="{StaticResource AsuraDockTargetSelectorTheme}"
+                    IsVisible="{TemplateBinding ShowHorizontalTargets}"
+                    dockSettings:DockProperties.IndicatorDockOperation="Right">
+                  <Path
+                      Classes="DockTargetGlyph"
+                      Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z M15 3 V21 M8 9 L11 12 L8 15" />
+                </ContentControl>
+              </Panel>
+            </Grid>
+          </Panel>
+        </ControlTemplate>
+      </Setter>
+
+      <Style Selector="^/template/ Panel#PART_SelectorPanel">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+      <Style Selector="^[ShowIndicatorsOnly=True] /template/ Panel#PART_SelectorPanel">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+    </ControlTheme>
+  </Styles.Resources>
+
+  <!-- Exact Lucide stroke language, shared by local and global target selectors. -->
+  <Style Selector="Path.DockTargetGlyph">
+    <Setter Property="Width" Value="{DynamicResource ShellSpaceXl}" />
+    <Setter Property="Height" Value="{DynamicResource ShellSpaceXl}" />
+    <Setter Property="Fill" Value="Transparent" />
+    <Setter Property="Stroke" Value="{DynamicResource ShellAccentBrush}" />
+    <Setter Property="StrokeThickness" Value="2" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stretch" Value="Uniform" />
+  </Style>
+
+  <!-- The gap between docked panels is part of the shell's spacing rhythm, not
+       Dock's hairline default: panels breathe at the same small step the rails
+       and gutters use, and the wider splitter is also an easier resize grab. -->
+  <Style Selector="proportional|ProportionalStackPanelSplitter">
+    <Setter Property="Thickness" Value="{DynamicResource ShellSpaceSm}" />
+  </Style>
+
+  <Style Selector="dock|DockTarget">
+    <Setter Property="Theme" Value="{StaticResource AsuraDockTargetTheme}" />
+  </Style>
+  <Style Selector="dock|GlobalDockTarget">
+    <Setter Property="Theme" Value="{StaticResource AsuraGlobalDockTargetTheme}" />
+  </Style>
+</Styles>

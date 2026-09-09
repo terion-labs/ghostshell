@@ -76,24 +76,24 @@ for rid in "${rids[@]}"; do
     case "${rid}" in
         osx-arm64)
             goos=darwin
-            artifact="ghostshell-workspace-gateway-darwin-arm64"
+            artifact="asura-workspace-gateway-darwin-arm64"
             expected_file_description="Mach-O 64-bit executable arm64"
             ;;
         linux-arm64)
             goos=linux
-            artifact="ghostshell-workspace-gateway-linux-arm64"
+            artifact="asura-workspace-gateway-linux-arm64"
             expected_file_description="ELF 64-bit LSB executable, ARM aarch64"
             ;;
         osx-x64)
             goos=darwin
             goarch=amd64
-            artifact="ghostshell-workspace-gateway-darwin-amd64"
+            artifact="asura-workspace-gateway-darwin-amd64"
             expected_file_description="Mach-O 64-bit executable x86_64"
             ;;
         linux-x64)
             goos=linux
             goarch=amd64
-            artifact="ghostshell-workspace-gateway-linux-amd64"
+            artifact="asura-workspace-gateway-linux-amd64"
             expected_file_description="ELF 64-bit LSB executable, x86-64"
             ;;
         *)
@@ -103,7 +103,7 @@ for rid in "${rids[@]}"; do
     esac
 
     artifact_directory="${repository_dir}/native/artifacts/${rid}"
-    staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-network-gateway.XXXXXX")"
+    staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-network-gateway.XXXXXX")"
     cleanup() {
         rm -rf -- "${staging_directory}"
     }

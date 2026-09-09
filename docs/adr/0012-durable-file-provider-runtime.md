@@ -53,7 +53,7 @@ repaired before saving.
   prefix must still be enforced by the bucket credential policy. Prefixes that cannot be represented
   as safe hierarchical segments are rejected during adapter materialization.
 - S3/WebDAV SDK credential objects necessarily retain their credential for the client lifetime.
-  GhostSHELL clears the resolved vault buffer immediately and disposes the client when its adapter
+  Asura clears the resolved vault buffer immediately and disposes the client when its adapter
   generation retires, but cannot zero vendor-managed strings.
 - Provider tests perform one bounded root listing; they do not recursively enumerate, mutate, or
   prove every optional server capability.

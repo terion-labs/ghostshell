@@ -16,7 +16,7 @@ import (
 	directproxy "github.com/xjasonlyu/tun2socks/v2/proxy/direct"
 	"golang.org/x/sys/unix"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 type OpenConnectOptions struct {

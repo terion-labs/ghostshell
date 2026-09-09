@@ -1,4 +1,4 @@
-module github.com/terion-labs/ghostshell/native/workspace-network-gateway
+module github.com/terion-labs/asura/native/workspace-network-gateway
 
 go 1.26.3
 

@@ -32,7 +32,7 @@ terminal tools, plus browser-specific attachment and origin checks.
 
 ## Decision
 
-GhostSHELL implements ten closed governed browser tool contracts in this slice:
+Asura implements ten closed governed browser tool contracts in this slice:
 
 - `browser.read_state`;
 - `browser.snapshot`;
@@ -98,7 +98,7 @@ exact interactive `Human` actor/client and does not accept an `Agent` actor as a
 shortcut around the broker. Agents use only the governed browser bridge.
 
 The current first-party CEF boundary exposes URL admission but neither the
-actual connected socket peer nor a request-context proxy that GhostShell can
+actual connected socket peer nor a request-context proxy that Asura can
 bind to one browser action. Repeating DNS resolution before CEF dispatch does
 not close that check/use gap. Consequently every model-governed CEF navigation,
 history movement, reload, element mutation, and low-level automation request

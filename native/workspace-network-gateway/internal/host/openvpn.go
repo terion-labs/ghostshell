@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 // RunOpenVPN owns one bundled Core process and projects its authenticated raw IP

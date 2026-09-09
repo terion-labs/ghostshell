@@ -9,7 +9,7 @@ usage() {
     cat >&2 <<'EOF'
 Usage:
   ./scripts/record-macos-signing-evidence.sh \
-    --app <path/to/GhostShell.app> \
+    --app <path/to/Asura.app> \
     --notary-result <notarytool-result.json> \
     --evidence <new/notarization.json>
 
@@ -55,8 +55,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "macOS signing evidence requires a macOS host." >&2
     exit 1
 fi
-if [[ ! -d "${app}" || -L "${app}" || "$(basename "${app}")" != "GhostShell.app" ]]; then
-    echo "--app must name a regular GhostShell.app directory." >&2
+if [[ ! -d "${app}" || -L "${app}" || "$(basename "${app}")" != "Asura.app" ]]; then
+    echo "--app must name a regular Asura.app directory." >&2
     exit 1
 fi
 if [[ ! -f "${notary_result}" || -L "${notary_result}" ]]; then
@@ -71,9 +71,9 @@ if [[ ! -d "${evidence_parent}" || -L "${evidence_parent}" || -e "${evidence}" ]
 fi
 evidence_parent="$(cd -- "${evidence_parent}" && pwd -P)"
 evidence="${evidence_parent}/$(basename "${evidence}")"
-app="$(cd -- "$(dirname "${app}")" && pwd -P)/GhostShell.app"
+app="$(cd -- "$(dirname "${app}")" && pwd -P)/Asura.app"
 if [[ "${evidence}" == "${app}"/* ]]; then
-    echo "Signing evidence must remain outside GhostShell.app." >&2
+    echo "Signing evidence must remain outside Asura.app." >&2
     exit 64
 fi
 
@@ -89,7 +89,7 @@ fi
 /usr/bin/xcrun stapler validate "${app}"
 /usr/sbin/spctl --assess --type execute --verbose=2 "${app}"
 
-working_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-signing-evidence.XXXXXX")"
+working_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-signing-evidence.XXXXXX")"
 evidence_staging="${evidence}.staging"
 cleanup() {
     rm -rf -- "${working_directory}"
@@ -114,7 +114,7 @@ certificate_sha256="$(/usr/bin/shasum -a 256 "${certificate_prefix}0" | /usr/bin
 
 /usr/bin/plutil -create xml1 "${evidence_staging}"
 /usr/bin/plutil -insert schemaVersion -integer 1 "${evidence_staging}"
-/usr/bin/plutil -insert format -string ghostshell-macos-signing-evidence-v1 "${evidence_staging}"
+/usr/bin/plutil -insert format -string asura-macos-signing-evidence-v1 "${evidence_staging}"
 /usr/bin/plutil -insert notarizationId -string "${notarization_id}" "${evidence_staging}"
 /usr/bin/plutil -insert notarizationStatus -string "${notarization_status}" "${evidence_staging}"
 /usr/bin/plutil -insert teamIdentifier -string "${team_identifier}" "${evidence_staging}"

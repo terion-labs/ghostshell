@@ -9,8 +9,8 @@ fi
 source_root=$1
 output_directory=$2
 image_reference=$3
-package_directory=$(mktemp -d /work/ghostshell-package.XXXXXX)
-runtime_evidence=$(mktemp -d /work/ghostshell-runtime-evidence.XXXXXX)
+package_directory=$(mktemp -d /work/asura-package.XXXXXX)
+runtime_evidence=$(mktemp -d /work/asura-runtime-evidence.XXXXXX)
 xvfb_log="$output_directory/xvfb.log"
 openbox_log="$output_directory/openbox.log"
 
@@ -38,7 +38,7 @@ find "$source_root" -type f \
 source_digest=$(tr -d '\n' <"$output_directory/source-snapshot.sha256")
 
 set +e
-dotnet restore "$source_root/src/GhostShell.Desktop/GhostShell.Desktop.csproj" \
+dotnet restore "$source_root/src/Asura.Desktop/Asura.Desktop.csproj" \
   --runtime linux-arm64 \
   --locked-mode \
   --disable-build-servers \
@@ -49,7 +49,7 @@ if ((restore_status != 0)); then
   echo "linux-arm64 locked restore failed; see $output_directory/restore.log" >&2
   exit "$restore_status"
 fi
-dotnet publish "$source_root/src/GhostShell.Desktop/GhostShell.Desktop.csproj" \
+dotnet publish "$source_root/src/Asura.Desktop/Asura.Desktop.csproj" \
   --configuration Release \
   --runtime linux-arm64 \
   --self-contained true \
@@ -65,8 +65,8 @@ if ((publish_status != 0)); then
   exit "$publish_status"
 fi
 
-file "$package_directory/GhostShell" >"$output_directory/package-file.txt"
-ldd "$package_directory/GhostShell" >"$output_directory/package-ldd.txt"
+file "$package_directory/Asura" >"$output_directory/package-file.txt"
+ldd "$package_directory/Asura" >"$output_directory/package-ldd.txt"
 find "$package_directory" -maxdepth 1 -type f -print0 \
   | sort -z \
   | xargs -0 sha256sum >"$output_directory/package-files.sha256"

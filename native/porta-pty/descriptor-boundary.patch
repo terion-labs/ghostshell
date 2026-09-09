@@ -21,7 +21,7 @@
      }
      
      /* Fork with PTY */
-+    int descriptor_ceiling = ghostshell_descriptor_ceiling();
++    int descriptor_ceiling = asura_descriptor_ceiling();
 +    if (descriptor_ceiling < 0) {
 +        result.error = errno;
 +        return result;
@@ -33,7 +33,7 @@
           * This is the key to avoiding W^X issues.
           */
          
-+        ghostshell_close_child_descriptors(descriptor_ceiling);
++        asura_close_child_descriptors(descriptor_ceiling);
 +
          /* Change working directory if specified */
          if (working_dir != NULL && working_dir[0] != '\0') {

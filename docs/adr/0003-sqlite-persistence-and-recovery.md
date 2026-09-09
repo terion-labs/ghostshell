@@ -9,7 +9,7 @@ M1 requires durable definitions, runtime recovery metadata, audit records, and m
 
 ## Decision
 
-Use SQLite through `Microsoft.Data.Sqlite` behind repositories in `GhostShell.Infrastructure`. Enable WAL, foreign keys, a bounded busy timeout, and explicit transactions. Use normalized columns for identity, ordering, lookup, lifecycle, and audit correlation. JSON columns are accepted only behind explicit, versioned codecs; audit callers provide a closed `AuditDetails` value instead of arbitrary JSON.
+Use SQLite through `Microsoft.Data.Sqlite` behind repositories in `Asura.Infrastructure`. Enable WAL, foreign keys, a bounded busy timeout, and explicit transactions. Use normalized columns for identity, ordering, lookup, lifecycle, and audit correlation. JSON columns are accepted only behind explicit, versioned codecs; audit callers provide a closed `AuditDetails` value instead of arbitrary JSON.
 
 Maintain a monotonic schema-version table and transactional forward migrations. Before a destructive migration, create and validate a recoverable backup. Startup writes a dirty-shutdown marker before opening runtime state. The previous marker is parsed and validated inside the startup transaction before it can be replaced; malformed identifiers, state combinations, or timestamps fail closed without changing the stored row. An unclean marker opens recovery choices without deleting durable definitions.
 

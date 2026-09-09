@@ -1,0 +1,912 @@
+<UserControl
+    x:Class="Asura.App.Views.WorkspaceEditorView"
+    x:Name="WorkspaceEditorRoot"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:application="using:Asura.Application"
+    x:DataType="vm:WorkspaceEditorViewModel"
+    MinWidth="900"
+    MinHeight="600">
+  <!--
+    A rail and a detail column, because editing a workspace is mostly comparing
+    it with the others: the rail is how you get between them, and the detail is
+    one workspace at a time. The old editor put the identity fields, the add
+    controls, and the launch order all in one scrolling column and the selected
+    item in the other, which meant nothing on screen answered "which workspace
+    am I in" without reading a text box.
+  -->
+  <Grid ColumnDefinitions="300,*">
+    <Border Background="{DynamicResource ShellSidebarBrush}" BorderBrush="{DynamicResource ShellSidebarBorderBrush}" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Margin="{controls:Inset Lg}" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize17}" FontWeight="SemiBold" Text="Workspaces" />
+          <components:CountPill Grid.Column="1" Value="{Binding PeerCount}" />
+          <Button
+              x:Name="CreateWorkspaceButton"
+              Grid.Column="3"
+              Classes="IconButton"
+              Click="OnCreateWorkspaceClick"
+              ToolTip.Tip="New workspace"
+              AutomationProperties.Name="Create a workspace">
+            <icons:SymbolIcon Symbol="Add" FontSize="14" />
+          </Button>
+        </Grid>
+
+        <ListBox
+            x:Name="PeerList"
+            Grid.Row="1"
+            Margin="{controls:Inset Horizontal=Sm, Bottom=Sm}"
+            Classes="NeutralSelection"
+            Background="Transparent"
+            BorderThickness="0"
+            ItemsSource="{Binding Peers}"
+            SelectionChanged="OnPeerSelectionChanged"
+            AutomationProperties.Name="Workspaces">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:WorkspaceRailItemViewModel">
+              <controls:ListItem
+                  Margin="{controls:Inset Vertical=Xs}"
+                  Title="{Binding Name}"
+                  Detail="{Binding Summary}">
+                <controls:ListItem.Leading>
+                  <controls:IdentityTile Tint="{Binding Color}" Symbol="{Binding IconSymbol}" />
+                </controls:ListItem.Leading>
+                <controls:ListItem.Trailing>
+                  <icons:SymbolIcon
+                      Symbol="Checkmark"
+                      FontSize="14"
+                      Foreground="{DynamicResource ShellAccentBrush}"
+                      IsVisible="{Binding IsCurrent}" />
+                </controls:ListItem.Trailing>
+              </controls:ListItem>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="*,Auto">
+      <ScrollViewer x:Name="DetailScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="{controls:Inset Xl}" Spacing="{DynamicResource ShellSpaceXl}">
+          <!-- The header is the workspace: its mark at full size, and its name
+               as the one thing you can type into without opening anything. -->
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceLg}">
+            <controls:IdentityTile
+                VerticalAlignment="Top"
+                TileSize="Large"
+                Tint="{Binding EffectiveColor}"
+                Symbol="{Binding TileSymbol}" />
+            <StackPanel Grid.Column="1" Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock Classes="Eyebrow Caps" Text="WORKSPACE TITLE" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox
+                    x:Name="WorkspaceNameInput"
+                    FontSize="{DynamicResource ShellFontSize22}"
+                    FontWeight="SemiBold"
+                    Text="{Binding Name, Mode=TwoWay}"
+                    PlaceholderText="Operations"
+                    AutomationProperties.Name="Workspace name" />
+                <Button
+                    Grid.Column="1"
+                    Margin="{controls:Inset Left=Xs}"
+                    VerticalAlignment="Center"
+                    Classes="IconButton"
+                    Click="OnRenameWorkspaceClick"
+                    ToolTip.Tip="Rename this workspace"
+                    AutomationProperties.Name="Rename this workspace">
+                  <icons:SymbolIcon Symbol="Edit" FontSize="14" />
+                </Button>
+              </Grid>
+            </StackPanel>
+          </Grid>
+
+          <controls:SettingsGroup
+              Heading="Appearance"
+              Description="How this workspace is recognised — on its tab, in the rail, and in the launcher."
+              ControlWidth="470">
+            <controls:SettingRow
+                Label="Colour"
+                Description="The mark this workspace carries wherever it appears.">
+              <components:SwatchPicker
+                  x:Name="ColorPicker"
+                  ItemsSource="{Binding ColorChoices}"
+                  Value="{Binding Color, Mode=TwoWay}"
+                  FallbackValue="{Binding EffectiveColor}"
+                  Purpose="workspace colour"
+                  CanSample="True"
+                  SampleRequested="OnSampleColorRequested" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Icon"
+                Description="Searchable across the whole set; the shortlist covers what workspaces are usually named after.">
+              <components:IconPicker
+                  x:Name="IconPicker"
+                  ItemsSource="{Binding IconChoices}"
+                  SearchText="{Binding IconSearch, Mode=TwoWay}"
+                  ShowAll="{Binding ShowAllIcons, Mode=TwoWay}"
+                  TotalCount="{Binding IconCount}"
+                  Hint="{Binding IconHint}"
+                  IconChosen="OnIconChosen" />
+            </controls:SettingRow>
+            <!-- The accent is a separate decision from the colour: one marks the
+                 workspace, the other retints the shell around it. They share a
+                 palette, not a meaning, so they are two rows and not one. -->
+            <controls:SettingRow
+                Label="Accent"
+                Description="{Binding AccentSummary}"
+                IsLast="True">
+              <components:SwatchPicker
+                  x:Name="AccentPicker"
+                  ItemsSource="{Binding AccentChoices}"
+                  Value="{Binding Accent, Mode=TwoWay}"
+                  FallbackValue="{Binding EffectiveColor}"
+                  Purpose="accent"
+                  CanSample="True"
+                  ClearLabel="Follow the app"
+                  CanClear="{Binding HasAccent}"
+                  SampleRequested="OnSampleColorRequested" />
+            </controls:SettingRow>
+          </controls:SettingsGroup>
+
+          <controls:SettingsGroup
+              Heading="Isolation"
+              Description="Isolation runs this workspace inside its own persistent environment, separate from the host and other workspaces."
+              ControlWidth="470">
+            <controls:SettingRow
+                Label="Isolate workspace"
+                Description="One persistent Linux environment becomes this workspace's execution and network boundary. All workspace panels, connections, and local terminals use it, and what you install there stays between sessions.">
+              <ToggleSwitch
+                  IsChecked="{Binding IsIsolated, Mode=TwoWay}"
+                  IsEnabled="{Binding CanToggleIsolation}"
+                  AutomationProperties.Name="Isolate workspace" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="{Binding IsolationRuntimeRequirementLabel}"
+                Description="{Binding IsolationRuntimeRequirementDescription}"
+                IsVisible="{Binding IsIsolationUnavailable}">
+              <Button
+                  HorizontalAlignment="Right"
+                  Classes="SecondaryButton"
+                  Click="OnInstallWorkspaceIsolationRuntimeClick"
+                  Content="{Binding InstallIsolationRuntimeLabel}"
+                  IsVisible="{Binding CanInstallIsolationRuntime}"
+                  AutomationProperties.Name="{Binding InstallIsolationRuntimeAccessibleName}" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Runtime image"
+                Description="{Binding IsolationImageDescription}"
+                IsVisible="{Binding IsIsolated}">
+              <TextBox
+                  HorizontalAlignment="Stretch"
+                  FontFamily="{DynamicResource ShellDataFontFamily}"
+                  Text="{Binding IsolationImageReference, Mode=TwoWay}"
+                  AutomationProperties.Name="Workspace isolation OCI image" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Recreate environment"
+                Description="Start again from the image above. Installed packages and guest-only files are removed; host folders are not."
+                IsVisible="{Binding IsIsolated}">
+              <Button
+                  HorizontalAlignment="Right"
+                  Classes="SecondaryButton"
+                  Click="OnRecreateWorkspaceIsolationClick"
+                  Content="Recreate environment"
+                  IsEnabled="{Binding CanRecreateIsolationEnvironment}"
+                  AutomationProperties.Name="Recreate workspace environment" />
+            </controls:SettingRow>
+            <!-- A list of editable rows is not a control that fits beside its
+                 label. Stacked, each mount gets one line: where it comes from,
+                 where it lands, and what the environment may do to it. -->
+            <controls:SettingRow
+                Label="Host mounts"
+                Description="Only these host folders are visible inside the environment, each at the path you give it. Saving mount changes restarts an open workspace after confirmation."
+                IsStacked="True"
+                IsVisible="{Binding IsIsolated}">
+              <controls:SurfaceCard Tone="Sunken" Padding="{DynamicResource ShellCardPaddingCompact}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                  <ItemsControl ItemsSource="{Binding IsolationMounts}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="{DynamicResource ShellSpaceSm}" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WorkspaceIsolationMountEditorViewModel">
+                        <Grid ColumnDefinitions="*,Auto,Auto,*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                          <TextBox
+                              Text="{Binding HostPath, Mode=TwoWay}"
+                              PlaceholderText="Host folder, e.g. /Users/me/projects"
+                              AutomationProperties.Name="Host mount source directory" />
+                          <Button
+                              Grid.Column="1"
+                              Classes="IconButton"
+                              Click="OnBrowseIsolationMountHostPathClick"
+                              ToolTip.Tip="Choose a host folder"
+                              AutomationProperties.Name="Choose a host folder">
+                            <icons:SymbolIcon Symbol="FolderOpen" FontSize="13" />
+                          </Button>
+                          <icons:SymbolIcon
+                              Grid.Column="2"
+                              VerticalAlignment="Center"
+                              Symbol="ArrowRight"
+                              FontSize="12"
+                              Foreground="{DynamicResource ShellMutedBrush}" />
+                          <TextBox
+                              Grid.Column="3"
+                              Text="{Binding GuestPath, Mode=TwoWay}"
+                              PlaceholderText="Path inside the environment, e.g. /workspace"
+                              AutomationProperties.Name="Host mount guest path" />
+                          <Border Grid.Column="4" VerticalAlignment="Center" Classes="Segmented">
+                            <Grid ColumnDefinitions="Auto,Auto">
+                              <RadioButton
+                                  Classes="Segment"
+                                  Content="Read only"
+                                  IsChecked="{Binding IsReadOnly, Mode=TwoWay}"
+                                  AutomationProperties.Name="Mount host path read only" />
+                              <RadioButton
+                                  Grid.Column="1"
+                                  Classes="Segment"
+                                  Content="Read &amp; write"
+                                  IsChecked="{Binding IsReadWrite, Mode=TwoWay}"
+                                  AutomationProperties.Name="Mount host path read and write" />
+                            </Grid>
+                          </Border>
+                          <Button
+                              Grid.Column="5"
+                              Classes="IconButton Danger"
+                              Click="OnRemoveIsolationMountClick"
+                              ToolTip.Tip="Remove this host mount"
+                              AutomationProperties.Name="{Binding RemoveAccessibleName}">
+                            <icons:SymbolIcon Symbol="Delete" FontSize="13" />
+                          </Button>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock
+                      Classes="Muted"
+                      FontSize="{DynamicResource ShellFontSize10}"
+                      Text="No host folders are mounted. The environment uses guest-only storage until you add one."
+                      TextWrapping="Wrap"
+                      IsVisible="{Binding HasNoIsolationMounts}" />
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                    <Button
+                        Classes="TextButton Accent"
+                        Click="OnAddIsolationMountClick"
+                        Content="Add host folder"
+                        IsEnabled="{Binding CanAddIsolationMount}"
+                        AutomationProperties.Name="Add host mount" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Classes="Muted"
+                        FontSize="{DynamicResource ShellFontSize9}"
+                        Text="Read &amp; write lets processes in the environment change those host files."
+                        TextWrapping="Wrap" />
+                  </Grid>
+                </StackPanel>
+              </controls:SurfaceCard>
+            </controls:SettingRow>
+          </controls:SettingsGroup>
+
+          <controls:SettingsGroup
+              Heading="Networking"
+              Description="Which proxy or VPN route this workspace's panels, connections, and terminals use."
+              ControlWidth="470">
+            <controls:SettingRow
+                Label="Network policy"
+                Description="{Binding NetworkModeSummary}">
+              <Border HorizontalAlignment="Right" VerticalAlignment="Center" Classes="Segmented">
+                <Grid ColumnDefinitions="Auto,Auto">
+                  <RadioButton
+                      Classes="Segment"
+                      Content="Follow application default"
+                      IsChecked="{Binding FollowsApplicationNetwork, Mode=TwoWay}"
+                      AutomationProperties.Name="Follow application networking" />
+                  <RadioButton
+                      Grid.Column="1"
+                      Classes="Segment"
+                      Content="Custom for this workspace"
+                      IsChecked="{Binding OverridesNetworkSettings, Mode=TwoWay}"
+                      AutomationProperties.Name="Override application networking for this workspace" />
+                </Grid>
+              </Border>
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Use a network connection"
+                Description="Off connects this workspace directly and keeps the chosen connection for later."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ToggleSwitch
+                  IsChecked="{Binding NetworkPolicy.IsEnabled, Mode=TwoWay}"
+                  IsEnabled="{Binding NetworkPolicy.CanEnable}"
+                  AutomationProperties.Name="Use a workspace network connection" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Active connection"
+                Description="The route every panel and connection in this workspace opens through. The workspace's title bar switches between offered connections without editing it here."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ComboBox
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding NetworkPolicy.AvailableConnections}"
+                  SelectedItem="{Binding NetworkPolicy.SelectedConnection, Mode=TwoWay}"
+                  IsEnabled="{Binding NetworkPolicy.HasAvailableConnections}"
+                  AutomationProperties.Name="Workspace network connection">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NetworkPolicyConnectionOptionViewModel">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" Classes="Eyebrow" Text="{Binding KindLabel}" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Kill switch"
+                Description="Block routed traffic if the connection fails instead of falling back to a direct route. Isolation enforces this for every guest process; host programs can ignore proxy settings."
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <ToggleSwitch
+                  IsChecked="{Binding NetworkPolicy.KillSwitchEnabled, Mode=TwoWay}"
+                  AutomationProperties.Name="Workspace network kill switch" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Offered connections"
+                Description="The connections this workspace can switch between. Create and edit them in Settings › Networking."
+                IsStacked="True"
+                IsVisible="{Binding OverridesNetworkSettings}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                <ItemsControl ItemsSource="{Binding NetworkPolicy.Connections}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Spacing="{DynamicResource ShellSpaceSm}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NetworkPolicyConnectionOptionViewModel">
+                      <controls:SurfaceCard Tone="Raised" Padding="{DynamicResource ShellCardPaddingCompact}">
+                        <controls:ListItem Title="{Binding Name}" Detail="{Binding Summary}">
+                          <controls:ListItem.Leading>
+                            <CheckBox
+                                IsChecked="{Binding IsAvailable, Mode=TwoWay}"
+                                AutomationProperties.Name="{Binding Name, StringFormat=Offer {0} in this workspace}" />
+                          </controls:ListItem.Leading>
+                          <controls:ListItem.Trailing>
+                            <controls:StatusChip Shape="Rounded" Tone="Default" Content="{Binding KindLabel}" />
+                          </controls:ListItem.Trailing>
+                        </controls:ListItem>
+                      </controls:SurfaceCard>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <controls:Callout
+                    Tone="Notice"
+                    ShowsGlyph="False"
+                    Text="No network connections are saved. Create one in Settings › Networking."
+                    IsVisible="{Binding NetworkPolicy.HasNoConnections}" />
+                <controls:Callout
+                    Classes="Warning"
+                    Text="Untick the missing connections before saving this workspace."
+                    IsVisible="{Binding NetworkPolicy.HasMissingConnections}" />
+              </StackPanel>
+            </controls:SettingRow>
+          </controls:SettingsGroup>
+
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <components:SectionHeader
+                Heading="Tabs"
+                Count="{Binding EntryCount}"
+                Description="Each tab opens a saved connection or screen, or one created just for this workspace. They open in this order." />
+
+            <controls:SurfaceCard Tone="Sunken" Padding="0" ClipsContent="True">
+              <StackPanel>
+                <TextBlock
+                    Margin="{controls:Inset Lg}"
+                    Classes="Muted"
+                    FontSize="{DynamicResource ShellFontSize10}"
+                    Text="This workspace opens empty. Add a connection or a screen below."
+                    IsVisible="{Binding HasNoEntries}" />
+
+                <ListBox
+                    x:Name="EntryList"
+                    Classes="NeutralSelection"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemsSource="{Binding Entries}"
+                    SelectionChanged="OnEntrySelectionChanged"
+                    AutomationProperties.Name="Workspace tabs">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WorkspaceEntryEditorViewModel">
+                      <controls:ListItem
+                          Margin="{controls:Inset Vertical=Xs}"
+                          Title="{Binding DisplayName}"
+                          Detail="{Binding Detail}">
+                        <controls:ListItem.Leading>
+                          <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                            <Border
+                                Background="Transparent"
+                                Cursor="SizeAll"
+                                PointerPressed="OnEntryDragHandlePressed"
+                                PointerMoved="OnEntryDragHandleMoved"
+                                PointerReleased="OnEntryDragHandleReleased"
+                                ToolTip.Tip="Drag to reorder"
+                                AutomationProperties.Name="Reorder this tab">
+                              <icons:SymbolIcon VerticalAlignment="Center" Symbol="ReOrderDotsVertical" FontSize="13" Foreground="{DynamicResource ShellMutedBrush}" />
+                            </Border>
+                            <controls:IdentityTile
+                                TileSize="Small"
+                                Tint="{DynamicResource ShellSurfaceHoverBrush}"
+                                Foreground="{DynamicResource ShellTextBrush}"
+                                Symbol="{Binding RowSymbol}" />
+                          </StackPanel>
+                        </controls:ListItem.Leading>
+                        <controls:ListItem.Trailing>
+                          <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                            <!-- Two chips rather than one with a bound tone: the
+                                 difference between a shared definition and a
+                                 copy is what this row exists to make obvious,
+                                 and a tone is an enum a binding cannot reach. -->
+                            <controls:StatusChip
+                                Shape="Rounded"
+                                Tone="Default"
+                                Classes.Warning="{Binding HasMissingReference}"
+                                Content="{Binding BadgeLabel}"
+                                IsVisible="{Binding !IsWorkspaceOnly}" />
+                            <controls:StatusChip
+                                Shape="Rounded"
+                                Tone="Notice"
+                                Content="{Binding BadgeLabel}"
+                                IsVisible="{Binding IsWorkspaceOnly}" />
+                            <Button
+                                Classes="IconButton"
+                                Click="OnRemoveEntryClick"
+                                ToolTip.Tip="Remove from this workspace"
+                                AutomationProperties.Name="Remove this tab from the workspace">
+                              <icons:SymbolIcon Symbol="Dismiss" FontSize="11" />
+                            </Button>
+                          </StackPanel>
+                        </controls:ListItem.Trailing>
+                      </controls:ListItem>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Height="1" Background="{DynamicResource ShellBorderBrush}" />
+
+                <Grid Margin="{controls:Inset Lg}" ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                  <Button
+                      x:Name="AddTabButton"
+                      Classes="PrimaryButton"
+                      Click="OnAddTabClick"
+                      AutomationProperties.Name="Add a tab to this workspace">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                      <icons:SymbolIcon VerticalAlignment="Center" Symbol="Add" FontSize="13" />
+                      <TextBlock VerticalAlignment="Center" Text="Add tab" />
+                    </StackPanel>
+                  </Button>
+                  <TextBlock
+                      Grid.Column="1"
+                      VerticalAlignment="Center"
+                      Classes="Muted"
+                      FontSize="{DynamicResource ShellFontSize11}"
+                      Text="A saved connection or screen, or a screen that belongs only to this workspace."
+                      TextWrapping="Wrap" />
+                </Grid>
+              </StackPanel>
+            </controls:SurfaceCard>
+          </StackPanel>
+
+          <controls:Callout
+              Tone="Notice"
+              Glyph="Warning"
+              Text="{Binding MissingReferenceCount, StringFormat={}{0} tab(s) point at something that no longer exists. Select each one and choose a replacement.}"
+              IsVisible="{Binding HasMissingReferences}" />
+
+          <TextBlock
+              x:Name="SelectTabPrompt"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize12}"
+              Text="Select a tab above to set its name, what it opens, and its panels."
+              IsVisible="False" />
+
+          <!-- The selected tab's own settings. Below the list rather than
+               beside it: a tab's panels are a second level of detail, and
+               putting them in a column of their own left both columns half
+               empty. -->
+          <StackPanel x:Name="SelectedEntryEditor" x:DataType="vm:WorkspaceEntryEditorViewModel" Spacing="{DynamicResource ShellSpaceMd}" IsVisible="False">
+            <controls:SurfaceCard>
+              <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                    <TextBlock Classes="Eyebrow Accent" Text="{Binding KindLabel}" />
+                    <TextBlock FontSize="{DynamicResource ShellFontSize18}" FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                    <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <controls:StatusChip Grid.Column="1" VerticalAlignment="Top" Classes.Warning="{Binding HasMissingReference}" Content="{Binding ReferenceStatus}" />
+                </Grid>
+
+                <controls:LabeledField
+                    Label="Tab name in this workspace"
+                    IsVisible="{Binding CanEditAlias}">
+                  <TextBox Text="{Binding Alias, Mode=TwoWay}" PlaceholderText="Optional label used only in this workspace" />
+                </controls:LabeledField>
+
+                <controls:LabeledField
+                    Label="Connection"
+                    Hint="Choose any available connection to repair a missing reference."
+                    IsVisible="{Binding IsConnection}">
+                  <ComboBox
+                      x:Name="EntryConnectionPicker"
+                      SelectedItem="{Binding SelectedConnection, Mode=TwoWay}"
+                      AutomationProperties.Name="Workspace entry connection">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:ScreenConnectionOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                  </ComboBox>
+                </controls:LabeledField>
+
+                <controls:LabeledField
+                    Label="Saved screen"
+                    Hint="The linked screen stays reusable; future screen edits apply when this workspace opens."
+                    IsVisible="{Binding IsSavedScreen}">
+                  <ComboBox
+                      x:Name="EntryScreenPicker"
+                      SelectedItem="{Binding SelectedScreen, Mode=TwoWay}"
+                      AutomationProperties.Name="Workspace entry saved screen">
+                    <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:WorkspaceScreenOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                  </ComboBox>
+                </controls:LabeledField>
+              </StackPanel>
+            </controls:SurfaceCard>
+
+            <controls:SurfaceCard IsVisible="{Binding IsWorkspaceTab}">
+              <StackPanel x:DataType="vm:WorkspaceTabEditorViewModel" DataContext="{Binding Tab}" Spacing="{DynamicResource ShellSpaceMd}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <components:SectionHeader
+                      Heading="Workspace-only screen"
+                      Description="This screen belongs to the workspace. Nothing else opens it." />
+                  <TextBlock Grid.Column="1" Foreground="{DynamicResource ShellDangerBrush}" FontSize="{DynamicResource ShellFontSize9}" IsVisible="{Binding HasMissingDefinition}" Text="Repair required" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <controls:LabeledField Label="Screen name">
+                    <TextBox Text="{Binding Name, Mode=TwoWay}" />
+                  </controls:LabeledField>
+                  <controls:LabeledField Grid.Column="1" Label="Layout">
+                    <ComboBox ItemsSource="{Binding LayoutOptions}" SelectedItem="{Binding SelectedLayout, Mode=TwoWay}">
+                      <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:WorkspaceLayoutOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <components:SectionHeader VerticalAlignment="Center" Heading="Panels" />
+                  <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Classes="TextButton Accent" Click="OnAddTerminalPanelClick" Content="+ Terminal" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddFilePanelClick" Content="+ Files" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddBrowserPanelClick" Content="+ Browser" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddStatisticsPanelClick" Content="+ Statistics" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddProcessMonitorPanelClick" Content="+ Processes" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddDatabasePanelClick" Content="+ Database" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddDockerPanelClick" Content="+ Docker" IsEnabled="{Binding CanAddPanel}" />
+                    <Button Classes="TextButton Accent" Click="OnAddGitPanelClick" Content="+ Git" IsEnabled="{Binding CanAddPanel}" />
+                  </WrapPanel>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding Panels}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WorkspaceTabPanelEditorViewModel">
+                      <controls:SurfaceCard Tone="Sunken" ClipsContent="True" Padding="{DynamicResource ShellCardPaddingCompact}" Margin="{controls:Inset Bottom=Sm}">
+                        <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                            <controls:IdentityTile TileSize="Small" Tint="{DynamicResource ShellAccentSoftBrush}" Foreground="{DynamicResource ShellTextBrush}" Symbol="NumberSymbol" />
+                            <StackPanel Grid.Column="1" Spacing="{DynamicResource ShellSpaceXs}">
+                              <TextBlock Classes="Eyebrow Accent" Text="{Binding KindLabel}" />
+                              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding Id.Value}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                              <Button Classes="IconButton" Click="OnMovePanelEarlierClick" ToolTip.Tip="Move panel earlier" AutomationProperties.Name="Move panel earlier"><icons:SymbolIcon Symbol="ArrowUp" FontSize="10" /></Button>
+                              <Button Classes="IconButton" Click="OnMovePanelLaterClick" ToolTip.Tip="Move panel later" AutomationProperties.Name="Move panel later"><icons:SymbolIcon Symbol="ArrowDown" FontSize="10" /></Button>
+                              <Button Classes="IconButton" Click="OnRemovePanelClick" ToolTip.Tip="Remove panel" AutomationProperties.Name="Remove panel"><icons:SymbolIcon Symbol="Delete" FontSize="10" Foreground="{DynamicResource ShellDangerBrush}" /></Button>
+                            </StackPanel>
+                          </Grid>
+
+                          <controls:Callout
+                              Tone="Notice"
+                              ShowsGlyph="False"
+                              Text="Choose an available slot and required definition before saving."
+                              IsVisible="{Binding HasMissingDefinition}" />
+
+                          <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                            <controls:LabeledField Label="Title">
+                              <TextBox Text="{Binding Title, Mode=TwoWay}" />
+                            </controls:LabeledField>
+                            <controls:LabeledField Grid.Column="1" Label="Layout slot">
+                              <ComboBox ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedSlot, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                              </ComboBox>
+                            </controls:LabeledField>
+                          </Grid>
+
+                          <controls:LabeledField Label="Connection" IsVisible="{Binding SupportsConnection}">
+                            <ComboBox ItemsSource="{Binding ApplicableConnectionOptions}" SelectedItem="{Binding SelectedConnection, Mode=TwoWay}">
+                              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                          </controls:LabeledField>
+
+                          <controls:LabeledField Label="File provider" IsVisible="{Binding IsFileViewer}">
+                            <ComboBox ItemsSource="{Binding FileProviderOptions}" SelectedItem="{Binding SelectedFileProvider, Mode=TwoWay}">
+                              <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                          </controls:LabeledField>
+
+                          <controls:LabeledField Label="Startup location" IsVisible="{Binding SupportsLocation}">
+                            <TextBox Text="{Binding StartupLocation, Mode=TwoWay}" PlaceholderText="Optional working directory or URL" />
+                          </controls:LabeledField>
+
+                          <Grid
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="{DynamicResource ShellSpaceMd}"
+                              IsVisible="{Binding IsTerminal}">
+                            <controls:LabeledField Label="Startup commands">
+                              <TextBox
+                                  MinHeight="76"
+                                  AcceptsReturn="True"
+                                  Text="{Binding StartupCommands, Mode=TwoWay}"
+                                  TextWrapping="NoWrap"
+                                  PlaceholderText="One command per line"
+                                  AutomationProperties.Name="{Binding KindLabel, StringFormat=Startup commands for {0} workspace tab panel}" />
+                            </controls:LabeledField>
+                            <controls:LabeledField
+                                Grid.Column="1"
+                                MinWidth="260"
+                                Label="On delivery failure"
+                                Hint="This governs delivery or acknowledgement failures while the terminal is live, not a shell command's exit status.">
+                              <ComboBox
+                                  MinWidth="260"
+                                  ItemsSource="{Binding DeliveryFailurePolicyOptions}"
+                                  SelectedItem="{Binding SelectedDeliveryFailurePolicy, Mode=TwoWay}"
+                                  AutomationProperties.Name="{Binding KindLabel, StringFormat=Startup command delivery failure policy for {0} workspace tab panel}"
+                                  AutomationProperties.HelpText="Governs delivery or acknowledgement failures while the terminal is live, not a shell command's exit status.">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                            </controls:LabeledField>
+                          </Grid>
+                        </StackPanel>
+                      </controls:SurfaceCard>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <controls:Callout
+                    Tone="Notice"
+                    ShowsGlyph="False"
+                    Text="The saved layout or one of its panels is missing."
+                    IsVisible="{Binding HasMissingDefinition}" />
+              </StackPanel>
+            </controls:SurfaceCard>
+          </StackPanel>
+
+          <controls:SettingsGroup
+              Heading="AI configuration"
+              Description="Use app defaults or choose a provider, model, and tool permissions for this workspace.">
+            <StackPanel Margin="{controls:Inset Lg}" Spacing="{DynamicResource ShellSpaceMd}">
+              <controls:ToggleField
+                  Label="Run the AI agent in the workspace environment"
+                  OnLabel="The provider is reached through this workspace's route; providers available only on the host cannot be selected."
+                  OffLabel="The provider is reached over the host network."
+                  IsChecked="{CompiledBinding RunAgentInIsolation, Mode=TwoWay}"
+                  IsVisible="{Binding IsIsolated}"
+                  AutomationProperties.Name="Run AI agent in workspace environment" />
+              <controls:ToggleField
+                  Label="Override AI configuration for this workspace"
+                  IsChecked="{CompiledBinding AgentPolicy.IsEnabled, Mode=TwoWay}"
+                  AutomationProperties.Name="Override AI configuration for this workspace" />
+              <StackPanel
+                  Spacing="{DynamicResource ShellSpaceMd}"
+                  IsVisible="{CompiledBinding AgentPolicy.IsEnabled}">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <controls:LabeledField Label="Provider profile">
+                    <Grid MinHeight="{DynamicResource ShellControlMinHeight}">
+                      <ComboBox
+                          IsVisible="{Binding AgentPolicy.HasMultipleProviderOptions}"
+                          ItemsSource="{Binding AgentPolicy.ProviderOptions}"
+                          SelectedItem="{Binding AgentPolicy.SelectedProvider, Mode=TwoWay}"
+                          AutomationProperties.Name="Workspace AI provider profile">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <TextBlock
+                          VerticalAlignment="Center"
+                          FontWeight="SemiBold"
+                          IsVisible="{Binding AgentPolicy.HasSingleProviderOption}"
+                          Text="{Binding AgentPolicy.SelectedProvider.DisplayName}" />
+                    </Grid>
+                  </controls:LabeledField>
+                  <controls:LabeledField Grid.Column="1" Label="Model">
+                    <Grid MinHeight="{DynamicResource ShellControlMinHeight}">
+                      <ComboBox
+                          IsVisible="{Binding AgentPolicy.HasMultipleModelOptions}"
+                          ItemsSource="{Binding AgentPolicy.ModelOptions}"
+                          SelectedItem="{Binding AgentPolicy.SelectedModel, Mode=TwoWay}"
+                          AutomationProperties.Name="Workspace AI model">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <TextBlock
+                          VerticalAlignment="Center"
+                          FontWeight="SemiBold"
+                          IsVisible="{Binding AgentPolicy.HasSingleModelOption}"
+                          Text="{Binding AgentPolicy.SelectedModel.DisplayName}" />
+                    </Grid>
+                  </controls:LabeledField>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <controls:LabeledField Label="Compaction model">
+                    <ComboBox
+                        ItemsSource="{Binding AgentPolicy.AgentTaskModelOptions}"
+                        SelectedItem="{Binding AgentPolicy.SelectedCompactionModel, Mode=TwoWay}"
+                        AutomationProperties.Name="Workspace conversation compaction model">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                  <controls:LabeledField Grid.Column="1" Label="Title model">
+                    <Grid MinHeight="{DynamicResource ShellControlMinHeight}">
+                      <ComboBox
+                          IsVisible="{Binding AgentPolicy.HasMultipleTitleModelOptions}"
+                          ItemsSource="{Binding AgentPolicy.TitleModelOptions}"
+                          SelectedItem="{Binding AgentPolicy.SelectedTitleModel, Mode=TwoWay}"
+                          AutomationProperties.Name="Workspace conversation title model">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                      <TextBlock
+                          VerticalAlignment="Center"
+                          FontWeight="SemiBold"
+                          IsVisible="{Binding AgentPolicy.HasSingleTitleModelOption}"
+                          Text="{Binding AgentPolicy.SelectedTitleModel.DisplayName}" />
+                    </Grid>
+                  </controls:LabeledField>
+                </Grid>
+                <controls:LabeledField Label="System prompt override">
+                  <TextBox
+                      MinHeight="140"
+                      MaxLength="8000"
+                      AcceptsReturn="True"
+                      TextWrapping="Wrap"
+                      VerticalContentAlignment="Top"
+                      Text="{Binding AgentPolicy.SystemPrompt, Mode=TwoWay}"
+                      PlaceholderText="Leave empty to inherit the global instructions."
+                      AutomationProperties.Name="Workspace agent system prompt" />
+                </controls:LabeledField>
+                <TextBlock
+                    Classes="Muted"
+                    FontSize="{DynamicResource ShellFontSize9}"
+                    Text="These values apply to every tab in this workspace unless a saved screen has a more specific override."
+                    TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding AgentPolicy.Capabilities}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid Margin="{controls:Inset Vertical=Sm}" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                        <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+                          <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding Description}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Border Grid.Column="1" VerticalAlignment="Center" Classes="Segmented">
+                          <Grid ColumnDefinitions="60,60,60">
+                            <ToggleButton Classes="Segment" IsChecked="{Binding IsOff, Mode=TwoWay}" Content="Off" />
+                            <ToggleButton Grid.Column="1" Classes="Segment" IsChecked="{Binding IsAsk, Mode=TwoWay}" Content="Ask" />
+                            <ToggleButton Grid.Column="2" Classes="Segment" IsChecked="{Binding IsAuto, Mode=TwoWay}" Content="Auto" />
+                          </Grid>
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock
+                    Foreground="{DynamicResource ShellDangerBrush}"
+                    FontSize="{DynamicResource ShellFontSize9}"
+                    Text="Choose an available, enabled provider profile and enter a valid model."
+                    IsVisible="{CompiledBinding !AgentPolicy.IsValid}" />
+              </StackPanel>
+            </StackPanel>
+          </controls:SettingsGroup>
+
+          <controls:SettingsGroup Heading="Details" ControlWidth="470">
+            <controls:SettingRow
+                Label="Description"
+                Description="What this workspace is for. It shows in the launcher and in settings.">
+              <TextBox
+                  MinHeight="58"
+                  AcceptsReturn="True"
+                  Text="{Binding Description, Mode=TwoWay}"
+                  TextWrapping="Wrap"
+                  PlaceholderText="Release watch for the production API"
+                  AutomationProperties.Name="Workspace description" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Autosave"
+                Description="Save tab and panel changes back to this workspace while you work.">
+              <ToggleSwitch
+                  HorizontalAlignment="Right"
+                  IsChecked="{Binding AutoSave, Mode=TwoWay}"
+                  AutomationProperties.Name="Autosave workspace changes" />
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Terminal continuity"
+                Description="Choose whether SSH terminals in this workspace use app-managed tmux with GNU Screen as a fallback.">
+              <ComboBox
+                  Width="250"
+                  ItemsSource="{Binding TerminalMultiplexingOptions}"
+                  SelectedItem="{Binding SelectedTerminalMultiplexing, Mode=TwoWay}"
+                  AutomationProperties.Name="Workspace terminal continuity">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:SettingRow>
+            <controls:SettingRow
+                Label="Browser profile"
+                Description="Share cookies and site storage with other workspaces for this app session, or keep this workspace isolated."
+                IsLast="True">
+              <ComboBox
+                  Width="250"
+                  ItemsSource="{Binding BrowserProfileOptions}"
+                  SelectedItem="{Binding SelectedBrowserProfile, Mode=TwoWay}"
+                  AutomationProperties.Name="Workspace browser profile">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:SettingRow>
+          </controls:SettingsGroup>
+
+          <controls:Callout
+              Tone="Notice"
+              ShowsGlyph="False"
+              Text="{CompiledBinding LastOperationError}"
+              IsVisible="{CompiledBinding HasOperationError}">
+            <controls:Callout.Action>
+              <Button Classes="IconButton" Click="OnClearOperationErrorClick" AutomationProperties.Name="Dismiss workspace editor error"><icons:SymbolIcon Symbol="Dismiss" FontSize="11" /></Button>
+            </controls:Callout.Action>
+          </controls:Callout>
+
+          <controls:Callout x:Name="InteractionErrorCard" Tone="Notice" ShowsGlyph="False" IsVisible="False">
+            <TextBlock x:Name="InteractionErrorText" Foreground="{DynamicResource ShellDangerBrush}" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap" />
+          </controls:Callout>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Row="1" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,1,0,0">
+        <Grid Margin="{controls:Inset Horizontal=Lg, Vertical=Md}" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <controls:StatusChip VerticalAlignment="Center" Classes.Warning="{CompiledBinding IsDirty}" Content="{CompiledBinding DirtyStatus}" />
+          <TextBlock
+              Grid.Column="1"
+              Margin="{controls:Inset Left=Md}"
+              VerticalAlignment="Center"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="{CompiledBinding ValidationSummary}"
+              TextWrapping="Wrap"
+              ToolTip.Tip="{CompiledBinding ValidationSummary}" />
+          <Button Grid.Column="2" VerticalAlignment="Center" Classes="TextButton" Click="OnResetClick" Content="Reset" IsEnabled="{CompiledBinding IsDirty}" />
+          <Button Grid.Column="3" MinWidth="88" VerticalAlignment="Center" Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" />
+          <Button Grid.Column="4" MinWidth="128" VerticalAlignment="Center" Classes="PrimaryButton" Click="OnSaveClick" Content="Save workspace" IsEnabled="{CompiledBinding CanSave}" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

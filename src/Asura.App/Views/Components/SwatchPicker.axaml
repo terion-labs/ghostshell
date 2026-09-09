@@ -1,0 +1,62 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.SwatchPicker"
+    x:DataType="components:SwatchPicker"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:vm="using:Asura.App.ViewModels">
+  <!--
+    Choosing a colour, once. The shell had two idioms for it living in the same
+    card: a row of round presets with a custom picker on the end, and a squared
+    picker beside a hex box and an eyedropper. They did the same job, so this is
+    the one control that does it — presets first, because a colour picked to be
+    recognised is a choice between a handful of options, then anything else
+    through the picker, then the two optional actions.
+  -->
+  <WrapPanel Orientation="Horizontal" ItemSpacing="{DynamicResource ShellSpaceSm}" LineSpacing="{DynamicResource ShellSpaceSm}">
+    <ItemsControl x:Name="Swatches" VerticalAlignment="Center" ItemsSource="{Binding ItemsSource, ElementName=Root}">
+      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:IColorChoice">
+          <Button
+              Margin="{controls:Inset Right=Sm}"
+              Classes="AccentSwatch"
+              Click="OnPresetClick"
+              Background="{Binding Hex}"
+              ToolTip.Tip="{Binding Name}"
+              Classes.selected="{Binding IsSelected}"
+              AutomationProperties.Name="{Binding Name}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <ColorPicker
+        x:Name="CustomPicker"
+        Classes="Swatch Round"
+        ColorChanged="OnCustomColorChanged"
+        ToolTip.Tip="Any other colour"
+        AutomationProperties.Name="{Binding Purpose, ElementName=Root, StringFormat=Any other {0}}" />
+
+    <Button
+        x:Name="Sampler"
+        Classes="IconButton"
+        Click="OnSampleClick"
+        ToolTip.Tip="Sample a colour from the screen"
+        IsVisible="{Binding CanSample, ElementName=Root}"
+        AutomationProperties.Name="{Binding Purpose, ElementName=Root, StringFormat=Sample the {0} from the screen}">
+      <icons:SymbolIcon Symbol="Eyedropper" FontSize="14" />
+    </Button>
+
+    <Button
+        x:Name="ClearAction"
+        VerticalAlignment="Center"
+        Classes="TextButton"
+        Click="OnClearClick"
+        Content="{Binding ClearLabel, ElementName=Root}"
+        IsEnabled="{Binding CanClear, ElementName=Root}"
+        IsVisible="{Binding HasClearAction, ElementName=Root}" />
+  </WrapPanel>
+</UserControl>

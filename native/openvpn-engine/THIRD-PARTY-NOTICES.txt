@@ -1,4 +1,4 @@
-GhostSHELL OpenVPN userspace engine
+Asura OpenVPN userspace engine
 
 OpenVPN 3 Core 3.11.7, commit 18edfae7e7fd8051c93bd4746ec69be91eb02dbb.
 Copyright OpenVPN Inc. Used under its Mozilla Public License 2.0 option.
@@ -21,6 +21,6 @@ Source: https://github.com/lz4/lz4/tree/v1.10.0
 Source archive SHA-256: 537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
 See LZ4-LICENSE.txt.
 
-Build recipe: scripts/build-openvpn-engine.sh in the GhostSHELL source repository.
+Build recipe: scripts/build-openvpn-engine.sh in the Asura source repository.
 The engine statically links these libraries. Its remaining runtime dependencies
 are Apple system libraries and frameworks; no Homebrew packages are required.

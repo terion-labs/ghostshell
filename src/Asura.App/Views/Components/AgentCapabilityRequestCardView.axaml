@@ -1,0 +1,109 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.AgentCapabilityRequestCardView"
+    x:DataType="vm:IAgentWorkspaceHost"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    Focusable="False"
+    HorizontalContentAlignment="Stretch">
+  <!--
+    A decision card, read top to bottom in one breath: what is being asked, of
+    what, until when — then the reassurance and the decision. Every fact keeps
+    its trusted-source binding; what changed is the register. The previous
+    layout shouted six uppercase section headers and a raw zoned timestamp at a
+    person who only has to answer one question.
+  -->
+  <controls:SurfaceCard Tone="Notice"
+      x:Name="AgentPendingCapabilityRequest"
+      Padding="{DynamicResource ShellCardPaddingCompact}"
+      Focusable="True"
+      KeyboardNavigation.IsTabStop="True"
+      IsVisible="{Binding AgentChat.HasPendingCapabilityRequest, FallbackValue=False}"
+      AutomationProperties.Name="{Binding AgentChat.PendingCapabilityRequest.AccessibleName}"
+      AutomationProperties.HelpText="{Binding AgentChat.PendingCapabilityRequest.GrantWarning}">
+    <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <icons:SymbolIcon
+            VerticalAlignment="Center"
+            Symbol="Shield"
+            FontSize="15"
+            Foreground="{DynamicResource ShellAccentBrush}" />
+        <TextBlock
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="Permission request" />
+        <controls:StatusChip Grid.Column="2" VerticalAlignment="Center" Classes.Warning="True" Content="Off → Ask" />
+      </Grid>
+      <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+        <TextBlock
+            FontSize="{DynamicResource ShellFontSize13}"
+            FontWeight="SemiBold"
+            Text="{Binding AgentChat.PendingCapabilityRequest.DisplayTitle}"
+            TextWrapping="Wrap"
+            ToolTip.Tip="{Binding AgentChat.PendingCapabilityRequest.CapabilityToken}" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="{Binding AgentChat.PendingCapabilityRequest.TargetTitle}"
+            TextWrapping="Wrap" />
+      </StackPanel>
+      <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="Allows asking to:" />
+        <ItemsControl ItemsSource="{Binding AgentChat.PendingCapabilityRequest.AffectedToolTitles}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock
+                  FontSize="{DynamicResource ShellFontSize10}"
+                  Text="{Binding StringFormat={}· {0}}"
+                  TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <!-- The exact broker-verified boundary, stated once and quietly: the ids
+           are the trustworthy part, but they are read deliberately, not first. -->
+      <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            Text="{Binding AgentChat.PendingCapabilityRequest.ExactTarget}"
+            TextWrapping="Wrap" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            Text="{Binding AgentChat.PendingCapabilityRequest.ExpiresAt, StringFormat={}Expires {0}}"
+            TextWrapping="Wrap" />
+      </StackPanel>
+      <controls:Callout
+          Tone="Notice"
+          Glyph="Info"
+          Text="{Binding AgentChat.PendingCapabilityRequest.GrantWarning}" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <Button
+            Classes="SecondaryButton"
+            Click="OnKeepAgentCapabilityOffClick"
+            Content="Keep Off"
+            IsEnabled="{Binding AgentChat.CanDecideCapabilityRequest}"
+            TabIndex="0"
+            AutomationProperties.Name="Keep this AI agent capability Off"
+            AutomationProperties.HelpText="Decline this request" />
+        <Button
+            Grid.Column="1"
+            Classes="PrimaryButton"
+            Click="OnEnableAgentCapabilityAskClick"
+            Content="Enable Ask for this run"
+            IsEnabled="{Binding AgentChat.CanDecideCapabilityRequest}"
+            TabIndex="1"
+            AutomationProperties.Name="Enable Ask for this capability for this run"
+            AutomationProperties.HelpText="Changes this one capability from Off to Ask for the current run; it approves no action" />
+      </Grid>
+    </StackPanel>
+  </controls:SurfaceCard>
+</UserControl>

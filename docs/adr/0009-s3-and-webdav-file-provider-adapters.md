@@ -11,7 +11,7 @@ ADR 0008 defines a provider-neutral file API with bounded reads and open-ended s
 
 ### S3 and S3-compatible services
 
-The production transport uses the official `AWSSDK.S3` package pinned to `4.0.101.3`. This was the latest stable version on 2026-07-22 (published 2026-07-17), targets .NET 8 and later, and is licensed under Apache-2.0. The package is maintained by AWS, implements Signature Version 4, and exposes the current destination `IfMatch`/`IfNoneMatch` conditional-write APIs. GhostSHELL accepts a caller-configured `IAmazonS3`; credential discovery, region, endpoint URL, TLS policy, and path-style addressing therefore remain profile/bootstrap concerns and can support AWS plus S3-compatible endpoints without storing secrets in file locations. The provider does not dispose that client.
+The production transport uses the official `AWSSDK.S3` package pinned to `4.0.101.3`. This was the latest stable version on 2026-07-22 (published 2026-07-17), targets .NET 8 and later, and is licensed under Apache-2.0. The package is maintained by AWS, implements Signature Version 4, and exposes the current destination `IfMatch`/`IfNoneMatch` conditional-write APIs. Asura accepts a caller-configured `IAmazonS3`; credential discovery, region, endpoint URL, TLS policy, and path-style addressing therefore remain profile/bootstrap concerns and can support AWS plus S3-compatible endpoints without storing secrets in file locations. The provider does not dispose that client.
 
 The container root is structurally distinct from an object. `FileObjectKey` maps byte-for-byte to an S3 key, including repeated or trailing `/` and `.`/`..` data. A hierarchical location is available for delimiter-based browsing of ordinary keys. ETags are opaque `FileVersion` values and are never interpreted as MD5 hashes. `ListObjectsV2` supplies bounded pages; because service continuation tokens can exceed the provider-neutral token limit, a bounded provider-local cursor maps them to 32-character opaque tokens and validates their bucket/prefix scope.
 
@@ -50,5 +50,5 @@ No test requires cloud credentials or network access. S3 semantics run against a
 
 - The UI and agent can browse and preview these providers through the same typed contract without flattening exact S3 keys into unsafe paths.
 - Concurrency failures are visible and recoverable instead of silently overwriting newer data.
-- Server-side copies avoid downloading data through GhostSHELL, while source identity and destination preconditions are checked before the operation.
+- Server-side copies avoid downloading data through Asura, while source identity and destination preconditions are checked before the operation.
 - Multipart S3 transfer, recursive WebDAV collection transfer, and S3 prefix deletion remain deliberate future features rather than partially safe implicit behavior.

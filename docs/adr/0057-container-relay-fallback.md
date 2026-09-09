@@ -25,7 +25,7 @@ The TAP must acknowledge setup before the host reports readiness. Losing its
 exec channel closes the nonpersistent interface. There is no alternative egress
 interface, so a disconnected or crash-left container cannot fall back to NAT.
 Normal disposal and startup failure remove the owned container. Reclaiming idle
-containers after an abrupt desktop crash is tracked as `ghostshell-icgw`; it needs
+containers after an abrupt desktop crash is tracked as `asura-icgw`; it needs
 cross-process ownership so it cannot remove another live app instance's relay.
 The backend runs as UID/GID 1000 with no effective capabilities and
 `no-new-privileges`. NET_ADMIN and CHOWN are available only to root setup/transport
@@ -68,7 +68,7 @@ does not turn a shared daemon into a private security boundary.
 
 ARM64 and x64 backend archives contain the UI-free .NET worker and Linux packet
 transport, with integrity manifests and license evidence. Only their descriptors
-ship in the Mac app. `GHOSTSHELL_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh`
+ship in the Mac app. `ASURA_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh`
 builds the x64 archive. The native gateway build also supports osx-x64/linux-x64.
 This does not by itself complete all other native dependencies for an Intel Mac
 application release.
@@ -79,13 +79,13 @@ Opt-in tests create and remove their own relay containers, never use saved
 credentials, and route to synthetic local test servers:
 
 ```sh
-export GHOSTSHELL_TEST_RELAY_ARCHIVE="$PWD/native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
-export GHOSTSHELL_TEST_RELAY_GATEWAY="$PWD/native/artifacts/osx-arm64/ghostshell-workspace-gateway-darwin-arm64"
-./.dotnet/dotnet test tests/GhostShell.Infrastructure.Tests -c Release --filter FullyQualifiedName~Container_relay
-# Set GHOSTSHELL_TEST_RELAY_ENGINE=podman to exercise Podman's CLI and local machine.
+export ASURA_TEST_RELAY_ARCHIVE="$PWD/native/artifacts/workspace-backend-build/distribution/Asura-workspace-backend-arm64.tar.gz"
+export ASURA_TEST_RELAY_GATEWAY="$PWD/native/artifacts/osx-arm64/asura-workspace-gateway-darwin-arm64"
+./.dotnet/dotnet test tests/Asura.Infrastructure.Tests -c Release --filter FullyQualifiedName~Container_relay
+# Set ASURA_TEST_RELAY_ENGINE=podman to exercise Podman's CLI and local machine.
 
-export GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE="$GHOSTSHELL_TEST_RELAY_ARCHIVE"
-./.dotnet/dotnet test tests/GhostShell.Architecture.Tests -c Release --filter FullyQualifiedName~Container_relay_SQL
+export ASURA_WORKSPACE_BACKEND_ARCHIVE="$ASURA_TEST_RELAY_ARCHIVE"
+./.dotnet/dotnet test tests/Asura.Architecture.Tests -c Release --filter FullyQualifiedName~Container_relay_SQL
 ```
 
 The network test checks private DNS, IPv4/IPv6, remote loopback, absence of a
@@ -94,8 +94,8 @@ after gateway loss. The SQL test exercises the stock SqlClient driver, TDS login
 redirects, transient retry, failover, exact TLS pins/original SNI, and revocation
 during login. It is a synthetic protocol fixture, not a production SQL Server.
 For x64 under a compatible engine emulator, set
-`GHOSTSHELL_TEST_RELAY_ARCHITECTURE=x64` and both backend archive variables to the
-x64 archive; also set `GHOSTSHELL_WORKSPACE_BACKEND_X64_ARCHIVE` to that archive.
+`ASURA_TEST_RELAY_ARCHITECTURE=x64` and both backend archive variables to the
+x64 archive; also set `ASURA_WORKSPACE_BACKEND_X64_ARCHIVE` to that archive.
 
 Supported engine/OS combinations require execution testing. Building the x64
 payload on ARM64 is not proof of native Intel hardware compatibility. Publication

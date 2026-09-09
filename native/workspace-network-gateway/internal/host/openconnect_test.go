@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 func TestOpenConnectConfigurationUsesNegotiatedTunnelValues(t *testing.T) {

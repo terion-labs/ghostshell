@@ -39,7 +39,7 @@ $dotnet = if (Test-Path -LiteralPath $workspaceDotnet -PathType Leaf) {
     $command = Get-Command dotnet -ErrorAction Stop
     $command.Source
 }
-$runnerProject = Join-Path $repositoryRoot "tools/GhostShell.AccessibilityAcceptance/GhostShell.AccessibilityAcceptance.csproj"
+$runnerProject = Join-Path $repositoryRoot "tools/Asura.AccessibilityAcceptance/Asura.AccessibilityAcceptance.csproj"
 
 & $dotnet run --project $runnerProject -- run `
     --platform $Platform `

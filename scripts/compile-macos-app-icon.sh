@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
-icon_document="${repository_dir}/assets/macos/GhostShell.icon"
+icon_document="${repository_dir}/assets/macos/Asura.icon"
 output_directory=""
 minimum_macos="13.0"
 
@@ -11,7 +11,7 @@ usage() {
     cat >&2 <<'EOF'
 Usage: ./scripts/compile-macos-app-icon.sh --output <empty-directory>
 
-Compiles the reviewed GhostShell.icon document with Xcode 26 actool. The output
+Compiles the reviewed Asura.icon document with Xcode 26 actool. The output
 is Assets.car plus inspection evidence used only during package assembly.
 EOF
 }
@@ -62,7 +62,7 @@ fi
 
 developer_directory="${DEVELOPER_DIR:-$(/usr/bin/xcode-select -p)}"
 if [[ ! -d "${developer_directory}/Platforms/MacOSX.platform" ]]; then
-    echo "Full Xcode is required; CommandLineTools cannot compile GhostShell.icon." >&2
+    echo "Full Xcode is required; CommandLineTools cannot compile Asura.icon." >&2
     exit 1
 fi
 
@@ -78,7 +78,7 @@ actool_version="$({
 } | /usr/bin/tail -n 1)"
 if [[ ! "${actool_version}" =~ ^([0-9]+)(\.[0-9]+)*$ \
     || "${BASH_REMATCH[1]}" -lt 26 ]]; then
-    echo "GhostShell.icon requires Xcode actool 26 or newer; found '${actool_version:-unknown}'." >&2
+    echo "Asura.icon requires Xcode actool 26 or newer; found '${actool_version:-unknown}'." >&2
     exit 1
 fi
 
@@ -92,7 +92,7 @@ DEVELOPER_DIR="${developer_directory}" "${actool}" \
     --warnings \
     --errors \
     --output-partial-info-plist "${partial_plist}" \
-    --app-icon GhostShell \
+    --app-icon Asura \
     --include-all-app-icons \
     --enable-on-demand-resources NO \
     --development-region en \
@@ -109,15 +109,15 @@ if [[ ! -f "${partial_plist}" || -L "${partial_plist}" ]]; then
     echo "Xcode actool did not produce its partial Info.plist." >&2
     exit 1
 fi
-if [[ "$(/usr/bin/plutil -extract CFBundleIconName raw -o - "${partial_plist}")" != "GhostShell" ]]; then
-    echo "Xcode actool did not declare GhostShell as the primary application icon." >&2
+if [[ "$(/usr/bin/plutil -extract CFBundleIconName raw -o - "${partial_plist}")" != "Asura" ]]; then
+    echo "Xcode actool did not declare Asura as the primary application icon." >&2
     exit 1
 fi
 
 /usr/bin/assetutil --info "${asset_catalog}" > "${asset_info}"
 if ! /usr/bin/grep -Fq '"AssetType" : "Icon Image"' "${asset_info}" \
-    || ! /usr/bin/grep -Fq '"Name" : "GhostShell"' "${asset_info}"; then
-    echo "Assets.car does not contain the named GhostShell icon image." >&2
+    || ! /usr/bin/grep -Fq '"Name" : "Asura"' "${asset_info}"; then
+    echo "Assets.car does not contain the named Asura icon image." >&2
     exit 1
 fi
 

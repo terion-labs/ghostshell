@@ -10,7 +10,7 @@
 
 ## Context
 
-GhostSHELL already has a hosted Process Monitor panel backed by the local
+Asura already has a hosted Process Monitor panel backed by the local
 `SystemProcessSnapshotSource`. Its human UI deliberately omits command lines,
 users, environments, open files, and terminal content. The native agent needs
 a bounded way to observe that same panel without receiving a general process
@@ -18,7 +18,7 @@ API, a process launcher, or authority over the remote machine behind an SSH,
 Docker, or WSL terminal.
 
 Treating a terminal's connection boundary as process-monitor authority would be
-false. The current monitor samples the machine running GhostSHELL. It does not
+false. The current monitor samples the machine running Asura. It does not
 execute a command in a terminal, shell out locally, install software remotely,
 or discover processes through a connection adapter.
 
@@ -30,7 +30,7 @@ as the other governed tools.
 
 ## Decision
 
-GhostSHELL adds one read-only application tool:
+Asura adds one read-only application tool:
 
 - `processes.list`.
 
@@ -102,7 +102,7 @@ Each row may contain only:
 - finite CPU percentage from `0` through `100`, or null;
 - nonnegative working-set bytes, or null;
 - UTC start time, or null;
-- whether the row represents GhostSHELL.
+- whether the row represents Asura.
 
 The projection rejects invalid timestamps, non-finite or out-of-range
 measurements, negative or inconsistent counts, duplicate PIDs, excessive rows,

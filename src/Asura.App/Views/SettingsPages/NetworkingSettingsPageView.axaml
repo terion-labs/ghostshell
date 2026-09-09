@@ -1,0 +1,149 @@
+<UserControl
+    x:Class="Asura.App.Views.SettingsPages.NetworkingSettingsPageView"
+    x:DataType="vm:NetworkSettingsViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia">
+  <!--
+    Two things live here: the route the application uses unless a workspace
+    says otherwise, and the connections any route can be built from. Editing a
+    connection is a dialog, like every other definition editor, so the page
+    stays a page.
+  -->
+  <StackPanel Spacing="{DynamicResource ShellSpaceXl}">
+    <components:SettingsPageHeader
+        Heading="Networking"
+        Description="Route application and workspace traffic through reusable proxy or VPN connections." />
+
+    <controls:SettingsGroup
+        Heading="Application default"
+        Description="Workspaces follow this route unless their own settings replace it."
+        ControlWidth="320">
+      <controls:SettingRow
+          Label="Use a network connection"
+          Description="Off connects directly and keeps the chosen connection for later.">
+        <ToggleSwitch
+            IsChecked="{Binding Policy.IsEnabled, Mode=TwoWay}"
+            IsEnabled="{Binding Policy.CanEnable}"
+            AutomationProperties.Name="Use an application network connection" />
+      </controls:SettingRow>
+      <controls:SettingRow
+          Label="Active connection"
+          Description="Used by application traffic and by every workspace that follows the default.">
+        <ComboBox
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding Policy.AvailableConnections}"
+            SelectedItem="{Binding Policy.SelectedConnection, Mode=TwoWay}"
+            IsEnabled="{Binding Policy.HasAvailableConnections}"
+            AutomationProperties.Name="Application network connection">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NetworkPolicyConnectionOptionViewModel">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Classes="Eyebrow" Text="{Binding KindLabel}" />
+              </Grid>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+      </controls:SettingRow>
+      <controls:SettingRow
+          Label="Kill switch"
+          Description="Block Asura-routed traffic when the connection fails instead of falling back to a direct route. Host programs can ignore proxy settings; isolate a workspace when every process must be held.">
+        <ToggleSwitch
+            IsChecked="{Binding Policy.KillSwitchEnabled, Mode=TwoWay}"
+            AutomationProperties.Name="Application network kill switch" />
+      </controls:SettingRow>
+      <controls:SettingsGroup.Footer>
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <TextBlock
+              VerticalAlignment="Center"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="{Binding Policy.Summary}"
+              TextWrapping="Wrap" />
+          <controls:StatusChip
+              Grid.Column="1"
+              Tone="Warning"
+              Content="Unsaved changes"
+              IsVisible="{Binding Policy.IsDirty}" />
+          <Button
+              Grid.Column="2"
+              Classes="PrimaryButton"
+              Click="OnSavePolicyClick"
+              Content="Save"
+              IsEnabled="{Binding Policy.CanSave}"
+              AutomationProperties.Name="Save application networking" />
+        </Grid>
+      </controls:SettingsGroup.Footer>
+    </controls:SettingsGroup>
+
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+        <components:SectionHeader
+            Heading="Network connections"
+            Description="Saved proxy and VPN definitions. Credentials stay in the operating-system vault." />
+        <Button
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Classes="PrimaryButton"
+            Click="OnAddProfileClick"
+            Content="New connection"
+            AutomationProperties.Name="Create a network connection" />
+      </Grid>
+
+      <controls:Callout
+          Tone="Notice"
+          ShowsGlyph="False"
+          Text="{Binding OperationStatus}"
+          Classes.Warning="{Binding HasError}"
+          IsVisible="{Binding HasOperationStatus}" />
+
+      <controls:Callout
+          Tone="Notice"
+          Glyph="ArrowRouting"
+          Title="No network connections yet"
+          Text="Create a proxy or VPN connection, then choose it as the application default or offer it to a workspace."
+          IsVisible="{Binding HasNoProfiles}" />
+
+      <ItemsControl ItemsSource="{Binding Profiles}" IsVisible="{Binding HasProfiles}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:NetworkConnectionProfileItemViewModel">
+            <controls:SurfaceCard
+                Margin="{controls:Inset Bottom=Sm}"
+                Padding="{DynamicResource ShellCardPaddingCompact}">
+              <controls:ListItem Title="{Binding Name}" Detail="{Binding Summary}">
+                <controls:ListItem.Leading>
+                  <controls:IdentityTile
+                      TileSize="Small"
+                      Tint="{DynamicResource ShellAccentSoftBrush}"
+                      Foreground="{DynamicResource ShellTextBrush}"
+                      Symbol="{Binding KindSymbol}" />
+                </controls:ListItem.Leading>
+                <controls:ListItem.Trailing>
+                  <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                    <controls:StatusChip Shape="Rounded" Tone="Default" Content="{Binding KindLabel}" />
+                    <Button
+                        Classes="SecondaryButton"
+                        Click="OnEditProfileClick"
+                        Content="Edit"
+                        AutomationProperties.Name="{Binding Name, StringFormat=Edit {0}}" />
+                    <Button
+                        Classes="IconButton Danger"
+                        Click="OnDeleteProfileClick"
+                        ToolTip.Tip="Delete network connection"
+                        AutomationProperties.Name="{Binding Name, StringFormat=Delete {0}}">
+                      <icons:SymbolIcon Symbol="Delete" FontSize="13" />
+                    </Button>
+                  </StackPanel>
+                </controls:ListItem.Trailing>
+              </controls:ListItem>
+            </controls:SurfaceCard>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

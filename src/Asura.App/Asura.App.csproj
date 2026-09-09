@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Application\Asura.Application.csproj" />
+    <ProjectReference Include="..\Asura.Core\Asura.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="AvaloniaEdit.TextMate" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Dock.Avalonia" />
+    <PackageReference Include="Dock.Avalonia.Themes.Fluent" />
+    <PackageReference Include="Dock.Model.Inpc" />
+    <PackageReference Include="FluentIcons.Avalonia" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Mermaider" />
+    <PackageReference Include="Sylinko.CSharpMath.Avalonia" />
+    <PackageReference Include="Svg.Controls.Skia.Avalonia" />
+    <PackageReference Include="TextMateSharp.Grammars" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Docking\Asura.Docking.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura.App.Tests" />
+    <!-- The provider conformance suite drives the real rendered SQL editor
+         through its completion/diagnostic test seams with a native worker. -->
+    <InternalsVisibleTo Include="Asura.Databases.IntegrationTests" />
+    <!-- The capture harness drives the shipped panels, so it waits on the same
+         presentation task the panel exposes to its tests. -->
+    <InternalsVisibleTo Include="Asura.DesignQa" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AsuraTerminalFontDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/common/fonts/JetBrainsMono</AsuraTerminalFontDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AsuraTerminalFontFile Include="$(AsuraTerminalFontDirectory)/JetBrainsMono-Regular.ttf" />
+    <AsuraTerminalFontFile Include="$(AsuraTerminalFontDirectory)/JetBrainsMono-Bold.ttf" />
+    <AsuraTerminalFontFile Include="$(AsuraTerminalFontDirectory)/JetBrainsMono-Italic.ttf" />
+    <AsuraTerminalFontFile Include="$(AsuraTerminalFontDirectory)/JetBrainsMono-BoldItalic.ttf" />
+    <AsuraTerminalFontLicenseFile Include="$(AsuraTerminalFontDirectory)/OFL.txt" />
+    <AvaloniaResource
+        Include="@(AsuraTerminalFontFile)"
+        Link="Assets/Fonts/JetBrainsMono/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target
+      Name="ValidateAsuraTerminalFonts"
+      BeforeTargets="PrepareForBuild"
+      Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="!Exists('%(AsuraTerminalFontFile.Identity)')"
+        Text="The bundled terminal font '%(AsuraTerminalFontFile.Filename)%(AsuraTerminalFontFile.Extension)' is missing. Run scripts/build-terminal-font-assets.sh before building Asura.App." />
+    <Error
+        Condition="!Exists('%(AsuraTerminalFontLicenseFile.Identity)')"
+        Text="The bundled terminal font license is missing. Run scripts/build-terminal-font-assets.sh before building Asura.App." />
+  </Target>
+
+</Project>

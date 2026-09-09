@@ -7,7 +7,7 @@
 ## Context
 
 ADR 0017 selected an in-process .NET agent loop and deliberately left provider
-I/O and application-tool authority outside its first slice. GhostSHELL now needs
+I/O and application-tool authority outside its first slice. Asura now needs
 real provider configuration, model discovery, and streamed conversation without
 turning a model adapter into a second route to terminals or other application
 operations.
@@ -20,7 +20,7 @@ future governed agent that can inspect and operate panels.
 
 ## Decision
 
-Add `GhostShell.Agent.Providers` as a native, in-process boundary. It depends on
+Add `Asura.Agent.Providers` as a native, in-process boundary. It depends on
 the provider-neutral agent loop and application/Core contracts, but has no
 terminal, session-host, process, filesystem, native-loading, JavaScript, or
 Node.js execution authority. It implements Anthropic and OpenAI-compatible
@@ -72,7 +72,7 @@ separate M3 target resolver, capability broker, approval policy, durable audit,
 and accepted threat-model decisions. Provider adapters will not call those
 operations directly.
 
-Pi remains a behavior reference. GhostSHELL does not add a Node.js/Pi child
+Pi remains a behavior reference. Asura does not add a Node.js/Pi child
 process for provider access or chat; doing so would add a runtime, process
 supervision, IPC, and a second package supply chain without supplying the
 session-host authorization boundary.
@@ -85,7 +85,7 @@ session-host authorization boundary.
   references; actual key values stay in the OS vault.
 - Redirect-based endpoints, ambient system proxies, non-loopback plaintext
   HTTP, and permissive response parsing fail closed.
-- GhostSHELL owns provider-protocol compatibility and must maintain strict
+- Asura owns provider-protocol compatibility and must maintain strict
   conformance tests for requests, model discovery, streaming, limits,
   cancellation, and error mapping.
 - In-process composition reduces packaging and lifecycle complexity but is not
@@ -96,7 +96,7 @@ session-host authorization boundary.
 ## Alternatives rejected
 
 - A Node.js/Pi sidecar duplicates runtime, IPC, lifecycle, and supply-chain work
-  without removing GhostSHELL's authorization responsibilities.
+  without removing Asura's authorization responsibilities.
 - Giving provider adapters terminal or session-host clients creates a hidden
   control plane around policy, approval, and audit.
 - Enabling ambient credentials, proxy discovery, or automatic redirects makes

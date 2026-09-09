@@ -1,0 +1,264 @@
+<Application
+    x:Class="Asura.App.App"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dockThemes="using:Dock.Avalonia.Themes.Fluent"
+    Name="Asura"
+    RequestedThemeVariant="Default">
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem
+          Header="About Asura…"
+          Click="OnAboutMenuClick" />
+      <NativeMenuItemSeparator />
+      <NativeMenuItem
+          Header="Settings…"
+          Gesture="Meta+OemComma"
+          Click="OnSettingsMenuClick" />
+    </NativeMenu>
+  </NativeMenu.Menu>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#111111" />
+          <SolidColorBrush x:Key="ShellSidebarBrush" Color="#181818" />
+          <SolidColorBrush x:Key="ShellSidebarOverlayBrush" Color="#CC181818" />
+          <SolidColorBrush x:Key="ShellSidebarBorderBrush" Color="#383838" />
+          <SolidColorBrush x:Key="ShellSidebarSelectionBrush" Color="#0DFFFFFF" />
+          <SolidColorBrush x:Key="ShellSurfaceBrush" Color="#18181B" />
+          <SolidColorBrush x:Key="ShellSurfaceRaisedBrush" Color="#1A1A1A" />
+          <SolidColorBrush x:Key="ShellPopupSurfaceBrush" Color="#1A1A1A" />
+          <SolidColorBrush x:Key="ShellSurfaceHoverBrush" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ShellBorderBrush" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ShellControlSurfaceBrush" Color="#1A1A1A" />
+          <SolidColorBrush x:Key="ShellControlBorderBrush" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ShellControlHoverBrush" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ShellTextBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellMutedBrush" Color="#B8B9B6" />
+          <SolidColorBrush x:Key="ShellAccentBrush" Color="#FF8400" />
+          <SolidColorBrush x:Key="ShellAccentForegroundBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellAccentSoftBrush" Color="#291C0F" />
+          <SolidColorBrush x:Key="ShellDangerBrush" Color="#FF5C33" />
+          <SolidColorBrush x:Key="ShellDangerForegroundBrush" Color="#111111" />
+          <SolidColorBrush x:Key="ShellDangerSoftBrush" Color="#3A1715" />
+          <SolidColorBrush x:Key="ShellDangerBorderBrush" Color="#A84C45" />
+          <SolidColorBrush x:Key="ShellSuccessBrush" Color="#77D797" />
+          <SolidColorBrush x:Key="ShellSuccessSoftBrush" Color="#173222" />
+          <SolidColorBrush x:Key="ShellSuccessBorderBrush" Color="#2E6743" />
+          <SolidColorBrush x:Key="ShellWarningBrush" Color="#E1A45F" />
+          <SolidColorBrush x:Key="ShellWarningSoftBrush" Color="#32241A" />
+          <SolidColorBrush x:Key="ShellWarningBorderBrush" Color="#75502F" />
+          <SolidColorBrush x:Key="ShellNoticeBorderBrush" Color="#70492E" />
+          <!-- Fluent's own interaction states for text inputs and popups jump
+               to its stock light-on-dark values on hover, which read as a
+               harsh flash against the shell's quiet fields. The states stay
+               on the shell's palette: the fill holds still and only the
+               border admits the pointer. -->
+          <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#111111" />
+          <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#111111" />
+          <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#111111" />
+          <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#3E3E42" />
+          <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#2E2E2E" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#3E3E42" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#3E3E42" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#F2F3F0" />
+          <SolidColorBrush x:Key="ShellSidebarBrush" Color="#E7E8E5" />
+          <SolidColorBrush x:Key="ShellSidebarOverlayBrush" Color="#CCE7E8E5" />
+          <SolidColorBrush x:Key="ShellSidebarBorderBrush" Color="#B8BAB6" />
+          <SolidColorBrush x:Key="ShellSidebarSelectionBrush" Color="#10000000" />
+          <SolidColorBrush x:Key="ShellSurfaceBrush" Color="#E7E8E5" />
+          <SolidColorBrush x:Key="ShellSurfaceRaisedBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellPopupSurfaceBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellSurfaceHoverBrush" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ShellBorderBrush" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ShellControlSurfaceBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellControlBorderBrush" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ShellControlHoverBrush" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ShellTextBrush" Color="#111111" />
+          <SolidColorBrush x:Key="ShellMutedBrush" Color="#666666" />
+          <SolidColorBrush x:Key="ShellAccentBrush" Color="#FF8400" />
+          <SolidColorBrush x:Key="ShellAccentForegroundBrush" Color="#111111" />
+          <SolidColorBrush x:Key="ShellAccentSoftBrush" Color="#E9E3D8" />
+          <SolidColorBrush x:Key="ShellDangerBrush" Color="#D93C15" />
+          <SolidColorBrush x:Key="ShellDangerForegroundBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="ShellDangerSoftBrush" Color="#FDE8E5" />
+          <SolidColorBrush x:Key="ShellDangerBorderBrush" Color="#A73528" />
+          <SolidColorBrush x:Key="ShellSuccessBrush" Color="#147A3F" />
+          <SolidColorBrush x:Key="ShellSuccessSoftBrush" Color="#E2F5E8" />
+          <SolidColorBrush x:Key="ShellSuccessBorderBrush" Color="#41935E" />
+          <SolidColorBrush x:Key="ShellWarningBrush" Color="#8A4B08" />
+          <SolidColorBrush x:Key="ShellWarningSoftBrush" Color="#FFF0D6" />
+          <SolidColorBrush x:Key="ShellWarningBorderBrush" Color="#B46B20" />
+          <SolidColorBrush x:Key="ShellNoticeBorderBrush" Color="#A06A36" />
+          <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#F2F3F0" />
+          <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#F2F3F0" />
+          <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#F2F3F0" />
+          <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#A8AAA6" />
+          <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#CBCCC9" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#A8AAA6" />
+          <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#A8AAA6" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!--
+        Fallbacks for the tokens the appearance pipeline republishes at composition
+        time. They do not vary with light and dark, so they sit outside the theme
+        dictionaries; they exist so a design-time preview and a window built before
+        the first publish still resolve a real value rather than silently falling
+        back to zero.
+      -->
+      <SolidColorBrush x:Key="ShellWindowBackdropBrush" Color="#E0111111" />
+      <SolidColorBrush x:Key="ShellContinuityGlyphBrush" Color="#FFFFFF" />
+
+      <!--
+        The band across the top of the window is Avalonia's own drawn title
+        bar, not the platform's. Avalonia 12.0.5 made the window border
+        transparent but left the bar itself opaque — it only moved the fill
+        behind this named brush so it could be answered here. Left alone it
+        paints SystemControlBackgroundAltHighBrush over the backdrop, which is
+        the pale strip the shell kept growing back.
+      -->
+      <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="Transparent" />
+      <x:Double x:Key="ShellSurfaceOpacity">1</x:Double>
+      <CornerRadius x:Key="ShellControlCornerRadius">7</CornerRadius>
+      <CornerRadius x:Key="ShellCardCornerRadius">9</CornerRadius>
+      <CornerRadius x:Key="ShellSidebarCornerRadius">9</CornerRadius>
+      <x:Double x:Key="ShellCardRadius">9</x:Double>
+      <CornerRadius x:Key="ShellPillCornerRadius">999</CornerRadius>
+      <x:Double x:Key="ShellPillFontSize">10</x:Double>
+      <CornerRadius x:Key="ShellPanelBottomCornerRadius">0,0,9,9</CornerRadius>
+      <CornerRadius x:Key="ShellInnerCornerRadius">5</CornerRadius>
+      <!-- Every runtime panel wears the same header, so how tall it is belongs to
+           the token set rather than to each of the eight views that draw one. It
+           used to be 36 in six of them and 40 in two, which read as two panel
+           kinds sitting at different heights beside each other. -->
+      <x:Double x:Key="ShellPanelHeaderHeight">36</x:Double>
+      <x:Double x:Key="ShellSpaceNone">0</x:Double>
+      <x:Double x:Key="ShellSpaceXs">4</x:Double>
+      <x:Double x:Key="ShellSpaceSm">8</x:Double>
+      <x:Double x:Key="ShellSpaceMd">12</x:Double>
+      <x:Double x:Key="ShellSpaceLg">16</x:Double>
+      <x:Double x:Key="ShellSpaceXl">24</x:Double>
+      <x:Double x:Key="ShellSpaceXxl">32</x:Double>
+      <Thickness x:Key="ShellInsetXs">4</Thickness>
+      <Thickness x:Key="ShellInsetSm">8</Thickness>
+      <Thickness x:Key="ShellInsetMd">12</Thickness>
+      <Thickness x:Key="ShellInsetLg">16</Thickness>
+      <Thickness x:Key="ShellInsetXl">24</Thickness>
+      <Thickness x:Key="ShellInsetXxl">32</Thickness>
+      <Thickness x:Key="ShellCardPadding">16</Thickness>
+      <!-- The tighter card inset, for cards that hold dense content — list
+           rows, code, tables. Every view used to zero the card's padding and
+           re-type its own inset on the child, which is how the same card came
+           to carry four different interior gaps. -->
+      <Thickness x:Key="ShellCardPaddingCompact">12</Thickness>
+      <Thickness x:Key="ShellButtonPadding">16,10</Thickness>
+      <Thickness x:Key="ShellPagePadding">16</Thickness>
+      <Thickness x:Key="ShellRowPadding">16,12</Thickness>
+      <!-- A list row's inset — denser than a settings row, because a list is
+           scanned rather than read. As a resource, not an Inset markup use:
+           the one consumer is a shared DataTemplate, where the Inset
+           extension's parse-time resolution has proven unreliable. -->
+      <Thickness x:Key="ShellListRowPadding">12,8</Thickness>
+      <Thickness x:Key="ShellPillPadding">8,4</Thickness>
+      <Thickness x:Key="ShellTabStripTopClearance">0,1,0,0</Thickness>
+      <Thickness x:Key="ShellToolbarSeparatorMargin">0,7</Thickness>
+      <BoxShadows x:Key="ShellOverlayShadow">0 18 54 0 #A0000000</BoxShadows>
+      <!-- The wash behind every overlay. Deliberately near-black in both
+           themes: a scrim's job is to push the page back, and a pale scrim
+           over a pale page reads as a rendering fault rather than a layer. -->
+      <SolidColorBrush x:Key="ShellScrimBrush" Color="#F20B0B0C" />
+      <!-- The ground a warning toast stands on when it floats over arbitrary
+           content — a terminal, a native view — where no surface token can
+           promise contrast. Warm-tinted near-black so the warning text and
+           border stay legible over anything. -->
+      <SolidColorBrush x:Key="ShellWarningOverlayBrush" Color="#E6291D18" />
+      <!-- The layout designer's slot identities. Fixed, not themed: a slot's
+           colour is its name across sessions and themes, the way a tag colour
+           is, so these deliberately do not move with the palette. -->
+      <SolidColorBrush x:Key="ShellSlotBadgeOrangeBrush" Color="#FF8400" />
+      <SolidColorBrush x:Key="ShellSlotBadgeBlueBrush" Color="#3B82F6" />
+      <SolidColorBrush x:Key="ShellSlotBadgeGreenBrush" Color="#22C55E" />
+      <SolidColorBrush x:Key="ShellSlotBadgePinkBrush" Color="#EC4899" />
+      <!-- The three widths an overlay opens at. Content decides which of the
+           three it needs; nothing else about an overlay's size is a choice. -->
+      <x:Double x:Key="ShellOverlayWidthSm">680</x:Double>
+      <x:Double x:Key="ShellOverlayWidthMd">900</x:Double>
+      <x:Double x:Key="ShellOverlayWidthLg">1000</x:Double>
+      <!-- A ring, not a drop: the flyout hangs over surfaces that are already
+           near-black, where an offset shadow only ever peeks out at the
+           corners. Soft spread on every edge plus a faint contact line — dense
+           enough to register there, light enough not to read as a border —
+           and an accent inner glow lighting the glass from its rim. The
+           composition pipeline republishes this with the live accent; this is
+           the before-first-publish fallback. -->
+      <BoxShadows x:Key="ShellFlyoutShadow">0 8 48 0 #8C000000, 0 2 14 0 #59000000, inset 0 0 40 0 #38FF8400</BoxShadows>
+      <BoxShadows x:Key="ShellFocusRingShadow">0 0 0 3 #59FF8400</BoxShadows>
+      <SolidColorBrush x:Key="ShellAgentPanelGlowBrush" Color="#10FF8400" />
+      <BoxShadows x:Key="ShellAgentPanelGlowShadow">inset 0 0 224 0 #46FF8400, inset 0 0 112 0 #5CFF8400, inset 0 0 51.2 0 #7AFF8400, inset 0 0 17.6 0 #C0FF8400</BoxShadows>
+      <!-- The clearance between a hairline-framed control and its content: the
+           switch knob's travel inset and the colour well's frame. Deliberately
+           not density-scaled — the host draws these controls at fixed size. -->
+      <Thickness x:Key="ShellHairlineInset">2</Thickness>
+      <!-- One border width, as a margin: the inset that keeps content off a
+           card's own 1px stroke. Not density-scaled — it matches the border,
+           which never scales either. -->
+      <Thickness x:Key="ShellHairline">1</Thickness>
+      <!-- The border the window's own edge stands in for.
+
+           Every surface in the workspace draws a one-pixel border, so the gap
+           between two panels is that gap plus two borders while the gap to the
+           window is the same gap plus one. Measured the way it is seen — from
+           one panel's content to the next thing that is not background — the
+           edge gap came up a pixel short everywhere it touched the frame. This
+           is that pixel, and it is a border width rather than a spacing step
+           because that is what it replaces. Not the top: the chrome band above
+           carries that side's clearance in its own height. -->
+      <Thickness x:Key="ShellWindowEdgeInset">1,0,1,1</Thickness>
+      <!-- Where the floating agent panel stands: its right edge on the
+           canvas panels' content edge, plus a hairline off the top and right
+           so the glass and its glow never touch the chrome's own edges. -->
+      <Thickness x:Key="ShellFlyoutMargin">0,1,9,0</Thickness>
+      <Thickness x:Key="ShellPreviewTileInset">3</Thickness>
+      <!-- Placement zones are pointer targets before they are icons: the plate has
+           to be big enough to land on mid-drag, so the size is set here rather
+           than left to Dock's glyph-sized default. -->
+      <x:Double x:Key="DockTargetSelectorSize">56</x:Double>
+      <x:Double x:Key="DockTargetSelectorGridMaxSize">176</x:Double>
+      <!-- Each panel exposes its existing title through PanelDockHandle, so Dock's
+           duplicate document strip stays hidden without losing drag or floating. -->
+      <x:Boolean x:Key="DockDocumentControlTabStripVisible">False</x:Boolean>
+      <x:Boolean x:Key="DockDocumentTabStripSeparatorVisible">False</x:Boolean>
+      <!-- Asura panels already draw their own focused surface. Dock only
+           contributes recursive geometry; its document frame would duplicate
+           the panel outline around every leaf. -->
+      <Thickness x:Key="DockDocumentContentBorderThickness">0</Thickness>
+      <SolidColorBrush x:Key="DockDocumentContentBorderBrush">Transparent</SolidColorBrush>
+      <SolidColorBrush x:Key="DockSplitterIdleBrush">Transparent</SolidColorBrush>
+    </ResourceDictionary>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <!-- DataGrid is a separate Avalonia package and does not inherit a control
+         theme from FluentTheme; without this include it has no visual template. -->
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    <dockThemes:DockFluentTheme DensityStyle="Compact" />
+    <!-- The colour picker ships its own theme; without it the swatches render
+         at zero size and the palette cards lose their colour wells. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+    <!-- The source-preview editor ships its own control theme; without it the
+         TextEditor has no template and renders nothing. -->
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <StyleInclude Source="avares://Asura.App/Styles/DesignSystem.axaml" />
+    <StyleInclude Source="avares://Asura.App/Styles/AsuraTheme.axaml" />
+    <StyleInclude Source="avares://Asura.App/Styles/AsuraDockTheme.axaml" />
+    <StyleInclude Source="avares://Asura.App/Styles/AsuraDockImmediateTheme.axaml" />
+  </Application.Styles>
+</Application>

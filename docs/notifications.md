@@ -13,7 +13,7 @@
 
 ## Behavior
 
-GhostSHELL treats a notification as a routed, moment-in-time request for the
+Asura treats a notification as a routed, moment-in-time request for the
 user's attention. The producer chooses its effects independently:
 
 - `Visual` leaves an unread mark at the source panel and bubbles it through the
@@ -53,7 +53,7 @@ panels, and preserves an unread mark across a same-ID replacement.
 The local cmux reference reinforced four choices in this first slice: serialize
 producer handoff, keep a bounded central history, route by stable workspace and
 surface identities, and treat native delivery as a projection of the in-app
-record rather than as the source of truth. GhostSHELL's center is deliberately
+record rather than as the source of truth. Asura's center is deliberately
 smaller, but it keeps those same boundaries so a later feed can be added without
 moving unread ownership back into individual views.
 
@@ -90,19 +90,19 @@ adapter error does not remove the in-app unread trail.
    click/action routing back to service workers. A `window.Notification`
    monkeypatch is not sufficient because it misses persistent service-worker
    notifications and their activation semantics.
-2. Native activation is guaranteed only while GhostSHELL is running. Cold-start
+2. Native activation is guaranteed only while Asura is running. Cold-start
    activation needs to enter the single-instance startup protocol with its
    notification route.
 3. The Linux portal activation token is retained, but Avalonia 12 does not
    expose a public way to apply it when focusing an existing Wayland window.
    Internal routing succeeds; a compositor may still refuse to raise the app.
 4. Native delivered notifications are not yet withdrawn when the same record is
-   read inside GhostSHELL, and notification authorization/status is not exposed
+   read inside Asura, and notification authorization/status is not exposed
    in Settings.
 5. The bounded internal history has no notification-feed UI, jump-to-latest
    command, or explicit mark-read/mark-unread controls.
 6. Terminal applications can use OSC 9/777 today, but there is no generic
-   GhostSHELL `notify` CLI and no documented OSC 99 compatibility contract.
-   GhostSHELL does not intercept application commands or inject provider hooks.
+   Asura `notify` CLI and no documented OSC 99 compatibility contract.
+   Asura does not intercept application commands or inject provider hooks.
    An application that only prints a final response must emit a terminal
-   notification protocol itself before GhostSHELL can report completion.
+   notification protocol itself before Asura can report completion.

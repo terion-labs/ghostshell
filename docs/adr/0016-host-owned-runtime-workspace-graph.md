@@ -11,7 +11,7 @@ The runtime graph is not a durable workspace or saved-screen definition. Opening
 
 ## Decision
 
-`GhostShell.Core` defines immutable `WorkspaceInstance`, `TabInstance`, and `PanelInstance` projections with stable IDs, typed panel kinds, deterministic ordering, active tab/panel IDs, and optional session linkage. Constructors enforce non-empty graphs, unique tab and workspace-wide panel IDs, valid active members, and defensive copies.
+`Asura.Core` defines immutable `WorkspaceInstance`, `TabInstance`, and `PanelInstance` projections with stable IDs, typed panel kinds, deterministic ordering, active tab/panel IDs, and optional session linkage. Constructors enforce non-empty graphs, unique tab and workspace-wide panel IDs, valid active members, and defensive copies.
 
 `ISessionHostClient` exposes typed register, unregister, query, tab activation, panel activation, and watch operations. The desktop host owns at most one registered runtime workspace graph per window and client. Registration atomically replaces the window's previous graph, while explicit unregister, successful window close, and client disconnect remove it. Every mutation supports an expected revision and produces a monotonic revision plus ordered retained events; lagging watchers receive an explicit resynchronization snapshot, and removal delivers a terminal `Removed` event before stream completion.
 

@@ -10,12 +10,12 @@ The catalog covers reconnect/reattach, clean and abrupt startup recovery, many p
 
 ## Run
 
-Build or obtain the exact `GhostShell.app`, then validate and execute with the pinned SDK:
+Build or obtain the exact `Asura.app`, then validate and execute with the pinned SDK:
 
 ```bash
-./.dotnet/dotnet run --project tools/GhostShell.SoakAcceptance -- validate-policy docs/acceptance/macos-arm64-soak/policy.v1.json
-./.dotnet/dotnet run --project tools/GhostShell.SoakAcceptance -- run \
-  --package /absolute/path/to/GhostShell.app \
+./.dotnet/dotnet run --project tools/Asura.SoakAcceptance -- validate-policy docs/acceptance/macos-arm64-soak/policy.v1.json
+./.dotnet/dotnet run --project tools/Asura.SoakAcceptance -- run \
+  --package /absolute/path/to/Asura.app \
   --build-label release-candidate-id \
   --policy docs/acceptance/macos-arm64-soak/policy.v1.json \
   --evidence-dir artifacts/soak-acceptance

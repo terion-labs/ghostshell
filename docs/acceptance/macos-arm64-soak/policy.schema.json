@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ghostshell.app/schemas/macos-arm64-soak-policy-v1.json",
-  "title": "GhostShell macOS arm64 soak policy v1",
+  "$id": "https://asura.app/schemas/macos-arm64-soak-policy-v1.json",
+  "title": "Asura macOS arm64 soak policy v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "policyKind", "policyVersion", "referenceConfigurationId", "ratifiedAtUtc", "scenarios"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "policyKind": { "const": "ghostshell-macos-arm64-soak-policy" },
+    "policyKind": { "const": "asura-macos-arm64-soak-policy" },
     "policyVersion": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$" },
     "referenceConfigurationId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$" },
     "ratifiedAtUtc": { "type": "string", "format": "date-time" },

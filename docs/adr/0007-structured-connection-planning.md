@@ -9,11 +9,11 @@ Local, SSH, Docker, and WSL connections eventually feed the same terminal-sessio
 
 ## Decision
 
-`GhostShell.Application` owns the reusable connection-transport ports.
+`Asura.Application` owns the reusable connection-transport ports.
 `IConnectionRuntime` provides per-kind planning, typed progress, typed
 failures, test reports, and non-secret interactive open plans.
 `IConnectionCommandExecutor` executes one bounded structured command through
-the same prepared transport. `GhostShell.Infrastructure` implements Local,
+the same prepared transport. `Asura.Infrastructure` implements Local,
 SSH, Docker, and WSL adapters and a router selected by `ConnectionKind`.
 Terminal consumes the interactive plan, while monitoring, file authentication
 preparation, and future governed modules consume bounded command execution;
@@ -43,18 +43,18 @@ never escape as an opaque session-host engine failure.
 
 Every launch and probe uses an absolute executable plus an ordered argument list with `UseShellExecute = false`; adapters never concatenate a shell command. Process stderr is bounded, classified inside Infrastructure, and replaced by fixed application errors. Unknown and changed SSH host keys, authentication failure, missing runtimes, permission denial, timeout, offline endpoints, missing containers, and missing WSL distributions remain distinct states with explicit recovery actions. SSH plans retain their authentication mode and host-key policy.
 
-SSH host identity is inspected through SSH.NET `2025.1.0` (MIT) before a verified desktop launch. Infrastructure retains the candidate public-key bytes behind an opaque, five-minute review ID and exposes only algorithm and SHA-256 fingerprint. Unknown, trusted, changed, and explicitly-unverified identities are distinct dispositions. `AcceptNew` may atomically add an unknown key; it never replaces a changed key. Replacing a changed key requires a separate explicit action against the exact review snapshot. Trust is stored as an owner-only, per-connection OpenSSH `known_hosts` file using a derived `HostKeyAlias`; the launch plan binds both the alias and exact file and disables fallback to global host files. When a connection has no GhostSHELL pin yet, an exact host, port, algorithm, and public-key match in the current user's standard OpenSSH `known_hosts` files may bootstrap that pin. Revoked, different, malformed, and inaccessible OpenSSH entries are never imported. A compare-and-swap prevents an in-process concurrent review or bootstrap from replacing a newer decision.
+SSH host identity is inspected through SSH.NET `2025.1.0` (MIT) before a verified desktop launch. Infrastructure retains the candidate public-key bytes behind an opaque, five-minute review ID and exposes only algorithm and SHA-256 fingerprint. Unknown, trusted, changed, and explicitly-unverified identities are distinct dispositions. `AcceptNew` may atomically add an unknown key; it never replaces a changed key. Replacing a changed key requires a separate explicit action against the exact review snapshot. Trust is stored as an owner-only, per-connection OpenSSH `known_hosts` file using a derived `HostKeyAlias`; the launch plan binds both the alias and exact file and disables fallback to global host files. When a connection has no Asura pin yet, an exact host, port, algorithm, and public-key match in the current user's standard OpenSSH `known_hosts` files may bootstrap that pin. Revoked, different, malformed, and inaccessible OpenSSH entries are never imported. A compare-and-swap prevents an in-process concurrent review or bootstrap from replacing a newer decision.
 
-Connection diagnostics use the same planning and vault preflight, then authenticate stored password/private-key profiles with SSH.NET inside Infrastructure. Resolved bytes use the exact connection scope and `ConnectionAuthentication` purpose and are cleared after the bounded diagnostic connection. SSH.NET requires an immutable CLR string while parsing an encrypted private-key passphrase; .NET cannot deterministically clear that temporary string, so its lifetime remains limited to the probe. SSH-agent/system-configuration diagnostics continue through bounded OpenSSH because SSH.NET does not expose the platform agent/configuration behavior GhostSHELL needs.
+Connection diagnostics use the same planning and vault preflight, then authenticate stored password/private-key profiles with SSH.NET inside Infrastructure. Resolved bytes use the exact connection scope and `ConnectionAuthentication` purpose and are cleared after the bounded diagnostic connection. SSH.NET requires an immutable CLR string while parsing an encrypted private-key passphrase; .NET cannot deterministically clear that temporary string, so its lifetime remains limited to the probe. SSH-agent/system-configuration diagnostics continue through bounded OpenSSH because SSH.NET does not expose the platform agent/configuration behavior Asura needs.
 
 SSH-agent and system-configuration plans request `AddKeysToAgent=yes`.
-`ConnectionAuthentication.None` on an SSH profile means GhostSHELL has no
+`ConnectionAuthentication.None` on an SSH profile means Asura has no
 app-managed credential and OpenSSH owns authentication through its normal
 configuration; the editor presents this as **System configuration**, not
 **None**. When OpenSSH obtains a configured identity through platform behavior
 such as the macOS Keychain, the identity becomes available for delegated
 signing through the agent without putting private-key bytes or a passphrase in
-GhostSHELL. SDK-backed SSH channels first inspect the agent; if it is empty,
+Asura. SDK-backed SSH channels first inspect the agent; if it is empty,
 they execute the bounded diagnostic through `IConnectionRuntime.TestAsync`,
 then inspect the agent again. The bootstrap therefore retains the transport's
 typed offline, timeout, authentication, and host-key failures while reusing the

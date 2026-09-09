@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
-  "documentName": "GhostSHELL ${productVersion} managed-component evidence",
+  "documentName": "Asura ${productVersion} managed-component evidence",
   "documentCreatedUtc": "2026-08-25T00:00:00Z",
-  "namespaceBase": "https://ghostshell.app/spdx/managed-components/${productVersion}",
+  "namespaceBase": "https://asura.sh/spdx/managed-components/${productVersion}",
   "releaseBlockers": [],
   "dependencies": [
     {
@@ -174,60 +174,60 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "GhostShell.Application/${productVersion}",
+      "identity": "Asura.Application/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Application.dll"
+      "file": "Asura.Application.dll"
     },
     {
-      "identity": "GhostShell.Backend/${productVersion}",
+      "identity": "Asura.Backend/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Backend.dll"
+      "file": "Asura.Backend.dll"
     },
     {
-      "identity": "GhostShell.ConnectionBackend/${productVersion}",
+      "identity": "Asura.ConnectionBackend/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.ConnectionBackend.dll"
+      "file": "Asura.ConnectionBackend.dll"
     },
     {
-      "identity": "GhostShell.Core/${productVersion}",
+      "identity": "Asura.Core/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Core.dll"
+      "file": "Asura.Core.dll"
     },
     {
-      "identity": "GhostShell.Databases/${productVersion}",
+      "identity": "Asura.Databases/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Databases.dll"
+      "file": "Asura.Databases.dll"
     },
     {
-      "identity": "GhostShell.Files/${productVersion}",
+      "identity": "Asura.Files/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Files.dll"
+      "file": "Asura.Files.dll"
     },
     {
-      "identity": "GhostShell.Infrastructure/${productVersion}",
+      "identity": "Asura.Infrastructure/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Infrastructure.dll"
+      "file": "Asura.Infrastructure.dll"
     },
     {
-      "identity": "GhostShell.Redis/${productVersion}",
+      "identity": "Asura.Redis/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Redis.dll"
+      "file": "Asura.Redis.dll"
     },
     {
       "identity": "LiteDB/5.0.21",

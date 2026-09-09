@@ -4,8 +4,8 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository_dir="$(cd "${script_dir}/.." && pwd)"
 
-if [[ -n "${GHOSTSHELL_DOTNET:-}" ]]; then
-    dotnet="${GHOSTSHELL_DOTNET}"
+if [[ -n "${ASURA_DOTNET:-}" ]]; then
+    dotnet="${ASURA_DOTNET}"
 elif [[ -x "${repository_dir}/.dotnet/dotnet" ]]; then
     dotnet="${repository_dir}/.dotnet/dotnet"
 elif command -v dotnet >/dev/null 2>&1; then
@@ -44,9 +44,9 @@ while IFS= read -r project; do
 done < <(find "${repository_dir}/src" -name '*.csproj' -print | sort)
 
 for project in \
-    "${repository_dir}/src/GhostShell.Desktop/GhostShell.Desktop.csproj" \
-    "${repository_dir}/tests/GhostShell.Architecture.Tests/GhostShell.Architecture.Tests.csproj" \
-    "${repository_dir}/tools/GhostShell.SingleInstanceTestHost/GhostShell.SingleInstanceTestHost.csproj"
+    "${repository_dir}/src/Asura.Desktop/Asura.Desktop.csproj" \
+    "${repository_dir}/tests/Asura.Architecture.Tests/Asura.Architecture.Tests.csproj" \
+    "${repository_dir}/tools/Asura.SingleInstanceTestHost/Asura.SingleInstanceTestHost.csproj"
 do
     lock_file="$(dirname "${project}")/packages.windows.lock.json"
     if [[ ! -f "${lock_file}" ]]; then
@@ -87,11 +87,11 @@ if [[ "${failure}" != "0" ]]; then
     exit "${failure}"
 fi
 
-audit_result="$(mktemp -t ghostshell-nuget-audit.XXXXXX)"
+audit_result="$(mktemp -t asura-nuget-audit.XXXXXX)"
 trap 'rm -f "${audit_result}"' EXIT
 
 "${dotnet}" package list \
-    --project "${repository_dir}/GhostShell.slnx" \
+    --project "${repository_dir}/Asura.slnx" \
     --vulnerable \
     --include-transitive \
     --format json \
@@ -107,12 +107,12 @@ fi
 # The solution restore validates the ordinary graph only. Release packaging
 # selects separate reviewed lock files, so validate each graph before a tag is
 # allowed to discover stale project or package dependencies.
-"${dotnet}" restore "${repository_dir}/GhostShell.slnx" \
-    -p:GhostShellWindowsBuild=true \
+"${dotnet}" restore "${repository_dir}/Asura.slnx" \
+    -p:AsuraWindowsBuild=true \
     --locked-mode \
     --verbosity quiet
 
-desktop_project="${repository_dir}/src/GhostShell.Desktop/GhostShell.Desktop.csproj"
+desktop_project="${repository_dir}/src/Asura.Desktop/Asura.Desktop.csproj"
 runtime_identifiers=(linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64)
 for runtime_identifier in "${runtime_identifiers[@]}"; do
     "${dotnet}" restore "${desktop_project}" \
@@ -124,8 +124,8 @@ done
     --runtime osx-arm64 \
     --locked-mode \
     --verbosity quiet \
-    -p:GhostShellMacReleaseNativeAot=true
-"${dotnet}" restore "${repository_dir}/GhostShell.slnx" \
+    -p:AsuraMacReleaseNativeAot=true
+"${dotnet}" restore "${repository_dir}/Asura.slnx" \
     --locked-mode \
     --verbosity quiet
 

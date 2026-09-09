@@ -8,7 +8,7 @@
 The native agent kernel retains a bounded, stable conversation in memory, but
 process exit currently loses it. Pi's durable harness is a useful reference for
 the distinction between settled transcript state and volatile provider/tool
-effects. GhostSHELL does not implement Pi's durable operation interpreter,
+effects. Asura does not implement Pi's durable operation interpreter,
 effect-intent log, or branching lanes. Resumable recovery is deliberately
 limited to the last fully committed idle conversation, but visible chat
 history must not roll back to an older turn when a process exits mid-request.
@@ -54,7 +54,7 @@ session with no provider operation, proposal, approval, permit, capability, or
 run authority. It can be displayed and continued with a new user turn, but it
 cannot be mistaken for automatically resumable execution state.
 
-The current schema-v3 payload is owned by `GhostShell.Agent`; storage treats it
+The current schema-v3 payload is owned by `Asura.Agent`; storage treats it
 as an opaque bounded JSON object. Schema v2 added the optional bounded generated
 title. Schema v3 separates the append-only committed transcript from the
 compacted provider context projection. Restore still accepts schema v1/v2,

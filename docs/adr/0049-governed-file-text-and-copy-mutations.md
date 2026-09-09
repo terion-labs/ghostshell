@@ -18,7 +18,7 @@ observed.
 
 ## Decision
 
-GhostSHELL adds three closed tools:
+Asura adds three closed tools:
 
 - `files.create_text` creates one non-root path with `MustNotExist`;
 - `files.replace_text` replaces one regular file with `VersionMatches`;

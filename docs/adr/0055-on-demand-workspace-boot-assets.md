@@ -4,10 +4,10 @@ The app bundles the signed host runtime, its required Swift libraries, and a
 `boot-assets.json` descriptor. It does not bundle the Linux kernel, guest boot
 filesystem, or source-distribution archives.
 
-Release packaging produces `GhostShell-workspace-boot-arm64.zip` alongside the
+Release packaging produces `Asura-workspace-boot-arm64.zip` alongside the
 app. The signed descriptor pins the archive and each image by SHA-256 and exact
 size. On first isolated-workspace preparation, the host downloads that asset
-from the matching GhostShell version's GitHub release. This bootstrap download
+from the matching Asura version's GitHub release. This bootstrap download
 precedes the guest and does not carry workspace traffic.
 
 Images are cached in the app data directory at `sdk-workspaces/boot/<archive hash>`.
@@ -20,11 +20,11 @@ workspace-preparation view. The cache is independent of workspace recreation
 and app replacement.
 
 Development uses the same verification path with a locally built sidecar,
-selected by the development launcher's `GHOSTSHELL_WORKSPACE_BOOT_ARCHIVE`.
+selected by the development launcher's `ASURA_WORKSPACE_BOOT_ARCHIVE`.
 Changing that path cannot bypass the descriptor's hashes. No development
 sidecar is copied into the app.
 
-`GhostShell-networking-sources.zip` is a separate release asset with the kernel
+`Asura-networking-sources.zip` is a separate release asset with the kernel
 source, configuration, Kata patches/build material, and OpenConnect source and
 relinking instructions. License notices and source-location instructions remain
 in the app. Packaging rejects any boot image or source tarball inside the app

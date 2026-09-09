@@ -4,7 +4,7 @@
 #include <openvpn/tun/extern/config.hpp>
 #include <openvpn/tun/builder/client.hpp>
 
-openvpn::TunClientFactory *ghostshell::PacketClient::new_tun_factory(
+openvpn::TunClientFactory *asura::PacketClient::new_tun_factory(
     const openvpn::ExternalTun::Config &settings, const openvpn::OptionList &) {
     auto factory = openvpn::TunBuilderClient::ClientConfig::new_obj();
     factory->builder = this;

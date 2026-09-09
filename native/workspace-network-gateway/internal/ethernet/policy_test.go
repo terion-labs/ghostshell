@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )

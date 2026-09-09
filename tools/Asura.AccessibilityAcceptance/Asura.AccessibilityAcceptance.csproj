@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Asura.AccessibilityAcceptance</AssemblyName>
+    <RootNamespace>Asura.AccessibilityAcceptance</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura.AccessibilityAcceptance.Tests" />
+    <InternalsVisibleTo Include="Asura.SoakAcceptance" />
+    <InternalsVisibleTo Include="Asura.SoakAcceptance.Tests" />
+    <InternalsVisibleTo Include="Asura.SecurityCampaign" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Packaging\Asura.Packaging.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -61,7 +61,7 @@ lz4="${staging_directory}/lz4-1.10.0"
 (
     cd "${openssl}"
     ./Configure darwin64-arm64-cc no-shared no-tests no-module no-legacy \
-        --prefix=/opt/ghostshell/openvpn-engine -mmacosx-version-min=13.0 > "${staging_directory}/openssl.log" 2>&1
+        --prefix=/opt/asura/openvpn-engine -mmacosx-version-min=13.0 > "${staging_directory}/openssl.log" 2>&1
     make -j8 build_libs >> "${staging_directory}/openssl.log" 2>&1
 ) || { tail -60 "${staging_directory}/openssl.log" >&2; exit 1; }
 make -C "${lz4}/lib" -j8 liblz4.a CFLAGS='-O2 -mmacosx-version-min=13.0'
@@ -71,13 +71,13 @@ cmake -S "${repository_root}/native/openvpn-engine" -B "${staging_directory}/bui
     -DOPENSSL_SOURCE="${openssl}" -DLZ4_SOURCE="${lz4}"
 cmake --build "${staging_directory}/build" --parallel 4
 ctest --test-dir "${staging_directory}/build" --output-on-failure
-binary="${staging_directory}/build/ghostshell-openvpn-engine"
+binary="${staging_directory}/build/asura-openvpn-engine"
 if otool -L "${binary}" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib/|/System/Library/)'; then
     echo "OpenVPN engine contains an unbundled runtime dependency." >&2
     exit 1
 fi
 mkdir -p "${output_directory}"
-install -m 755 "${binary}" "${output_directory}/ghostshell-openvpn-engine"
+install -m 755 "${binary}" "${output_directory}/asura-openvpn-engine"
 cp "${core}/LICENSES/MPL-2.0.txt" "${output_directory}/OPENVPN-MPL-2.0.txt"
 cp "${core}/LICENSE.md" "${output_directory}/OPENVPN-LICENSE.md"
 cp "${openssl}/LICENSE.txt" "${output_directory}/OPENSSL-LICENSE.txt"
@@ -87,7 +87,7 @@ cp "${repository_root}/native/openvpn-engine/THIRD-PARTY-NOTICES.txt" "${output_
 cp "${repository_root}/native/openvpn-engine/VERSIONS.txt" "${output_directory}/OPENVPN-VERSIONS.txt"
 (
     cd "${output_directory}"
-    shasum -a 256 ghostshell-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
+    shasum -a 256 asura-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
         OPENSSL-LICENSE.txt ASIO-LICENSE.txt LZ4-LICENSE.txt THIRD-PARTY-NOTICES.txt OPENVPN-VERSIONS.txt > SHA256SUMS
 )
-echo "Built and tested ${output_directory}/ghostshell-openvpn-engine"
+echo "Built and tested ${output_directory}/asura-openvpn-engine"

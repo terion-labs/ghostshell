@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
             std::cout << "VALID v1\n";
             return 0;
         }
-        ghostshell::PacketClient client(packet_fd, std::cout, interrupted);
+        asura::PacketClient client(packet_fd, std::cout, interrupted);
         const auto evaluation = client.eval_config(config);
         OPENSSL_cleanse(config.content.data(), config.content.size());
         if (evaluation.error) { std::cerr << "ERROR profile_invalid\n"; return 65; }

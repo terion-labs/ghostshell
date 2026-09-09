@@ -30,7 +30,7 @@ func gatewayDiagnosticsClassifiesOnlyKnownReasons(message: String, expected: Str
     contentsOf: Data("\npanic: private password and a stack trace\n".utf8))
   try pipe.fileHandleForWriting.close()
   let result = NetworkExit(code: 2, reason: diagnostics.finish())
-  #expect(result.diagnostic == Data("GHOSTSHELL_GATEWAY_EXIT_REASON=runtime-panic\n".utf8))
+  #expect(result.diagnostic == Data("ASURA_GATEWAY_EXIT_REASON=runtime-panic\n".utf8))
   #expect(NetworkExitDiagnostics.classify("password=secret") == "unknown")
 }
 

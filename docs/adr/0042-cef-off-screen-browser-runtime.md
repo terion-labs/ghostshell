@@ -15,22 +15,22 @@ browser is a first-class panel, so those composition differences are product
 constraints rather than an acceptable implementation detail.
 
 CEF supplies one Chromium engine and an off-screen rendering (OSR) contract on
-macOS, Windows, and Linux. It also makes GhostSHELL responsible for a large
+macOS, Windows, and Linux. It also makes Asura responsible for a large
 multiprocess runtime, Chromium security updates, sandboxing, helper processes,
 licenses, signing, and orderly process shutdown.
 
 The published Exclr8CEF 0.8 packages cannot supply that runtime: their managed
 package graph references unavailable per-RID packages. The reviewed source
-revision also needs GhostSHELL-specific lifecycle, request-policy, and security
+revision also needs Asura-specific lifecycle, request-policy, and security
 fixes.
 
 ## Decision
 
-GhostSHELL vendors Exclr8CEF commit
+Asura vendors Exclr8CEF commit
 `7751a0b76cbabaf1fa81ef2b71b694a44c87f77e`, applies a hashed local patch set,
 and pins CEF `150.0.9+g81b0088+chromium-150.0.7871.46`.
 
-`GhostShell.Browser` is the only product project that references the binding.
+`Asura.Browser` is the only product project that references the binding.
 Its public contracts remain engine-neutral. `CefBrowserView` hosts the binding's
 OSR control as an ordinary Avalonia visual, while `BrowserSurface`
 owns logical state, origin containment, crash replacement, and deterministic
@@ -43,7 +43,7 @@ runtime-version check, private request contexts, no remote debugging
 port and an opt-in-disabled JavaScript bridge. Popups cross an explicit shell
 new-tab policy. JavaScript/file dialogs, permission requests, certificate
 exceptions, downloads, find results, and renderer failure cross a closed
-GhostSHELL-owned product-event family; vendor event types remain private.
+Asura-owned product-event family; vendor event types remain private.
 Dialogs, permissions, and certificate exceptions still default closed.
 Downloads use an explicit Save As destination and publish typed progress, while
 find-in-page delegates through a narrow engine-neutral controller.

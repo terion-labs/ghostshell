@@ -108,10 +108,10 @@ static string ResolveMacHelperPath()
             "exclr8cef_demo Helper"),
         Path.Combine(
             frameworks,
-            "GhostSHELL Helper.app",
+            "Asura Helper.app",
             "Contents",
             "MacOS",
-            "GhostSHELL Helper"),
+            "Asura Helper"),
     };
     return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
 }
@@ -282,7 +282,7 @@ static int RunCloseOnLoadEndTest(string[] argv, string helperPath)
 }
 
 // Native integration probe for the same acknowledged CDP Accessibility
-// round-trip used by GhostSHELL's browser agent. This deliberately runs below
+// round-trip used by Asura's browser agent. This deliberately runs below
 // Avalonia and the session host so renderer/protocol failures stay observable.
 static int RunAccessibilityTest(string[] argv, string helperPath)
 {

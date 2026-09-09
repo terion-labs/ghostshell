@@ -5,7 +5,7 @@
 
 ## Context
 
-The Pencil design is a strong dark macOS composition, but GhostSHELL must feel natural on macOS, Windows 11, GNOME, and KDE and must follow accessibility settings.
+The Pencil design is a strong dark macOS composition, but Asura must feel natural on macOS, Windows 11, GNOME, and KDE and must follow accessibility settings.
 
 ## Decision
 

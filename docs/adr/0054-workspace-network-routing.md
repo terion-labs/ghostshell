@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-GhostSHELL needs application networking defaults and complete per-workspace overrides.
+Asura needs application networking defaults and complete per-workspace overrides.
 A workspace can offer several proxy or VPN connections, but it sends traffic through one
 selected connection at a time. The user must be able to select that connection, disable it,
 and enable a kill switch from the window that owns the workspace.
@@ -172,7 +172,7 @@ connector clients. SSH multiplexing is scoped to its live route identity, and
 SSH terminal launches use the authenticated broker through an explicit `ProxyCommand`. This routes
 software that honors those settings, but it is not a host security boundary: a child can ignore its
 environment and open a direct socket, while another process running as the same OS user may inspect
-that child's environment or GhostSHELL process memory. Universal enforcement of arbitrary child
+that child's environment or Asura process memory. Universal enforcement of arbitrary child
 traffic requires workspace isolation, where the host-only network and gateway are the authority.
 The host kill switch is therefore authoritative for in-process connectors, not for arbitrary
 non-isolated child binaries.

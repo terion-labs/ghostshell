@@ -3,8 +3,8 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
-icon_document="${repository_dir}/assets/macos/GhostShell.icon"
-output_icon="${repository_dir}/assets/macos/GhostShell.icns"
+icon_document="${repository_dir}/assets/macos/Asura.icon"
+output_icon="${repository_dir}/assets/macos/Asura.icns"
 icon_composer_tool="${ICON_COMPOSER_TOOL:-/Applications/Icon Composer.app/Contents/Executables/ictool}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -24,13 +24,13 @@ if [[ ! -x /usr/bin/iconutil || ! -x /usr/bin/sips ]]; then
     exit 1
 fi
 
-working_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-macos-icon.XXXXXX")"
+working_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-macos-icon.XXXXXX")"
 cleanup() {
     rm -rf -- "${working_directory}"
 }
 trap cleanup EXIT
 
-iconset="${working_directory}/GhostShell.iconset"
+iconset="${working_directory}/Asura.iconset"
 mkdir -- "${iconset}"
 
 render() {
@@ -69,7 +69,7 @@ for points in 16 32 128 256 512; do
     render "${points}" 2
 done
 
-candidate="${working_directory}/GhostShell.icns"
+candidate="${working_directory}/Asura.icns"
 /usr/bin/iconutil --convert icns --output "${candidate}" "${iconset}"
 if [[ "$(LC_ALL=C /usr/bin/head -c 4 "${candidate}")" != "icns" ]]; then
     echo "iconutil did not produce an ICNS container." >&2

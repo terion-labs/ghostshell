@@ -18,7 +18,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 func TestDirectUpstreamCarriesTCP(t *testing.T) {
@@ -242,7 +242,7 @@ func TestDirectEchoForwarderUsesHostPingSockets(t *testing.T) {
 			}
 			request := &icmp.Message{
 				Type: test.requestType,
-				Body: &icmp.Echo{ID: 0x4753, Seq: 17, Data: []byte("ghostshell")},
+				Body: &icmp.Echo{ID: 0x4753, Seq: 17, Data: []byte("asura")},
 			}
 			wire, err := request.Marshal(nil)
 			if err != nil {
@@ -260,7 +260,7 @@ func TestDirectEchoForwarderUsesHostPingSockets(t *testing.T) {
 				t.Fatalf("unexpected echo reply: %x", response)
 			}
 			echo := parsed.Body.(*icmp.Echo)
-			if echo.ID != 0x4753 || echo.Seq != 17 || !bytes.Equal(echo.Data, []byte("ghostshell")) {
+			if echo.ID != 0x4753 || echo.Seq != 17 || !bytes.Equal(echo.Data, []byte("asura")) {
 				t.Fatalf("echo payload changed: %#v", echo)
 			}
 		})
@@ -271,7 +271,7 @@ func TestProxyPacketStreamDropsEchoInsteadOfFakingReply(t *testing.T) {
 	t.Parallel()
 	request := &icmp.Message{
 		Type: ipv4.ICMPTypeEcho,
-		Body: &icmp.Echo{ID: 0x4753, Seq: 17, Data: []byte("ghostshell")},
+		Body: &icmp.Echo{ID: 0x4753, Seq: 17, Data: []byte("asura")},
 	}
 	wire, err := request.Marshal(nil)
 	if err != nil {

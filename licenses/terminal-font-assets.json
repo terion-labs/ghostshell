@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "format": "ghostshell-terminal-font-assets-catalog-v1",
-  "catalogId": "ghostshell-jetbrains-mono-2.304-20260801",
+  "format": "asura-terminal-font-assets-catalog-v1",
+  "catalogId": "asura-jetbrains-mono-2.304-20260801",
   "source": {
     "repository": "https://github.com/ghostty-org/ghostty.git",
     "commit": "08f039fbb3dea9c6b1cdb5ff4550666598122346"

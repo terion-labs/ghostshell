@@ -36,11 +36,11 @@ if [[ "${mode}" == --full ]]; then
         "${script_dir}/build-openvpn-engine.sh" --test
         if [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 15 ]]; then
             (
-                test_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-native-gate.XXXXXX")"
+                test_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-native-gate.XXXXXX")"
                 trap 'rm -rf -- "${test_directory}"' EXIT
                 cd "${module_dir}"
                 CGO_ENABLED=0 go build -mod=readonly -o "${test_directory}/workspace-network-gateway" ./cmd/workspace-network-gateway
-                GHOSTSHELL_RUNTIME_TEST_GATEWAY="${test_directory}/workspace-network-gateway" \
+                ASURA_RUNTIME_TEST_GATEWAY="${test_directory}/workspace-network-gateway" \
                     "${script_dir}/build-workspace-runtime.sh" --test
             )
         fi

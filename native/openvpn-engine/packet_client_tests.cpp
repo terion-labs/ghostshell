@@ -23,7 +23,7 @@ int main() {
         volatile sig_atomic_t interrupted = 0;
         std::ostringstream readiness;
         SocketPair pair;
-        ghostshell::PacketClient client(pair.descriptors[0], readiness, interrupted);
+        asura::PacketClient client(pair.descriptors[0], readiness, interrupted);
         openvpn::ExternalTun::Config settings;
         openvpn::OptionList options;
         auto *factory = dynamic_cast<openvpn::TunBuilderClient::ClientConfig *>(client.new_tun_factory(settings, options));
@@ -62,11 +62,11 @@ int main() {
         require(!client.tun_builder_new(), "reject renegotiation of attached stack");
         SocketPair stream(SOCK_STREAM);
         bool rejected = false;
-        try { ghostshell::PacketClient wrong(stream.descriptors[0], readiness, interrupted); }
+        try { asura::PacketClient wrong(stream.descriptors[0], readiness, interrupted); }
         catch (const std::invalid_argument &) { rejected = true; }
         require(rejected, "reject non-datagram socket");
         std::ostringstream empty_readiness;
-        ghostshell::PacketClient empty(pair.descriptors[0], empty_readiness, interrupted);
+        asura::PacketClient empty(pair.descriptors[0], empty_readiness, interrupted);
         require(empty.tun_builder_new(), "begin empty builder");
         require(empty.tun_builder_establish() == -1, "require negotiated address");
         require(empty.tun_builder_add_address("fd00::2", 64, "", true, false), "IPv6 address");

@@ -7,7 +7,7 @@
 ## Context
 
 The Pi project remains a useful reference for agent-session lifecycle, provider
-streaming, steering, compaction, and tool calls. Running it in GhostSHELL would,
+streaming, steering, compaction, and tool calls. Running it in Asura would,
 however, require a Node.js child process solely for the built-in agent. That
 would add another runtime, package supply chain, process supervisor, IPC
 protocol, upgrade path, failure domain, and idle memory cost to every desktop
@@ -21,7 +21,7 @@ the capability checks that must occur at the session-host execution boundary.
 ## Decision
 
 Implement the first agent runtime natively in .NET. The loop is a real
-`GhostShell.Agent` boundary that owns conversation state, provider streaming,
+`Asura.Agent` boundary that owns conversation state, provider streaming,
 tool-call assembly, steering, compaction, and run cancellation. It depends on
 provider-neutral Core primitives, not Avalonia controls, terminal engines,
 provider SDK payloads, or persisted vendor session formats.
@@ -63,7 +63,7 @@ window. After a successful turn, the kernel uses the latest provider-reported
 total plus bounded estimates for any trailing messages, and compacts when that
 usage exceeds `contextWindow - 16,384`. It retains approximately 20,000 tokens
 of the newest complete user turns, summarizes only the older complete turns,
-and rolls an existing summary forward. GhostSHELL never splits a structured
+and rolls an existing summary forward. Asura never splits a structured
 tool exchange merely to hit the token target. The summarizer receives a
 prompt-injection-resistant structured checkpoint contract derived from Pi's
 Goal, Constraints, Progress, Decisions, Next Steps, and Critical Context
@@ -95,7 +95,7 @@ response when the output-item event omitted it. Both formats enforce strict
 item, aggregate byte, JSON-depth/node, slot-contiguity, and duplicate bounds.
 Other adapters receive no replay-state surface.
 
-Internal GhostSHELL operation names remain stable domain and audit identities;
+Internal Asura operation names remain stable domain and audit identities;
 they are not assumed to satisfy a model provider's tool-name grammar. Each tool
 definition therefore carries a separate provider name limited to 64 ASCII
 letters, digits, underscores, or hyphens. Already compatible names, including
@@ -110,7 +110,7 @@ compaction. Malformed Unicode, per-manifest collisions, cross-turn rebinding,
 and session-capacity overflow all fail before provider invocation.
 
 The loop cannot execute application tools. A model tool call is an untrusted
-proposal correlated to an authenticated agent run. GhostSHELL resolves its
+proposal correlated to an authenticated agent run. Asura resolves its
 exact target, policy, risk, approval, and one-action authorization before the
 session host invokes a typed application operation. The host records the
 requested decision and terminal outcome durably. Provider and run cancellation
@@ -123,11 +123,11 @@ other same-account processes. A future standalone or headless host must add an
 authenticated transport and its own identity ADR without weakening the same
 target, policy, approval, audit, and execution contracts.
 
-Pi remains a behavior and test reference only. GhostSHELL does not package
+Pi remains a behavior and test reference only. Asura does not package
 Node.js, launch Pi, consume Pi session files, or depend on TypeScript types.
 
 The foundational loop deliberately owns no provider transport or tool
-authority. `GhostShell.Agent` references only Core primitives and the BCL. It
+authority. `Asura.Agent` references only Core primitives and the BCL. It
 implements strict bounded stream reduction, stable transcript validation,
 generation-fenced cancellation, bounded non-cooperative provider work,
 CAS-based compaction, cursor resynchronization, cloned data-only tool
@@ -164,7 +164,7 @@ adapter. A provider profile is pinned by immutable catalog revision for an
 agent run; editing, disabling, or removing it invalidates the binding before
 any retained transcript can be sent again.
 
-`GhostShell.Agent.Runtime` is the provider-neutral orchestration boundary. It
+`Asura.Agent.Runtime` is the provider-neutral orchestration boundary. It
 references the agent kernel plus application contracts, but no provider,
 terminal-engine, platform, vault, or UI implementation. The desktop binds a
 run to one workspace identity. A bounded host-generated system manifest is
@@ -237,7 +237,7 @@ broker, session-host client, terminal object, or executor.
   extra IPC boundary.
 - Provider adapters can be added independently while policy and tools remain
   provider-neutral.
-- GhostSHELL owns the correctness of streaming assembly, tool-call sequencing,
+- Asura owns the correctness of streaming assembly, tool-call sequencing,
   steering, and compaction and must test those behaviors directly.
 - Provider configuration changes invalidate a live run instead of silently
   changing endpoint, model, or credential scope under an existing transcript.
@@ -249,7 +249,7 @@ broker, session-host client, terminal object, or executor.
 ## Alternatives rejected
 
 - A Pi/Node.js child process adds a runtime and protocol solely for the agent
-  without removing any GhostSHELL security responsibility.
+  without removing any Asura security responsibility.
 - Letting provider adapters call terminal, browser, file, or MCP operations
   directly creates a hidden control plane.
 - Binding Core, Application, or Protocol to one provider SDK makes provider

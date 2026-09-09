@@ -58,7 +58,7 @@ func TestOpenVPNReadinessRejectsInvalidMetadata(t *testing.T) {
 
 func openVPNFixture(t *testing.T, mode string) string {
 	t.Helper()
-	t.Setenv("GHOSTSHELL_TEST_OPENVPN_ENGINE", mode)
+	t.Setenv("ASURA_TEST_OPENVPN_ENGINE", mode)
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestOpenVPNEngineProjectsOnlyAuthenticationCategory(t *testing.T) {
 // This process is invoked only by the local test wrapper. It never creates a
 // network connection: FD3 is an inherited Unix datagram packet transport.
 func TestOpenVPNEngineProcess(t *testing.T) {
-	mode := os.Getenv("GHOSTSHELL_TEST_OPENVPN_ENGINE")
+	mode := os.Getenv("ASURA_TEST_OPENVPN_ENGINE")
 	if mode == "" {
 		return
 	}

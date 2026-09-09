@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AsuraWindowsBuild Condition="'$(RuntimeIdentifier)' != '' and $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</AsuraWindowsBuild>
+    <AsuraWindowsBuild Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">true</AsuraWindowsBuild>
+    <NuGetLockFilePath Condition="'$(AsuraWindowsBuild)' == 'true' and '$(RuntimeIdentifier)' == ''">packages.windows.lock.json</NuGetLockFilePath>
+    <TargetFramework Condition="'$(AsuraWindowsBuild)' == 'true'">net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework Condition="'$(AsuraWindowsBuild)' != 'true'">net10.0</TargetFramework>
+    <SupportedOSPlatformVersion Condition="'$(AsuraWindowsBuild)' == 'true'">10.0.19041.0</SupportedOSPlatformVersion>
+    <EnableWindowsTargeting Condition="'$(AsuraWindowsBuild)' == 'true'">true</EnableWindowsTargeting>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile
+      Include="..\Asura.App.Tests\ApplicationViewCatalog.cs"
+      Link="ApplicationViewCatalog.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vendor\sqlclient\tests\Tds.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\Asura.Agent\Asura.Agent.csproj" />
+    <ProjectReference Include="..\..\src\Asura.Agent.Providers\Asura.Agent.Providers.csproj" />
+    <ProjectReference Include="..\..\src\Asura.Agent.Runtime\Asura.Agent.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\Asura.Desktop\Asura.Desktop.csproj" />
+    <ProjectReference
+      Include="..\..\src\Asura.Backend\Asura.Backend.csproj"
+      OutputItemType="_DatabaseBackendTargetPath"
+      ReferenceOutputAssembly="false" />
+    <ProjectReference
+      Include="..\..\tools\Asura.SingleInstanceTestHost\Asura.SingleInstanceTestHost.csproj"
+      OutputItemType="_SingleInstanceTestHostTargetPath"
+      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target
+    Name="AddDatabaseBackendPath"
+    BeforeTargets="GetAssemblyAttributes"
+    DependsOnTargets="ResolveProjectReferences">
+    <Error
+      Condition="'@(_DatabaseBackendTargetPath)' == ''"
+      Text="The database backend target path was not resolved." />
+    <ItemGroup>
+      <AssemblyMetadata Include="DatabaseBackendPath">
+        <Value>@(_DatabaseBackendTargetPath->'%(FullPath)')</Value>
+      </AssemblyMetadata>
+    </ItemGroup>
+  </Target>
+
+  <Target
+    Name="CopyDatabaseBackendForArchitectureAudit"
+    AfterTargets="Build"
+    DependsOnTargets="ResolveProjectReferences">
+    <!-- The out-of-process product executable must also pass the compiled
+         first-party diagnostic-sink audit; it is not a test assembly reference. -->
+    <Copy
+      SourceFiles="@(_DatabaseBackendTargetPath)"
+      DestinationFolder="$(OutDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target
+    Name="AddSingleInstanceTestHostPath"
+    BeforeTargets="GetAssemblyAttributes"
+    DependsOnTargets="ResolveProjectReferences">
+    <Error
+      Condition="'@(_SingleInstanceTestHostTargetPath)' == ''"
+      Text="The single-instance test host target path was not resolved." />
+    <ItemGroup>
+      <AssemblyMetadata Include="SingleInstanceTestHostPath">
+        <Value>@(_SingleInstanceTestHostTargetPath->'%(FullPath)')</Value>
+      </AssemblyMetadata>
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -28,7 +28,7 @@ mechanism as a complete named-platform accessibility implementation.
 
 ## Decision
 
-GhostSHELL adds `browser.snapshot` as an observation under `BrowserData`.
+Asura adds `browser.snapshot` as an observation under `BrowserData`.
 Snapshot proposals use the same exact target resolution, interactive attachment
 ownership, one-action authorization, cancellation, and completion-audit path
 established by ADR 0021. [ADR 0024](0024-governed-browser-element-click.md)

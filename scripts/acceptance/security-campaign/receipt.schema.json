@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ghostshell.app/schemas/security-campaign-receipt-v1.json",
+  "$id": "https://asura.sh/schemas/security-campaign-receipt-v1.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,7 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "evidenceKind": { "const": "ghostshell-security-campaign-receipt-v1" },
+    "evidenceKind": { "const": "asura-security-campaign-receipt-v1" },
     "evidenceClass": { "enum": ["source-only", "release-candidate"] },
     "releaseScope": {
       "type": "array",
@@ -110,18 +110,18 @@
       "additionalProperties": false,
       "required": ["archiveName", "archiveBytes", "archiveSha256", "packageManifestSha256", "packageFileCount", "executableName", "executableBytes", "executableSha256", "sourceSealSha256", "sourceManifestSha256", "buildIdentitySha256", "bundleIdentifier", "productVersion"],
       "properties": {
-        "archiveName": { "const": "GhostShell-macOS-arm64.zip" },
+        "archiveName": { "const": "Asura-macOS-arm64.zip" },
         "archiveBytes": { "type": "integer", "minimum": 1 },
         "archiveSha256": { "$ref": "#/$defs/sha256" },
         "packageManifestSha256": { "$ref": "#/$defs/sha256" },
         "packageFileCount": { "type": "integer", "minimum": 1, "maximum": 20000 },
-        "executableName": { "const": "GhostShell" },
+        "executableName": { "const": "Asura" },
         "executableBytes": { "type": "integer", "minimum": 1 },
         "executableSha256": { "$ref": "#/$defs/sha256" },
         "sourceSealSha256": { "$ref": "#/$defs/sha256" },
         "sourceManifestSha256": { "$ref": "#/$defs/sha256" },
         "buildIdentitySha256": { "$ref": "#/$defs/sha256" },
-        "bundleIdentifier": { "const": "app.ghostshell" },
+        "bundleIdentifier": { "const": "sh.asura" },
         "productVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
       }
     },
@@ -141,7 +141,7 @@
       "additionalProperties": false,
       "required": ["format", "sourceCommit", "status", "inputs", "untriagedAdvisories", "releaseBlockingAdvisories"],
       "properties": {
-        "format": { "const": "ghostshell-dependency-security-evidence-v1" },
+        "format": { "const": "asura-dependency-security-evidence-v1" },
         "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "status": { "const": "pass" },
         "inputs": { "type": "array", "minItems": 2, "maxItems": 16, "items": { "$ref": "#/$defs/file" } },
@@ -154,7 +154,7 @@
       "additionalProperties": false,
       "required": ["format", "notarizationId", "notarizationStatus", "teamIdentifier", "certificateSha256", "codeSignatureValid", "stapleValid", "gatekeeperAccepted"],
       "properties": {
-        "format": { "const": "ghostshell-macos-signing-evidence-v1" },
+        "format": { "const": "asura-macos-signing-evidence-v1" },
         "notarizationId": { "type": "string", "format": "uuid" },
         "notarizationStatus": { "const": "Accepted" },
         "teamIdentifier": { "type": "string", "pattern": "^[A-Za-z0-9]{1,32}$" },

@@ -66,10 +66,10 @@ EXPECTED_TERMINAL_ROLES = {"AXGroup", "AXScrollArea", "AXTextArea"}
 
 REQUIRED_IDENTITY_FRAGMENTS = {
     'import CryptoKit',
-    'private let ghostShellBundleIdentifier = "app.ghostshell"',
-    'private let expectedBundleName = "GhostShell.app"',
-    'private let expectedExecutableName = "GhostShell"',
-    'application.bundleIdentifier == ghostShellBundleIdentifier',
+    'private let asuraBundleIdentifier = "sh.asura"',
+    'private let expectedBundleName = "Asura.app"',
+    'private let expectedExecutableName = "Asura"',
+    'application.bundleIdentifier == asuraBundleIdentifier',
     'let bundleUrl = application.bundleURL',
     'let applicationExecutableUrl = application.executableURL',
     'var hasher = SHA256()',

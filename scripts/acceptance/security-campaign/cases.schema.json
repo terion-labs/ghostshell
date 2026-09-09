@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ghostshell.app/schemas/security-campaign-cases-v1.json",
+  "$id": "https://asura.sh/schemas/security-campaign-cases-v1.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -13,7 +13,7 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "format": { "const": "ghostshell-security-campaign-cases-v1" },
+    "format": { "const": "asura-security-campaign-cases-v1" },
     "releaseScope": { "const": "macos-arm64" },
     "deferredPlatforms": {
       "const": ["windows", "linux"]

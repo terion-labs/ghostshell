@@ -10,7 +10,7 @@
 
 /* Compute the complete descriptor ceiling before fork, when libc is safe.
  * The child performs only async-signal-safe close/syscall operations. */
-static int ghostshell_descriptor_ceiling(void) {
+static int asura_descriptor_ceiling(void) {
     struct rlimit limit;
     if (getrlimit(RLIMIT_NOFILE, &limit) != 0) return -1;
 #if defined(__APPLE__)
@@ -42,7 +42,7 @@ static int ghostshell_descriptor_ceiling(void) {
 #endif
 }
 
-static void ghostshell_close_child_descriptors(int ceiling) {
+static void asura_close_child_descriptors(int ceiling) {
 #if !defined(__APPLE__) && defined(SYS_close_range)
     if (syscall(SYS_close_range, 3u, UINT_MAX, 0u) == 0) return;
     if (errno != ENOSYS && errno != EINVAL) _exit(errno);
@@ -51,4 +51,4 @@ static void ghostshell_close_child_descriptors(int ceiling) {
     for (int fd = 3; fd < ceiling; ++fd) close(fd);
 }
 
-PTY_EXPORT int ghostshell_pty_descriptor_boundary_abi(void) { return 1; }
+PTY_EXPORT int asura_pty_descriptor_boundary_abi(void) { return 1; }

@@ -99,7 +99,7 @@ if [[ -z "$rid" ]]; then
     rid="$(host_rid)"
 fi
 
-binary_name="ghostshell-sql-language"
+binary_name="asura-sql-language"
 docker_platform=""
 abi=""
 case "$rid" in
@@ -118,7 +118,7 @@ case "$rid" in
     osx-x64) abi="darwin-x64" ;;
     osx-arm64) abi="darwin-arm64" ;;
     win-x64)
-        binary_name="ghostshell-sql-language.exe"
+        binary_name="asura-sql-language.exe"
         abi="windows-x64"
         ;;
     win-arm64)
@@ -229,8 +229,8 @@ verify_native_image_version "$native_image_version"
 artifact_directory="$ARTIFACTS_DIRECTORY/$rid"
 artifact_path="$artifact_directory/$binary_name"
 worker_build_directory="$WORKER_DIRECTORY/target"
-if [[ -n "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT:-}" ]]; then
-    worker_build_directory="$GHOSTSHELL_BUILD_ARTIFACTS_ROOT/sql-language-worker/$rid"
+if [[ -n "${ASURA_BUILD_ARTIFACTS_ROOT:-}" ]]; then
+    worker_build_directory="$ASURA_BUILD_ARTIFACTS_ROOT/sql-language-worker/$rid"
 fi
 mkdir -p "$ARTIFACTS_DIRECTORY"
 staging_directory="$(mktemp -d "$ARTIFACTS_DIRECTORY/.sql-language-$rid.XXXXXX")"
@@ -268,7 +268,7 @@ native_image_common_arguments=(
 if [[ "$mode" == "local" ]]; then
     maven_local_arguments=(
         "-Dmaven.repo.local=$locked_maven_repository"
-        "-Dghostshell.build.directory=$worker_build_directory"
+        "-Dasura.build.directory=$worker_build_directory"
     )
     (
         cd "$WORKER_DIRECTORY"
@@ -303,7 +303,7 @@ if [[ "$mode" == "local" ]]; then
     )
     native_image_arguments=(
         "${native_image_common_arguments[@]}"
-        -jar "$worker_build_directory/ghostshell-sql-language-worker.jar"
+        -jar "$worker_build_directory/asura-sql-language-worker.jar"
         -o "$staged_artifact_path"
     )
     if [[ "$rid" == osx-* ]]; then
@@ -311,7 +311,7 @@ if [[ "$mode" == "local" ]]; then
             "${native_image_common_arguments[@]}"
             "--native-compiler-options=-mmacosx-version-min=$MINIMUM_MACOS_VERSION"
             "-H:NativeLinkerOption=-mmacosx-version-min=$MINIMUM_MACOS_VERSION"
-            -jar "$worker_build_directory/ghostshell-sql-language-worker.jar"
+            -jar "$worker_build_directory/asura-sql-language-worker.jar"
             -o "$staged_artifact_path"
         )
         MACOSX_DEPLOYMENT_TARGET="$MINIMUM_MACOS_VERSION" \
@@ -384,7 +384,7 @@ else
         -w /workspace \
         "$native_image" \
         "${native_image_common_arguments[@]}" \
-        -jar target/ghostshell-sql-language-worker.jar \
+        -jar target/asura-sql-language-worker.jar \
         -o "/out/$binary_name"
 fi
 

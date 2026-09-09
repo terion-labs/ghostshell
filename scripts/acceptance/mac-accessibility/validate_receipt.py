@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the bounded, privacy-safe GhostSHELL macOS AX receipt."""
+"""Validate the bounded, privacy-safe Asura macOS AX receipt."""
 
 from __future__ import annotations
 
@@ -182,7 +182,7 @@ def validate_receipt(receipt: Any) -> None:
 
     if receipt["schemaVersion"] != 3:
         raise ReceiptValidationError("unsupported schemaVersion")
-    if receipt["probe"] != "ghostshell.macos.accessibility":
+    if receipt["probe"] != "asura.macos.accessibility":
         raise ReceiptValidationError("unexpected probe identifier")
     if receipt["probeVersion"] != "1.2.0":
         raise ReceiptValidationError("unexpected probe version")
@@ -210,7 +210,7 @@ def validate_receipt(receipt: Any) -> None:
     _require_exact_keys(scope, {"actionsExecuted", "target", "traversal"}, "scope")
     if scope != {
         "actionsExecuted": [],
-        "target": "GHOSTSHELL_MAIN_WINDOW",
+        "target": "ASURA_MAIN_WINDOW",
         "traversal": "PASSIVE_METADATA_ONLY",
     }:
         raise ReceiptValidationError("scope permits unexpected target or actions")
@@ -238,7 +238,7 @@ def validate_receipt(receipt: Any) -> None:
     )
     if target_identity["kind"] != "PACKAGED_EXECUTABLE_SHA256":
         raise ReceiptValidationError("unexpected target identity kind")
-    if target_identity["expectedBundleIdentifier"] != "app.ghostshell":
+    if target_identity["expectedBundleIdentifier"] != "sh.asura":
         raise ReceiptValidationError("unexpected target bundle identifier")
     process_id = target_identity["processId"]
     executable_digest = target_identity["executableSha256"]
@@ -628,20 +628,20 @@ def _valid_self_test_receipt() -> dict[str, Any]:
             "userTextEmitted": False,
             "valuesQueried": False,
         },
-        "probe": "ghostshell.macos.accessibility",
+        "probe": "asura.macos.accessibility",
         "probeVersion": "1.2.0",
         "reasonCode": "ACCEPTANCE_PASSED",
         "recordedAtUtc": "2026-07-23T00:00:00.000Z",
         "schemaVersion": 3,
         "scope": {
             "actionsExecuted": [],
-            "target": "GHOSTSHELL_MAIN_WINDOW",
+            "target": "ASURA_MAIN_WINDOW",
             "traversal": "PASSIVE_METADATA_ONLY",
         },
         "status": "PASS",
         "targetIdentity": {
             "executableSha256": "a" * 64,
-            "expectedBundleIdentifier": "app.ghostshell",
+            "expectedBundleIdentifier": "sh.asura",
             "kind": "PACKAGED_EXECUTABLE_SHA256",
             "processId": 4242,
         },

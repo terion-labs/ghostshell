@@ -4,10 +4,10 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository_dir="$(cd "${script_dir}/.." && pwd)"
 dotnet="${repository_dir}/.dotnet/dotnet"
-project="${repository_dir}/tests/GhostShell.Databases.IntegrationTests/GhostShell.Databases.IntegrationTests.csproj"
+project="${repository_dir}/tests/Asura.Databases.IntegrationTests/Asura.Databases.IntegrationTests.csproj"
 
 if [[ ! -x "${dotnet}" ]]; then
-    echo "Run GHOSTSHELL_SKIP_NATIVE=1 ./scripts/bootstrap.sh first." >&2
+    echo "Run ASURA_SKIP_NATIVE=1 ./scripts/bootstrap.sh first." >&2
     exit 1
 fi
 
@@ -20,28 +20,28 @@ Examples:
   ./scripts/test-database-viewer-integration.sh sqlite,duckdb
   ./scripts/test-database-viewer-integration.sh redis
   ./scripts/test-database-viewer-integration.sh postgres --logger "console;verbosity=detailed"
-  GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE=1 \
-    GHOSTSHELL_SQL_LANGUAGE_WORKER="$PWD/native/artifacts/osx-arm64/ghostshell-sql-language" \
+  ASURA_RUN_SQL_LANGUAGE_NATIVE=1 \
+    ASURA_SQL_LANGUAGE_WORKER="$PWD/native/artifacts/osx-arm64/asura-sql-language" \
     ./scripts/test-database-viewer-integration.sh sqlite
 
 If no provider argument is supplied, the script uses
-GHOSTSHELL_DATABASE_INTEGRATION_PROVIDERS, then falls back to all.
+ASURA_DATABASE_INTEGRATION_PROVIDERS, then falls back to all.
 
-Set GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE=1 to make the real Calcite worker a
+Set ASURA_RUN_SQL_LANGUAGE_NATIVE=1 to make the real Calcite worker a
 required part of the database and rendered-editor journeys. The worker path
 must name an executable built for the host operating system and architecture.
 USAGE
     exit 0
 fi
 
-native_required="${GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE:-0}"
+native_required="${ASURA_RUN_SQL_LANGUAGE_NATIVE:-0}"
 case "${native_required}" in
     0)
         ;;
     1)
-        worker_path="${GHOSTSHELL_SQL_LANGUAGE_WORKER:-}"
+        worker_path="${ASURA_SQL_LANGUAGE_WORKER:-}"
         if [[ -z "${worker_path}" ]]; then
-            echo "GHOSTSHELL_SQL_LANGUAGE_WORKER is required when GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE=1." >&2
+            echo "ASURA_SQL_LANGUAGE_WORKER is required when ASURA_RUN_SQL_LANGUAGE_NATIVE=1." >&2
             echo "Build the host worker with ./scripts/build-sql-language-worker.sh, then pass its artifact path." >&2
             exit 1
         fi
@@ -61,16 +61,16 @@ case "${native_required}" in
         fi
 
         worker_directory="$(cd "$(dirname "${worker_path}")" && pwd -P)"
-        export GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE=1
-        export GHOSTSHELL_SQL_LANGUAGE_WORKER="${worker_directory}/$(basename "${worker_path}")"
+        export ASURA_RUN_SQL_LANGUAGE_NATIVE=1
+        export ASURA_SQL_LANGUAGE_WORKER="${worker_directory}/$(basename "${worker_path}")"
         ;;
     *)
-        echo "GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE must be 0 or 1; received: ${native_required}" >&2
+        echo "ASURA_RUN_SQL_LANGUAGE_NATIVE must be 0 or 1; received: ${native_required}" >&2
         exit 2
         ;;
 esac
 
-providers="${GHOSTSHELL_DATABASE_INTEGRATION_PROVIDERS:-all}"
+providers="${ASURA_DATABASE_INTEGRATION_PROVIDERS:-all}"
 if [[ $# -gt 0 && "${1}" != -* ]]; then
     providers="${1}"
     shift
@@ -117,8 +117,8 @@ if [[ "${docker_required}" == "1" ]]; then
     fi
 fi
 
-export GHOSTSHELL_RUN_DATABASE_INTEGRATION=1
-export GHOSTSHELL_DATABASE_INTEGRATION_PROVIDERS="${providers}"
+export ASURA_RUN_DATABASE_INTEGRATION=1
+export ASURA_DATABASE_INTEGRATION_PROVIDERS="${providers}"
 
 test_arguments=("$@")
 if [[ "${providers}" == "redis" ]]; then

@@ -1,7 +1,7 @@
+ghostty_asura_extension_abi
 ghostty_build_info
 ghostty_cell_get
 ghostty_focus_encode
-ghostty_ghostshell_extension_abi
 ghostty_grid_ref_cell
 ghostty_grid_ref_graphemes
 ghostty_grid_ref_hyperlink_uri

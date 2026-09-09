@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 func TestReadAuthenticationKeyRequiresExactInput(t *testing.T) {

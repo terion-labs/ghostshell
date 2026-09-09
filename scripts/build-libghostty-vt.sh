@@ -11,18 +11,18 @@ component_catalog="${repository_dir}/licenses/native-terminal-components.json"
 shell_integration_notice="${repository_dir}/native/ghostty-vt/SHELL-INTEGRATION-NOTICE.md"
 required_exports_manifest="${repository_dir}/native/ghostty-vt/required-exports.txt"
 extension_abi_probe_source="${repository_dir}/native/ghostty-vt/extension-abi-probe.c"
-dotnet="${GHOSTSHELL_DOTNET:-${repository_dir}/.dotnet/dotnet}"
+dotnet="${ASURA_DOTNET:-${repository_dir}/.dotnet/dotnet}"
 dotnet_artifacts_arguments=()
-if [[ -n "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT:-}" ]]; then
-    dotnet_artifacts_arguments=(--artifacts-path "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT}")
+if [[ -n "${ASURA_BUILD_ARTIFACTS_ROOT:-}" ]]; then
+    dotnet_artifacts_arguments=(--artifacts-path "${ASURA_BUILD_ARTIFACTS_ROOT}")
 fi
 
 ghostty_repository="https://github.com/ghostty-org/ghostty.git"
 ghostty_commit="08f039fbb3dea9c6b1cdb5ff4550666598122346"
 zig_version="0.16.0"
 library_version="0.1.0-dev"
-ghostshell_extension_abi="1"
-ghostshell_extension_export="ghostty_ghostshell_extension_abi"
+asura_extension_abi="1"
+asura_extension_export="ghostty_asura_extension_abi"
 target_rid=""
 
 usage() {
@@ -221,8 +221,8 @@ if [[ -n "$(git -C "${source_dir}" status --porcelain --untracked-files=all)" ]]
     exit 1
 fi
 
-build_run_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-libghostty-vt.XXXXXX")"
-artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.ghostshell-native-artifacts.XXXXXX")"
+build_run_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-libghostty-vt.XXXXXX")"
+artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.asura-native-artifacts.XXXXXX")"
 build_source_dir="${build_run_dir}/ghostty"
 install_dir="${build_run_dir}/install"
 local_cache_dir="${build_run_dir}/zig-local-cache"
@@ -241,7 +241,7 @@ mkdir -p \
     "${artifact_dir}"
 
 # Build from a disposable checkout so the reviewed cache remains immutable and
-# tracked GhostSHELL extension patches never accumulate state between builds.
+# tracked Asura extension patches never accumulate state between builds.
 git -c advice.detachedHead=false -c init.defaultBranch=main clone \
     --quiet \
     --shared \
@@ -269,7 +269,7 @@ if [[ -d "${patches_dir}" ]]; then
 fi
 patch_set_sha="$(hash_file "${patch_manifest}")"
 
-# Run Ghostty's unit suite after applying the GhostSHELL-owned patch set. The
+# Run Ghostty's unit suite after applying the Asura-owned patch set. The
 # extensions carry their tests in the upstream Zig modules they modify, so a
 # successful target build is not enough evidence that their behavior works.
 (
@@ -379,14 +379,14 @@ if [[ "${target_rid}" != win-* ]]; then
     mkdir "${pty_work}"
     cp "${pty_source}/upstream/porta_pty.c" "${pty_work}/porta_pty.c"
     patch --batch --fuzz=0 -d "${pty_work}" -p1 -i "${pty_source}/descriptor-boundary.patch"
-    pty_library=libghostshell_pty.so
+    pty_library=libasura_pty.so
     pty_options=(-D_GNU_SOURCE -lutil)
     pty_sdk_options=()
     if [[ "${target_rid}" == osx-* ]]; then
-        pty_library=libghostshell_pty.dylib
+        pty_library=libasura_pty.dylib
         pty_sdk="$(xcrun --show-sdk-path)"
         pty_sdk_options=(-isystem "${pty_sdk}/usr/include" "-L${pty_sdk}/usr/lib")
-        pty_options=(-D_DARWIN_C_SOURCE -Wl,-install_name,@rpath/libghostshell_pty.dylib)
+        pty_options=(-D_DARWIN_C_SOURCE -Wl,-install_name,@rpath/libasura_pty.dylib)
     fi
     "${zig}" cc -std=c11 -Wall -Wextra -Werror -shared -fPIC -target "${zig_target}" \
         -I "${pty_source}" "${pty_work}/porta_pty.c" "${pty_options[@]}" ${pty_sdk_options[@]+"${pty_sdk_options[@]}"} \
@@ -401,7 +401,7 @@ if [[ "${target_rid}" != win-* ]]; then
     pty_sha="$(hash_file "${artifact_dir}/${pty_library}")"
     pty_content_sha="${pty_sha}"
     if [[ "${target_rid}" == osx-* ]]; then
-        pty_content_sha="$("${dotnet}" run --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" --configuration Release --verbosity quiet \
+        pty_content_sha="$("${dotnet}" run --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" --configuration Release --verbosity quiet \
             ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
             -- native-signature-removed-sha256 "${artifact_dir}/${pty_library}")"
     fi
@@ -463,7 +463,7 @@ if [[ "${target_rid}" == osx-* ]]; then
     # Apple's canonical signature removal retains program content while making
     # its identity independent of the later Developer-ID signature.
     signature_removed_sha="$("${dotnet}" run \
-        --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+        --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
         --configuration Release --verbosity quiet \
         ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
         -- native-signature-removed-sha256 "${artifact_dir}/${artifact_library}")"
@@ -485,7 +485,7 @@ receipt="${artifact_dir}/native-terminal-build-receipt.json"
 printf '%s\n' \
     '{' \
     '  "schemaVersion": 1,' \
-    '  "format": "ghostshell-native-terminal-build-receipt-v1",' \
+    '  "format": "asura-native-terminal-build-receipt-v1",' \
     '  "generator": "scripts/build-libghostty-vt.sh",' \
     "  \"catalogSha256\": \"${catalog_sha}\"," \
     "  \"targetRid\": \"${target_rid}\"," \
@@ -510,8 +510,8 @@ printf '%s\n' \
     '    "options": ["-Demit-lib-vt=true", "-Demit-xcframework=false", "-Doptimize=ReleaseFast"]' \
     '  },' \
     '  "abi": {' \
-    "    \"ghostShellExtension\": ${ghostshell_extension_abi}," \
-    "    \"ghostShellExtensionExport\": \"${ghostshell_extension_export}\"," \
+    "    \"asuraExtension\": ${asura_extension_abi}," \
+    "    \"asuraExtensionExport\": \"${asura_extension_export}\"," \
     '    "requiredExportsPath": "ghostty-vt-required-exports.txt",' \
     "    \"requiredExportsCount\": ${required_exports_count}," \
     "    \"requiredExportsBytes\": ${required_exports_bytes}," \
@@ -544,7 +544,7 @@ printf '%s\n' \
 "${script_dir}/build-terminal-font-assets.sh" --zig "${zig}"
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \

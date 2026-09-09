@@ -19,6 +19,6 @@ Only close
 and syscall execute in this added post-fork boundary. The existing upstream
 environment/exec implementation is retained. Parent PTY masters are close-on-exec.
 
-The distinct `libghostshell_pty` artifact exposes ABI marker
-`ghostshell_pty_descriptor_boundary_abi` = 1. Unix startup never falls back to the
+The distinct `libasura_pty` artifact exposes ABI marker
+`asura_pty_descriptor_boundary_abi` = 1. Unix startup never falls back to the
 unpatched package native shim. Windows retains the unchanged package implementation.

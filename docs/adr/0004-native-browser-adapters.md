@@ -14,7 +14,7 @@ Desktop browser panels need platform-native engines, while application and agent
 
 ## Decision
 
-Use `WKWebView` on macOS, WebView2 on Windows, and WPE WebKit on Linux with a WebKitGTK fallback behind `GhostShell.Browser` ports. Each adapter owns its native profile, view, permission, download, dialog, crash, and certificate behavior. The target common contract exposes navigation, accessibility/DOM-derived snapshots, short-lived element references, interaction, waits, screenshots, and explicit capability negotiation.
+Use `WKWebView` on macOS, WebView2 on Windows, and WPE WebKit on Linux with a WebKitGTK fallback behind `Asura.Browser` ports. Each adapter owns its native profile, view, permission, download, dialog, crash, and certificate behavior. The target common contract exposes navigation, accessibility/DOM-derived snapshots, short-lived element references, interaction, waits, screenshots, and explicit capability negotiation.
 
 Unsupported optional operations return `capability_not_supported`; adapters never simulate success. Element references expire on navigation or document revision. Domain policy and the session-host capability broker run before every human or agent browser action, and page content is labeled untrusted.
 

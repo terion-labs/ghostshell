@@ -1,0 +1,299 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.LauncherView"
+    x:DataType="vm:MainWindowViewModel"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch">
+  <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="{DynamicResource ShellSpaceLg}">
+    <Grid ColumnDefinitions="*,Auto">
+      <Button
+          Classes="SearchButton"
+          HorizontalContentAlignment="Stretch"
+          Click="OnShowCommandPaletteClick"
+          AutomationProperties.Name="Search commands, connections, screens, workspaces, and session history">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <icons:SymbolIcon Symbol="Search" FontSize="16" />
+          <TextBlock
+              Grid.Column="1"
+              VerticalAlignment="Center"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize13}"
+              Text="Search connections, screens, workspaces, sessions, or commands…"
+              TextTrimming="CharacterEllipsis" />
+          <Border Grid.Column="2" Classes="Keycap">
+            <TextBlock Text="{Binding CommandPaletteShortcut}" />
+          </Border>
+        </Grid>
+      </Button>
+      <Button
+          Grid.Column="1"
+          Margin="{controls:Inset Left=Md}"
+          Classes="IconButton Large"
+          Click="OnCloseClick"
+          IsVisible="{Binding ShowCloseAction, ElementName=Root}"
+          ToolTip.Tip="Close launcher"
+          AutomationProperties.Name="Close new tab or session launcher">
+        <icons:SymbolIcon Symbol="Dismiss" FontSize="14" />
+      </Button>
+    </Grid>
+
+    <!-- What is set up and what is not, until it is. It greets you here because
+         this is the first thing open, rather than on a screen of its own that
+         existed mostly to carry it. -->
+    <controls:SurfaceCard
+        Grid.Row="1"
+        IsVisible="{Binding Onboarding.IsVisible, FallbackValue=False}"
+        AutomationProperties.Name="Getting started">
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+          <TextBlock FontSize="{DynamicResource ShellFontSize16}" FontWeight="SemiBold" Text="{Binding Onboarding.Title}" />
+          <TextBlock Classes="Muted" Text="{Binding Onboarding.Introduction}" TextWrapping="Wrap" />
+        </StackPanel>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <controls:SurfaceCard Tone="Notice" Padding="{DynamicResource ShellCardPaddingCompact}">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon Symbol="WindowConsole" FontSize="15" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Default terminal" />
+              </Grid>
+              <TextBlock Classes="Eyebrow" Text="{Binding Onboarding.LocalTerminalState}" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Onboarding.LocalTerminalDetail}" TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Notice" Padding="{DynamicResource ShellCardPaddingCompact}" Grid.Column="1">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon Symbol="Shield" FontSize="15" />
+                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Secure password storage" />
+              </Grid>
+              <TextBlock Classes="Eyebrow" Text="{Binding Onboarding.CredentialVaultState}" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Onboarding.CredentialVaultDetail}" TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+        </Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+          <controls:LiveRegionTextBlock
+              VerticalAlignment="Center"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="{Binding Onboarding.StatusMessage}"
+              TextWrapping="Wrap"
+              IsVisible="{Binding !Onboarding.IsBusy}"
+              AutomationProperties.LiveSetting="Polite"
+              AutomationProperties.Name="Getting started status" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+            <Button Classes="PrimaryButton" Click="OnFinishOnboardingClick" Content="Continue" />
+          </StackPanel>
+        </Grid>
+        <controls:StateOverlay
+            Kind="Loading"
+            Heading="{Binding Onboarding.StatusMessage}"
+            IsVisible="{Binding Onboarding.IsBusy}" />
+        <controls:StateOverlay
+            Kind="Retry"
+            Heading="Setup check failed"
+            Body="{Binding Onboarding.StatusMessage}"
+            ActionLabel="Retry"
+            ActionRequested="OnRetryOnboardingClick"
+            FocusTarget="PrimaryAction"
+            IsVisible="{Binding Onboarding.CanRetry, FallbackValue=False}" />
+      </StackPanel>
+    </controls:SurfaceCard>
+
+    <StackPanel Grid.Row="2" Spacing="{DynamicResource ShellSpaceSm}">
+      <TextBlock FontSize="{DynamicResource ShellFontSize14}" FontWeight="SemiBold" Text="Start something new" />
+      <controls:CardGridPanel MinItemWidth="150" Spacing="{DynamicResource ShellSpaceSm}">
+        <controls:ChooserTile x:Name="NewTerminalButton" Icon="WindowConsole" Title="New terminal" Description="Open the default local shell" Click="OnNewLocalTerminalClick" AutomationProperties.Name="Open a new local terminal" />
+        <controls:ChooserTile Icon="Globe" Title="New browser" Description="Embedded Chromium browser panel" Click="OnNewBrowserClick" IsEnabled="{Binding CanStartBrowserSession}" AutomationProperties.Name="Open a new browser" />
+        <controls:ChooserTile Icon="PulseSquare" Title="Statistics" Description="Live system metrics" Click="OnNewStatisticsClick" AutomationProperties.Name="Open local host statistics" />
+        <controls:ChooserTile Icon="Folder" Title="File Viewer" Description="Browse configured providers" Click="OnNewFileViewerClick" AutomationProperties.Name="Open a new File Viewer" />
+        <controls:ChooserTile Icon="Gauge" Title="Process monitor" Description="Watch running processes" Click="OnNewProcessMonitorClick" AutomationProperties.Name="Open local process monitor" />
+        <controls:ChooserTile Icon="Database" Title="Database" Description="Query SQLite, Postgres, MySQL" Click="OnNewDatabaseClick" AutomationProperties.Name="Open a new database viewer" />
+        <controls:ChooserTile Icon="Box" Title="Docker" Description="Manage local or remote engines" Click="OnNewDockerClick" AutomationProperties.Name="Open a Docker panel" />
+        <controls:ChooserTile Icon="BranchFork" Title="Git" Description="Stage, commit, and browse history" Click="OnNewGitClick" AutomationProperties.Name="Open a Git panel" />
+      </controls:CardGridPanel>
+    </StackPanel>
+
+    <Grid
+        Grid.Row="3"
+        ColumnDefinitions="Auto,*"
+        ColumnSpacing="{DynamicResource ShellSpaceMd}">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+        <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize14}" FontWeight="SemiBold" Text="Workspaces" />
+        <components:CountPill Value="{Binding Workspaces.Count}" />
+      </StackPanel>
+      <ScrollViewer
+          Grid.Column="1"
+          HorizontalScrollBarVisibility="Auto"
+          VerticalScrollBarVisibility="Disabled"
+          IsVisible="{Binding HasWorkspaces}"
+          AutomationProperties.Name="Saved workspaces">
+        <ItemsControl ItemsSource="{Binding Workspaces}">
+          <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <!-- The same tile the rail draws. The launcher is where you pick a
+                   workspace, not where you end one, so it offers no close. -->
+              <controls:WorkspaceRailTile
+                  Accent="{Binding Accent}"
+                  Icon="{Binding IconSymbol}"
+                  IsRunning="{Binding IsOpen}"
+                  IsCurrent="{Binding IsInFront}"
+                  IsIsolated="{Binding IsIsolated}"
+                  HasAttention="{Binding HasAttention}"
+                  HasAgentActivity="{Binding HasAgentActivity}"
+                  OpenRequested="OnOpenWorkspaceClick"
+                  ToolTip.Tip="{Binding Name}"
+                  AutomationProperties.Name="{Binding Name}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" IsVisible="{Binding HasNoWorkspaces}" Text="No saved workspaces yet." />
+    </Grid>
+
+    <Grid Grid.Row="4" VerticalAlignment="Top" ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceLg}">
+      <Grid RowDefinitions="Auto,*" RowSpacing="{DynamicResource ShellSpaceSm}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+            <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize14}" FontWeight="SemiBold" Text="Saved connections" />
+            <components:CountPill Value="{Binding SavedConnectionShortcutCount}" />
+          </StackPanel>
+          <Button Grid.Column="1" VerticalAlignment="Center" MinHeight="0" Padding="0" Classes="TextButton" Click="OnAddConnectionClick" Content="Add" />
+        </Grid>
+        <controls:SurfaceCard Tone="Sunken" ClipsContent="True" Padding="0" Grid.Row="1" VerticalAlignment="Top" MaxHeight="420">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl Classes="StretchItems" ItemsSource="{Binding SavedConnectionShortcuts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <components:SavedConnectionShortcutView
+                      LaunchRequested="OnConnectionLaunchRequested"
+                      EditRequested="OnEditConnectionRequested"
+                      DeleteRequested="OnDeleteConnectionRequested" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </controls:SurfaceCard>
+      </Grid>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="{DynamicResource ShellSpaceSm}">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+            <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize14}" FontWeight="SemiBold" Text="Saved screens" />
+            <components:CountPill Value="{Binding Screens.Count}" />
+          </StackPanel>
+          <Button Grid.Column="1" VerticalAlignment="Center" MinHeight="0" Padding="0" Classes="TextButton" Click="OnShowLayoutDesignerClick" Content="Layouts" />
+        </Grid>
+        <controls:SurfaceCard Tone="Sunken" ClipsContent="True" Padding="0" Grid.Row="1" VerticalAlignment="Top" MaxHeight="420">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl Classes="StretchItems" ItemsSource="{Binding Screens}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button
+                      Classes="ListRow LauncherListRow"
+                      Click="OnOpenScreenClick"
+                      AutomationProperties.Name="{Binding Name, StringFormat=Open saved screen {0} in a tab}">
+                    <Grid Margin="{controls:Inset Horizontal=Md, Vertical=Sm}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                      <Border
+                          Width="44"
+                          Height="30"
+                          VerticalAlignment="Center"
+                          Background="{DynamicResource ShellBackgroundBrush}"
+                          BorderBrush="{DynamicResource ShellBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="{DynamicResource ShellInnerCornerRadius}"
+                          ClipToBounds="True">
+                        <ItemsControl ItemsSource="{Binding PreviewPanels}">
+                          <ItemsControl.ItemsPanel><ItemsPanelTemplate><controls:ScreenLayoutPreviewPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate><Border Margin="{DynamicResource ShellHairline}" Classes="ScreenPreviewPanel" Classes.primary="{Binding IsPrimary}" /></DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Border>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock FontSize="{DynamicResource ShellFontSize13}" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </controls:SurfaceCard>
+      </Grid>
+    </Grid>
+
+    <!-- What has been open before, beside what can be opened now. One answer to
+         "what do I open", rather than a shortcut list here and a browser for it
+         somewhere else. Retaining any of this is opt-in, so with it turned off
+         there is nothing to show and the section says nothing. -->
+    <Grid Grid.Row="5" RowDefinitions="Auto,*" RowSpacing="{DynamicResource ShellSpaceSm}" IsVisible="{Binding HasHistorySessions}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+          <TextBlock VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize14}" FontWeight="SemiBold" Text="History" />
+          <components:CountPill Value="{Binding HistoryResultCount}" />
+        </StackPanel>
+        <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <icons:SymbolIcon VerticalAlignment="Center" Symbol="Search" FontSize="14" />
+          <TextBox
+              x:Name="HistorySearchBox"
+              Grid.Column="1"
+              PlaceholderText="Search title, source, kind, outcome, or session ID…"
+              AutomationProperties.Name="Search session history"
+              KeyDown="OnHistorySearchKeyDown"
+              Text="{Binding HistorySearchQuery}" />
+        </Grid>
+      </Grid>
+      <controls:SurfaceCard Tone="Sunken" ClipsContent="True" Padding="0" Grid.Row="1" VerticalAlignment="Top" MaxHeight="260">
+        <Panel>
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <!-- Realized as it scrolls. History is bounded by the retention
+                 policy rather than by anything on screen, so the list has to
+                 cope with the largest a user may have chosen to keep. -->
+            <ItemsControl Classes="StretchItems" ItemsSource="{Binding FilteredHistorySessions}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button
+                      Classes="ListRow LauncherListRow"
+                      Click="OnOpenRecentSessionClick"
+                      IsEnabled="{Binding CanOpen}"
+                      HorizontalContentAlignment="Stretch"
+                      AutomationProperties.Name="{Binding Title, StringFormat=Reopen session {0}}">
+                    <controls:ListItem
+                        ContentPadding="{controls:Inset Horizontal=Md, Vertical=Sm}"
+                        Title="{Binding Title}"
+                        Detail="{Binding Detail}">
+                      <controls:ListItem.Leading>
+                        <Border VerticalAlignment="Center" Classes="StatusDot" Classes.available="{Binding CanOpen}" />
+                      </controls:ListItem.Leading>
+                      <controls:ListItem.Trailing>
+                        <controls:StatusChip Shape="Rounded" Tone="Default" IsOutlined="False" Content="{Binding PanelKindName}" />
+                      </controls:ListItem.Trailing>
+                    </controls:ListItem>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <controls:StateOverlay
+              Kind="NoResults"
+              Margin="{controls:Inset Lg}"
+              IsVisible="{Binding HasNoFilteredHistorySessions}"
+              Heading="No history results"
+              Body="{Binding HistorySearchEmptyState}" />
+        </Panel>
+      </controls:SurfaceCard>
+    </Grid>
+  </Grid>
+</UserControl>

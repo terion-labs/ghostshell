@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/../.." && pwd -P)"
 dotnet="${repository_dir}/.dotnet/dotnet"
-tool="${repository_dir}/tools/GhostShell.SecurityCampaign/GhostShell.SecurityCampaign.csproj"
+tool="${repository_dir}/tools/Asura.SecurityCampaign/Asura.SecurityCampaign.csproj"
 registry="${repository_dir}/scripts/acceptance/security-campaign/cases.v1.json"
 receipt_schema="${repository_dir}/scripts/acceptance/security-campaign/receipt.schema.json"
 output=""
@@ -15,7 +15,7 @@ if [[ "${1:-}" != "--source-only" || "${2:-}" != "--output" || -z "${3:-}" || $#
 fi
 output="$3"
 
-working_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-security-campaign.XXXXXX")"
+working_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-security-campaign.XXXXXX")"
 cleanup() {
     rm -rf -- "${working_directory}"
 }

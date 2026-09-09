@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/ethernet"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/ethernet"
 	"golang.org/x/sys/unix"
 )
 

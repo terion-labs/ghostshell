@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <GhostShellFirstPartyProject>$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('GhostShell'))</GhostShellFirstPartyProject>
-    <GhostShellFirstPartySourceProject>$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)src'))'))</GhostShellFirstPartySourceProject>
+    <AsuraFirstPartyProject>$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('Asura'))</AsuraFirstPartyProject>
+    <AsuraFirstPartySourceProject>$([System.String]::Copy('$(MSBuildProjectDirectory)').StartsWith('$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)src'))'))</AsuraFirstPartySourceProject>
     <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -12,42 +12,42 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
-    <AllowUnsafeBlocks Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(AllowUnsafeBlocks)' == ''">false</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks Condition="'$(AsuraFirstPartyProject)' == 'True' and '$(AllowUnsafeBlocks)' == ''">false</AllowUnsafeBlocks>
     <MeziantouAnalysisMode>Default</MeziantouAnalysisMode>
     <Deterministic>true</Deterministic>
-    <DefineConstants Condition="'$(GhostShellProductionBuild)' == 'true'">$(DefineConstants);GHOSTSHELL_PRODUCTION</DefineConstants>
+    <DefineConstants Condition="'$(AsuraProductionBuild)' == 'true'">$(DefineConstants);ASURA_PRODUCTION</DefineConstants>
     <!-- Every shipped managed assembly must prove that its reachable code is
          statically analyzable. This runs the trim and Native AOT analyzers at
          the owning project, where a warning still identifies first-party code
          instead of being collapsed into an assembly-level publish warning. -->
-    <IsAotCompatible Condition="'$(GhostShellFirstPartySourceProject)' == 'True'">true</IsAotCompatible>
+    <IsAotCompatible Condition="'$(AsuraFirstPartySourceProject)' == 'True'">true</IsAotCompatible>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <RestorePackagesWithLockFile Condition="'$(GhostShellFirstPartyProject)' == 'True'">true</RestorePackagesWithLockFile>
-    <NuGetLockFilePath Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(RuntimeIdentifier)' != ''">packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
-    <NuGetLockFilePath Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != ''">packages.$(RuntimeIdentifiers).lock.json</NuGetLockFilePath>
+    <RestorePackagesWithLockFile Condition="'$(AsuraFirstPartyProject)' == 'True'">true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(AsuraFirstPartyProject)' == 'True' and '$(RuntimeIdentifier)' != ''">packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(AsuraFirstPartyProject)' == 'True' and '$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != ''">packages.$(RuntimeIdentifiers).lock.json</NuGetLockFilePath>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
-    <GhostShellRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</GhostShellRepositoryRoot>
-    <PathMap>$(GhostShellRepositoryRoot)=/_/</PathMap>
+    <AsuraRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</AsuraRepositoryRoot>
+    <PathMap>$(AsuraRepositoryRoot)=/_/</PathMap>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(GhostShellFirstPartyProject)' == 'True'">
+  <ItemGroup Condition="'$(AsuraFirstPartyProject)' == 'True'">
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(GhostShellReleaseSourceManifestSha256)' != ''">
+  <ItemGroup Condition="'$(AsuraFirstPartyProject)' == 'True' and '$(AsuraReleaseSourceManifestSha256)' != ''">
     <AssemblyMetadata
-        Include="GhostShellReleaseSourceManifestSha256"
-        Value="$(GhostShellReleaseSourceManifestSha256)" />
+        Include="AsuraReleaseSourceManifestSha256"
+        Value="$(AsuraReleaseSourceManifestSha256)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' == 'GhostShell.Core' or
-                        '$(MSBuildProjectName)' == 'GhostShell.Protocol' or
-                        '$(MSBuildProjectName)' == 'GhostShell.Application' or
-                        '$(MSBuildProjectName)' == 'GhostShell.Agent'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Asura.Core' or
+                        '$(MSBuildProjectName)' == 'Asura.Protocol' or
+                        '$(MSBuildProjectName)' == 'Asura.Application' or
+                        '$(MSBuildProjectName)' == 'Asura.Agent'">
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)config/BannedSymbols.txt" Link="BannedSymbols.txt" />
   </ItemGroup>
 
@@ -66,12 +66,12 @@
     Release packaging must not pass the standard Version properties as global
     MSBuild properties: global values flow through ProjectReference edges and
     would overwrite the independently versioned vendored Exclr8CEF projects.
-    Map the product-specific input only for first-party GhostShell assemblies.
+    Map the product-specific input only for first-party Asura assemblies.
   -->
-  <PropertyGroup Condition="'$(GhostShellProductVersion)' != '' and $([System.String]::Copy('$(MSBuildProjectName)').StartsWith('GhostShell'))">
-    <Version>$(GhostShellProductVersion)</Version>
-    <AssemblyVersion>$(GhostShellProductVersion)</AssemblyVersion>
-    <FileVersion>$(GhostShellProductVersion)</FileVersion>
-    <InformationalVersion>$(GhostShellProductVersion)</InformationalVersion>
+  <PropertyGroup Condition="'$(AsuraProductVersion)' != '' and $([System.String]::Copy('$(MSBuildProjectName)').StartsWith('Asura'))">
+    <Version>$(AsuraProductVersion)</Version>
+    <AssemblyVersion>$(AsuraProductVersion)</AssemblyVersion>
+    <FileVersion>$(AsuraProductVersion)</FileVersion>
+    <InformationalVersion>$(AsuraProductVersion)</InformationalVersion>
   </PropertyGroup>
 </Project>

@@ -1,0 +1,21 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.CountPill"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    Focusable="False"
+    IsHitTestVisible="False"
+    VerticalAlignment="Center">
+  <!--
+    A count beside a heading is a chip. The vertical alignment on the root is the
+    load-bearing part: without it this control stretches to the line height of the
+    heading it sits next to, and a single digit renders as a lozenge twice as tall
+    as it is wide.
+  -->
+  <controls:StatusChip
+      Shape="Rounded"
+      Tone="Default"
+      IsOutlined="False"
+      Content="{Binding DisplayValue, ElementName=Root}" />
+</UserControl>

@@ -1,0 +1,615 @@
+<Window
+    x:Class="Asura.App.Views.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:overlays="using:Asura.App.Views.Overlays"
+    xmlns:panelViews="using:Asura.App.Views.RuntimePanels"
+    xmlns:views="using:Asura.App.Views"
+    xmlns:vm="using:Asura.App.ViewModels"
+    x:DataType="vm:MainWindowViewModel"
+    Title="Asura"
+    Width="1440"
+    Height="900"
+    MinWidth="1080"
+    MinHeight="680"
+    WindowDecorations="Full"
+    ExtendClientAreaToDecorationsHint="True"
+    ExtendClientAreaTitleBarHeightHint="-1"
+    WindowStartupLocation="CenterScreen">
+
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="File">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="New Window" Gesture="Meta+N" Click="OnNewWindowMenuClick" />
+            <NativeMenuItem Header="New Tab" Gesture="Meta+T" Click="OnNewTabMenuClick" />
+            <NativeMenuItem Header="New Terminal Tab" Gesture="Meta+Shift+T" Click="OnNewTerminalMenuClick" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Close Tab" Gesture="Meta+W" Click="OnCloseTabMenuClick" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+      <NativeMenuItem Header="Edit">
+        <NativeMenuItem.Menu>
+          <NativeMenu />
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+      <NativeMenuItem Header="View">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Command Palette…" Gesture="Meta+K" Click="OnCommandPaletteMenuClick" />
+            <NativeMenuItem Header="Launcher" Click="OnLauncherMenuClick" />
+            <NativeMenuItem Header="Quick Terminal" Click="OnQuickTerminalMenuClick" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Toggle Agent Panel" Gesture="Meta+Shift+A" Click="OnToggleAgentMenuClick" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+      <NativeMenuItem Header="Window">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Add Panel…" Gesture="Meta+Shift+D" Click="OnAddPanelMenuClick" />
+            <NativeMenuItem Header="Layout Designer…" Gesture="Meta+Shift+L" Click="OnLayoutDesignerMenuClick" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Previous Tab" Gesture="Meta+Shift+OemOpenBrackets" Click="OnPreviousTabMenuClick" />
+            <NativeMenuItem Header="Next Tab" Gesture="Meta+Shift+OemCloseBrackets" Click="OnNextTabMenuClick" />
+            <NativeMenuItem Header="Close Panel" Gesture="Meta+Shift+W" Click="OnClosePanelMenuClick" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+    </NativeMenu>
+  </NativeMenu.Menu>
+
+  <!-- These routes are templates rather than live controls on purpose. Avalonia
+       keeps template content deferred, so a window pays for Settings or an
+       overlay only when that route is requested for the first time. -->
+  <Window.Resources>
+    <DataTemplate x:Key="SettingsRouteTemplate" x:DataType="vm:MainWindowViewModel">
+      <views:SettingsView
+          AboutSettingsRequested="OnAboutSettingsClick"
+          AddAiProviderRequested="OnAddAiProviderClick"
+          AddFileProviderRequested="OnAddFileProviderClick"
+          AddMcpServerRequested="OnAddMcpServerClick"
+          AgentSettingsRequested="OnAgentSettingsClick"
+          AppearanceSettingsRequested="OnAppearanceSettingsClick"
+          ClearKeybindingPrefixRequested="OnClearKeybindingPrefixClick"
+          CheckForUpdatesRequested="OnCheckForUpdatesClick"
+          ClearMcpServerDiagnosticHistoryRequested="OnClearMcpServerDiagnosticHistoryClick"
+          CloneKeybindingPresetRequested="OnCloneKeybindingPresetClick"
+          CreateAiProviderSecretRequested="OnCreateAiProviderSecretClick"
+          CreateConnectionSecretRequested="OnCreateConnectionSecretClick"
+          CreateFileProviderSecretRequested="OnCreateFileProviderSecretClick"
+          CreateMcpServerSecretRequested="OnCreateMcpServerSecretClick"
+          DeleteAiProviderRequested="OnDeleteAiProviderClick"
+          DeleteFileProviderRequested="OnDeleteFileProviderClick"
+          DeleteMcpServerRequested="OnDeleteMcpServerClick"
+          DeleteScreenRequested="OnDeleteScreenClick"
+          DeleteSecretRequested="OnDeleteSecretClick"
+          DeleteWorkspaceRequested="OnDeleteWorkspaceClick"
+          DiagnosticsSettingsRequested="OnDiagnosticsSettingsClick"
+          DownloadUpdateRequested="OnDownloadUpdateClick"
+          DismissSavedScreenDeleteUndoRequested="OnDismissSavedScreenDeleteUndoClick"
+          EditAiProviderRequested="OnEditAiProviderClick"
+          EditFileProviderRequested="OnEditFileProviderClick"
+          EditLayoutRequested="OnEditLayoutClick"
+          EditMcpServerRequested="OnEditMcpServerClick"
+          EditScreenRequested="OnEditScreenClick"
+          EditSecretRequested="OnEditSecretClick"
+          CreateWorkspaceRequested="OnCreateWorkspaceClick"
+          EditWorkspaceRequested="OnEditWorkspaceClick"
+          ExportDefinitionsRequested="OnExportDefinitionsClick"
+          DisableStartupProtectionRequested="OnDisableStartupProtectionClick"
+          EnableStartupProtectionRequested="OnEnableStartupProtectionClick"
+          FilesSettingsRequested="OnFilesSettingsClick"
+          BrowserSettingsRequested="OnBrowserSettingsClick"
+          BrowserProfileEnabledChangedRequested="OnBrowserProfileEnabledChanged"
+          DeleteBrowserProfileRequested="OnDeleteBrowserProfileClick"
+          LockNowRequested="OnLockNowClick"
+          ImportDefinitionsRequested="OnImportDefinitionsClick"
+          InstallWorkspaceIsolationRuntimeRequested="OnInstallWorkspaceIsolationRuntimeClick"
+          KeybindingPrefixOptionsChangedRequested="OnKeybindingPrefixOptionsChanged"
+          KeybindingProfileSelectionChangedRequested="OnKeybindingProfileSelectionChanged"
+          KeybindingSettingsRequested="OnKeybindingSettingsClick"
+          McpSettingsRequested="OnMcpSettingsClick"
+          OpenThirdPartyNoticesRequested="OnOpenThirdPartyNoticesClick"
+          QuickTerminalSettingsRequested="OnQuickTerminalSettingsClick"
+          RecordKeybindingPrefixRequested="OnRecordKeybindingPrefixClick"
+          RecordKeybindingRequested="OnRecordKeybindingClick"
+          ResetAllKeybindingsRequested="OnResetAllKeybindingsClick"
+          ResetKeybindingRequested="OnResetKeybindingClick"
+          ReviewOnboardingRequested="OnReviewOnboardingClick"
+          RestartToApplyUpdateRequested="OnRestartToApplyUpdateClick"
+          RestoreSessionsOnStartChangedRequested="OnRestoreSessionsOnStartChanged"
+          TerminalMultiplexingChangedRequested="OnTerminalMultiplexingChanged"
+          TerminateManagedRemoteSessionRequested="OnTerminateManagedRemoteSessionClick"
+          ForgetManagedRemoteSessionRequested="OnForgetManagedRemoteSessionClick"
+          ApplicationAppearanceChangedRequested="OnApplicationAppearanceChanged"
+          TerminalAppearanceChangedRequested="OnTerminalAppearanceChanged"
+          AppearanceApplyRequested="OnAppearanceApplyClick"
+          AppearanceApplyTerminalRequested="OnAppearanceApplyTerminalClick"
+          AppearanceCancelRequested="OnAppearanceCancelClick"
+          AppearanceCancelTerminalRequested="OnAppearanceCancelTerminalClick"
+          AppearanceExportRequested="OnAppearanceExportClick"
+          AppearanceImportRequested="OnAppearanceImportClick"
+          AppearanceResetRequested="OnAppearanceResetClick"
+          AppearanceResetTerminalPaletteRequested="OnAppearanceResetTerminalPaletteClick"
+          PickColorRequested="OnPickColorRequested"
+          RecordQuickTerminalHotkeyRequested="OnRecordQuickTerminalHotkeyClick"
+          SaveKeybindingsRequested="OnSaveKeybindingsClick"
+          SaveQuickTerminalSettingsRequested="OnSaveQuickTerminalSettingsClick"
+          SaveTerminalProfileRequested="OnSaveTerminalProfileClick"
+          SaveDefaultAgentPolicyRequested="OnSaveDefaultAgentPolicyClick"
+          SelectTerminalPaletteRequested="OnSelectTerminalPaletteClick"
+          SecretsSettingsRequested="OnSecretsSettingsClick"
+          SettingsBackRequested="OnSettingsBackClick"
+          ShowCommandPaletteRequested="OnShowCommandPaletteClick"
+          ShowLayoutDesignerRequested="OnShowLayoutDesignerClick"
+          ShowNewItemRequested="OnShowNewItemClick"
+          SaveHistoryRetentionRequested="OnSaveHistoryRetentionClick"
+          ReviewHistoryPrivacyRequested="OnReviewHistoryPrivacyClick"
+          RetryRecentSessionHistoryRequested="OnRetryRecentSessionHistoryClick"
+          ExportAllHistoryRequested="OnExportAllHistoryClick"
+          CancelHistoryExportRequested="OnCancelHistoryExportClick"
+          ClearRecentSessionsRequested="OnClearRecentSessionsClick"
+          ResetRecentSessionHistoryRequested="OnResetRecentSessionHistoryClick"
+          TerminalSettingsRequested="OnTerminalSettingsClick"
+          TestMcpServerRequested="OnTestMcpServerClick"
+          UnbindKeybindingRequested="OnUnbindKeybindingClick"
+          UndoDeletedSavedScreenRequested="OnUndoDeletedSavedScreenClick"
+          WorkspaceSettingsRequested="OnWorkspaceSettingsClick"
+          NetworkingSettingsRequested="OnNetworkingSettingsClick" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="CommandPaletteOverlayTemplate" x:DataType="vm:MainWindowViewModel">
+      <overlays:CommandPaletteView
+          ActivateSearchResultRequested="OnLauncherSearchResultClick"
+          CloseRequested="OnCloseOverlayClick"
+          SearchKeyDownRequested="OnCommandSearchKeyDown" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="NewPanelOverlayTemplate" x:DataType="vm:MainWindowViewModel">
+      <overlays:NewPanelChooserView
+          AddBrowserPanelRequested="OnAddBrowserPanelClick"
+          AddConnectionPanelRequested="OnAddConnectionPanelClick"
+          AddDatabasePanelRequested="OnAddDatabasePanelClick"
+          AddDockerPanelRequested="OnAddDockerPanelClick"
+          AddFilePanelRequested="OnAddFilePanelClick"
+          AddGitPanelRequested="OnAddGitPanelClick"
+          AddProcessMonitorPanelRequested="OnAddProcessMonitorPanelClick"
+          AddStatisticsPanelRequested="OnAddStatisticsPanelClick"
+          AddTerminalPanelRequested="OnAddTerminalPanelClick"
+          CloseRequested="OnCloseOverlayClick"
+          OpenScreenRequested="OnOpenScreenClick"
+          ShowLayoutDesignerRequested="OnShowLayoutDesignerClick" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="LayoutDesignerOverlayTemplate" x:DataType="vm:MainWindowViewModel">
+      <overlays:LayoutDesignerView
+          AddSlotRequested="OnLayoutAddSlotClick"
+          CloseRequested="OnCloseOverlayClick"
+          EditLayoutRequested="OnEditLayoutClick"
+          RemoveSlotRequested="OnLayoutRemoveSlotClick"
+          ResetRequested="OnResetLayoutClick"
+          SaveRequested="OnSaveLayoutDesignerClick"
+          SlotSelectedRequested="OnLayoutSlotClick"
+          SplitSlotDownRequested="OnLayoutSplitSlotDownClick"
+          SplitSlotRightRequested="OnLayoutSplitSlotRightClick" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="DefinitionEditorOverlayTemplate" x:DataType="vm:MainWindowViewModel">
+      <controls:SurfaceCard Elevation="Overlay" Padding="0"
+          Margin="42,58,42,34"
+          MaxWidth="1280"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Stretch"
+          ClipToBounds="True"
+          KeyboardNavigation.TabNavigation="Cycle">
+        <views:WorkspaceEditorView
+            x:Name="WorkspaceDefinitionEditor"
+            DataContext="{Binding WorkspaceEditor}"
+            PickAccentRequested="OnWorkspaceAccentPickRequested"
+            InstallWorkspaceIsolationRuntimeRequested="OnInstallWorkspaceIsolationRuntimeClick"
+            RecreateWorkspaceIsolationRequested="OnRecreateWorkspaceIsolationRequested"
+            SaveRequested="OnWorkspaceEditorSaveRequested"
+            CancelRequested="OnWorkspaceEditorCancelRequested"
+            WorkspaceSelectionRequested="OnWorkspaceSelectionRequested"
+            CreateWorkspaceRequested="OnCreateWorkspaceRequested" />
+      </controls:SurfaceCard>
+    </DataTemplate>
+  </Window.Resources>
+
+  <!--
+    The pale band across the top was never the platform's title bar — Avalonia
+    draws its own decorations, and up to 12.0.4 the Fluent template filled them
+    with an opaque brush, so extending the client area underneath put our
+    translucent base beneath an opaque lid. Avalonia 12.0.5 makes them
+    transparent, which is why the version moved rather than the template being
+    forked here.
+
+    https://github.com/AvaloniaUI/Avalonia/issues/21082
+
+    The title text is still ours to hide: the shell puts its own tab bar in
+    that band, and the window name drawn behind it is just noise.
+  -->
+  <Window.Styles>
+    <Style Selector="WindowDrawnDecorations /template/ Panel#PART_TitleTextPanel > TextBlock">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </Window.Styles>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:TerminalRuntimePanelViewModel">
+      <panelViews:TerminalRuntimePanelView
+          CancelReconnectRequested="OnCancelConnectionReconnectClick"
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnTerminalConnectionSelected"
+          GotFocus="OnRuntimePanelGotFocus"
+          NewConnectionRequested="OnTerminalNewConnectionRequested"
+          PointerPressed="OnRuntimePanelPointerPressed"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          RetryConnectionRequested="OnRetryConnectionPanelClick"
+          SessionInitializationFailed="OnTerminalSessionInitializationFailed"
+          SessionSnapshotChanged="OnTerminalSessionSnapshotChanged"
+          TrustHostKeyRequested="OnTrustConnectionHostKeyClick" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:BrowserRuntimePanelViewModel">
+      <panelViews:BrowserRuntimePanelView
+          AddressKeyDown="OnBrowserAddressKeyDown"
+          BackRequested="OnBrowserBackClick"
+          BrowserStateChanged="OnBrowserStateChanged"
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          DeveloperToolsRequested="OnBrowserDeveloperToolsClick"
+          OpenInSystemBrowserRequested="OnBrowserOpenInSystemBrowserClick"
+          ForwardRequested="OnBrowserForwardClick"
+          GotFocus="OnRuntimePanelGotFocus"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          PointerPressed="OnRuntimePanelPointerPressed"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          ReloadRequested="OnBrowserReloadClick"
+          StopRequested="OnBrowserStopClick" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:FileRuntimePanelViewModel">
+      <panelViews:FileRuntimePanelView
+          ActionRequested="OnFileActionRequested"
+          CloseRequested="OnCloseRuntimePanelClick"
+          DatabaseObjectOpenInTabRequested="OnDatabaseObjectOpenInTabRequested"
+          DatabaseObjectOpenInPanelRequested="OnDatabaseObjectOpenInPanelRequested"
+          DatabaseOpenInViewerRequested="OnDatabaseOpenInViewerRequested"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          DismissOperationIssueRequested="OnDismissFileOperationIssueClick"
+          EntryDoubleTapped="OnFileEntryDoubleTapped"
+          EntrySelectionChanged="OnFileEntrySelectionChanged"
+          EntryTransferDropRequested="OnFileEntryTransferDropRequested"
+          EntryTransferKeyRequested="OnFileEntryTransferKeyRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          LocationKeyDown="OnFileLocationKeyDown"
+          NavigateUpRequested="OnFileNavigateUpClick"
+          PointerPressed="OnRuntimePanelPointerPressed"
+          RefreshRequested="OnFileRefreshClick" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:StatisticsRuntimePanelViewModel">
+      <panelViews:StatisticsRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ProcessMonitorRuntimePanelViewModel">
+      <panelViews:ProcessMonitorRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:DatabaseRuntimePanelViewModel">
+      <panelViews:DatabaseRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          EditConnectionRequested="OnPanelEditDatabaseConnectionRequested"
+          OpenObjectInTabRequested="OnDatabaseObjectOpenInTabRequested"
+          OpenObjectInPanelRequested="OnDatabaseObjectOpenInPanelRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:RedisRuntimePanelViewModel">
+      <panelViews:RedisRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          EditConnectionRequested="OnPanelEditDatabaseConnectionRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:DockerRuntimePanelViewModel">
+      <panelViews:DockerRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          DockerInstallGuideRequested="OnDockerInstallGuideRequested"
+          InlineShellRequested="OnDockerInlineShellRequested"
+          InlineShellTrustHostKeyRequested="OnDockerInlineShellTrustHostKeyRequested"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          ShellRequested="OnDockerShellRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:GitRuntimePanelViewModel">
+      <panelViews:GitRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          ConnectionSelected="OnPanelConnectionSelected"
+          NewConnectionRequested="OnPanelNewConnectionRequested"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:UnavailableRuntimePanelViewModel">
+      <panelViews:UnavailableRuntimePanelView
+          CloseRequested="OnCloseRuntimePanelClick"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          GotFocus="OnRuntimePanelGotFocus"
+          PointerPressed="OnRuntimePanelPointerPressed" />
+    </DataTemplate>
+    <DataTemplate DataType="vm:PanelPlaceholderViewModel">
+      <panelViews:PanelPlaceholderView
+          AddConnectionRequested="OnAddConnectionClick"
+          BrowserRequested="OnPlaceholderBrowserClick"
+          CloseRequested="OnCloseRuntimePanelClick"
+          DatabaseRequested="OnPlaceholderDatabaseClick"
+          DockerRequested="OnPlaceholderDockerClick"
+          FileViewerRequested="OnPlaceholderFileViewerClick"
+          GitRequested="OnPlaceholderGitClick"
+          GotFocus="OnRuntimePanelGotFocus"
+          ConnectionLaunchRequested="OnPlaceholderConnectionLaunchRequested"
+          DeleteConnectionRequested="OnDeleteSavedConnectionRequested"
+          EditConnectionRequested="OnEditSavedConnectionRequested"
+          FinishOnboardingRequested="OnFinishOnboardingClick"
+          HistorySearchKeyDownRequested="OnHistorySearchKeyDown"
+          RetryOnboardingRequested="OnRetryOnboardingClick"
+          OpenScreenRequested="OnOpenScreenClick"
+          PointerPressed="OnRuntimePanelPointerPressed"
+          ProcessMonitorRequested="OnPlaceholderProcessMonitorClick"
+          ShowCommandPaletteRequested="OnShowCommandPaletteClick"
+          ShowLayoutDesignerRequested="OnShowLayoutDesignerClick"
+          SplitRequested="OnSplitRuntimePanelRequested"
+          StatisticsRequested="OnPlaceholderStatisticsClick"
+          TerminalRequested="OnPlaceholderTerminalClick" />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <!-- The base surface everything else sits on. Translucent, so the blurred
+       desktop reads behind the gaps between panels; the panels, sidebars and
+       cards over it stay opaque, which is what keeps them legible and keeps
+       the translucency reading as one surface rather than as see-through
+       chrome. -->
+  <!--
+    The window's own corners, declared so everything inside can be concentric
+    with the frame rather than guessing at it. The platform draws them; this
+    only says what it drew.
+  -->
+  <Grid
+      Background="{DynamicResource ShellWindowBackdropBrush}"
+      controls:Concentric.IsContainer="True"
+      controls:Concentric.ContainerRadius="{DynamicResource ShellWindowCornerRadius}">
+    <!-- Everything the app draws lives inside this one layer so locking can
+         collapse it whole. The browser is now an ordinary Avalonia visual, but
+         a collapsed ancestor also hides any native terminal hosts that a veil
+         alone could not cover. -->
+    <Panel IsVisible="{CompiledBinding !ApplicationSecurityEditor.IsLocked}">
+    <!-- Runtime workspace -->
+    <views:WorkspaceView
+        x:Name="WorkspaceRouteView"
+        ActivateTabRequested="OnActivateTabClick"
+        AgentQuestionResponseKeyDownRequested="OnAgentQuestionResponseKeyDown"
+        FloatPanelRequested="OnFloatRuntimePanelRequested"
+        ApproveAgentActionRequested="OnApproveAgentActionClick"
+        CancelAgentActionRequested="OnCancelAgentActionClick"
+        CancelAgentChatRequested="OnCancelAgentChatClick"
+        CancelFileTransferRequested="OnCancelFileTransferClick"
+        ClearAgentChatRequested="OnClearAgentChatClick"
+        ClearAgentSavedScreenTargetRequested="OnClearAgentSavedScreenTargetClick"
+        CreateAgentSavedScreenTargetRequested="OnCreateAgentSavedScreenTargetClick"
+        CloseRuntimeTabRequested="OnCloseRuntimeTabClick"
+        RuntimeTabTitleEditRequested="OnRuntimeTabTitleEditRequested"
+        RuntimeTabIconEditRequested="OnRuntimeTabIconEditRequested"
+        DeclineAgentQuestionRequested="OnDeclineAgentQuestionClick"
+        DenyAgentActionRequested="OnDenyAgentActionClick"
+        DisableAgentYoloRequested="OnDisableAgentYoloClick"
+        EnableAgentCapabilityAskRequested="OnEnableAgentCapabilityAskClick"
+        EnableAgentYoloRequested="OnEnableAgentYoloClick"
+        LockShellRequested="OnLockShellClick"
+        IsVisible="{Binding IsWorkspaceVisible}"
+        KeepAgentCapabilityOffRequested="OnKeepAgentCapabilityOffClick"
+        LoadOlderAgentAuditRequested="OnLoadOlderAgentAuditClick"
+        MoveQueuedFollowUpRequested="OnMoveAgentQueuedFollowUpRequested"
+        OpenWorkspaceRequested="OnOpenWorkspaceClick"
+        CloseWorkspaceRequested="OnCloseWorkspaceClick"
+        SaveWorkspaceLayoutRequested="OnSaveWorkspaceLayoutClick"
+        CreateWorkspaceRequested="OnCreateWorkspaceClick"
+        RefreshAgentAuditRequested="OnRefreshAgentAuditClick"
+        ApplyAgentHistoryRetentionRequested="OnApplyAgentHistoryRetentionClick"
+        AuthorizeAgentSavedScreenTargetRequested="OnAuthorizeAgentSavedScreenTargetClick"
+        ExportAgentHistoryRequested="OnExportAgentHistoryClick"
+        StartNewAgentConversationRequested="OnStartNewAgentConversationClick"
+        OpenAgentConversationRequested="OnOpenAgentConversationClick"
+        DeleteAgentConversationRequested="OnDeleteAgentConversationClick"
+        CopyAgentMessageRequested="OnCopyAgentMessageClick"
+        ForkAgentConversationRequested="OnForkAgentConversationClick"
+        SelectAgentModelRequested="OnSelectAgentModelClick"
+        ToggleAgentModelFavoriteRequested="OnToggleAgentModelFavoriteClick"
+        RefreshAgentModelsRequested="OnRefreshAgentModelsClick"
+        RetryFileTransferRequested="OnRetryFileTransferClick"
+        RuntimeTabDragEnterRequested="OnRuntimeTabDragEnter"
+        RuntimeTabDragLeaveRequested="OnRuntimeTabDragLeave"
+        RuntimeTabDragOverRequested="OnRuntimeTabDragOver"
+        RuntimeTabDragPointerCaptureLostRequested="OnRuntimeTabDragPointerCaptureLost"
+        RuntimeTabDragPointerMovedRequested="OnRuntimeTabDragPointerMoved"
+        RuntimeTabDragPointerPressedRequested="OnRuntimeTabDragPointerPressed"
+        RuntimeTabDragPointerReleasedRequested="OnRuntimeTabDragPointerReleased"
+        RuntimeTabDropRequested="OnRuntimeTabDrop"
+        SendAgentChatRequested="OnSendAgentChatClick"
+        QueueAgentSteeringRequested="OnQueueAgentSteeringClick"
+        AttachAgentImageRequested="OnAttachAgentImageClick"
+        ClearAgentImagesRequested="OnClearAgentImagesClick"
+        ShowAgentSettingsRequested="OnShowAgentSettingsClick"
+        ShowCommandPaletteRequested="OnShowCommandPaletteClick"
+        ShowLauncherRequested="OnShowLauncherClick"
+        ShowNewItemRequested="OnShowNewItemClick"
+        AddPanelToSideRequested="OnAddPanelToSideRequested"
+        ShowNewPanelRequested="OnShowNewPanelClick"
+        ShowSettingsRequested="OnShowSettingsClick"
+        SubmitAgentQuestionRequested="OnSubmitAgentQuestionClick"
+        ToggleAgentRequested="OnToggleAgentClick"
+        ToggleAgentPinRequested="OnToggleAgentPinClick"
+        WorkspaceNetworkConnectionSelected="OnWorkspaceNetworkConnectionSelected"
+        WorkspaceNetworkToggleRequested="OnWorkspaceNetworkToggleRequested"
+        NetworkingSettingsRequested="OnNetworkingSettingsClick" />
+
+    <!-- The host is cheap. Its template is built once, on first navigation. -->
+    <ContentControl
+        x:Name="SettingsRouteHost"
+        IsVisible="{Binding IsSettingsVisible}" />
+
+    <!-- Docked overlays. Runtime native views are hidden while these are open. -->
+    <Grid IsVisible="{Binding HasOverlay}" Background="{DynamicResource ShellScrimBrush}">
+      <ContentControl
+          x:Name="CommandPaletteOverlayHost"
+          IsVisible="{Binding IsCommandPaletteVisible}" />
+      <ContentControl
+          x:Name="NewPanelOverlayHost"
+          IsVisible="{Binding IsNewPanelVisible}" />
+      <ContentControl
+          x:Name="LayoutDesignerOverlayHost"
+          IsVisible="{Binding IsLayoutDesignerVisible}" />
+      <ContentControl
+          x:Name="DefinitionEditorOverlayHost"
+          IsVisible="{Binding IsDefinitionEditorVisible}" />
+
+      <Border
+          x:Name="OverlayTitleBarDragRegion"
+          Height="{Binding $parent[views:MainWindow].TitleBarChromeHeight}"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Top"
+          Background="Transparent"
+          WindowDecorationProperties.ElementRole="TitleBar" />
+    </Grid>
+
+    <controls:SurfaceCard Tone="Notice"
+        Margin="0,0,0,62"
+        Padding="{controls:Inset Horizontal=Md, Vertical=Sm}"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Bottom"
+        MaxWidth="620"
+        IsVisible="{Binding HasApplicationKeySequenceHint}"
+        AutomationProperties.LiveSetting="Polite"
+        AutomationProperties.Name="Application key sequence status">
+      <TextBlock FontSize="{DynamicResource ShellFontSize10}" Text="{Binding ApplicationKeySequenceHint}" TextWrapping="Wrap" />
+    </controls:SurfaceCard>
+
+    <controls:Callout
+        Margin="{controls:Inset Right=Lg, Bottom=Lg}"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        MaxWidth="520"
+        Tone="Danger"
+        Glyph="ErrorCircle"
+        Text="{CompiledBinding OperationError}"
+        IsVisible="{CompiledBinding HasOperationError}"
+        AutomationProperties.LiveSetting="Assertive"
+        AutomationProperties.Name="Operation error">
+      <controls:Callout.Action>
+        <Button Classes="IconButton" Click="OnClearErrorClick" AutomationProperties.Name="Dismiss error"><icons:SymbolIcon Symbol="Dismiss" FontSize="{DynamicResource ShellFontSize12}" /></Button>
+      </controls:Callout.Action>
+    </controls:Callout>
+
+    <Canvas
+        x:Name="DragGhostLayer"
+        ZIndex="1000"
+        ClipToBounds="True"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        IsHitTestVisible="False">
+      <controls:SurfaceCard
+          x:Name="DragGhostPresenter"
+          x:DataType="components:DragGhostPayload"
+          MinWidth="148"
+          MaxWidth="320"
+          Padding="{controls:Inset Horizontal=Md, Vertical=Sm}"
+          Elevation="Overlay"
+          Tone="Raised"
+          Opacity="0"
+          KeyboardNavigation.TabNavigation="Cycle"
+          AutomationProperties.Name="Dragged item">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <icons:SymbolIcon
+              VerticalAlignment="Center"
+              FontSize="15"
+              Foreground="{DynamicResource ShellAccentBrush}"
+              Symbol="{Binding Symbol}" />
+          <StackPanel Grid.Column="1" Spacing="{DynamicResource ShellSpaceXs}">
+            <TextBlock
+                FontSize="{DynamicResource ShellFontSize11}"
+                FontWeight="SemiBold"
+                Text="{Binding Title}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                FontSize="{DynamicResource ShellFontSize9}"
+                Foreground="{DynamicResource ShellMutedBrush}"
+                Text="{Binding Detail}"
+                TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </Grid>
+      </controls:SurfaceCard>
+    </Canvas>
+
+    <!-- Last inside the app layer: any remaining operating-system views. Browser
+         content is composited normally inside its panel and does not use this
+         airspace layer. -->
+    <controls:NativeSurfaceLayer x:Name="NativeSurfaces" />
+
+    <!-- Runtime preparation is a foreground workspace state. It deliberately
+         sits above native surfaces and the route behind it while the requested
+         isolate and its persistent container are brought online. -->
+    <Border
+        ZIndex="1100"
+        Background="{DynamicResource ShellBackgroundBrush}"
+        IsVisible="{Binding IsWorkspaceIsolationStarting}"
+        IsHitTestVisible="True">
+      <controls:StateOverlay
+          Kind="Loading"
+          Heading="{Binding WorkspaceIsolationStartingHeading}"
+          Body="{Binding WorkspaceIsolationStartingBody}"
+          IsVisible="{Binding IsWorkspaceIsolationStarting}" />
+    </Border>
+    </Panel>
+
+    <!-- Last child of the root grid on purpose: when the shell is locked,
+         the veil sits above every panel, overlay and toast — and the layer
+         above holds nothing, native included. -->
+    <components:ShellLockView
+        DataContext="{CompiledBinding ApplicationSecurityEditor}"
+        IsVisible="{CompiledBinding IsLocked}" />
+  </Grid>
+</Window>

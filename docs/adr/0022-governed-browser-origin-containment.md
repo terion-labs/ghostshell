@@ -19,7 +19,7 @@ document.
 
 The native Avalonia webview boundary exposes a cancellable top-level
 `NavigationStarted` event for initial requests and redirects. It does not expose
-a portable cross-platform navigation identifier, so GhostSHELL also needs
+a portable cross-platform navigation identifier, so Asura also needs
 serialization, a wrapper-owned monotonic generation, loading-state checks,
 final-address validation, cancellation, and late-event suppression at its own
 renderer boundary.
@@ -29,7 +29,7 @@ renderer boundary.
 ### 2026-08-25 peer-binding amendment
 
 The shipped CEF adapter cannot attest or bind policy to the actual connected
-peer. GhostSHELL therefore does not rely on this historical top-level origin
+peer. Asura therefore does not rely on this historical top-level origin
 guard as SSRF containment. Every model-governed CEF operation capable of
 causing network activity now fails before native dispatch, including
 navigation/history/reload, element interaction, low-level automation, and the
@@ -46,7 +46,7 @@ resolution and connection boundary.
 
 ### 2026-08-16 amendment
 
-GhostSHELL no longer treats the current site origin as a browsing allowlist.
+Asura no longer treats the current site origin as a browsing allowlist.
 After ordinary capability authorization, SessionHost supplies an unrestricted
 navigation boundary, so explicit navigation, redirects, history movement, and
 links activated by governed interaction may cross origins. `about:blank` may
@@ -62,7 +62,7 @@ SessionHost. Authorization-source failures use
 
 The original decision follows as historical context.
 
-GhostSHELL adds an application-owned origin-containment capability,
+Asura adds an application-owned origin-containment capability,
 `browser.navigation_origin_guard`. Governed `navigate`, `back`, `forward`, and
 `reload` tools are advertised, composed, and dispatched only when the exact
 browser session exposes this capability. `read_state` and `stop` do not require
@@ -130,7 +130,7 @@ draining guard after the governed result completes. While draining, every
 delayed top-level start is cancelled, unrelated terminal events are ignored,
 and new human or governed navigation returns retryable
 `navigation_in_progress`. Only the terminal completion carrying that locally
-assigned generation can finish the drain. GhostSHELL then removes every event
+assigned generation can finish the drain. Asura then removes every event
 subscription from the quarantined adapter and replaces the entire native
 webview before permitting another navigation. Any later vendor callback remains
 confined to the old adapter; every handler also rechecks sender identity in case
@@ -185,7 +185,7 @@ dispatches model-governed network operations.
   active chain. Serialization, starting-document binding, and terminal
   draining bound this ambiguity, but do not manufacture a vendor identifier.
 - If a native engine accepts a request but never reports its terminal event, or
-  a fresh adapter cannot be created, GhostSHELL deliberately keeps that
+  a fresh adapter cannot be created, Asura deliberately keeps that
   renderer's navigation path unavailable rather than guessing that a late
   event is safe. Named-platform conformance must prove terminal-event behavior,
   adapter teardown, replacement, and recovery.

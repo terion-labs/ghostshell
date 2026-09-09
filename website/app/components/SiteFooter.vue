@@ -6,16 +6,16 @@ const year = new Date().getFullYear()
   <footer class="footer">
     <div class="wrap footer__row">
       <div class="footer__brand">
-        <GhostLogo class="footer__logo" />
+        <AsuraLogo class="footer__logo" />
         <div>
-          <div class="footer__name">Ghost<b>SHELL</b></div>
-          <p class="footer__tag">A ghost in your shell.</p>
+          <div class="footer__name"><b>Asura</b></div>
+          <p class="footer__tag">Your terminal workspace.</p>
         </div>
       </div>
       <nav class="footer__links" aria-label="Footer">
-        <a href="https://github.com/terion-labs/ghostshel">GitHub</a>
-        <a href="https://github.com/terion-labs/ghostshel/releases/latest">Releases</a>
-        <a href="https://github.com/terion-labs/ghostshel/issues">Issues</a>
+        <a href="https://github.com/terion-labs/asura">GitHub</a>
+        <a href="https://github.com/terion-labs/asura/releases/latest">Releases</a>
+        <a href="https://github.com/terion-labs/asura/issues">Issues</a>
       </nav>
     </div>
     <div class="wrap footer__meta">

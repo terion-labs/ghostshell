@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ghostshell.app/schemas/macos-arm64-release-soak-receipt-v1.json",
-  "title": "GhostShell macOS arm64 release soak receipt v1",
+  "$id": "https://asura.app/schemas/macos-arm64-release-soak-receipt-v1.json",
+  "title": "Asura macOS arm64 release soak receipt v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "evidenceKind", "runnerVersion", "catalogSha256", "policySha256", "policy", "host", "build", "startedAtUtc", "completedAtUtc", "overallResult", "packageUnchanged", "scenarios"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "evidenceKind": { "const": "ghostshell-macos-arm64-release-soak" },
+    "evidenceKind": { "const": "asura-macos-arm64-release-soak" },
     "runnerVersion": { "const": "1.0.0" },
     "catalogSha256": { "$ref": "#/$defs/sha256" },
     "policySha256": { "$ref": "#/$defs/sha256" },
@@ -27,7 +27,7 @@
       "required": ["schemaVersion", "policyKind", "policyVersion", "referenceConfigurationId", "ratifiedAtUtc", "scenarios"],
       "properties": {
         "schemaVersion": { "const": 1 },
-        "policyKind": { "const": "ghostshell-macos-arm64-soak-policy" },
+        "policyKind": { "const": "asura-macos-arm64-soak-policy" },
         "policyVersion": { "$ref": "#/$defs/identifier" },
         "referenceConfigurationId": { "$ref": "#/$defs/identifier" },
         "ratifiedAtUtc": { "type": "string", "format": "date-time" },

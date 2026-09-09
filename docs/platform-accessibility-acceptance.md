@@ -1,6 +1,6 @@
 # VoiceOver, Narrator, and Orca acceptance
 
-Automated tests prove GhostSHELL's accessibility metadata, semantic text resources, focus policies,
+Automated tests prove Asura's accessibility metadata, semantic text resources, focus policies,
 and host-preference mapping. The passive macOS AX probe proves a bounded tree can be read without
 collecting user content. Neither proves what a person actually hears or whether a complete workflow
 works with a screen reader and keyboard on a real desktop.
@@ -31,7 +31,7 @@ desktop bus; Xvfb, VNC, Xpra, XWayland, and forwarded `DISPLAY` sessions are not
 substitutes.
 
 Start the expected screen reader before the runner. The runner verifies one platform-specific
-identity before launching GhostSHELL and verifies the same identity again afterward:
+identity before launching Asura and verifies the same identity again afterward:
 
 - VoiceOver is the running system application with bundle identifier `com.apple.VoiceOver`;
 - Narrator is the running Windows `System32` executable;
@@ -56,7 +56,7 @@ pwsh ./scripts/platform-accessibility-acceptance.ps1 `
   -SystemName win11-a11y-lab-01 `
   -Observer operator-01 `
   -BuildLabel rc-20260723-1 `
-  -PackagePath C:\release\ghostshell-win-x64
+  -PackagePath C:\release\asura-win-x64
 ```
 
 ```powershell
@@ -66,7 +66,7 @@ pwsh ./scripts/platform-accessibility-acceptance.ps1 `
   -SystemName ubuntu-x11-a11y-01 `
   -Observer operator-02 `
   -BuildLabel rc-20260723-1 `
-  -PackagePath /opt/candidates/ghostshell-linux-x64
+  -PackagePath /opt/candidates/asura-linux-x64
 ```
 
 ```powershell
@@ -76,28 +76,28 @@ pwsh ./scripts/platform-accessibility-acceptance.ps1 `
   -SystemName mac-a11y-lab-01 `
   -Observer operator-03 `
   -BuildLabel rc-20260723-1 `
-  -PackagePath /Applications/GhostShell.app
+  -PackagePath /Applications/Asura.app
 ```
 
 The PowerShell file is a thin launcher. The tested .NET runner can also be invoked directly:
 
 ```bash
-./.dotnet/dotnet run --project tools/GhostShell.AccessibilityAcceptance -- run \
+./.dotnet/dotnet run --project tools/Asura.AccessibilityAcceptance -- run \
   --platform MacOS \
   --screen-reader VoiceOver \
   --system-name mac-a11y-lab-01 \
   --observer operator-03 \
   --build-label rc-20260723-1 \
-  --package /Applications/GhostShell.app
+  --package /Applications/Asura.app
 ```
 
 The runner fingerprints the package before launch, starts its exact executable, and fingerprints
 the complete package again after cleanup. The manifest includes the package root, every directory,
 every regular file, deterministic entry kinds and paths, platform-relevant attributes or Unix mode
 bits, file lengths, and file-content hashes. Empty-directory and permission changes therefore alter
-the manifest. macOS requires a directory named `GhostShell.app` whose XML or binary property list
-declares bundle identifier `app.ghostshell` and executable `GhostShell`. Windows and Linux require
-`GhostShell.exe` and `GhostShell` respectively. Symbolic links/reparse points, FIFOs, sockets,
+the manifest. macOS requires a directory named `Asura.app` whose XML or binary property list
+declares bundle identifier `sh.asura` and executable `Asura`. Windows and Linux require
+`Asura.exe` and `Asura` respectively. Symbolic links/reparse points, FIFOs, sockets,
 devices, and packages outside the bounded entry/file/byte/depth limits are rejected before content
 reads. The evidence output directory is canonicalized and must resolve outside the package so
 publishing the receipt cannot mutate the build that was just fingerprinted.
@@ -132,10 +132,10 @@ requires the operator to confirm that every changed accessibility preference was
 Runner-requested process-tree termination is cleanup, never lifecycle acceptance. Sampling is not
 OS-level containment and cannot prove absence of a process that fully detaches between samples.
 
-macOS exposes reduced-motion and reduced-transparency preferences to GhostSHELL but no host-wide
+macOS exposes reduced-motion and reduced-transparency preferences to Asura but no host-wide
 application text-scale factor. For the high-text-scale observation, use the production
 **Settings > Appearance > Application text size** control, save `200%` or `250%`, verify the live
-reflow in every open GhostSHELL window, and restore `Follow host` before completing the run. The
+reflow in every open Asura window, and restore `Follow host` before completing the run. The
 stored override replaces the unavailable host factor; it does not multiply it. Display
 magnification is still not text reflow and must not be reinterpreted as a pass.
 
@@ -156,7 +156,7 @@ three-file contract, requires regular non-link files, and rejects any evidence f
 reading its content.
 
 ```bash
-./.dotnet/dotnet run --project tools/GhostShell.AccessibilityAcceptance -- \
+./.dotnet/dotnet run --project tools/Asura.AccessibilityAcceptance -- \
   validate artifacts/accessibility-acceptance/<run-directory>
 ```
 

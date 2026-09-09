@@ -97,7 +97,7 @@ def download_artifact(
     temporary = target.with_name(f".{target.name}.{os.getpid()}.part")
     request = urllib.request.Request(
         CENTRAL_REPOSITORY + urllib.parse.quote(relative, safe="/"),
-        headers={"User-Agent": "GhostShell-Maven-Lock/1"},
+        headers={"User-Agent": "Asura-Maven-Lock/1"},
     )
     digest = hashlib.sha256()
     written = 0
@@ -148,7 +148,7 @@ def deny_windows_repository_writes(destination: pathlib.Path) -> None:
         f"{WINDOWS_READ_ONLY_PRINCIPAL}:(OI)(CI)(W,D,DC)",
         "/T",
     )
-    probe = destination / f".ghostshell-write-probe-{os.getpid()}"
+    probe = destination / f".asura-write-probe-{os.getpid()}"
     try:
         probe.mkdir()
     except PermissionError:

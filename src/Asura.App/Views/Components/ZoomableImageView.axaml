@@ -1,0 +1,80 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.ZoomableImageView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch">
+  <Grid>
+    <!-- The image keeps its own pixel size and is moved by a transform rather
+         than by layout, so zooming and panning never re-run a measure pass. -->
+    <Border x:Name="Viewport" ClipToBounds="True" Background="Transparent" Cursor="Hand">
+      <Image
+          x:Name="Surface"
+          Stretch="None"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          RenderTransformOrigin="50%,50%" />
+    </Border>
+
+    <Border
+        x:Name="Toolbar"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        Margin="{controls:Inset Md}"
+        Padding="{controls:Inset Horizontal=Xs, Vertical=Xs}"
+        Background="{DynamicResource ShellSurfaceBrush}"
+        BorderBrush="{DynamicResource ShellBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource ShellControlCornerRadius}">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+        <Button
+            Classes="IconButton"
+            Click="OnZoomOutClick"
+            ToolTip.Tip="Zoom out"
+            AutomationProperties.Name="Zoom out">
+          <icons:SymbolIcon Symbol="ZoomOut" FontSize="12" />
+        </Button>
+        <Button
+            x:Name="ZoomLevelButton"
+            Classes="Subtle"
+            Padding="{controls:Inset Horizontal=Xs, Vertical=None}"
+            MinWidth="46"
+            Click="OnFitClick"
+            ToolTip.Tip="Fit to the preview area"
+            AutomationProperties.Name="Fit image to the preview area">
+          <controls:LiveRegionTextBlock
+              x:Name="ZoomLevelText"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              HorizontalAlignment="Center"
+              Text="100%"
+              AutomationProperties.LiveSetting="Polite" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Click="OnZoomInClick"
+            ToolTip.Tip="Zoom in"
+            AutomationProperties.Name="Zoom in">
+          <icons:SymbolIcon Symbol="ZoomIn" FontSize="12" />
+        </Button>
+        <Border Width="1" Margin="{DynamicResource ShellHairlineInset}" Background="{DynamicResource ShellBorderBrush}" />
+        <Button
+            Classes="IconButton"
+            Click="OnRotateLeftClick"
+            ToolTip.Tip="Rotate left"
+            AutomationProperties.Name="Rotate left">
+          <icons:SymbolIcon Symbol="RotateLeft" FontSize="12" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Click="OnRotateRightClick"
+            ToolTip.Tip="Rotate right"
+            AutomationProperties.Name="Rotate right">
+          <icons:SymbolIcon Symbol="RotateRight" FontSize="12" />
+        </Button>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

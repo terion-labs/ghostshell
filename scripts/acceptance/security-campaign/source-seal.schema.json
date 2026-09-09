@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ghostshell.app/schemas/release-source-seal-v1.json",
+  "$id": "https://asura.sh/schemas/release-source-seal-v1.json",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,8 +10,8 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "format": { "const": "ghostshell-release-source-seal-v1" },
-    "repository": { "const": "https://github.com/terion-labs/ghostshell" },
+    "format": { "const": "asura-release-source-seal-v1" },
+    "repository": { "const": "https://github.com/terion-labs/asura" },
     "tag": { "type": "string", "pattern": "^v[0-9]{1,9}\\.[0-9]{1,9}\\.[0-9]{1,9}$" },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },

@@ -1,0 +1,976 @@
+From af0657d21793cf55a0ba41993470cede74be1145 Mon Sep 17 00:00:00 2001
+From: Asura <devnull@asura.local>
+Date: Sat, 1 Aug 2026 13:23:03 +0300
+Subject: [PATCH] lib-vt: expose shell lifecycle and virtual images
+
+---
+ include/ghostty/vt/kitty_graphics.h | 127 ++++++++++++-
+ include/ghostty/vt/sys.h            |  17 +-
+ include/ghostty/vt/terminal.h       |  76 ++++++++
+ include/ghostty/vt/types.h          |   8 +
+ src/build/GhosttyZig.zig            |   9 +
+ src/lib_vt.zig                      |  16 +-
+ src/terminal/c/kitty_graphics.zig   | 264 ++++++++++++++++++++++++++++
+ src/terminal/c/main.zig             |   4 +
+ src/terminal/c/terminal.zig         | 127 +++++++++++++
+ src/terminal/stream_terminal.zig    |  11 +-
+ src/terminal/sys.zig                |  23 ++-
+ 11 files changed, 653 insertions(+), 29 deletions(-)
+
+diff --git a/include/ghostty/vt/kitty_graphics.h b/include/ghostty/vt/kitty_graphics.h
+index dda8b83..5940081 100644
+--- a/include/ghostty/vt/kitty_graphics.h
++++ b/include/ghostty/vt/kitty_graphics.h
+@@ -36,11 +36,11 @@ extern "C" {
+  * next mutating terminal call (e.g. ghostty_terminal_vt_write() or
+  * ghostty_terminal_reset()).
+  *
+- * Before images can be stored, Kitty graphics must be enabled on the
+- * terminal by setting a non-zero storage limit with
+- * @ref GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT, and a PNG
+- * decoder callback must be installed via ghostty_sys_set() with
+- * @ref GHOSTTY_SYS_OPT_DECODE_PNG.
++ * Before images can be stored, Kitty graphics must be enabled on the terminal
++ * by setting a non-zero storage limit with
++ * @ref GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT. PNG transmissions use
++ * Ghostty's bundled Wuffs decoder by default; an embedder can replace or
++ * disable it via ghostty_sys_set() with @ref GHOSTTY_SYS_OPT_DECODE_PNG.
+  *
+  * @snippet c-vt-kitty-graphics/src/main.c kitty-graphics-decode-png
+  *
+@@ -83,6 +83,9 @@ extern "C" {
+  *   rectangle in pixels, clamped to image bounds.
+  * - ghostty_kitty_graphics_placement_rect() — bounding rectangle as a
+  *   @ref GhosttySelection.
++ * - ghostty_kitty_graphics_virtual_placement_iterator_reset() and
++ *   ghostty_kitty_graphics_virtual_placement_next() — enumerate Unicode
++ *   placeholder placements with the exact geometry used by Ghostty's renderer.
+  *
+  * ## Change Detection
+  *
+@@ -474,6 +477,49 @@ typedef struct {
+   uint32_t source_height;
+ } GhosttyKittyGraphicsPlacementRenderInfo;
+
++/**
++ * Renderer-ready geometry for a Unicode Kitty virtual placement.
++ *
++ * This struct is produced from Ghostty's canonical Unicode placeholder
++ * iterator and virtual-placement renderer. Initialize with
++ * GHOSTTY_INIT_SIZED(GhosttyKittyGraphicsVirtualPlacementRenderInfo) before
++ * calling ghostty_kitty_graphics_virtual_placement_next(). The image pixels and
++ * generation can be queried with the returned `image_id` through the existing
++ * GhosttyKittyGraphicsImage APIs.
++ *
++ * @ingroup kitty_graphics
++ */
++typedef struct {
++  /** Size of this struct in bytes. */
++  size_t size;
++  /** Image ID encoded by the placeholder. */
++  uint32_t image_id;
++  /** Placement ID encoded by the placeholder, or zero when omitted. */
++  uint32_t placement_id;
++  /** Viewport-relative destination column. */
++  int32_t viewport_col;
++  /** Viewport-relative destination row. */
++  int32_t viewport_row;
++  /** Rendering layer. Unicode virtual placements are currently -1. */
++  int32_t z;
++  /** Pixel offset from the destination cell's left edge. */
++  uint32_t cell_offset_x;
++  /** Pixel offset from the destination cell's top edge. */
++  uint32_t cell_offset_y;
++  /** Source rectangle x origin in image pixels. */
++  uint32_t source_x;
++  /** Source rectangle y origin in image pixels. */
++  uint32_t source_y;
++  /** Source rectangle width in image pixels. */
++  uint32_t source_width;
++  /** Source rectangle height in image pixels. */
++  uint32_t source_height;
++  /** Destination width in pixels. */
++  uint32_t dest_width;
++  /** Destination height in pixels. */
++  uint32_t dest_height;
++} GhosttyKittyGraphicsVirtualPlacementRenderInfo;
++
+ /**
+  * Get data from a kitty graphics storage instance.
+  *
+@@ -590,6 +636,77 @@ GHOSTTY_API GhosttyResult ghostty_kitty_graphics_placement_iterator_new(
+ GHOSTTY_API void ghostty_kitty_graphics_placement_iterator_free(
+     GhosttyKittyGraphicsPlacementIterator iterator);
+
++/**
++ * Create a reusable Unicode Kitty virtual-placement iterator.
++ *
++ * The iterator is inert until reset for a terminal viewport with
++ * ghostty_kitty_graphics_virtual_placement_iterator_reset().
++ *
++ * @param allocator Pointer to allocator, or NULL to use the default allocator
++ * @param[out] out_iterator On success, receives the created iterator handle
++ * @return GHOSTTY_SUCCESS on success
++ *
++ * @ingroup kitty_graphics
++ */
++GHOSTTY_API GhosttyResult
++ghostty_kitty_graphics_virtual_placement_iterator_new(
++    const GhosttyAllocator* allocator,
++    GhosttyKittyGraphicsVirtualPlacementIterator* out_iterator);
++
++/**
++ * Free a Unicode Kitty virtual-placement iterator.
++ *
++ * @param iterator The iterator handle to free (may be NULL)
++ *
++ * @ingroup kitty_graphics
++ */
++GHOSTTY_API void ghostty_kitty_graphics_virtual_placement_iterator_free(
++    GhosttyKittyGraphicsVirtualPlacementIterator iterator);
++
++/**
++ * Reset an iterator to the terminal's active viewport.
++ *
++ * The iterator borrows terminal page-list state. Any mutating terminal call,
++ * including ghostty_terminal_vt_write(), resize, reset, or screen switching,
++ * invalidates the iteration. Reset it again before requesting another item.
++ * The cell dimensions must match the renderer's current cell size.
++ *
++ * @param iterator The iterator handle
++ * @param terminal The terminal whose active viewport should be enumerated
++ * @param cell_width Cell width in pixels (must be non-zero)
++ * @param cell_height Cell height in pixels (must be non-zero)
++ * @return GHOSTTY_SUCCESS on success, GHOSTTY_INVALID_VALUE for invalid
++ *         arguments, or GHOSTTY_NO_VALUE when no viewport exists
++ *
++ * @ingroup kitty_graphics
++ */
++GHOSTTY_API GhosttyResult
++ghostty_kitty_graphics_virtual_placement_iterator_reset(
++    GhosttyKittyGraphicsVirtualPlacementIterator iterator,
++    GhosttyTerminal terminal,
++    uint32_t cell_width,
++    uint32_t cell_height);
++
++/**
++ * Produce the next renderer-ready Unicode Kitty virtual placement.
++ *
++ * Missing images, malformed placeholder fragments, and placements that resolve
++ * to an empty destination are skipped, matching Ghostty renderer behavior.
++ * Initialize `out_info` with
++ * GHOSTTY_INIT_SIZED(GhosttyKittyGraphicsVirtualPlacementRenderInfo).
++ *
++ * @param iterator An iterator previously reset for the current terminal state
++ * @param[out] out_info Renderer-ready placement geometry
++ * @return GHOSTTY_SUCCESS when a placement was written, GHOSTTY_NO_VALUE at
++ *         normal exhaustion, or GHOSTTY_INVALID_VALUE for invalid arguments or
++ *         an iterator that has not been reset
++ *
++ * @ingroup kitty_graphics
++ */
++GHOSTTY_API GhosttyResult ghostty_kitty_graphics_virtual_placement_next(
++    GhosttyKittyGraphicsVirtualPlacementIterator iterator,
++    GhosttyKittyGraphicsVirtualPlacementRenderInfo* out_info);
++
+ /**
+  * Set an option on a placement iterator.
+  *
+diff --git a/include/ghostty/vt/sys.h b/include/ghostty/vt/sys.h
+index ae90596..e6ebcee 100644
+--- a/include/ghostty/vt/sys.h
++++ b/include/ghostty/vt/sys.h
+@@ -20,13 +20,12 @@
+  *
+  * These are process-global settings that must be configured at startup
+  * before any terminal functionality that depends on them is used.
+- * Setting these enables various optional features of the terminal. For
+- * example, setting a PNG decoder enables PNG image support in the Kitty
+- * Graphics Protocol.
++ * Ghostty's bundled Wuffs decoder enables PNG image support in the Kitty
++ * Graphics Protocol by default. Setting a PNG decoder replaces that default.
+  *
+- * Use ghostty_sys_set() with a `GhosttySysOption` to install or clear
+- * an implementation. Passing NULL as the value clears the implementation
+- * and disables the corresponding feature.
++ * Use ghostty_sys_set() with a `GhosttySysOption` to install or clear an
++ * implementation. Passing NULL as the value clears the implementation and
++ * disables the corresponding feature, including the built-in PNG decoder.
+  *
+  * ## Example
+  *
+@@ -138,9 +137,9 @@ typedef enum GHOSTTY_ENUM_TYPED {
+     /**
+      * Set the PNG decode function.
+      *
+-     * When set, the terminal can accept PNG images via the Kitty
+-     * Graphics Protocol. When cleared (NULL value), PNG decoding is
+-     * unsupported and PNG image data will be rejected.
++     * The terminal uses Ghostty's bundled Wuffs implementation by default.
++     * When set, this callback replaces the built-in decoder. When cleared
++     * (NULL value), PNG decoding is unsupported and PNG image data is rejected.
+      *
+      * Input type: GhosttySysDecodePngFn (function pointer, or NULL)
+      */
+diff --git a/include/ghostty/vt/terminal.h b/include/ghostty/vt/terminal.h
+index 9480d37..a9109b4 100644
+--- a/include/ghostty/vt/terminal.h
++++ b/include/ghostty/vt/terminal.h
+@@ -96,6 +96,7 @@ extern "C" {
+  * | `GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE`  | `GhosttyTerminalClipboardWriteFn` | Clipboard write via OSC 52 / OSC 1337     |
+  * | `GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION`| `GhosttyTerminalDesktopNotificationFn` | Desktop notification via OSC 9 / OSC 777 |
+  * | `GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT`  | `GhosttyTerminalProgressReportFn` | Progress report via OSC 9;4               |
++ * | `GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT`  | `GhosttyTerminalSemanticPromptFn` | Normalized command lifecycle via OSC 133  |
+  *
+  * ### Defining a write_pty callback
+  * @snippet c-vt-effects/src/main.c effects-write-pty
+@@ -543,6 +544,72 @@ typedef void (*GhosttyTerminalProgressReportFn)(
+     void* userdata,
+     const GhosttyTerminalProgressReport* report);
+
++/**
++ * Normalized phase of a shell-integration command lifecycle.
++ *
++ * Multiple OSC 133 actions that express the same lifecycle transition are
++ * intentionally collapsed into these four phases. OSC 133;L, which only
++ * requests a fresh line, does not emit an event.
++ *
++ * @ingroup terminal
++ */
++typedef enum GHOSTTY_ENUM_TYPED {
++  /** A new prompt is being drawn (OSC 133 A, N, or P). */
++  GHOSTTY_TERMINAL_SEMANTIC_PROMPT_PHASE_PROMPT = 0,
++
++  /** Prompt rendering finished and user input began (OSC 133 B or I). */
++  GHOSTTY_TERMINAL_SEMANTIC_PROMPT_PHASE_INPUT = 1,
++
++  /** User input finished and command output began (OSC 133 C). */
++  GHOSTTY_TERMINAL_SEMANTIC_PROMPT_PHASE_EXECUTED = 2,
++
++  /** The command finished (OSC 133 D). */
++  GHOSTTY_TERMINAL_SEMANTIC_PROMPT_PHASE_FINISHED = 3,
++  GHOSTTY_TERMINAL_SEMANTIC_PROMPT_PHASE_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE,
++} GhosttyTerminalSemanticPromptPhase;
++
++/**
++ * A normalized shell-integration command lifecycle event.
++ *
++ * This is a sized struct. The callback must only access fields present in the
++ * size reported by `size`. `has_exit_status` is only true for a FINISHED event
++ * when OSC 133;D included a parseable exit status.
++ *
++ * @ingroup terminal
++ */
++typedef struct {
++  /** Size of this struct in bytes. */
++  size_t size;
++
++  /** Normalized lifecycle phase. */
++  GhosttyTerminalSemanticPromptPhase phase;
++
++  /** Whether `exit_status` contains a value. */
++  bool has_exit_status;
++
++  /** Command exit status when `has_exit_status` is true. */
++  int32_t exit_status;
++} GhosttyTerminalSemanticPromptEvent;
++
++/**
++ * Callback function type for normalized OSC 133 shell-integration events.
++ *
++ * Called synchronously, after the OSC 133 action has been successfully applied
++ * to Ghostty terminal state. The event is borrowed for the callback duration.
++ * Like all terminal effects, the callback must not re-enter
++ * ghostty_terminal_vt_write() for the same terminal.
++ *
++ * @param terminal The terminal handle
++ * @param userdata The userdata pointer set via GHOSTTY_TERMINAL_OPT_USERDATA
++ * @param event Borrowed normalized lifecycle event
++ *
++ * @ingroup terminal
++ */
++typedef void (*GhosttyTerminalSemanticPromptFn)(
++    GhosttyTerminal terminal,
++    void* userdata,
++    const GhosttyTerminalSemanticPromptEvent* event);
++
+ /**
+  * Callback function type for color scheme queries (CSI ? 996 n).
+  *
+@@ -1027,6 +1094,15 @@ typedef enum GHOSTTY_ENUM_TYPED {
+    * Input type: GhosttyTerminalProgressReportFn
+    */
+   GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT = 30,
++
++  /**
++   * Callback invoked after a shell-integration OSC 133 action changes the
++   * semantic command lifecycle. OSC 133;L does not emit an event. Set to NULL
++   * to ignore semantic prompt events.
++   *
++   * Input type: GhosttyTerminalSemanticPromptFn
++   */
++  GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT = 31,
+   GHOSTTY_TERMINAL_OPT_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE,
+ } GhosttyTerminalOption;
+
+diff --git a/include/ghostty/vt/types.h b/include/ghostty/vt/types.h
+index 214d282..7f02974 100644
+--- a/include/ghostty/vt/types.h
++++ b/include/ghostty/vt/types.h
+@@ -136,6 +136,14 @@ typedef const struct GhosttyKittyGraphicsImageImpl* GhosttyKittyGraphicsImage;
+  */
+ typedef struct GhosttyKittyGraphicsPlacementIteratorImpl* GhosttyKittyGraphicsPlacementIterator;
+
++/**
++ * Opaque handle to a reusable Unicode Kitty virtual-placement iterator.
++ *
++ * @ingroup kitty_graphics
++ */
++typedef struct GhosttyKittyGraphicsVirtualPlacementIteratorImpl*
++    GhosttyKittyGraphicsVirtualPlacementIterator;
++
+ /**
+  * Opaque handle to a render state instance.
+  *
+diff --git a/src/build/GhosttyZig.zig b/src/build/GhosttyZig.zig
+index 4671219..50dbdf7 100644
+--- a/src/build/GhosttyZig.zig
++++ b/src/build/GhosttyZig.zig
+@@ -137,6 +137,15 @@ fn initVt(
+     // We need uucode for grapheme break support
+     vt.addImport("uucode", deps.uucode_mod);
+
++    // libghostty-vt uses Ghostty's bundled Wuffs PNG decoder by default so
++    // Kitty PNG transmissions never require an embedder-owned allocation
++    // callback. This remains a pure Zig dependency with no external runtime.
++    const wuffs = b.lazyDependency("wuffs", .{
++        .target = cfg.target,
++        .optimize = cfg.optimize,
++    }) orelse return error.WuffsDependencyUnavailable;
++    vt.addImport("wuffs", wuffs.module("wuffs"));
++
+     // If SIMD is enabled, add all our SIMD dependencies.
+     if (cfg.simd) {
+         try SharedDeps.addSimd(b, vt, simd_libs);
+diff --git a/src/lib_vt.zig b/src/lib_vt.zig
+index 0d9fda7..6ab3e37 100644
+--- a/src/lib_vt.zig
++++ b/src/lib_vt.zig
+@@ -26,13 +26,13 @@ const terminal = @import("terminal/main.zig");
+ /// provide or override default behaviors. These must be set at startup
+ /// before any terminal functionality is used.
+ ///
+-/// This lets libghostty-vt have no runtime dependencies on external
+-/// libraries, while still allowing rich functionality that may require
+-/// external libraries (e.g. image decoding or regular expresssions).
++/// This lets libghostty-vt avoid runtime dependencies on external libraries,
++/// while still allowing rich functionality to be replaced by the embedder.
++/// PNG decoding defaults to Ghostty's bundled Wuffs implementation.
+ ///
+-/// Setting these will enable various features of the terminal package.
+-/// For example, setting a PNG decoder will enable support for PNG images in
+-/// the Kitty Graphics Protocol.
++/// Setting these can replace or disable features of the terminal package. For
++/// example, setting a PNG decoder replaces the bundled Wuffs implementation
++/// used for Kitty Graphics Protocol PNG images.
+ ///
+ /// Additional functionality will be added here over time as needed.
+ pub const sys = terminal.sys;
+@@ -316,6 +316,10 @@ comptime {
+         @export(&c.kitty_graphics_image_get_multi, .{ .name = "ghostty_kitty_graphics_image_get_multi" });
+         @export(&c.kitty_graphics_placement_iterator_new, .{ .name = "ghostty_kitty_graphics_placement_iterator_new" });
+         @export(&c.kitty_graphics_placement_iterator_free, .{ .name = "ghostty_kitty_graphics_placement_iterator_free" });
++        @export(&c.kitty_graphics_virtual_placement_iterator_new, .{ .name = "ghostty_kitty_graphics_virtual_placement_iterator_new" });
++        @export(&c.kitty_graphics_virtual_placement_iterator_free, .{ .name = "ghostty_kitty_graphics_virtual_placement_iterator_free" });
++        @export(&c.kitty_graphics_virtual_placement_iterator_reset, .{ .name = "ghostty_kitty_graphics_virtual_placement_iterator_reset" });
++        @export(&c.kitty_graphics_virtual_placement_iterator_next, .{ .name = "ghostty_kitty_graphics_virtual_placement_next" });
+         @export(&c.kitty_graphics_placement_iterator_set, .{ .name = "ghostty_kitty_graphics_placement_iterator_set" });
+         @export(&c.kitty_graphics_placement_next, .{ .name = "ghostty_kitty_graphics_placement_next" });
+         @export(&c.kitty_graphics_placement_get, .{ .name = "ghostty_kitty_graphics_placement_get" });
+diff --git a/src/terminal/c/kitty_graphics.zig b/src/terminal/c/kitty_graphics.zig
+index 310b79c..9627b6a 100644
+--- a/src/terminal/c/kitty_graphics.zig
++++ b/src/terminal/c/kitty_graphics.zig
+@@ -5,6 +5,7 @@ const lib = @import("../lib.zig");
+ const CAllocator = lib.alloc.Allocator;
+ const kitty_storage = @import("../kitty/graphics_storage.zig");
+ const kitty_cmd = @import("../kitty/graphics_command.zig");
++const kitty_unicode = @import("../kitty/graphics_unicode.zig");
+ const Image = @import("../kitty/graphics_image.zig").Image;
+ const grid_ref = @import("grid_ref.zig");
+ const selection_c = @import("selection.zig");
+@@ -30,6 +31,12 @@ pub const PlacementIterator = if (build_options.kitty_graphics)
+ else
+     ?*anyopaque;
+
++/// C: GhosttyKittyGraphicsVirtualPlacementIterator
++pub const VirtualPlacementIterator = if (build_options.kitty_graphics)
++    ?*VirtualPlacementIteratorWrapper
++else
++    ?*anyopaque;
++
+ const PlacementMap = if (build_options.kitty_graphics)
+     std.AutoHashMapUnmanaged(
+         kitty_storage.ImageStorage.PlacementKey,
+@@ -48,6 +55,37 @@ const PlacementIteratorWrapper = if (build_options.kitty_graphics)
+ else
+     void;
+
++const VirtualPlacementIteratorWrapper = if (build_options.kitty_graphics)
++    struct {
++        alloc: std.mem.Allocator,
++        terminal: terminal_c.Terminal = null,
++        inner: ?kitty_unicode.PlacementIterator = null,
++        cell_width: u32 = 0,
++        cell_height: u32 = 0,
++    }
++else
++    void;
++
++/// A renderer-ready Unicode Kitty virtual placement. This is derived using
++/// Ghostty's canonical placeholder iterator and Placement.renderPlacement.
++/// C: GhosttyKittyGraphicsVirtualPlacementRenderInfo
++pub const VirtualPlacementRenderInfo = extern struct {
++    size: usize = @sizeOf(VirtualPlacementRenderInfo),
++    image_id: u32 = 0,
++    placement_id: u32 = 0,
++    viewport_col: i32 = 0,
++    viewport_row: i32 = 0,
++    z: i32 = -1,
++    cell_offset_x: u32 = 0,
++    cell_offset_y: u32 = 0,
++    source_x: u32 = 0,
++    source_y: u32 = 0,
++    source_width: u32 = 0,
++    source_height: u32 = 0,
++    dest_width: u32 = 0,
++    dest_height: u32 = 0,
++};
++
+ /// C: GhosttyKittyGraphicsData
+ pub const Data = enum(c_int) {
+     invalid = 0,
+@@ -293,6 +331,118 @@ pub fn placement_iterator_free(iter_: PlacementIterator) callconv(lib.calling_co
+     iter.alloc.destroy(iter);
+ }
+
++pub fn virtual_placement_iterator_new(
++    alloc_: ?*const CAllocator,
++    out: *VirtualPlacementIterator,
++) callconv(lib.calling_conv) Result {
++    if (comptime !build_options.kitty_graphics) {
++        out.* = null;
++        return .no_value;
++    }
++
++    const alloc = lib.alloc.default(alloc_);
++    const ptr = alloc.create(VirtualPlacementIteratorWrapper) catch {
++        out.* = null;
++        return .out_of_memory;
++    };
++    ptr.* = .{ .alloc = alloc };
++    out.* = ptr;
++    return .success;
++}
++
++pub fn virtual_placement_iterator_free(
++    iter_: VirtualPlacementIterator,
++) callconv(lib.calling_conv) void {
++    if (comptime !build_options.kitty_graphics) return;
++    const iter = iter_ orelse return;
++    iter.alloc.destroy(iter);
++}
++
++/// Reset a reusable virtual-placement iterator to the active viewport. The
++/// caller must reset after every mutating terminal call; the iterator's pins
++/// borrow page-list state owned by the terminal.
++pub fn virtual_placement_iterator_reset(
++    iter_: VirtualPlacementIterator,
++    terminal_: terminal_c.Terminal,
++    cell_width: u32,
++    cell_height: u32,
++) callconv(lib.calling_conv) Result {
++    if (comptime !build_options.kitty_graphics) return .no_value;
++
++    const iter = iter_ orelse return .invalid_value;
++    const wrapper = terminal_ orelse return .invalid_value;
++    if (cell_width == 0 or cell_height == 0) return .invalid_value;
++
++    const pages = &wrapper.terminal.screens.active.pages;
++    const top = pages.getTopLeft(.viewport);
++    const bottom = pages.getBottomRight(.viewport) orelse {
++        iter.terminal = terminal_;
++        iter.inner = null;
++        iter.cell_width = cell_width;
++        iter.cell_height = cell_height;
++        return .no_value;
++    };
++
++    iter.terminal = terminal_;
++    iter.inner = kitty_unicode.placementIterator(top, bottom);
++    iter.cell_width = cell_width;
++    iter.cell_height = cell_height;
++    return .success;
++}
++
++/// Return the next renderer-ready virtual placement. Invalid or missing
++/// backing images and placements are skipped exactly as Ghostty's renderer
++/// skips them. GHOSTTY_NO_VALUE signals normal iterator exhaustion.
++pub fn virtual_placement_iterator_next(
++    iter_: VirtualPlacementIterator,
++    out_: ?*VirtualPlacementRenderInfo,
++) callconv(lib.calling_conv) Result {
++    if (comptime !build_options.kitty_graphics) return .no_value;
++
++    const iter = iter_ orelse return .invalid_value;
++    const wrapper = iter.terminal orelse return .invalid_value;
++    const inner = if (iter.inner) |*value| value else return .invalid_value;
++    const out = out_ orelse return .invalid_value;
++    if (out.size < @sizeOf(VirtualPlacementRenderInfo)) return .invalid_value;
++
++    const t = wrapper.terminal;
++    const storage = &t.screens.active.kitty_images;
++    while (inner.next()) |placement| {
++        const image = storage.imageById(placement.image_id) orelse continue;
++        const render = placement.renderPlacement(
++            storage,
++            &image,
++            iter.cell_width,
++            iter.cell_height,
++        ) catch continue;
++        if (render.dest_width == 0 or render.dest_height == 0) continue;
++
++        const viewport = t.screens.active.pages.pointFromPin(
++            .viewport,
++            render.top_left,
++        ) orelse continue;
++
++        out.* = .{
++            .image_id = placement.image_id,
++            .placement_id = placement.placement_id,
++            .viewport_col = @intCast(render.top_left.x),
++            .viewport_row = @intCast(viewport.viewport.y),
++            .z = -1,
++            .cell_offset_x = render.offset_x,
++            .cell_offset_y = render.offset_y,
++            .source_x = render.source_x,
++            .source_y = render.source_y,
++            .source_width = render.source_width,
++            .source_height = render.source_height,
++            .dest_width = render.dest_width,
++            .dest_height = render.dest_height,
++        };
++        return .success;
++    }
++
++    return .no_value;
++}
++
+ pub fn placement_iterator_set(
+     iter_: PlacementIterator,
+     option: PlacementIteratorOption,
+@@ -652,6 +802,120 @@ test "placement_iterator free null" {
+     placement_iterator_free(null);
+ }
+
++test "virtual placement iterator uses Ghostty render geometry" {
++    if (comptime !build_options.kitty_graphics) return error.SkipZigTest;
++
++    var t: terminal_c.Terminal = null;
++    try testing.expectEqual(Result.success, terminal_c.new(
++        &lib.alloc.test_allocator,
++        &t,
++        5,
++        5,
++    ));
++    defer terminal_c.free(t);
++
++    const zt = terminal_c.zigTerminal(t).?;
++    zt.modes.set(.grapheme_cluster, true);
++    const storage = &zt.screens.active.kitty_images;
++    try storage.addImage(
++        zt.io(),
++        zt.gpa(),
++        .{ .id = 1, .width = 10, .height = 20 },
++    );
++    try storage.addPlacement(
++        zt.io(),
++        zt.gpa(),
++        1,
++        0,
++        .{
++            .location = .{ .virtual = {} },
++            .columns = 1,
++            .rows = 1,
++        },
++    );
++    try zt.setAttribute(.{ .@"256_fg" = 1 });
++    try zt.printString("\u{10EEEE}\u{0305}\u{0305}");
++
++    var iter: VirtualPlacementIterator = null;
++    try testing.expectEqual(Result.success, virtual_placement_iterator_new(
++        &lib.alloc.test_allocator,
++        &iter,
++    ));
++    defer virtual_placement_iterator_free(iter);
++
++    try testing.expectEqual(
++        Result.success,
++        virtual_placement_iterator_reset(iter, t, 10, 20),
++    );
++    var info: VirtualPlacementRenderInfo = .{};
++    try testing.expectEqual(
++        Result.success,
++        virtual_placement_iterator_next(iter, &info),
++    );
++    try testing.expectEqual(@sizeOf(VirtualPlacementRenderInfo), info.size);
++    try testing.expectEqual(@as(u32, 1), info.image_id);
++    try testing.expectEqual(@as(u32, 0), info.placement_id);
++    try testing.expectEqual(@as(i32, 0), info.viewport_col);
++    try testing.expectEqual(@as(i32, 0), info.viewport_row);
++    try testing.expectEqual(@as(i32, -1), info.z);
++    try testing.expectEqual(@as(u32, 0), info.cell_offset_x);
++    try testing.expectEqual(@as(u32, 0), info.cell_offset_y);
++    try testing.expectEqual(@as(u32, 0), info.source_x);
++    try testing.expectEqual(@as(u32, 0), info.source_y);
++    try testing.expectEqual(@as(u32, 10), info.source_width);
++    try testing.expectEqual(@as(u32, 20), info.source_height);
++    try testing.expectEqual(@as(u32, 10), info.dest_width);
++    try testing.expectEqual(@as(u32, 20), info.dest_height);
++    try testing.expectEqual(
++        Result.no_value,
++        virtual_placement_iterator_next(iter, &info),
++    );
++}
++
++test "virtual placement iterator validates lifecycle and dimensions" {
++    if (comptime !build_options.kitty_graphics) return error.SkipZigTest;
++
++    var iter: VirtualPlacementIterator = null;
++    try testing.expectEqual(Result.success, virtual_placement_iterator_new(
++        &lib.alloc.test_allocator,
++        &iter,
++    ));
++    defer virtual_placement_iterator_free(iter);
++
++    var info: VirtualPlacementRenderInfo = .{};
++    try testing.expectEqual(
++        Result.invalid_value,
++        virtual_placement_iterator_next(iter, &info),
++    );
++
++    var t: terminal_c.Terminal = null;
++    try testing.expectEqual(Result.success, terminal_c.new(
++        &lib.alloc.test_allocator,
++        &t,
++        5,
++        5,
++    ));
++    defer terminal_c.free(t);
++
++    try testing.expectEqual(
++        Result.invalid_value,
++        virtual_placement_iterator_reset(iter, t, 0, 20),
++    );
++    try testing.expectEqual(
++        Result.invalid_value,
++        virtual_placement_iterator_reset(iter, t, 10, 0),
++    );
++    try testing.expectEqual(
++        Result.success,
++        virtual_placement_iterator_reset(iter, t, 10, 20),
++    );
++    info.size = 0;
++    try testing.expectEqual(
++        Result.invalid_value,
++        virtual_placement_iterator_next(iter, &info),
++    );
++}
++
+ test "placement_iterator next on empty storage" {
+     if (comptime !build_options.kitty_graphics) return error.SkipZigTest;
+
+diff --git a/src/terminal/c/main.zig b/src/terminal/c/main.zig
+index 37dc576..a13743e 100644
+--- a/src/terminal/c/main.zig
++++ b/src/terminal/c/main.zig
+@@ -17,6 +17,10 @@ pub const kitty_graphics_image_get = kitty_graphics.image_get;
+ pub const kitty_graphics_image_get_multi = kitty_graphics.image_get_multi;
+ pub const kitty_graphics_placement_iterator_new = kitty_graphics.placement_iterator_new;
+ pub const kitty_graphics_placement_iterator_free = kitty_graphics.placement_iterator_free;
++pub const kitty_graphics_virtual_placement_iterator_new = kitty_graphics.virtual_placement_iterator_new;
++pub const kitty_graphics_virtual_placement_iterator_free = kitty_graphics.virtual_placement_iterator_free;
++pub const kitty_graphics_virtual_placement_iterator_reset = kitty_graphics.virtual_placement_iterator_reset;
++pub const kitty_graphics_virtual_placement_iterator_next = kitty_graphics.virtual_placement_iterator_next;
+ pub const kitty_graphics_placement_iterator_set = kitty_graphics.placement_iterator_set;
+ pub const kitty_graphics_placement_next = kitty_graphics.placement_iterator_next;
+ pub const kitty_graphics_placement_get = kitty_graphics.placement_get;
+diff --git a/src/terminal/c/terminal.zig b/src/terminal/c/terminal.zig
+index 85f4dbc..b06c8ac 100644
+--- a/src/terminal/c/terminal.zig
++++ b/src/terminal/c/terminal.zig
+@@ -104,6 +104,23 @@ pub const ProgressReport = extern struct {
+     progress: i8,
+ };
+
++/// C: GhosttyTerminalSemanticPromptPhase
++pub const SemanticPromptPhase = enum(c_int) {
++    prompt = 0,
++    input = 1,
++    executed = 2,
++    finished = 3,
++};
++
++/// A normalized OSC 133 lifecycle event.
++/// C: GhosttyTerminalSemanticPromptEvent
++pub const SemanticPromptEvent = extern struct {
++    size: usize = @sizeOf(SemanticPromptEvent),
++    phase: SemanticPromptPhase,
++    has_exit_status: bool = false,
++    exit_status: i32 = 0,
++};
++
+ /// C callback state for terminal effects. Trampolines are always
+ /// installed on the stream handler; they check these fields and
+ /// no-op when the corresponding callback is null.
+@@ -119,6 +136,7 @@ const Effects = struct {
+     title_changed: ?TitleChangedFn = null,
+     pwd_changed: ?PwdChangedFn = null,
+     progress_report: ?ProgressReportFn = null,
++    semantic_prompt: ?SemanticPromptFn = null,
+     size_cb: ?SizeFn = null,
+     clipboard_write: ?ClipboardWriteFn = null,
+
+@@ -168,6 +186,9 @@ const Effects = struct {
+     /// C function pointer type for the progress_report callback.
+     pub const ProgressReportFn = *const fn (Terminal, ?*anyopaque, *const ProgressReport) callconv(lib.calling_conv) void;
+
++    /// C function pointer type for normalized OSC 133 lifecycle events.
++    pub const SemanticPromptFn = *const fn (Terminal, ?*anyopaque, *const SemanticPromptEvent) callconv(lib.calling_conv) void;
++
+     /// C function pointer type for the size callback.
+     /// Returns true and fills out_size if size is available,
+     /// or returns false to silently ignore the query.
+@@ -351,6 +372,31 @@ const Effects = struct {
+         func(@ptrCast(wrapper), wrapper.effects.userdata, &c_report);
+     }
+
++    fn semanticPromptTrampoline(
++        handler: *Handler,
++        command: osc.Command.SemanticPrompt,
++    ) void {
++        const wrapper = TerminalWrapper.fromHandler(handler);
++        const func = wrapper.effects.semantic_prompt orelse return;
++        const phase: SemanticPromptPhase = switch (command.action) {
++            .fresh_line => return,
++            .fresh_line_new_prompt, .new_command, .prompt_start => .prompt,
++            .end_prompt_start_input, .end_prompt_start_input_terminate_eol => .input,
++            .end_input_start_output => .executed,
++            .end_command => .finished,
++        };
++        const exit_status = if (command.action == .end_command)
++            command.readOption(.exit_code)
++        else
++            null;
++        const event: SemanticPromptEvent = .{
++            .phase = phase,
++            .has_exit_status = exit_status != null,
++            .exit_status = exit_status orelse 0,
++        };
++        func(@ptrCast(wrapper), wrapper.effects.userdata, &event);
++    }
++
+     fn sizeTrampoline(handler: *Handler) ?size_report.Size {
+         const wrapper = TerminalWrapper.fromHandler(handler);
+         const func = wrapper.effects.size_cb orelse return null;
+@@ -449,6 +495,7 @@ fn new_(
+         .title_changed = &Effects.titleChangedTrampoline,
+         .pwd_changed = &Effects.pwdChangedTrampoline,
+         .progress_report = &Effects.progressReportTrampoline,
++        .semantic_prompt = &Effects.semanticPromptTrampoline,
+         .size = &Effects.sizeTrampoline,
+         .clipboard_write = &Effects.clipboardWriteTrampoline,
+     };
+@@ -527,6 +574,7 @@ pub const Option = enum(c_int) {
+     scrollback_max_lines = 28,
+     desktop_notification = 29,
+     progress_report = 30,
++    semantic_prompt = 31,
+
+     /// Input type expected for setting the option.
+     pub fn InType(comptime self: Option) type {
+@@ -542,6 +590,7 @@ pub const Option = enum(c_int) {
+             .title_changed => ?Effects.TitleChangedFn,
+             .pwd_changed => ?Effects.PwdChangedFn,
+             .progress_report => ?Effects.ProgressReportFn,
++            .semantic_prompt => ?Effects.SemanticPromptFn,
+             .size_cb => ?Effects.SizeFn,
+             .clipboard_write => ?Effects.ClipboardWriteFn,
+             .title, .pwd => ?*const lib.String,
+@@ -605,6 +654,7 @@ fn setTyped(
+         .title_changed => wrapper.effects.title_changed = value,
+         .pwd_changed => wrapper.effects.pwd_changed = value,
+         .progress_report => wrapper.effects.progress_report = value,
++        .semantic_prompt => wrapper.effects.semantic_prompt = value,
+         .size_cb => wrapper.effects.size_cb = value,
+         .clipboard_write => wrapper.effects.clipboard_write = value,
+         .title => {
+@@ -3062,6 +3112,83 @@ test "set progress_report callback" {
+     try testing.expectEqual(@as(usize, cases.len), S.count);
+ }
+
++test "set semantic_prompt callback normalizes OSC 133 lifecycle" {
++    var t: Terminal = null;
++    try testing.expectEqual(Result.success, new(
++        &lib.alloc.test_allocator,
++        &t,
++        80,
++        24,
++    ));
++    defer free(t);
++
++    const S = struct {
++        var count: usize = 0;
++        var events: [8]SemanticPromptEvent = undefined;
++        var last_terminal: Terminal = null;
++        var last_userdata: ?*anyopaque = null;
++
++        fn semanticPrompt(
++            terminal_: Terminal,
++            ud: ?*anyopaque,
++            event: *const SemanticPromptEvent,
++        ) callconv(lib.calling_conv) void {
++            last_terminal = terminal_;
++            last_userdata = ud;
++            events[count] = event.*;
++            count += 1;
++        }
++    };
++    S.count = 0;
++    S.last_terminal = null;
++    S.last_userdata = null;
++
++    var sentinel: u8 = 101;
++    try testing.expectEqual(Result.success, set(t, .userdata, @ptrCast(&sentinel)));
++    try testing.expectEqual(Result.success, set(
++        t,
++        .semantic_prompt,
++        @ptrCast(&S.semanticPrompt),
++    ));
++
++    // Split a full lifecycle across write boundaries to exercise the persistent
++    // parser and prove delivery remains synchronous with the completing write.
++    const first = "\x1B]133;A\x1B\\\x1B]133;B\x1B\\\x1B]133;C";
++    vt_write(t, first.ptr, first.len);
++    try testing.expectEqual(@as(usize, 2), S.count);
++    const second = "\x1B\\\x1B]133;D;12;aid=test\x07";
++    vt_write(t, second.ptr, second.len);
++    try testing.expectEqual(@as(usize, 4), S.count);
++
++    try testing.expectEqual(t, S.last_terminal);
++    try testing.expectEqual(@as(?*anyopaque, @ptrCast(&sentinel)), S.last_userdata);
++    try testing.expectEqual(SemanticPromptPhase.prompt, S.events[0].phase);
++    try testing.expectEqual(SemanticPromptPhase.input, S.events[1].phase);
++    try testing.expectEqual(SemanticPromptPhase.executed, S.events[2].phase);
++    try testing.expectEqual(SemanticPromptPhase.finished, S.events[3].phase);
++    for (S.events[0..4]) |event| {
++        try testing.expectEqual(@sizeOf(SemanticPromptEvent), event.size);
++    }
++    try testing.expect(!S.events[0].has_exit_status);
++    try testing.expect(!S.events[1].has_exit_status);
++    try testing.expect(!S.events[2].has_exit_status);
++    try testing.expect(S.events[3].has_exit_status);
++    try testing.expectEqual(@as(i32, 12), S.events[3].exit_status);
++
++    // Alternate prompt/input spellings normalize to the same phases, while L
++    // is only a terminal-state operation and intentionally emits no event.
++    const aliases = "\x1B]133;L\x1B\\\x1B]133;N\x1B\\\x1B]133;I\x1B\\";
++    vt_write(t, aliases.ptr, aliases.len);
++    try testing.expectEqual(@as(usize, 6), S.count);
++    try testing.expectEqual(SemanticPromptPhase.prompt, S.events[4].phase);
++    try testing.expectEqual(SemanticPromptPhase.input, S.events[5].phase);
++
++    try testing.expectEqual(Result.success, set(t, .semantic_prompt, null));
++    const ignored = "\x1B]133;D;0\x1B\\";
++    vt_write(t, ignored.ptr, ignored.len);
++    try testing.expectEqual(@as(usize, 6), S.count);
++}
++
+ test "set pwd_changed callback" {
+     var t: Terminal = null;
+     try testing.expectEqual(Result.success, new(
+diff --git a/src/terminal/stream_terminal.zig b/src/terminal/stream_terminal.zig
+index 7586711..13bdf86 100644
+--- a/src/terminal/stream_terminal.zig
++++ b/src/terminal/stream_terminal.zig
+@@ -112,6 +112,11 @@ pub const Handler = struct {
+         /// Called when the running program reports progress via OSC 9;4.
+         progress_report: ?*const fn (*Handler, osc.Command.ProgressReport) void,
+
++        /// Called after an OSC 133 semantic prompt command has been applied to
++        /// terminal state. The command borrows parser-owned option bytes and is
++        /// only valid for the duration of the call.
++        semantic_prompt: ?*const fn (*Handler, osc.Command.SemanticPrompt) void,
++
+         /// Called when the running program writes to a clipboard. The write
+         /// has a normalized destination and one or more decoded MIME
+         /// representations. All request, MIME, and data memory is borrowed
+@@ -143,6 +148,7 @@ pub const Handler = struct {
+             .device_attributes = null,
+             .enquiry = null,
+             .progress_report = null,
++            .semantic_prompt = null,
+             .size = null,
+             .title_changed = null,
+             .pwd_changed = null,
+@@ -306,7 +312,10 @@ pub const Handler = struct {
+             .full_reset => self.terminal.fullReset(),
+             .start_hyperlink => try self.terminal.screens.active.startHyperlink(value.uri, value.id),
+             .end_hyperlink => self.terminal.screens.active.endHyperlink(),
+-            .semantic_prompt => try self.terminal.semanticPrompt(value),
++            .semantic_prompt => {
++                try self.terminal.semanticPrompt(value);
++                if (self.effects.semantic_prompt) |effect| effect(self, value);
++            },
+             .mouse_shape => self.terminal.mouse_shape = value,
+             .color_operation => self.colorOperation(
+                 &value.requests,
+diff --git a/src/terminal/sys.zig b/src/terminal/sys.zig
+index f0c64da..eec4e51 100644
+--- a/src/terminal/sys.zig
++++ b/src/terminal/sys.zig
+@@ -10,15 +10,11 @@
+ //! implementations.
+ const std = @import("std");
+ const Allocator = std.mem.Allocator;
+-const build_options = @import("terminal_options");
+
+-/// Decode PNG data into RGBA pixels. If null, PNG decoding is unsupported
+-/// and the exact semantics are up to callers. For example, the Kitty Graphics
+-/// Protocol will work but cannot accept PNG images.
+-pub var decode_png: ?DecodePngFn = png: {
+-    if (build_options.artifact == .lib) break :png null;
+-    break :png &decodePngWuffs;
+-};
++/// Decode PNG data into RGBA pixels. Ghostty's bundled Wuffs implementation is
++/// the default for every artifact, including libghostty-vt. Embedders may still
++/// replace it (or explicitly disable PNG support) through the system interface.
++pub var decode_png: ?DecodePngFn = &decodePngWuffs;
+
+ pub const DecodeError = Allocator.Error || error{InvalidData};
+ pub const DecodePngFn = *const fn (Allocator, []const u8) DecodeError!Image;
+@@ -52,3 +48,14 @@ fn decodePngWuffs(
+         .data = result.data,
+     };
+ }
++
++test "built-in Wuffs PNG decoder" {
++    const testing = std.testing;
++    const data = @embedFile("kitty/testdata/image-png-none-50x76-2147483647-raw.data");
++    const result = try decodePngWuffs(testing.allocator, data);
++    defer testing.allocator.free(result.data);
++
++    try testing.expectEqual(@as(u32, 50), result.width);
++    try testing.expectEqual(@as(u32, 76), result.height);
++    try testing.expectEqual(@as(usize, 50 * 76 * 4), result.data.len);
++}

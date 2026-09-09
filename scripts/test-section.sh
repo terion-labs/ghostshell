@@ -24,43 +24,43 @@ if [[ -n "${restore_mode}" && "${restore_mode}" != "--no-restore" ]]; then
 fi
 
 core_projects=(
-    "tests/GhostShell.Application.Tests/GhostShell.Application.Tests.csproj"
-    "tests/GhostShell.Architecture.Tests/GhostShell.Architecture.Tests.csproj"
-    "tests/GhostShell.Core.Tests/GhostShell.Core.Tests.csproj"
-    "tests/GhostShell.Protocol.Tests/GhostShell.Protocol.Tests.csproj"
+    "tests/Asura.Application.Tests/Asura.Application.Tests.csproj"
+    "tests/Asura.Architecture.Tests/Asura.Architecture.Tests.csproj"
+    "tests/Asura.Core.Tests/Asura.Core.Tests.csproj"
+    "tests/Asura.Protocol.Tests/Asura.Protocol.Tests.csproj"
 )
 agent_projects=(
-    "tests/GhostShell.Agent.Providers.Tests/GhostShell.Agent.Providers.Tests.csproj"
-    "tests/GhostShell.Agent.Runtime.Tests/GhostShell.Agent.Runtime.Tests.csproj"
-    "tests/GhostShell.Agent.Tests/GhostShell.Agent.Tests.csproj"
-    "tests/GhostShell.Mcp.Tests/GhostShell.Mcp.Tests.csproj"
-    "tests/GhostShell.Mcp.Server.Tests/GhostShell.Mcp.Server.Tests.csproj"
+    "tests/Asura.Agent.Providers.Tests/Asura.Agent.Providers.Tests.csproj"
+    "tests/Asura.Agent.Runtime.Tests/Asura.Agent.Runtime.Tests.csproj"
+    "tests/Asura.Agent.Tests/Asura.Agent.Tests.csproj"
+    "tests/Asura.Mcp.Tests/Asura.Mcp.Tests.csproj"
+    "tests/Asura.Mcp.Server.Tests/Asura.Mcp.Server.Tests.csproj"
 )
 app_projects=(
-    "tests/GhostShell.App.Tests/GhostShell.App.Tests.csproj"
+    "tests/Asura.App.Tests/Asura.App.Tests.csproj"
 )
 services_projects=(
-    "tests/GhostShell.Docker.Tests/GhostShell.Docker.Tests.csproj"
-    "tests/GhostShell.Files.Tests/GhostShell.Files.Tests.csproj"
-    "tests/GhostShell.Git.Tests/GhostShell.Git.Tests.csproj"
-    "tests/GhostShell.Infrastructure.Tests/GhostShell.Infrastructure.Tests.csproj"
-    "tests/GhostShell.Monitoring.Tests/GhostShell.Monitoring.Tests.csproj"
-    "tests/GhostShell.Previews.Tests/GhostShell.Previews.Tests.csproj"
-    "tests/GhostShell.SshNet.Tests/GhostShell.SshNet.Tests.csproj"
-    "tests/GhostShell.Updates.Tests/GhostShell.Updates.Tests.csproj"
+    "tests/Asura.Docker.Tests/Asura.Docker.Tests.csproj"
+    "tests/Asura.Files.Tests/Asura.Files.Tests.csproj"
+    "tests/Asura.Git.Tests/Asura.Git.Tests.csproj"
+    "tests/Asura.Infrastructure.Tests/Asura.Infrastructure.Tests.csproj"
+    "tests/Asura.Monitoring.Tests/Asura.Monitoring.Tests.csproj"
+    "tests/Asura.Previews.Tests/Asura.Previews.Tests.csproj"
+    "tests/Asura.SshNet.Tests/Asura.SshNet.Tests.csproj"
+    "tests/Asura.Updates.Tests/Asura.Updates.Tests.csproj"
 )
 data_browser_projects=(
-    "tests/GhostShell.AccessibilityAcceptance.Tests/GhostShell.AccessibilityAcceptance.Tests.csproj"
-    "tests/GhostShell.Browser.Tests/GhostShell.Browser.Tests.csproj"
-    "tests/GhostShell.Databases.IntegrationTests/GhostShell.Databases.IntegrationTests.csproj"
-    "tests/GhostShell.Databases.Tests/GhostShell.Databases.Tests.csproj"
-    "tests/GhostShell.Redis.Tests/GhostShell.Redis.Tests.csproj"
-    "tests/GhostShell.SoakAcceptance.Tests/GhostShell.SoakAcceptance.Tests.csproj"
+    "tests/Asura.AccessibilityAcceptance.Tests/Asura.AccessibilityAcceptance.Tests.csproj"
+    "tests/Asura.Browser.Tests/Asura.Browser.Tests.csproj"
+    "tests/Asura.Databases.IntegrationTests/Asura.Databases.IntegrationTests.csproj"
+    "tests/Asura.Databases.Tests/Asura.Databases.Tests.csproj"
+    "tests/Asura.Redis.Tests/Asura.Redis.Tests.csproj"
+    "tests/Asura.SoakAcceptance.Tests/Asura.SoakAcceptance.Tests.csproj"
 )
 terminal_host_projects=(
-    "tests/GhostShell.SessionHost.Tests/GhostShell.SessionHost.Tests.csproj"
-    "tests/GhostShell.Terminal.Tests/GhostShell.Terminal.Tests.csproj"
-    "tests/GhostShell.TerminalAcceptance.Tests/GhostShell.TerminalAcceptance.Tests.csproj"
+    "tests/Asura.SessionHost.Tests/Asura.SessionHost.Tests.csproj"
+    "tests/Asura.Terminal.Tests/Asura.Terminal.Tests.csproj"
+    "tests/Asura.TerminalAcceptance.Tests/Asura.TerminalAcceptance.Tests.csproj"
 )
 all_projects=(
     "${core_projects[@]}"
@@ -109,8 +109,8 @@ case "${section}" in
         ;;
 esac
 
-if [[ -n "${GHOSTSHELL_DOTNET:-}" ]]; then
-    dotnet="${GHOSTSHELL_DOTNET}"
+if [[ -n "${ASURA_DOTNET:-}" ]]; then
+    dotnet="${ASURA_DOTNET}"
 elif [[ -x "${repository_dir}/.dotnet/dotnet" ]]; then
     dotnet="${repository_dir}/.dotnet/dotnet"
 elif command -v dotnet >/dev/null 2>&1; then
@@ -133,7 +133,7 @@ fi
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
-export GHOSTSHELL_DOTNET="${dotnet}"
+export ASURA_DOTNET="${dotnet}"
 export NUGET_PACKAGES="${NUGET_PACKAGES:-${repository_dir}/.nuget/packages}"
 
 cd "${repository_dir}"
@@ -148,7 +148,7 @@ for project in "${projects[@]}"; do
     if [[ "${restore_mode}" == "--no-restore" ]]; then
         test_command+=(--no-restore)
     fi
-    if [[ "${GHOSTSHELL_COLLECT_COVERAGE:-0}" == "1" ]] &&
+    if [[ "${ASURA_COLLECT_COVERAGE:-0}" == "1" ]] &&
        grep -q '<PackageReference Include="coverlet.collector"' "${project}"; then
         test_command+=(--collect "XPlat Code Coverage")
     fi

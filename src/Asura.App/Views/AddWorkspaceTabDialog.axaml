@@ -1,0 +1,124 @@
+<Window
+    x:Class="Asura.App.Views.AddWorkspaceTabDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:Asura.App.Views"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    Title="Add a tab"
+    Width="560"
+    Height="620"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <!--
+    One list, because a tab holds one thing. The three flyouts this replaces
+    made the choice look like three unrelated actions, and put "create one just
+    for this workspace" beside them as though a tab were the thing being
+    created — it is the screen that belongs to the workspace, not the tab.
+  -->
+  <controls:DialogShell
+      Chrome="Utility"
+      Title="Add a tab"
+      Subtitle="A tab opens one connection or one screen."
+      Scrolls="False"
+      Padding="{controls:Inset None}">
+    <!-- The list scrolls itself and the options band bleeds to the window's
+         edges, so the body keeps no inset of its own. -->
+    <Grid RowDefinitions="Auto,*,Auto">
+      <TextBox
+          x:Name="SearchInput"
+          Margin="{controls:Inset Horizontal=Lg, Top=Md}"
+          PlaceholderText="Search connections and screens…"
+          TextChanged="OnSearchChanged"
+          AutomationProperties.Name="Search connections and screens">
+        <TextBox.InnerLeftContent>
+          <icons:SymbolIcon Margin="{controls:Inset Left=Sm}" Symbol="Search" FontSize="13" Foreground="{DynamicResource ShellMutedBrush}" />
+        </TextBox.InnerLeftContent>
+      </TextBox>
+
+      <ListBox
+          x:Name="SourceList"
+          Grid.Row="1"
+          Margin="{controls:Inset Horizontal=Md, Vertical=Md}"
+          Classes="NeutralSelection"
+          Background="Transparent"
+          BorderThickness="0"
+          SelectionChanged="OnSourceSelectionChanged"
+          DoubleTapped="OnSourceDoubleTapped"
+          AutomationProperties.Name="Connections and screens">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="views:TabSourceRow">
+            <controls:ListItem
+                Margin="{controls:Inset Vertical=Xs}"
+                Title="{Binding Title}"
+                Detail="{Binding Detail}">
+              <controls:ListItem.Leading>
+                <controls:IdentityTile
+                    TileSize="Small"
+                    Tint="{DynamicResource ShellSurfaceHoverBrush}"
+                    Foreground="{DynamicResource ShellTextBrush}"
+                    Symbol="{Binding Symbol}" />
+              </controls:ListItem.Leading>
+              <controls:ListItem.Trailing>
+                <controls:StatusChip Shape="Rounded" Tone="Default" Content="{Binding Kind}" />
+              </controls:ListItem.Trailing>
+            </controls:ListItem>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- What the chosen thing needs beyond being chosen: a name and a layout
+           for a new screen, or the link-or-copy decision for a saved one. Only
+           one of the two is ever relevant, so only one is ever shown. -->
+      <Border Grid.Row="2" Background="{DynamicResource ShellSurfaceRaisedBrush}" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,1,0,0">
+        <StackPanel Margin="{controls:Inset Horizontal=Lg, Vertical=Md}" Spacing="{DynamicResource ShellSpaceSm}">
+          <StackPanel x:Name="NewScreenOptions" Spacing="{DynamicResource ShellSpaceSm}" IsVisible="False">
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize11}" Text="This screen belongs to the workspace. Nothing else opens it, and editing it changes nothing else." TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+              <TextBox
+                  x:Name="NewScreenName"
+                  PlaceholderText="Screen name"
+                  AutomationProperties.Name="Name for the new screen" />
+              <ComboBox
+                  x:Name="NewScreenLayout"
+                  Grid.Column="1"
+                  HorizontalAlignment="Stretch"
+                  AutomationProperties.Name="Layout for the new screen">
+                <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:WorkspaceLayoutOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+          </StackPanel>
+
+          <StackPanel x:Name="SavedScreenOptions" Spacing="{DynamicResource ShellSpaceSm}" IsVisible="False">
+            <CheckBox
+                x:Name="CopyScreen"
+                Content="Copy it into this workspace"
+                AutomationProperties.Name="Copy the screen into this workspace instead of linking it" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize11}" Text="Linked, the screen stays shared and later edits to it apply here. Copied, this workspace keeps its own." TextWrapping="Wrap" />
+          </StackPanel>
+
+          <TextBlock
+              x:Name="EmptySelectionHint"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize11}"
+              Text="Choose what the tab opens." />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <controls:DialogShell.Footer>
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" />
+        <Button
+            x:Name="ConfirmButton"
+            MinWidth="110"
+            Classes="PrimaryButton"
+            Click="OnConfirmClick"
+            Content="Add tab"
+            IsEnabled="False" />
+      </StackPanel>
+    </controls:DialogShell.Footer>
+  </controls:DialogShell>
+</Window>

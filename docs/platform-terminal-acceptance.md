@@ -13,7 +13,7 @@ They do not assume an XTerm.NET fallback or a platform-native terminal child vie
 
 The named-host runner deliberately does not automate those observations. It fingerprints the exact
 package, identifies libghostty-vt from the native-terminal component manifest and Porta.Pty from
-`GhostShell.deps.json`, starts that package, presents one bounded checklist, sanitizes operator
+`Asura.deps.json`, starts that package, presents one bounded checklist, sanitizes operator
 notes, and rejects incomplete evidence. There is no `SKIP` state:
 
 - `PASS` means the named operator performed and observed the check on that host and package;
@@ -36,7 +36,7 @@ pwsh ./scripts/platform-terminal-acceptance.ps1 `
   -SystemName win11-lab-01 `
   -Observer operator-01 `
   -BuildLabel rc-20260723-1 `
-  -PackagePath C:\release\ghostshell-win-x64
+  -PackagePath C:\release\asura-win-x64
 ```
 
 ```powershell
@@ -45,18 +45,18 @@ pwsh ./scripts/platform-terminal-acceptance.ps1 `
   -SystemName ubuntu-x11-lab-01 `
   -Observer operator-02 `
   -BuildLabel rc-20260723-1 `
-  -PackagePath /opt/candidates/ghostshell-linux-x64
+  -PackagePath /opt/candidates/asura-linux-x64
 ```
 
 The PowerShell file is a thin launcher for the tested .NET runner. It can also be invoked directly:
 
 ```bash
-./.dotnet/dotnet run --project tools/GhostShell.TerminalAcceptance -- run \
+./.dotnet/dotnet run --project tools/Asura.TerminalAcceptance -- run \
   --platform LinuxX11 \
   --system-name ubuntu-x11-lab-01 \
   --observer operator-02 \
   --build-label rc-20260723-1 \
-  --package /opt/candidates/ghostshell-linux-x64
+  --package /opt/candidates/asura-linux-x64
 ```
 
 Linux acceptance requires a real X11 session with `XDG_SESSION_TYPE=x11` and `DISPLAY`. The runner
@@ -125,7 +125,7 @@ paths.
 Validate an archived run before citing it:
 
 ```bash
-./.dotnet/dotnet run --project tools/GhostShell.TerminalAcceptance -- \
+./.dotnet/dotnet run --project tools/Asura.TerminalAcceptance -- \
   validate artifacts/platform-acceptance/<run-directory>
 ```
 

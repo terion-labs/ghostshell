@@ -1,0 +1,44 @@
+<Window
+    x:Class="Asura.App.Views.ShortcutRecorderDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    Title="Record shortcut"
+    Width="560"
+    Height="330"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <controls:DialogShell
+      x:Name="Shell"
+      Title="Record shortcut"
+      Subtitle="Conflicts are checked before the profile can be saved.">
+    <controls:DialogShell.Footer>
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" IsCancel="True" />
+        <Button x:Name="UseShortcutButton" Classes="PrimaryButton" Click="OnUseShortcutClick" Content="Use shortcut" IsEnabled="False" />
+      </StackPanel>
+    </controls:DialogShell.Footer>
+
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <controls:SurfaceCard Tone="Notice"
+          x:Name="CaptureArea"
+          MinHeight="118"
+          Padding="{controls:Inset Lg}"
+          Focusable="True"
+          KeyDown="OnCaptureKeyDown"
+          AutomationProperties.Name="Shortcut capture area">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+          <TextBlock Classes="Muted" Text="Focus here, then press the shortcut" TextAlignment="Center" />
+          <TextBlock x:Name="RecordedShortcutText" FontSize="{DynamicResource ShellFontSize17}" FontWeight="SemiBold" Text="No keys recorded" TextAlignment="Center" TextWrapping="Wrap" />
+          <TextBlock x:Name="StrokeCountText" Classes="Eyebrow" Text="0 of 8 strokes" />
+        </StackPanel>
+      </controls:SurfaceCard>
+      <TextBlock x:Name="RecorderStatusText" Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Tab moves to the controls; Escape cancels." TextAlignment="Center" />
+      <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button x:Name="RemoveLastButton" Classes="SecondaryButton" Click="OnRemoveLastClick" Content="Remove last" IsEnabled="False" />
+        <Button x:Name="ClearButton" Classes="TextButton" Click="OnClearClick" Content="Clear" IsEnabled="False" />
+      </StackPanel>
+    </StackPanel>
+  </controls:DialogShell>
+</Window>

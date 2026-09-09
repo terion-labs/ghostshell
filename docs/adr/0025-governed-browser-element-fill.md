@@ -28,7 +28,7 @@ narrow control allowlist.
 
 ## Decision
 
-GhostSHELL adds `browser.fill` as the ninth governed browser tool. It is a
+Asura adds `browser.fill` as the ninth governed browser tool. It is a
 mutation under `BrowserInteraction`, alongside `browser.click`, and its default
 permission is `Ask`. The broker escalates `BrowserInteraction=Auto` to an exact
 `HumanApproval`; the session-host domain gate independently accepts
@@ -117,7 +117,7 @@ event and final-address check before success.
 Cancellation retains authority until immediately before native dispatch. Once
 dispatch is committed, the setter or event handler may already have produced an
 effect. Late cancellation therefore cannot overwrite a confirmed receipt or be
-reported as a safely retryable cancellation. GhostSHELL never redispatches fill
+reported as a safely retryable cancellation. Asura never redispatches fill
 during state reconciliation or completion-audit recovery.
 
 A native setter, event-construction, or dispatch failure, mismatched value,

@@ -1,4 +1,4 @@
-# GhostSHELL technical design and agentic development goal
+# Asura technical design and agentic development goal
 
 **Status:** Proposed source of truth  
 **Audience:** maintainers and implementation agents  
@@ -11,7 +11,7 @@ The terms **MUST**, **SHOULD**, and **MAY** express required behavior, recommend
 
 ## 1. Development goal
 
-Build GhostSHELL as a cross-platform terminal workspace in which a user can:
+Build Asura as a cross-platform terminal workspace in which a user can:
 
 1. define local and remote connections;
 2. arrange terminal, browser, file, statistics, and process panels into reusable screens;
@@ -28,7 +28,7 @@ The initial desktop product MUST be useful without the agent. Agent features enh
 
 - **Lifecycle follows the host mode.** In the desktop application, closing a panel, tab, or window closes its associated sessions using normal graceful-close and running-process confirmation behavior. In future server mode, closing or reloading a client page only detaches that client; server-owned sessions continue running until an explicit close, timeout, or retention policy applies.
 - **One model, several front ends.** Desktop, Quick Terminal, future web/WASM, CLI, ACP, and A2A clients use the same application operations and runtime protocol.
-- **Native where it matters.** Window materials, system appearance, key conventions, and accessibility adapt to the host OS. GhostSHELL retains a recognizable semantic design system while its embedded browser uses one pinned Chromium runtime across desktop platforms.
+- **Native where it matters.** Window materials, system appearance, key conventions, and accessibility adapt to the host OS. Asura retains a recognizable semantic design system while its embedded browser uses one pinned Chromium runtime across desktop platforms.
 - **Automation is visible and governed.** Every agent action is scoped, cancellable, audited, and passed through the same capability broker.
 - **Definitions are not runtime state.** A saved screen is a reusable definition; opening one creates runtime panel and session instances.
 - **Capabilities are explicit.** Platform-specific features expose support flags and useful fallbacks instead of silently doing less.
@@ -38,7 +38,7 @@ The initial desktop product MUST be useful without the agent. Agent features enh
 
 The visual baseline is a compact desktop application with restrained translucency, rounded cards, JetBrains Mono for terminal and data surfaces, a workspace rail, tab strip, status bar, multi-panel canvas, command blocks, and a floating or docked agent surface.
 
-Pixel identity is not a requirement. Implementations SHOULD preserve hierarchy, density, balance, clear focus, and subtle elevation while allowing platform profiles to alter metrics, materials, control shapes, typography, and window chrome. The application accent defaults to the host operating system's current accent. If the host does not expose one, GhostSHELL uses its bronze fallback accent.
+Pixel identity is not a requirement. Implementations SHOULD preserve hierarchy, density, balance, clear focus, and subtle elevation while allowing platform profiles to alter metrics, materials, control shapes, typography, and window chrome. The application accent defaults to the host operating system's current accent. If the host does not expose one, Asura uses its bronze fallback accent.
 
 ## 3. Product language and domain model
 
@@ -104,7 +104,7 @@ flowchart TB
     Desktop --> ClientAPI["Application facade / session-host client"]
     Web --> Gateway["Authenticated WebSocket gateway"]
     CLI --> ClientAPI
-    Gateway --> Protocol["Versioned GhostSHELL protocol"]
+    Gateway --> Protocol["Versioned Asura protocol"]
     ClientAPI --> Protocol
 
     Protocol --> Host["Session Host"]
@@ -124,21 +124,21 @@ For desktop v1, the session host runs in the desktop process behind an in-memory
 
 | Project/boundary | Responsibility | Allowed dependencies |
 |---|---|---|
-| `GhostShell.Core` | Domain IDs, definitions, value objects, invariants, state machines | .NET BCL only |
-| `GhostShell.Application` | Use cases, command/query handlers, authorization requests, ports | Core |
-| `GhostShell.Protocol` | Versioned serializable DTOs, envelopes, event and stream contracts | Core primitives only |
-| `GhostShell.SessionHost` | Runtime registry, lifecycle, attachments, input arbitration, projections | Application, Protocol, engine ports |
-| `GhostShell.Terminal` | Terminal/PTY contracts, libghostty shim adapter, screen/input models | Core/Application contracts; native shim privately |
-| `GhostShell.Browser` | CEF off-screen adapter, process runtime, and logical browser session | Application contracts; vendored Exclr8CEF privately |
-| `GhostShell.Files` | Provider-neutral file locations, capabilities, transfers, previews, and protocol adapters | Core/Application contracts; protocol SDKs privately |
-| `GhostShell.Agent` | Provider-neutral conversation loop, strict stream reduction, bounded context, and inert tool proposals | Core primitives only |
-| `GhostShell.Agent.Providers` | Anthropic and OpenAI-compatible model discovery/streaming plus zero-tool chat composition | Agent, Application, Core; BCL HTTP/SSE privately |
-| `GhostShell.Mcp` | Governed native MCP client, bounded stdio and Streamable HTTP transports, discovery, manifest freezing, and result projection | Application, Core; official MCP SDK privately |
-| `GhostShell.Infrastructure` | SQLite, migrations, vaults, SSH/Docker/WSL, logging | Application ports and vendor libraries |
-| `GhostShell.Platform.*` | macOS, Windows, and Linux appearance, window, hotkey, notification, and native-view bridges | Platform SDKs and Application ports |
-| `GhostShell.App` | Avalonia composition, routes, view models, controls, accessibility | Application client contracts; never vendor engines directly |
+| `Asura.Core` | Domain IDs, definitions, value objects, invariants, state machines | .NET BCL only |
+| `Asura.Application` | Use cases, command/query handlers, authorization requests, ports | Core |
+| `Asura.Protocol` | Versioned serializable DTOs, envelopes, event and stream contracts | Core primitives only |
+| `Asura.SessionHost` | Runtime registry, lifecycle, attachments, input arbitration, projections | Application, Protocol, engine ports |
+| `Asura.Terminal` | Terminal/PTY contracts, libghostty shim adapter, screen/input models | Core/Application contracts; native shim privately |
+| `Asura.Browser` | CEF off-screen adapter, process runtime, and logical browser session | Application contracts; vendored Exclr8CEF privately |
+| `Asura.Files` | Provider-neutral file locations, capabilities, transfers, previews, and protocol adapters | Core/Application contracts; protocol SDKs privately |
+| `Asura.Agent` | Provider-neutral conversation loop, strict stream reduction, bounded context, and inert tool proposals | Core primitives only |
+| `Asura.Agent.Providers` | Anthropic and OpenAI-compatible model discovery/streaming plus zero-tool chat composition | Agent, Application, Core; BCL HTTP/SSE privately |
+| `Asura.Mcp` | Governed native MCP client, bounded stdio and Streamable HTTP transports, discovery, manifest freezing, and result projection | Application, Core; official MCP SDK privately |
+| `Asura.Infrastructure` | SQLite, migrations, vaults, SSH/Docker/WSL, logging | Application ports and vendor libraries |
+| `Asura.Platform.*` | macOS, Windows, and Linux appearance, window, hotkey, notification, and native-view bridges | Platform SDKs and Application ports |
+| `Asura.App` | Avalonia composition, routes, view models, controls, accessibility | Application client contracts; never vendor engines directly |
 
-Physical projects SHOULD be introduced when the boundary first carries real behavior. Do not create empty projects merely to match the table. Dependency tests MUST prevent UI/platform/vendor references from entering `GhostShell.Core`.
+Physical projects SHOULD be introduced when the boundary first carries real behavior. Do not create empty projects merely to match the table. Dependency tests MUST prevent UI/platform/vendor references from entering `Asura.Core`.
 
 ### 4.2 Application operations
 
@@ -284,7 +284,7 @@ stale images when the Ghostty storage generation advances. Unicode virtual
 placements use Ghostty's own placement iterator and render-placement
 calculation rather than a copied managed algorithm.
 
-GhostSHELL pins Ghostty commit
+Asura pins Ghostty commit
 `08f039fbb3dea9c6b1cdb5ff4550666598122346`. The native build applies the
 small reviewed overlay under `native/ghostty-vt/patches` to a disposable
 checkout. It adds a size-checked OSC 133 lifecycle callback, exposes canonical
@@ -292,7 +292,7 @@ virtual Kitty geometry and full-scrollback `ScreenSearch`, enables Ghostty's
 existing Wuffs PNG decoder for libghostty-vt, and publishes an exact extension
 ABI checked together with the complete managed import set. The C ABI and
 safe-handle lifetime remain private to
-`GhostShell.Terminal`. Updating the pin requires clean patch application,
+`Asura.Terminal`. Updating the pin requires clean patch application,
 upstream Zig/lib-vt tests, C header validation, managed interop tests, and
 desktop conformance.
 
@@ -356,7 +356,7 @@ host-side adapters may additionally emit the bounded, expiring
 signals are untrusted and never authorize an action; applications without the
 protocol remain fully operable through ordinary terminal primitives with their
 interactive state reported as unknown. Local PTY launches advertise protocol
-support through `GHOSTSHELL_INTERACTIVE_STATE_PROTOCOL`; the variable is a
+support through `ASURA_INTERACTIVE_STATE_PROTOCOL`; the variable is a
 capability advertisement, not a semantic-state claim.
 
 ### 6.4 Command blocks are deferred enhancement
@@ -543,10 +543,10 @@ governed semantic and input operations; presenting the panel adopts the same
 attachment. Closing the panel closes the browser. A renderer-process crash
 replaces the frozen view and reports loss of volatile page state.
 
-**Implemented CEF foundation (2026-08-08).** `GhostShell.Application` exposes
+**Implemented CEF foundation (2026-08-08).** `Asura.Application` exposes
 closed browser address, state, result, renderer, logical-session, and typed host
-operation contracts. `GhostShell.Browser` privately wraps the source-pinned
-Exclr8CEF CPU-OSR control; `GhostShell.App` and the session host contain no CEF
+operation contracts. `Asura.Browser` privately wraps the source-pinned
+Exclr8CEF CPU-OSR control; `Asura.App` and the session host contain no CEF
 types. The desktop composition root owns the concrete adapter and the desktop
 entry point owns CEF subprocess/init/pump/shutdown ordering. Browser panels are reachable from saved screens, the
 launcher, the panel chooser, and command search; their chrome supports address,
@@ -686,7 +686,7 @@ Click additionally requires `browser.navigation_origin_guard`. The product
 supplies an unrestricted boundary, so cross-site link activation is allowed;
 navigation still waits for its terminal event and final-address projection.
 Cancellation wins only before native dispatch is committed. Later cancellation
-cannot overwrite a confirmed activation, and GhostSHELL never retries a click.
+cannot overwrite a confirmed activation, and Asura never retries a click.
 A malformed result, deadline, native exception, missing terminal event, or
 other uncertain post-dispatch state returns non-retryable
 `browser_interaction_outcome_unknown`. Native-surface ambiguity attempts
@@ -774,7 +774,7 @@ Required common operations:
 
 `BrowserProductEvent` is the closed product event family for dialogs, file
 pickers, permission denials, certificate rejection, downloads, find results,
-and renderer-process recovery. CEF types remain private to `GhostShell.Browser`.
+and renderer-process recovery. CEF types remain private to `Asura.Browser`.
 The panel presents these states separately and exposes find-in-page through the
 engine-neutral `IBrowserFindController`. Renderer replacement starts a blank
 renderer and reports the prior address only as an optional reload target; the
@@ -801,7 +801,7 @@ proof, device-loss recovery, and acceptance evidence.
 The `earendil-works/pi` project is a strong reference for session lifecycle, event streaming, model/provider abstraction, steering/follow-ups, compaction, custom tools, and embeddable agent sessions. It is not a permission system.
 
 [ADR 0017](adr/0017-native-dotnet-agent-runtime.md) selects an in-process native
-.NET loop for desktop v1. GhostSHELL owns provider streaming, target resolution,
+.NET loop for desktop v1. Asura owns provider streaming, target resolution,
 policies, approvals, secrets, audit, and panel tools without packaging a
 Node.js/Pi child process. The loop cannot execute tools directly, and the domain
 does not depend on provider SDK payloads, TypeScript types, or Pi session files.
@@ -811,7 +811,7 @@ native provider boundary for Anthropic and OpenAI-compatible model discovery
 and streaming. Provider credentials are resolved per request from an exact
 profile-scoped vault reference. Exact-origin, bounded HTTP/SSE parsing prevents
 provider I/O from becoming an implicit application execution path. The
-desktop now composes those adapters through `GhostShell.Agent.Runtime`; the
+desktop now composes those adapters through `Asura.Agent.Runtime`; the
 adapters still receive neither a session host nor an executor, and their tool
 calls remain inert until the governed runtime creates a closed typed request
 for the broker/session-host path.
@@ -959,7 +959,7 @@ interactive input-region signal is an exact half-open zero-based
 untrusted metadata; its absence remains unknown and never triggers heuristic
 approval handling.
 
-These dotted names are GhostSHELL domain, routing, and audit identities. They
+These dotted names are Asura domain, routing, and audit identities. They
 never cross an AI-provider wire contract directly. The agent kernel preserves
 already compatible names and derives a deterministic opaque provider alias for
 every other name, constrained to 64 ASCII letters, digits, underscores, or
@@ -1125,7 +1125,7 @@ environment, open files, cumulative CPU time, terminal content, and native
 errors. Audit retains only the ordinary exact bindings, stable outcome,
 duration, and returned count; it never retains process metadata or recaptures
 during completion reconciliation. This tool always observes the machine
-running GhostSHELL, not the remote machine behind a terminal. These decisions
+running Asura, not the remote machine behind a terminal. These decisions
 are recorded in
 [ADR 0034](adr/0034-governed-local-process-monitor-observation.md).
 
@@ -1218,10 +1218,10 @@ HTTP, persists the Core insecure-transport acknowledgement only for that
 loopback exception, and exposes bounded header-name-to-`SecretRef` rows without
 loading or displaying header values.
 
-`GhostShell.Mcp` pins `ModelContextProtocol.Core` `1.3.0` and the stable
+`Asura.Mcp` pins `ModelContextProtocol.Core` `1.3.0` and the stable
 `2025-11-25` protocol. The official SDK owns initialization, JSON-RPC
 correlation, lifecycle, pagination DTOs, and typed `tools/call` messages.
-GhostSHELL supplies the SDK with a private bounded stdio `IClientTransport` because
+Asura supplies the SDK with a private bounded stdio `IClientTransport` because
 the SDK's built-in stdio transport inherits the ambient environment and does
 not provide the required pre-deserialization message/shape and retained-stderr
 bounds. That transport launches directly without a shell, clears the
@@ -1306,7 +1306,7 @@ resources, prompts, sampling, elicitation, tasks, durable session resume,
 per-scope server selection, persistent health polling, and retained viewing of
 server-authored log text. HTTP/SSE diagnostic lifecycle expansion remains
 deferred. The SDK may reconnect an interrupted SSE response up to two times
-inside one live Streamable HTTP session, but GhostSHELL never retries a
+inside one live Streamable HTTP session, but Asura never retries a
 dispatched tool call and does not persist a remote session for later resume.
 MCP profile add/edit/disable/delete/import/reload rotates a host-owned catalog
 generation, immediately marks affected runs closing, and disposes their
@@ -1332,7 +1332,7 @@ Accent resolution is:
 
 1. an explicit user-selected custom accent, when configured;
 2. otherwise the current host OS accent, updated live;
-3. otherwise the GhostSHELL bronze fallback.
+3. otherwise the Asura bronze fallback.
 
 The Pencil compositions' orange accent is illustrative and does not override this rule.
 
@@ -1340,13 +1340,13 @@ The Pencil compositions' orange accent is illustrative and does not override thi
 
 | Profile | Behavior |
 |---|---|
-| **Automatic (default)** | Detect host OS/desktop/version, follow supported appearance settings including accent, and choose the matching profile. Use GhostSHELL bronze only when the host provides no accent. |
+| **Automatic (default)** | Detect host OS/desktop/version, follow supported appearance settings including accent, and choose the matching profile. Use Asura bronze only when the host provides no accent. |
 | **macOS Classic** | Pre-Liquid Glass/AppKit-like chrome, restrained vibrancy, compact controls, current design's closest match. |
 | **macOS Liquid Glass** | Use supported AppKit Liquid Glass materials for navigation/control layers; fall back to Classic on older macOS. |
 | **Windows 11** | Fluent metrics and focus, system accent, Mica/Acrylic where available, high-contrast-safe fallbacks. |
 | **GNOME** | Adwaita-like proportions and hierarchy, system scheme/accent/high contrast/font where available. |
-| **KDE** | Breeze-like proportions and system palette/accent while preserving GhostSHELL information hierarchy. |
-| **GhostSHELL / Custom** | Portable branded presets and explicit user token overrides. |
+| **KDE** | Breeze-like proportions and system palette/accent while preserving Asura information hierarchy. |
+| **Asura / Custom** | Portable branded presets and explicit user token overrides. |
 
 Automatic mode follows color scheme, accent, high contrast, reduced motion, reduced transparency/material availability, text scale, and appropriate platform hotkey conventions when the OS exposes them. Host accent following is enabled by default. On Linux, use Avalonia platform settings plus the XDG Settings portal and desktop identification; direct GNOME/KDE APIs are optional adapters, not core dependencies.
 
@@ -1396,7 +1396,7 @@ The detected host preset is the default. Presets cover copy/paste, selection, wo
 
 The default application keymap is tmux-like with `Ctrl+B` as prefix. The initial mapping SHOULD include:
 
-| Sequence | GhostSHELL command |
+| Sequence | Asura command |
 |---|---|
 | `Ctrl+B`, `c` | New tab |
 | `Ctrl+B`, `%` | Split left/right |
@@ -1411,7 +1411,7 @@ The default application keymap is tmux-like with `Ctrl+B` as prefix. The initial
 | `Ctrl+B`, `[` | Enter terminal copy/scroll mode |
 | `Ctrl+B`, `Ctrl+B` | Send literal prefix to the active terminal |
 
-Terminology remains GhostSHELL's (`tab`, `panel`), even where tmux calls them windows and panes. Prefix timeout, repeatability, and whether a failed sequence is discarded or passed through are configurable; the safe default discards it and shows a brief key hint.
+Terminology remains Asura's (`tab`, `panel`), even where tmux calls them windows and panes. Prefix timeout, repeatability, and whether a failed sequence is discarded or passed through are configurable; the safe default discards it and shows a brief key hint.
 
 Global Quick Terminal registration is a separate OS service. Conflicts and missing accessibility/desktop permissions get a diagnostic state and guided recovery.
 
@@ -1442,7 +1442,7 @@ All persistent credentials and secret values MUST be stored through an `ISecretV
 | GNOME and compatible Linux desktops | Secret Service / system keyring |
 | KDE | KWallet through a supported Secret Service bridge or dedicated adapter |
 
-SQLite and portable settings store only opaque `SecretRef` values, labels, type, scope, and non-sensitive timestamps. They never store a secret value, reversible local encryption key, or plaintext credential. If no usable OS credential store is available, GhostSHELL fails closed for persistent storage and MAY offer an explicitly memory-only credential for the current process.
+SQLite and portable settings store only opaque `SecretRef` values, labels, type, scope, and non-sensitive timestamps. They never store a secret value, reversible local encryption key, or plaintext credential. If no usable OS credential store is available, Asura fails closed for persistent storage and MAY offer an explicitly memory-only credential for the current process.
 
 The Secrets settings screen supports create, relabel, replace/rotate, scope review, last-used metadata, dependency inspection, and delete confirmation. It never reveals values by default. Export, backup, diagnostics, logs, telemetry, agent prompts, tool results, and crash reports exclude secret values.
 
@@ -1706,7 +1706,7 @@ snapshot/click/fill/check implementation, visible Workspace targeting with
 internal exact/`OpenTab`/selected contracts, bounded initial provider steering, governed native
 stdio and Streamable HTTP MCP, and the embedded Chromium foundation are in
 progress (2026-08-13).**
-`GhostShell.Agent` now provides the native, in-process, provider-neutral kernel
+`Asura.Agent` now provides the native, in-process, provider-neutral kernel
 selected by ADR 0017. It accepts a closed typed provider stream, reduces it
 under event/text/tool/JSON limits, preserves provider stop reasons, commits only
 complete stable user/assistant turns, pins system context during CAS-based
@@ -1778,10 +1778,10 @@ states, but queued text remains separate from those dedicated decisions. Queue
 operations change no authority and use no broker, SessionHost action, or audit
 path. See [ADR 0046](adr/0046-ordered-step-boundary-agent-steering.md).
 
-The kernel references only `GhostShell.Core` and the BCL. Compiled-boundary
+The kernel references only `Asura.Core` and the BCL. Compiled-boundary
 tests reject process, network, filesystem, native-loading, terminal,
 session-host, secret-vault, JavaScript, and Node.js authority. A separate
-`GhostShell.Agent.Providers` project implements bounded Anthropic Messages,
+`Asura.Agent.Providers` project implements bounded Anthropic Messages,
 OpenAI Responses, OpenAI-compatible Chat Completions, and model-aware GitHub
 Copilot routing. The provider catalog also describes Google and Bedrock, whose
 native runtime paths remain visibly unavailable and fail closed. OpenAI browser
@@ -1791,7 +1791,7 @@ references. OpenAI browser login binds the public Codex client to its registered
 literal `http://localhost:1455/auth/callback` redirect. GitHub device login uses
 GitHub's public first-party Copilot client by default and permits a deployment's
 registered public client ID to override it through
-`GHOSTSHELL_GITHUB_OAUTH_CLIENT_ID`; neither client ID is secret. Durable
+`ASURA_GITHUB_OAUTH_CLIENT_ID`; neither client ID is secret. Durable
 GitHub device tokens remain vault-only refresh material and are exchanged for
 short-lived Copilot API tokens before provider requests. Durable AI-provider
 settings support endpoint, model, display
@@ -1900,7 +1900,7 @@ content, and publishes through a same-directory atomic replacement. The policy
 inspector compares the selected run's baseline, run, and last effective policy
 without restoring historical Full access as live authority.
 
-`GhostShell.Agent.Runtime` now connects those boundaries without adding provider
+`Asura.Agent.Runtime` now connects those boundaries without adding provider
 or terminal/browser/file-provider/process authority to the agent kernel. The
 visible product scope is `Workspace`. Before every provider continuation the
 runtime re-resolves its current supported live Terminal, Browser, File Viewer,
@@ -2199,7 +2199,7 @@ and redirect chain, and the surface rejects stale generations. A rejected or
 cancelled attempt retains a draining guard: new human and governed navigation
 fails retryably with `navigation_in_progress`, delayed starts remain cancelled,
 and terminal events cannot update state until the matching generation drains.
-GhostSHELL then unsubscribes and quarantines the entire old native adapter,
+Asura then unsubscribes and quarantines the entire old native adapter,
 installs a fresh `about:blank` adapter, advances document revision, and clears
 native history before accepting another navigation. Later callbacks cannot
 therefore be relabeled against a newer operation; sender identity is rechecked
@@ -2416,11 +2416,11 @@ health/session resume, or
 unattended MCP decision routing.
 The macOS package includes the exact osx-arm64 .NET runtime license/notices, the
 pinned Ghostty root license, deterministic managed dependency evidence, the
-published GhostSHELL assembly closure, and exactly one terminal native library:
+published Asura assembly closure, and exactly one terminal native library:
 `libghostty-vt.dylib`. It also carries a native-terminal component catalog,
 build receipt, patch-set identity, and a manifest for the staged Bash, Fish,
 and Zsh integration resources. Packaging verifies those files against the
-pinned source/toolchain receipt and rejects either retired GhostSHELL AppKit
+pinned source/toolchain receipt and rejects either retired Asura AppKit
 shim or full-libghostty renderer payload.
 
 The isolated native build uses a disposable pinned Ghostty checkout, applies
@@ -2488,8 +2488,8 @@ Server mode additionally requires TLS, authentication, session revocation, CSRF/
 
 Build adapters over the same protocol and application operations:
 
-- a `ghostshell` CLI for listing targets, starting work, streaming status, approving, cancelling, and attaching;
-- an ACP adapter that maps external agent requests to GhostSHELL targets and events;
+- a `asura` CLI for listing targets, starting work, streaming status, approving, cancelling, and attaching;
+- an ACP adapter that maps external agent requests to Asura targets and events;
 - an A2A adapter with authentication, task lifecycle, artifacts, status, and cancellation.
 
 Headless does not bypass policy because no approval window is present. Policies must declare how `Ask` behaves: connect to an approval client, fail closed, or wait until a bounded deadline. A headless invocation may use `YOLO` only through an explicit configuration or command-line choice tied to a bounded target scope; it is never inferred from the absence of an approval UI. Headless runs produce the same audit, artifacts, and recovery state as desktop runs.
@@ -2582,14 +2582,14 @@ Defaults until an ADR changes them:
 - The session host starts in-process behind a protocol-shaped client.
 - Desktop close actions close their owned sessions; only server-client disconnect/reload uses persistent detach semantics.
 - SQLite stores definitions/snapshots/audit metadata; the OS vault stores secrets.
-- The application follows the OS accent by default and uses GhostSHELL bronze only when no OS accent is available.
+- The application follows the OS accent by default and uses Asura bronze only when no OS accent is available.
 - Desktop browser panels use the source-pinned CEF off-screen runtime.
 - File providers use maintained protocol libraries or platform APIs behind the common capability contract.
 - Pi is a behavior reference only; the desktop agent runtime is native .NET.
 - `YOLO` is supported but is never an inferred or default agent permission.
 - tmux-like application bindings and the host-native terminal preset are defaults.
 - Command blocks, server/WASM, and ACP/A2A are deferred, while their boundaries are preserved.
-- cmux is a behavior/reference source only; do not copy GPL-covered implementation into a differently licensed GhostSHELL codebase without an explicit licensing decision.
+- cmux is a behavior/reference source only; do not copy GPL-covered implementation into a differently licensed Asura codebase without an explicit licensing decision.
 
 ## 21. Upstream references
 

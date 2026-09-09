@@ -1,0 +1,20 @@
+<UserControl
+    x:Class="Asura.DesignQa.WebsiteMonitoringRuntimePanelView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Asura.DesignQa"
+    xmlns:runtimePanels="using:Asura.App.Views.RuntimePanels"
+    x:DataType="local:WebsiteMonitoringRuntimePanelViewModel"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch">
+  <Grid>
+    <Border IsVisible="{Binding ShowsStatistics}">
+      <runtimePanels:StatisticsRuntimePanelView
+          DataContext="{Binding StatisticsPreview}" />
+    </Border>
+    <Border IsVisible="{Binding ShowsProcessMonitor}">
+      <runtimePanels:ProcessMonitorRuntimePanelView
+          DataContext="{Binding ProcessMonitorPreview}" />
+    </Border>
+  </Grid>
+</UserControl>

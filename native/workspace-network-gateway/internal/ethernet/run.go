@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 // Run owns nic until return. nic must be a connected datagram socket; the

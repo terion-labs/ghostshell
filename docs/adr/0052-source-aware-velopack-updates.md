@@ -5,7 +5,7 @@
 
 ## Context
 
-GhostSHELL currently publishes a signed and notarized macOS archive through
+Asura currently publishes a signed and notarized macOS archive through
 GitHub Releases. Future builds may come from the Apple App Store, Microsoft
 Store, or a Linux package manager. An app-store build must not replace itself
 with a GitHub package, and a direct build should not send users to a browser for
@@ -28,7 +28,7 @@ Direct GitHub builds use Velopack 1.2.0. The channel combines runtime and track,
 for example `osx-arm64-stable`, so a feed cannot cross operating systems or CPU
 architectures. Update checks run only after the user selects "Check for
 updates". A second action downloads the selected package. "Restart to update"
-arms Velopack's external updater and then requests GhostSHELL's normal shutdown,
+arms Velopack's external updater and then requests Asura's normal shutdown,
 which preserves the existing session, recovery, database, and browser cleanup.
 Automatic startup checks and automatic startup application are disabled.
 
@@ -69,7 +69,7 @@ inside the direct updater. GitHub checks remain user initiated. Downloads use
 Velopack's package checksum and cache, and installation waits for a graceful app
 exit.
 
-Velopack can request elevation for a bundle in `/Applications`. GhostSHELL does
+Velopack can request elevation for a bundle in `/Applications`. Asura does
 not offer download or apply actions for those system-wide installs, avoiding a
 privileged local-package replacement path; they require the signed installer.
 App Store builds remain sandboxed and platform managed; Velopack does not support

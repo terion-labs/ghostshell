@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 SCRIPT = Path(__file__).resolve().with_name("build-macos-connection-engines.sh")
-CODE = ("ghostshell-openvpn-engine", "tailscale", "tailscaled", "openconnect", "libopenconnect.5.dylib")
+CODE = ("asura-openvpn-engine", "tailscale", "tailscaled", "openconnect", "libopenconnect.5.dylib")
 LEGAL = (
     "GO-LICENSE.txt", "OPENCONNECT-LGPL-2.1.txt", "OPENCONNECT-SOURCE-AND-RELINKING.md",
     "OPENSSL-LICENSE.txt", "OPENVPN-MPL-2.0.txt", "OPENVPN-LICENSE.md", "ASIO-LICENSE.txt",
@@ -21,7 +21,7 @@ LEGAL = (
 
 class DevelopmentEngineTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="ghostshell-engine-tests-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="asura-engine-tests-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         scripts = self.root / "scripts"
@@ -101,9 +101,9 @@ class DevelopmentEngineTests(unittest.TestCase):
 
     def test_msbuild_passes_effective_target_through_runner_to_staging(self):
         root = SCRIPT.parent.parent
-        project = ET.parse(root / "src/GhostShell.Desktop/GhostShell.Desktop.csproj")
+        project = ET.parse(root / "src/Asura.Desktop/Asura.Desktop.csproj")
         arguments = project.find(".//Target[@Name='ConfigureMacOsDevelopmentRun']/PropertyGroup/RunArguments").text
-        self.assertIn('--runtime-identifier "$(GhostShellEffectiveRuntimeIdentifier)"', arguments)
+        self.assertIn('--runtime-identifier "$(AsuraEffectiveRuntimeIdentifier)"', arguments)
         runner = (SCRIPT.parent / "run-macos-development.sh").read_text()
         self.assertIn('runtime_identifier="$2"', runner)
         self.assertIn('--stage "${macos_directory}" --rid "${runtime_identifier}"', runner)

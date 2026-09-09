@@ -7,10 +7,10 @@ dependencies_dir="${repository_dir}/.deps"
 source_dir="${dependencies_dir}/ghostty-vt"
 artifact_parent_dir="${repository_dir}/native/artifacts"
 component_catalog="${repository_dir}/licenses/terminal-font-assets.json"
-dotnet="${GHOSTSHELL_DOTNET:-${repository_dir}/.dotnet/dotnet}"
+dotnet="${ASURA_DOTNET:-${repository_dir}/.dotnet/dotnet}"
 dotnet_artifacts_arguments=()
-if [[ -n "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT:-}" ]]; then
-    dotnet_artifacts_arguments=(--artifacts-path "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT}")
+if [[ -n "${ASURA_BUILD_ARTIFACTS_ROOT:-}" ]]; then
+    dotnet_artifacts_arguments=(--artifacts-path "${ASURA_BUILD_ARTIFACTS_ROOT}")
 fi
 
 ghostty_repository="https://github.com/ghostty-org/ghostty.git"
@@ -209,7 +209,7 @@ if [[ ! -f "${license_source}" || -L "${license_source}" \
     exit 1
 fi
 
-artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.ghostshell-native-artifacts.XXXXXX")"
+artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.asura-native-artifacts.XXXXXX")"
 artifact_dir="${artifact_staging_parent}/common"
 font_dir="${artifact_dir}/fonts/JetBrainsMono"
 cleanup() {
@@ -238,7 +238,7 @@ receipt="${artifact_dir}/terminal-font-assets-build-receipt.json"
     printf '%s\n' \
         '{' \
         '  "schemaVersion": 1,' \
-        '  "format": "ghostshell-terminal-font-assets-build-receipt-v1",' \
+        '  "format": "asura-terminal-font-assets-build-receipt-v1",' \
         '  "generator": "scripts/build-terminal-font-assets.sh",' \
         "  \"catalogSha256\": \"${catalog_sha}\"," \
         '  "source": {' \
@@ -287,7 +287,7 @@ receipt="${artifact_dir}/terminal-font-assets-build-receipt.json"
 } > "${receipt}"
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \

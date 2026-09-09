@@ -26,7 +26,7 @@ func newMemoryTUN(mtu int) *memoryTUN {
 }
 func (t *memoryTUN) File() *os.File           { return nil }
 func (t *memoryTUN) MTU() (int, error)        { return t.mtu, nil }
-func (t *memoryTUN) Name() (string, error)    { return "ghostshell-memory", nil }
+func (t *memoryTUN) Name() (string, error)    { return "asura-memory", nil }
 func (t *memoryTUN) Events() <-chan tun.Event { return t.events }
 func (t *memoryTUN) BatchSize() int           { return 1 }
 func (t *memoryTUN) Close() error {

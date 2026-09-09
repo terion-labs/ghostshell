@@ -29,7 +29,7 @@ would not detect that change.
 
 ## Decision
 
-GhostSHELL adds three closed, read-only agent tools:
+Asura adds three closed, read-only agent tools:
 
 - `files.list`;
 - `files.stat`;

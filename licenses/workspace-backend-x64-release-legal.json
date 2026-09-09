@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "format": "ghostshell-workspace-backend-release-legal-v1",
+  "format": "asura-workspace-backend-release-legal-v1",
   "platform": "linux-x64",
   "runtime": "10.0.11",
   "legalClearance": false,
   "releaseBlockers": [
-    "ghostshell-90w9: Review the Linux backend runtime and managed closure; existing macOS approval does not cover this distribution."
+    "asura-90w9: Review the Linux backend runtime and managed closure; existing macOS approval does not cover this distribution."
   ],
   "review": {
     "status": "pending-project-owner-decision",
@@ -14,8 +14,8 @@
     "reviewedAtUtc": null
   },
   "reviewedInputs": {
-    "src/GhostShell.Backend/packages.linux-x64.lock.json": "759b45c7685d0b3a0ce098eee3bd53cf39664d8825626084fbebf84390964b0e",
-    "licenses/workspace-backend-x64-managed-components.json": "1fe956403ec4ec72f242c6fdf9237993b0a4726f3ef69b4c1b5450772312a47e",
-    "licenses/SMBLIBRARY-SOURCE.json": "808c6618b7bf37420456bc4d310ce70601016053e326d5d01a0088027f2571b4"
+    "src/Asura.Backend/packages.linux-x64.lock.json": "b8ebfcf4d5b1d7c74cbe01dddb618942225ded381b472223e27e7cf84b3a6bae",
+    "licenses/workspace-backend-x64-managed-components.json": "3e1c500b4679efbf55c7701538ebc9ae261ee3dc65633a93522eac6a1a138a79",
+    "licenses/SMBLIBRARY-SOURCE.json": "f483a52588c84283c277bc7dd078cd1b88cb755292131260ad273de4e8daa7e3"
   }
 }

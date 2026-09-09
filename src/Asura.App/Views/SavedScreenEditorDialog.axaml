@@ -1,0 +1,381 @@
+<Window
+    x:Class="Asura.App.Views.SavedScreenEditorDialog"
+    x:DataType="vm:SavedScreenEditorViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    Title="{Binding EditorTitle}"
+    Width="900"
+    Height="820"
+    MinWidth="720"
+    MinHeight="640"
+    CanResize="True"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <controls:DialogShell
+      Chrome="Editor"
+      ShowsClose="True"
+      CloseRequested="OnCancelClick"
+      Title="{Binding EditorTitle}"
+      Subtitle="Choose a layout, then configure the panel assigned to each slot."
+      FooterHint="Saving changes only future opens; running instances stay independent.">
+    <controls:DialogShell.HeaderContent>
+      <controls:StatusChip
+          Content="{Binding DirtyStatus}"
+          AutomationProperties.LiveSetting="Polite"
+          AutomationProperties.Name="{Binding DirtyStatus, StringFormat=Saved screen editor status: {0}}" />
+    </controls:DialogShell.HeaderContent>
+
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}" IsEnabled="{Binding CanEdit}">
+      <TextBlock Classes="SectionHeading" Text="Details" />
+      <controls:SurfaceCard>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <controls:LabeledField Label="Name">
+            <TextBox Text="{Binding Name}" AutomationProperties.Name="Saved screen name" />
+          </controls:LabeledField>
+          <controls:LabeledField Grid.Column="1" Label="Description">
+            <TextBox Text="{Binding Description}" AutomationProperties.Name="Saved screen description" />
+          </controls:LabeledField>
+        </Grid>
+      </controls:SurfaceCard>
+
+      <TextBlock Classes="SectionHeading" Text="Layout" />
+      <controls:SurfaceCard>
+        <Grid ColumnDefinitions="*,260" ColumnSpacing="{DynamicResource ShellSpaceLg}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+            <controls:LabeledField Label="Saved layout">
+              <ComboBox
+                  ItemsSource="{Binding LayoutOptions}"
+                  SelectedItem="{Binding SelectedLayout}"
+                  AutomationProperties.Name="Layout for saved screen">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:LabeledField>
+            <TextBlock Classes="Eyebrow" Text="Live structure" />
+            <TextBlock Classes="Muted" Text="{Binding LayoutSummary}" TextWrapping="Wrap" />
+          </StackPanel>
+          <Border
+              Grid.Column="1"
+              Height="108"
+              Background="{DynamicResource ShellBackgroundBrush}"
+              BorderBrush="{DynamicResource ShellBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="{DynamicResource ShellControlCornerRadius}"
+              ClipToBounds="True">
+            <ItemsControl Margin="{controls:Inset Xs}" ItemsSource="{Binding PreviewPanels}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <controls:ScreenLayoutPreviewPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border
+                      Margin="{controls:Inset Xs}"
+                      Classes="ScreenPreviewPanel"
+                      Classes.primary="{Binding IsPrimary}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+        </Grid>
+      </controls:SurfaceCard>
+
+      <controls:Callout
+          Tone="Warning"
+          Glyph="Warning"
+          IsVisible="{Binding HasMissingLayout}"
+          Text="The previous layout is unavailable. Choose an available layout before saving."
+          AutomationProperties.LiveSetting="Assertive"
+          AutomationProperties.Name="The saved screen layout is unavailable" />
+
+      <controls:Callout
+          Tone="Warning"
+          Glyph="Warning"
+          IsVisible="{Binding HasMissingDefinitions}"
+          Text="{Binding MissingDefinitionCount, StringFormat={}{0} panel definition(s) must be repaired before saving.}"
+          AutomationProperties.LiveSetting="Assertive"
+          AutomationProperties.Name="{Binding MissingDefinitionCount, StringFormat={}{0} saved screen panel definition(s) require repair}" />
+
+      <controls:Callout
+          Tone="Warning"
+          Glyph="Warning"
+          IsVisible="{Binding HasInvalidBrowserAddresses}"
+          Text="{Binding InvalidBrowserAddressCount, StringFormat={}{0} browser startup address(es) must be a complete HTTP or HTTPS URL.}"
+          AutomationProperties.LiveSetting="Assertive"
+          AutomationProperties.Name="One or more browser panel startup addresses are invalid" />
+
+      <TextBlock Classes="SectionHeading" Text="Agent policy" />
+      <controls:SurfaceCard>
+        <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+          <controls:ToggleField
+              x:Name="ScreenAgentPolicyOverrideSwitch"
+              Label="Override the agent policy for this saved screen"
+              IsChecked="{Binding AgentPolicy.IsEnabled, Mode=TwoWay}"
+              AutomationProperties.Name="Override the AI agent policy for this saved screen" />
+          <TextBlock
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize9}"
+              Text="Off, Ask, and Auto are saved with this screen. Full access can be changed from the agent."
+              TextWrapping="Wrap" />
+          <Grid
+              ColumnDefinitions="*,*"
+              ColumnSpacing="{DynamicResource ShellSpaceSm}"
+              IsVisible="{Binding AgentPolicy.IsEnabled}">
+            <controls:LabeledField Label="Provider profile">
+              <ComboBox
+                  ItemsSource="{Binding AgentPolicy.ProviderOptions}"
+                  SelectedItem="{Binding AgentPolicy.SelectedProvider, Mode=TwoWay}"
+                  AutomationProperties.Name="Saved screen agent policy provider profile">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:LabeledField>
+            <controls:LabeledField Grid.Column="1" Label="Policy model">
+              <TextBox
+                  MaxLength="256"
+                  Text="{Binding AgentPolicy.Model, Mode=TwoWay}"
+                  AutomationProperties.Name="Saved screen agent policy model" />
+            </controls:LabeledField>
+          </Grid>
+          <controls:LabeledField
+              Label="System prompt override"
+              IsVisible="{Binding AgentPolicy.IsEnabled}">
+            <TextBox
+                MinHeight="120"
+                MaxLength="8000"
+                AcceptsReturn="True"
+                TextWrapping="Wrap"
+                VerticalContentAlignment="Top"
+                Text="{Binding AgentPolicy.SystemPrompt, Mode=TwoWay}"
+                PlaceholderText="Leave empty to inherit workspace or global instructions."
+                AutomationProperties.Name="Saved screen agent system prompt" />
+          </controls:LabeledField>
+          <Grid
+              ColumnDefinitions="*,*"
+              ColumnSpacing="{DynamicResource ShellSpaceSm}"
+              IsVisible="{Binding AgentPolicy.IsEnabled}">
+            <controls:LabeledField Label="Compaction model">
+              <ComboBox
+                  ItemsSource="{Binding AgentPolicy.AgentTaskModelOptions}"
+                  SelectedItem="{Binding AgentPolicy.SelectedCompactionModel, Mode=TwoWay}"
+                  AutomationProperties.Name="Saved screen conversation compaction model">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </controls:LabeledField>
+            <controls:LabeledField Grid.Column="1" Label="Title model">
+              <Grid MinHeight="{DynamicResource ShellControlMinHeight}">
+                <ComboBox
+                    IsVisible="{Binding AgentPolicy.HasMultipleTitleModelOptions}"
+                    ItemsSource="{Binding AgentPolicy.TitleModelOptions}"
+                    SelectedItem="{Binding AgentPolicy.SelectedTitleModel, Mode=TwoWay}"
+                    AutomationProperties.Name="Saved screen conversation title model">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    IsVisible="{Binding AgentPolicy.HasSingleTitleModelOption}"
+                    Text="{Binding AgentPolicy.SelectedTitleModel.DisplayName}" />
+              </Grid>
+            </controls:LabeledField>
+          </Grid>
+          <controls:LiveRegionTextBlock
+              Foreground="{DynamicResource ShellDangerBrush}"
+              FontSize="{DynamicResource ShellFontSize9}"
+              IsVisible="{Binding !AgentPolicy.IsValid}"
+              Text="Choose an available, enabled provider profile and enter a valid model identifier."
+              TextWrapping="Wrap"
+              AutomationProperties.LiveSetting="Assertive"
+              AutomationProperties.Name="The saved screen agent policy provider profile or model is invalid" />
+          <ItemsControl
+              ItemsSource="{Binding AgentPolicy.Capabilities}"
+              IsVisible="{Binding AgentPolicy.IsEnabled}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Grid Margin="{controls:Inset Vertical=Sm}" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                  <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                    <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding Description}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Border Grid.Column="1" VerticalAlignment="Center" Classes="Segmented">
+                    <Grid ColumnDefinitions="60,60,60">
+                      <ToggleButton Classes="Segment" IsChecked="{Binding IsOff, Mode=TwoWay}" Content="Off" />
+                      <ToggleButton Grid.Column="1" Classes="Segment" IsChecked="{Binding IsAsk, Mode=TwoWay}" Content="Ask" />
+                      <ToggleButton Grid.Column="2" Classes="Segment" IsChecked="{Binding IsAuto, Mode=TwoWay}" Content="Auto" />
+                    </Grid>
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </controls:SurfaceCard>
+
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="SectionHeading" Text="PANELS &amp; CONNECTIONS" />
+        <TextBlock Grid.Column="1" Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Panels.Count, StringFormat={}{0} slots}" />
+      </Grid>
+
+      <ItemsControl ItemsSource="{Binding Panels}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <controls:SurfaceCard Margin="{controls:Inset Bottom=Sm}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+                <Grid ColumnDefinitions="Auto,*,220" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <Border Width="28" Height="28" Classes="IconTile">
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{DynamicResource ShellFontSize10}" Text="#" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="{DynamicResource ShellSpaceXs}">
+                    <TextBlock Classes="Eyebrow" Text="{Binding PanelLabel}" />
+                    <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="Panel identity follows this layout slot." />
+                  </StackPanel>
+                  <controls:LabeledField Grid.Column="2" Label="Panel type">
+                    <ComboBox
+                        ItemsSource="{Binding KindOptions}"
+                        SelectedItem="{Binding SelectedKind}"
+                        AutomationProperties.Name="{Binding PanelLabel, StringFormat=Panel type for {0}}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <controls:LabeledField Label="Panel title">
+                    <TextBox Text="{Binding Title}" AutomationProperties.Name="{Binding PanelLabel, StringFormat=Title for {0}}" />
+                  </controls:LabeledField>
+                  <controls:LabeledField Grid.Column="1" Label="Connection" IsVisible="{Binding SupportsConnection}">
+                    <ComboBox ItemsSource="{Binding ApplicableConnectionOptions}" SelectedItem="{Binding SelectedConnection}" AutomationProperties.Name="{Binding PanelLabel, StringFormat=Connection for {0}}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                  <controls:LabeledField Grid.Column="1" Label="File provider" IsVisible="{Binding IsFileViewer}">
+                    <ComboBox ItemsSource="{Binding FileProviderOptions}" SelectedItem="{Binding SelectedFileProvider}" AutomationProperties.Name="{Binding PanelLabel, StringFormat=File provider for {0}}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                </Grid>
+
+                <controls:LabeledField Label="Startup location" IsVisible="{Binding SupportsLocation}">
+                  <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                    <TextBox
+                        Text="{Binding StartupLocation}"
+                        PlaceholderText="Working directory, URL, or provider path"
+                        AutomationProperties.Name="{Binding PanelLabel, StringFormat=Startup location for {0}}" />
+                    <controls:LiveRegionTextBlock
+                        Foreground="{DynamicResource ShellDangerBrush}"
+                        FontSize="{DynamicResource ShellFontSize9}"
+                        IsVisible="{Binding HasInvalidBrowserAddress}"
+                        Text="Enter a complete HTTP or HTTPS URL, or leave this empty for about:blank."
+                        TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Assertive" />
+                  </StackPanel>
+                </controls:LabeledField>
+                <Grid
+                    ColumnDefinitions="*,Auto"
+                    ColumnSpacing="{DynamicResource ShellSpaceMd}"
+                    IsVisible="{Binding IsTerminal}">
+                  <controls:LabeledField Label="Startup commands">
+                    <TextBox
+                        MinHeight="82"
+                        AcceptsReturn="True"
+                        Text="{Binding StartupCommands}"
+                        TextWrapping="NoWrap"
+                        PlaceholderText="One command per line"
+                        AutomationProperties.Name="{Binding PanelLabel, StringFormat=Startup commands for {0}}" />
+                  </controls:LabeledField>
+                  <controls:LabeledField
+                      Grid.Column="1"
+                      MinWidth="260"
+                      Label="On delivery failure"
+                      Hint="This governs delivery or acknowledgement failures while the terminal is live, not a shell command's exit status.">
+                    <ComboBox
+                        MinWidth="260"
+                        ItemsSource="{Binding DeliveryFailurePolicyOptions}"
+                        SelectedItem="{Binding SelectedDeliveryFailurePolicy, Mode=TwoWay}"
+                        AutomationProperties.Name="{Binding PanelLabel, StringFormat=Startup command delivery failure policy for {0}}"
+                        AutomationProperties.HelpText="Governs delivery or acknowledgement failures while the terminal is live, not a shell command's exit status.">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </controls:LabeledField>
+                </Grid>
+              </StackPanel>
+            </controls:SurfaceCard>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <controls:Callout
+          Tone="Danger"
+          Glyph="Warning"
+          IsVisible="{Binding #ValidationError.IsVisible}">
+        <controls:LiveRegionTextBlock
+            x:Name="ValidationError"
+            IsVisible="False"
+            TextWrapping="Wrap"
+            AutomationProperties.LiveSetting="Assertive"
+            AutomationProperties.Name="Saved screen validation error" />
+      </controls:Callout>
+
+      <controls:Callout
+          Tone="Danger"
+          Glyph="Warning"
+          IsVisible="{Binding HasPersistenceError}"
+          Title="{Binding PersistenceErrorLabel}"
+          Text="{Binding PersistenceError.Message}"
+          Footnote="Your draft is still open. Resolve the issue and retry."
+          AutomationProperties.LiveSetting="Assertive"
+          AutomationProperties.Name="{Binding PersistenceError.Message, StringFormat=Saved screen persistence error: {0}}" />
+    </StackPanel>
+
+    <controls:DialogShell.Footer>
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button
+            MinWidth="96"
+            Classes="SecondaryButton"
+            Click="OnDuplicateClick"
+            Content="Duplicate"
+            IsEnabled="{Binding CanSave}"
+            IsVisible="{Binding CanDuplicate}"
+            AutomationProperties.Name="Duplicate saved screen" />
+        <Button MinWidth="92" Click="OnCancelClick" Content="Cancel" IsCancel="True" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Cancel saved screen editing" />
+        <Button
+            MinWidth="120"
+            Classes="PrimaryButton"
+            Click="OnSaveClick"
+            Content="{Binding PrimaryActionLabel}"
+            IsDefault="True"
+            IsEnabled="{Binding CanSave}"
+            AutomationProperties.Name="{Binding PrimaryActionLabel}" />
+      </StackPanel>
+    </controls:DialogShell.Footer>
+  </controls:DialogShell>
+</Window>

@@ -3,8 +3,8 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
-entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/Chromium.entitlements"
-workspace_entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/WorkspaceRuntime.entitlements"
+entitlements="${repository_dir}/tools/Asura.Packaging/MacOS/Chromium.entitlements"
+workspace_entitlements="${repository_dir}/tools/Asura.Packaging/MacOS/WorkspaceRuntime.entitlements"
 app=""
 identity=""
 notary_profile=""
@@ -15,13 +15,13 @@ usage() {
     cat >&2 <<'EOF'
 Usage:
   ./scripts/sign-notarize-macos.sh \
-    --app <path/to/GhostShell.app> \
+    --app <path/to/Asura.app> \
     --identity <Developer ID Application identity> \
     [--notary-profile <notarytool keychain profile>] \
     [--evidence <outside-app/notarization.json>]
 
 Signs the already-assembled managed-runtime native code, CEF framework, five
-helper apps, and outer GhostShell bundle in nested-code order. If a notary
+helper apps, and outer Asura bundle in nested-code order. If a notary
 profile is provided, submits a temporary ZIP, staples the ticket, and validates
 it. Use identity '-' only for a locally trusted ad-hoc development build;
 ad-hoc builds cannot be notarized or distributed through a browser.
@@ -70,8 +70,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "macOS signing requires a macOS host." >&2
     exit 1
 fi
-if [[ ! -d "${app}" || "$(basename "${app}")" != "GhostShell.app" ]]; then
-    echo "--app must name an assembled GhostShell.app directory." >&2
+if [[ ! -d "${app}" || "$(basename "${app}")" != "Asura.app" ]]; then
+    echo "--app must name an assembled Asura.app directory." >&2
     exit 1
 fi
 if [[ ! -f "${entitlements}" ]]; then
@@ -94,7 +94,7 @@ if [[ -n "${evidence}" ]]; then
     evidence="$(cd -- "$(dirname -- "${evidence}")" && pwd -P)/$(basename -- "${evidence}")"
     app_canonical="$(cd -- "$(dirname -- "${app}")" && pwd -P)/$(basename -- "${app}")"
     if [[ "${evidence}" == "${app_canonical}"/* || -e "${evidence}" ]]; then
-        echo "Signing evidence must be a new file outside GhostShell.app." >&2
+        echo "Signing evidence must be a new file outside Asura.app." >&2
         exit 64
     fi
 fi
@@ -106,11 +106,11 @@ required_nested=(
     "${frameworks}/libexclr8cef.dylib"
     "${app}/Contents/MacOS/libexclr8cef.dylib"
     "${app}/Contents/MacOS/libghostty-vt.dylib"
-    "${frameworks}/GhostSHELL Helper.app"
-    "${frameworks}/GhostSHELL Helper (Alerts).app"
-    "${frameworks}/GhostSHELL Helper (GPU).app"
-    "${frameworks}/GhostSHELL Helper (Plugin).app"
-    "${frameworks}/GhostSHELL Helper (Renderer).app"
+    "${frameworks}/Asura Helper.app"
+    "${frameworks}/Asura Helper (Alerts).app"
+    "${frameworks}/Asura Helper (GPU).app"
+    "${frameworks}/Asura Helper (Plugin).app"
+    "${frameworks}/Asura Helper (Renderer).app"
 )
 for nested in "${required_nested[@]}"; do
     if [[ ! -e "${nested}" ]]; then
@@ -159,7 +159,7 @@ sign_plain "${cef_framework}"
 
 sign_plain "${frameworks}/libexclr8cef.dylib"
 while IFS= read -r -d '' runtime_file; do
-    if [[ "${runtime_file}" == "${app}/Contents/MacOS/GhostShell" ]]; then
+    if [[ "${runtime_file}" == "${app}/Contents/MacOS/Asura" ]]; then
         continue
     fi
 
@@ -174,11 +174,11 @@ while IFS= read -r -d '' runtime_file; do
 done < <(find "${app}/Contents/MacOS" -type f -print0)
 
 for helper in \
-    "${frameworks}/GhostSHELL Helper.app" \
-    "${frameworks}/GhostSHELL Helper (Alerts).app" \
-    "${frameworks}/GhostSHELL Helper (GPU).app" \
-    "${frameworks}/GhostSHELL Helper (Plugin).app" \
-    "${frameworks}/GhostSHELL Helper (Renderer).app"; do
+    "${frameworks}/Asura Helper.app" \
+    "${frameworks}/Asura Helper (Alerts).app" \
+    "${frameworks}/Asura Helper (GPU).app" \
+    "${frameworks}/Asura Helper (Plugin).app" \
+    "${frameworks}/Asura Helper (Renderer).app"; do
     sign_chromium_bundle "${helper}"
 done
 
@@ -189,8 +189,8 @@ if [[ -z "${notary_profile}" ]]; then
     exit 0
 fi
 
-notary_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-notary.XXXXXX")"
-notary_zip="${notary_directory}/GhostShell.zip"
+notary_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-notary.XXXXXX")"
+notary_zip="${notary_directory}/Asura.zip"
 evidence_staging=""
 cleanup() {
     rm -rf -- "${notary_directory}"

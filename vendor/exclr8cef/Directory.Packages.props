@@ -1,6 +1,6 @@
 <Project>
   <!-- Exclr8CEF is independently versioned vendored source. Keep its package
-       graph isolated from GhostSHELL Central Package Management. -->
+       graph isolated from Asura Central Package Management. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>

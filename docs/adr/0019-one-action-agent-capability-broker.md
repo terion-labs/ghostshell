@@ -25,7 +25,7 @@ payloads, terminal engines, or generic string-based execution.
 
 ## Decision
 
-GhostSHELL uses a closed application-owned tool catalog. Trusted descriptors
+Asura uses a closed application-owned tool catalog. Trusted descriptors
 assign each tool a capability and risk; model/provider risk labels are ignored.
 The catalog covers exact workspace/tab/panel inspection, bounded terminal
 screen/wait/input/interrupt/resize operations, browser state/navigation and

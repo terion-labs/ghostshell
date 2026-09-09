@@ -25,7 +25,7 @@ that must remain trusted.
 
 ## Decision
 
-GhostSHELL adds two closed governed file mutations:
+Asura adds two closed governed file mutations:
 
 - `files.mkdir`;
 - `files.delete`.
@@ -146,7 +146,7 @@ existing bounded reconciliation path.
 For S3 and S3-compatible profiles, the production store represents the
 one-object delete as a one-key `DeleteObjectsAsync` POST. `MustExist` is carried
 as the supported per-object `ETag` value `*`; embedded per-object failures
-remain failures. GhostSHELL deliberately does not use the superficially
+remain failures. Asura deliberately does not use the superficially
 simpler single-object DELETE because `SocketsHttpHandler` may transparently
 replay that idempotent verb after a response-less disconnect. The conditional
 multi-object form is documented by

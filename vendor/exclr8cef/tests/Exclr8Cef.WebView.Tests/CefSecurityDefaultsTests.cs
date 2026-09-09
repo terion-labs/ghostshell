@@ -15,21 +15,21 @@ public sealed class CefSecurityDefaultsTests
     {
         string[] normalized = Cef.NormalizeCommandLineArguments(
             ["--type=renderer", "--field-trial-handle=123"],
-            ["/opt/ghostshell/GhostSHELL", "host-argument"]);
+            ["/opt/asura/Asura", "host-argument"]);
 
         Assert.Equal(
-            ["/opt/ghostshell/GhostSHELL", "--type=renderer", "--field-trial-handle=123"],
+            ["/opt/asura/Asura", "--type=renderer", "--field-trial-handle=123"],
             normalized);
     }
 
     [Fact]
     public void FullProcessArgumentsAreNotPrefixedTwice()
     {
-        string[] fullArguments = ["/opt/ghostshell/GhostSHELL", "--type=renderer"];
+        string[] fullArguments = ["/opt/asura/Asura", "--type=renderer"];
 
         string[] normalized = Cef.NormalizeCommandLineArguments(
             fullArguments,
-            ["/opt/ghostshell/GhostSHELL"]);
+            ["/opt/asura/Asura"]);
 
         Assert.Equal(fullArguments, normalized);
         Assert.NotSame(fullArguments, normalized);
@@ -38,7 +38,7 @@ public sealed class CefSecurityDefaultsTests
     [Fact]
     public void NullArgumentsUseFullProcessArguments()
     {
-        string[] processArguments = ["/opt/ghostshell/GhostSHELL", "--host-option"];
+        string[] processArguments = ["/opt/asura/Asura", "--host-option"];
 
         string[] normalized = Cef.NormalizeCommandLineArguments(null, processArguments);
 
@@ -51,9 +51,9 @@ public sealed class CefSecurityDefaultsTests
     {
         string[] normalized = Cef.NormalizeCommandLineArguments(
             [],
-            ["/opt/ghostshell/GhostSHELL"]);
+            ["/opt/asura/Asura"]);
 
-        Assert.Equal(["/opt/ghostshell/GhostSHELL"], normalized);
+        Assert.Equal(["/opt/asura/Asura"], normalized);
     }
 
     [Fact]

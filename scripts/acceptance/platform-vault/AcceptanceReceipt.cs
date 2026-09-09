@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace GhostShell.PlatformVaultAcceptance;
+namespace Asura.PlatformVaultAcceptance;
 
 internal sealed record AcceptanceReceipt(
     int SchemaVersion,
@@ -505,7 +505,7 @@ internal static partial class ReceiptValidator
             && normalized[2] == '/';
         return (isUnixAbsolute || isWindowsAbsolute)
             && normalized.EndsWith(
-                $"/ghostshell-platform-vault-{runId}/metadata",
+                $"/asura-platform-vault-{runId}/metadata",
                 StringComparison.Ordinal)
             && !normalized.Split('/').Contains("..", StringComparer.Ordinal);
     }
@@ -513,7 +513,7 @@ internal static partial class ReceiptValidator
     [GeneratedRegex(@"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$", RegexOptions.CultureInvariant)]
     private static partial Regex DotnetVersionPattern();
 
-    [GeneratedRegex(@"^app\.ghostshell\.integration-tests\.[0-9a-f]{32}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^app\.asura\.integration-tests\.[0-9a-f]{32}$", RegexOptions.CultureInvariant)]
     private static partial Regex ServiceNamePattern();
 
     [GeneratedRegex("^[0-9a-f]{32}$", RegexOptions.CultureInvariant)]

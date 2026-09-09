@@ -2485,7 +2485,7 @@ extern "C" int excef_create_request_context(const char* cache_path) {
         const auto canonical_path = std::filesystem::weakly_canonical(cache_path, error);
         if (error || !canonical_path.is_absolute()) return 0;
         CefString(&settings.cache_path).FromString(canonical_path.string());
-        // GhostSHELL supplies disk paths only for retained profiles. The global
+        // Asura supplies disk paths only for retained profiles. The global
         // context is in-memory, so its cookie setting does not retain sessions
         // in these independent request contexts. Private contexts stay transient.
         settings.persist_session_cookies = true;

@@ -1,6 +1,6 @@
-# GhostSHELL website
+# Asura website
 
-The marketing site for GhostSHELL, served from GitHub Pages.
+The marketing site for Asura, served from GitHub Pages.
 
 Nuxt with a static build target. No server; `pnpm generate` writes plain
 files to `.output/public`.
@@ -18,8 +18,9 @@ pnpm dev
 pnpm generate
 ```
 
-The site is built for the repository Pages path `/ghostshel/`. Publishing to
-a custom domain means setting `NUXT_APP_BASE_URL=/` for the build.
+The site is built for `https://asura.sh/`. `NUXT_APP_BASE_URL` can override
+the root path for previews. `public/CNAME` declares the production domain.
+The repository owner manages GitHub Pages custom-domain and DNS settings.
 
 ## Deploy
 

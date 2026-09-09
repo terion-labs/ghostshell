@@ -51,9 +51,9 @@ func TestStopWithoutPidRemovesOnlyAStaleSocket(t *testing.T) {
 
 func TestOwnedGuestProcessRequiresGuestAndExactOwnershipPaths(t *testing.T) {
 	t.Parallel()
-	pidFile := "/run/ghostshell/network.pid"
-	socket := "/run/ghostshell/network.sock"
-	valid := []byte("/opt/ghostshell/bin/workspace-gateway\x00guest\x00--socket\x00" +
+	pidFile := "/run/asura/network.pid"
+	socket := "/run/asura/network.sock"
+	valid := []byte("/opt/asura/bin/workspace-gateway\x00guest\x00--socket\x00" +
 		socket + "\x00--pid-file\x00" + pidFile + "\x00--gateway\x00192.168.64.1\x00")
 	if !ownsGuestProcess(valid, pidFile, socket) {
 		t.Fatal("expected exact guest ownership arguments to match")

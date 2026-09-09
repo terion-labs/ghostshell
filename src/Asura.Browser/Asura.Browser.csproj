@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="FluentIcons.Avalonia" />
+    <PackageReference Include="ReverseMarkdown" />
+    <ProjectReference Include="..\Asura.Application\Asura.Application.csproj" />
+    <ProjectReference Include="..\..\vendor\exclr8cef\src\Exclr8Cef.WebView\Exclr8Cef.WebView.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Readability.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura" />
+    <InternalsVisibleTo Include="Asura.Browser.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>

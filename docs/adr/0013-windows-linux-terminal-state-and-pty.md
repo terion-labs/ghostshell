@@ -5,13 +5,13 @@
 
 ## Context
 
-The pinned libghostty embedding surface currently provides an AppKit renderer and PTY only. Pretending that its `NSView` contract works on Windows or Linux would leak a macOS implementation detail into application operations and leave those platforms without a correct terminal. GhostSHELL also needs a canonical, headless terminal state for screen reads, exact key and mouse input, alternate-screen detection, and future agent automation; a plain redirected process or a text-only control cannot satisfy those requirements.
+The pinned libghostty embedding surface currently provides an AppKit renderer and PTY only. Pretending that its `NSView` contract works on Windows or Linux would leak a macOS implementation detail into application operations and leave those platforms without a correct terminal. Asura also needs a canonical, headless terminal state for screen reads, exact key and mouse input, alternate-screen detection, and future agent automation; a plain redirected process or a text-only control cannot satisfy those requirements.
 
-The desktop presentation must remain replaceable. `GhostShell.App` is allowed to understand GhostSHELL screen cells and input requests, but it must not reference a terminal emulator or PTY package directly.
+The desktop presentation must remain replaceable. `Asura.App` is allowed to understand Asura screen cells and input requests, but it must not reference a terminal emulator or PTY package directly.
 
 ## Decision
 
-macOS continues to use the pinned libghostty shim and native `NSView` renderer. Windows and Linux use two version-pinned MIT-licensed libraries inside `GhostShell.Terminal`:
+macOS continues to use the pinned libghostty shim and native `NSView` renderer. Windows and Linux use two version-pinned MIT-licensed libraries inside `Asura.Terminal`:
 
 - XTerm.NET 1.0.15 parses VT100/xterm output and owns canonical cells, cursor, normal/alternate buffers, modes, scrollback, Unicode widths, generated key sequences, mouse protocols, bracketed paste state, title, and working-directory metadata.
 - Porta.Pty 1.0.7 owns process and PTY lifecycle. It uses ConPTY and Windows job objects on Windows, and a bundled native `forkpty`/`execvp` shim on supported Linux architectures. Launch arguments and environment remain structured until the adapter invokes the library.
@@ -32,7 +32,7 @@ Porta.Pty does not expose a portable foreground-process-group query. While a por
 
 ## Library evidence and support matrix
 
-Both selected packages publish source, tests, NuGet provenance, and MIT licenses. XTerm.NET is UI-independent and targets .NET 6; Porta.Pty targets .NET Standard 2.0 and publishes Linux x64/arm64 and macOS x64/arm64 native shims while using system ConPTY APIs on supported Windows versions. GhostSHELL records both licenses in release inventory and pins exact package versions so a dependency update is deliberate and conformance-tested.
+Both selected packages publish source, tests, NuGet provenance, and MIT licenses. XTerm.NET is UI-independent and targets .NET 6; Porta.Pty targets .NET Standard 2.0 and publishes Linux x64/arm64 and macOS x64/arm64 native shims while using system ConPTY APIs on supported Windows versions. Asura records both licenses in release inventory and pins exact package versions so a dependency update is deliberate and conformance-tested.
 
 Deterministic managed conformance tests cover incremental UTF-8, wide/combining and wrapped selection, full-buffer Find/navigation/truncation, true local scrollback clearing, ANSI/256/RGB/selection color, cursor position and visibility, bounded local scrollback, alternate buffers, resize serialization, application-cursor keys, SGR mouse input, bracketed-paste confirmation and sanitization, clipboard allow/deny plus brokerless OSC 52, OSC 8 policy/activation, window title, bounded OSC 133 boundaries, input readiness, initialization cleanup, IME caret geometry, process exit, close/force behavior, and engine/presentation selection. The 25-test backend suite present at the container run, including a real Porta.Pty process, passes in a Linux amd64 .NET 10 SDK container; that run found and now guards Linux's PTY-end `EIO`/exit race. The current 53-test terminal suite also passes on the development host. These tests do not substitute for the required packaged Windows and Linux desktop matrix. Before M2 is marked complete, packaged jobs must run the interactive-TUI, IME, clipboard, mouse, resize, alternate-screen, sleep/wake, and native PTY lifecycle fixtures on named supported systems.
 
@@ -50,6 +50,6 @@ Deterministic managed conformance tests cover incremental UTF-8, wide/combining 
 
 - Redirected standard streams do not provide PTY modes, resize, interactive TUI behavior, or correct job control.
 - A platform UI control that owns an undisclosed second terminal state would make agent screen reads diverge from what the user sees.
-- Referencing XTerm.NET or Porta.Pty from `GhostShell.App` would violate the engine boundary and complicate future protocol clients.
+- Referencing XTerm.NET or Porta.Pty from `Asura.App` would violate the engine boundary and complicate future protocol clients.
 - Shipping GNOME VTE alone would not cover Windows and would introduce a GTK-native composition path separate from the required common contract.
 - Treating the current libghostty `NSView` embedding ABI as cross-platform would be false capability reporting.

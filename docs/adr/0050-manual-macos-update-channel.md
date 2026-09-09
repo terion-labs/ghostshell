@@ -5,7 +5,7 @@
 
 ## Context
 
-GhostSHELL publishes Developer ID-signed and notarized macOS arm64 archives to
+Asura publishes Developer ID-signed and notarized macOS arm64 archives to
 GitHub Releases. The desktop had no updater, but its About page described
 updates as unconfigured. That left background network behavior, package
 authentication, deferral, installation failure, and rollback undefined.
@@ -19,7 +19,7 @@ need that machinery.
 ## Decision
 
 The supported macOS arm64 package uses a manual GitHub Releases channel.
-GhostSHELL does not contact an update endpoint, fetch or display remote release
+Asura does not contact an update endpoint, fetch or display remote release
 metadata, download packages, or modify its application bundle. The About page
 reports `Manual · GitHub Releases` and `Not checked · automatic updates are
 off`. There is no opt-out setting because network checks and notifications are
@@ -49,7 +49,7 @@ it.
 
 ## Consequences
 
-GhostSHELL has no background update traffic and cannot silently replace a
+Asura has no background update traffic and cannot silently replace a
 working installation. Users must discover, download, and install releases
 themselves. Remote freshness is intentionally unknown inside the app. A future
 automatic channel requires a new decision and security boundary rather than a

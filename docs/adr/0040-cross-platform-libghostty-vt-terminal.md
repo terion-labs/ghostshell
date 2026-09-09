@@ -28,7 +28,7 @@ terminal child could not participate normally in Avalonia composition. Native
 child z-order, clipping, overlays, docking drop targets, reparenting, and
 floating-window transitions repeatedly conflicted with the workspace UI.
 
-GhostSHELL needs one canonical terminal state for human rendering, governed
+Asura needs one canonical terminal state for human rendering, governed
 automation, recovery metadata, and future headless clients. It also needs the
 desktop terminal to behave like an ordinary panel so Avalonia owns composition
 and interaction for the whole workspace. The experiment to share a Ghostty GPU
@@ -49,7 +49,7 @@ macOS, Windows, and Linux use the same terminal pipeline:
 2. `libghostty-vt` owns the canonical terminal state, VT parsing, terminal
    protocol replies, key encoding, mouse encoding, paste modes, selection, and
    render damage.
-3. GhostSHELL projects that state into immutable Application-owned render and
+3. Asura projects that state into immutable Application-owned render and
    automation DTOs.
 4. An ordinary Avalonia control renders those DTOs and translates keyboard,
    pointer, focus, clipboard, and IME interaction into typed session-host
@@ -116,7 +116,7 @@ on presentation pixels or command-block decoration.
 
 ### Deterministic terminal typeface
 
-GhostSHELL embeds the official JetBrains Mono 2.304 regular, bold, italic, and
+Asura embeds the official JetBrains Mono 2.304 regular, bold, italic, and
 bold-italic faces pinned by the same Ghostty source snapshot. Avalonia registers
 them under an application-owned font-collection key so an installed font with
 the same family name cannot replace the reviewed assets. Terminal measurement
@@ -142,10 +142,10 @@ incomplete package.
 
 ### Narrow tracked Ghostty overlay
 
-GhostSHELL pins Ghostty commit
+Asura pins Ghostty commit
 `08f039fbb3dea9c6b1cdb5ff4550666598122346` and builds its public
 `libghostty-vt` C ABI with Zig 0.16.0. C ABI declarations and safe-handle
-ownership remain private to `GhostShell.Terminal`; no Ghostty or Porta.Pty type
+ownership remain private to `Asura.Terminal`; no Ghostty or Porta.Pty type
 crosses into Core, Protocol, SessionHost, or App.
 
 The build applies the reviewed patches under `native/ghostty-vt/patches` to a
@@ -180,7 +180,7 @@ is reported without inventing semantic shell events.
   Avalonia's host input services.
 - Terminal panels participate normally in Avalonia docking, drag targets,
   overlays, clipping, transforms permitted by the UI, and floating windows.
-- The desktop no longer ships or loads the retired GhostSHELL AppKit shim, full
+- The desktop no longer ships or loads the retired Asura AppKit shim, full
   `libghostty` renderer, or XTerm.NET terminal engine.
 - Renderer fidelity has explicit contracts for live cursor state, underline
   variants and colors, Kitty image content/placements/lifecycle, semantic shell
@@ -210,7 +210,7 @@ is reported without inventing semantic shell events.
   render-thread, texture, resize, and device-lifecycle synchronization while
   still creating a second composition boundary. It is not part of this route.
 - **Depend on RoyalTerminal.** It was useful architectural evidence, but
-  GhostSHELL owns the small interop and renderer surface it needs and does not
+  Asura owns the small interop and renderer surface it needs and does not
   take RoyalTerminal as a runtime dependency.
 - **Keep XTerm.NET as a fallback.** Two canonical states make platform bugs and
   automation/render divergence harder to detect. Missing libghostty-vt is an

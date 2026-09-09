@@ -1,11 +1,11 @@
-# GhostSHELL libghostty-vt overlay
+# Asura libghostty-vt overlay
 
-These patches extend the public `libghostty-vt` C ABI while GhostSHELL tracks
+These patches extend the public `libghostty-vt` C ABI while Asura tracks
 Ghostty commit `08f039fbb3dea9c6b1cdb5ff4550666598122346`. They are applied in lexical
 order to a disposable upstream checkout by the native build pipeline; the
 Ghostty checkout itself is never committed.
 
-`0001-ghostshell-vt-extensions.patch` adds two deliberately narrow APIs and
+`0001-asura-vt-extensions.patch` adds two deliberately narrow APIs and
 enables one existing upstream implementation for the library build:
 
 - `GHOSTTY_TERMINAL_OPT_SEMANTIC_PROMPT` (`31`) installs a synchronous
@@ -20,7 +20,7 @@ enables one existing upstream implementation for the library build:
   cell pixel dimensions, and `next` returns source/destination rectangles,
   offsets, viewport coordinates, image/placement IDs, and z-order. Its
   implementation directly calls Ghostty's own `unicode.placementIterator` and
-  `Placement.renderPlacement`, so GhostSHELL does not fork the placement
+  `Placement.renderPlacement`, so Asura does not fork the placement
   algorithm. Any terminal mutation invalidates iteration; reset before reading
   again. Normal exhaustion is `GHOSTTY_NO_VALUE`.
 - libghostty-vt now includes Ghostty's existing Wuffs module and installs
@@ -30,10 +30,10 @@ enables one existing upstream implementation for the library build:
   `GHOSTTY_SYS_OPT_DECODE_PNG` remains available to replace the default, while
   explicitly setting it to NULL disables PNG decoding.
 
-`0002-ghostshell-search-and-abi.patch` makes the managed/native contract
+`0002-asura-search-and-abi.patch` makes the managed/native contract
 fail closed and delegates search semantics to Ghostty itself:
 
-- `ghostty_ghostshell_extension_abi()` returns the exact GhostSHELL extension
+- `ghostty_asura_extension_abi()` returns the exact Asura extension
   ABI (`1`). The managed runtime probe requires that exact value in addition
   to every C entry point imported by the binding, so an upstream or stale
   library cannot pass discovery and fail later at first use.
@@ -64,5 +64,5 @@ search entry point, has been verified.
 
 When updating the pinned Ghostty commit, reapply the patch to a clean checkout,
 resolve against upstream behavior (never copy the renderer math into
-GhostSHELL), rerun the upstream tests, and regenerate the patch with
+Asura), rerun the upstream tests, and regenerate the patch with
 `git format-patch`.

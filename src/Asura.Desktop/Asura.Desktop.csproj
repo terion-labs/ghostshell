@@ -1,0 +1,385 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Agent.Providers\Asura.Agent.Providers.csproj" />
+    <ProjectReference Include="..\Asura.Agent.Runtime\Asura.Agent.Runtime.csproj" />
+    <ProjectReference Include="..\Asura.App\Asura.App.csproj" />
+    <ProjectReference Include="..\Asura.Application\Asura.Application.csproj" />
+    <ProjectReference Include="..\Asura.Browser\Asura.Browser.csproj" />
+    <ProjectReference Include="..\Asura.Databases\Asura.Databases.csproj" />
+    <ProjectReference Include="..\Asura.ConnectionBackend\Asura.ConnectionBackend.csproj" />
+    <ProjectReference Include="..\Asura.Docker\Asura.Docker.csproj" />
+    <ProjectReference Include="..\Asura.Git\Asura.Git.csproj" />
+    <ProjectReference Include="..\Asura.Previews\Asura.Previews.csproj" />
+    <ProjectReference Include="..\Asura.Redis\Asura.Redis.csproj" />
+    <ProjectReference Include="..\Asura.Files\Asura.Files.csproj" />
+    <ProjectReference Include="..\Asura.Infrastructure\Asura.Infrastructure.csproj" />
+    <ProjectReference Include="..\Asura.Mcp\Asura.Mcp.csproj" />
+    <ProjectReference Include="..\Asura.Mcp.Server\Asura.Mcp.Server.csproj" />
+    <ProjectReference Include="..\Asura.Monitoring\Asura.Monitoring.csproj" />
+    <ProjectReference Include="..\Asura.SessionHost\Asura.SessionHost.csproj" />
+    <ProjectReference Include="..\Asura.Terminal\Asura.Terminal.csproj" />
+    <ProjectReference Include="..\Asura.Updates\Asura.Updates.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="Tmds.DBus.SourceGenerator" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraWindowsBuild)' == 'true'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="DBusXml/org.freedesktop.portal.Notification.xml" DBusGeneratorMode="Proxy" />
+    <AdditionalFiles Include="DBusXml/org.freedesktop.portal.Settings.xml" DBusGeneratorMode="Proxy" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="../../LICENSE" Link="ASURA-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/macos-release-legal.json" Link="MACOS-RELEASE-LEGAL.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/SMBLIBRARY-SOURCE.json" Link="SMBLIBRARY-SOURCE.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md" Link="SMBLIBRARY-SOURCE-AND-RELINKING.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/SMBLIBRARY-LGPL-3.0.txt" Link="SMBLIBRARY-LGPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/GPL-3.0.txt" Link="GPL-3.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/SQLCLIENT-MIT.txt" Link="SQLCLIENT-MIT.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../native/artifacts/common/fonts/JetBrainsMono/OFL.txt" Link="JETBRAINS-MONO-OFL.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AsuraWindowsBuild Condition="'$(RuntimeIdentifier)' != '' and $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</AsuraWindowsBuild>
+    <AsuraWindowsBuild Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' == 'win-x64'">true</AsuraWindowsBuild>
+    <AsuraWindowsBuild Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">true</AsuraWindowsBuild>
+    <NuGetLockFilePath Condition="'$(AsuraWindowsBuild)' == 'true' and '$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' == ''">packages.windows.lock.json</NuGetLockFilePath>
+    <TargetFramework Condition="'$(AsuraWindowsBuild)' == 'true'">net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework Condition="'$(AsuraWindowsBuild)' != 'true'">net10.0</TargetFramework>
+    <SupportedOSPlatformVersion Condition="'$(AsuraWindowsBuild)' == 'true'">10.0.19041.0</SupportedOSPlatformVersion>
+    <EnableWindowsTargeting Condition="'$(AsuraWindowsBuild)' == 'true'">true</EnableWindowsTargeting>
+    <WindowsPackageType Condition="'$(AsuraWindowsBuild)' == 'true'">None</WindowsPackageType>
+    <!-- Asura uses Avalonia resources, not WinUI/MRT resources. The App SDK
+         metapackage imports PRI tooling by default even for unpackaged apps. -->
+    <EnablePriGenTooling Condition="'$(AsuraWindowsBuild)' == 'true'">false</EnablePriGenTooling>
+    <AppxGeneratePriEnabled Condition="'$(AsuraWindowsBuild)' == 'true'">false</AppxGeneratePriEnabled>
+    <AssemblyName>Asura</AssemblyName>
+    <AsuraEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</AsuraEffectiveRuntimeIdentifier>
+    <AsuraEffectiveRuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</AsuraEffectiveRuntimeIdentifier>
+    <AsuraRuntimePackVersion>10.0.11</AsuraRuntimePackVersion>
+    <AsuraRuntimePackDirectory>$(NuGetPackageRoot)/microsoft.netcore.app.runtime.$(AsuraEffectiveRuntimeIdentifier)/$(AsuraRuntimePackVersion)</AsuraRuntimePackDirectory>
+    <AsuraNativeTerminalLibrary Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'osx-x64'">libghostty-vt.dylib</AsuraNativeTerminalLibrary>
+    <AsuraNativeTerminalLibrary Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'linux-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'linux-x64'">libghostty-vt.so</AsuraNativeTerminalLibrary>
+    <AsuraNativeTerminalLibrary Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64'">ghostty-vt.dll</AsuraNativeTerminalLibrary>
+    <AsuraNativeTerminalRequired Condition="'$(AsuraNativeTerminalLibrary)' != ''">true</AsuraNativeTerminalRequired>
+    <AsuraNativeTerminalArtifactDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(AsuraEffectiveRuntimeIdentifier)</AsuraNativeTerminalArtifactDirectory>
+    <AsuraNativeTerminalShellIntegrationDirectory>$(AsuraNativeTerminalArtifactDirectory)/ghostty/shell-integration</AsuraNativeTerminalShellIntegrationDirectory>
+    <AsuraSqlLanguageSupported Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'linux-x64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'linux-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'osx-x64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64'">true</AsuraSqlLanguageSupported>
+    <AsuraSqlLanguageRequired Condition="'$(AsuraSqlLanguageRequired)' == ''">false</AsuraSqlLanguageRequired>
+    <AsuraSqlLanguageWorkerName Condition="'$(AsuraSqlLanguageSupported)' == 'true' and '$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64'">asura-sql-language.exe</AsuraSqlLanguageWorkerName>
+    <AsuraSqlLanguageWorkerName Condition="'$(AsuraSqlLanguageSupported)' == 'true' and '$(AsuraSqlLanguageWorkerName)' == ''">asura-sql-language</AsuraSqlLanguageWorkerName>
+    <AsuraSqlLanguageArtifactDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(AsuraEffectiveRuntimeIdentifier)</AsuraSqlLanguageArtifactDirectory>
+    <AsuraSqlLanguageWorkerPath>$(AsuraSqlLanguageArtifactDirectory)/$(AsuraSqlLanguageWorkerName)</AsuraSqlLanguageWorkerPath>
+    <AsuraSqlLanguagePayloadAvailable Condition="'$(AsuraSqlLanguageSupported)' == 'true' and Exists('$(AsuraSqlLanguageWorkerPath)') and Exists('$(AsuraSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(AsuraSqlLanguageArtifactDirectory)/runtime-dependencies.txt') and Exists('$(AsuraSqlLanguageArtifactDirectory)/build-receipt.json')">true</AsuraSqlLanguagePayloadAvailable>
+    <AsuraWorkspaceGatewaySupported Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'osx-x64'">true</AsuraWorkspaceGatewaySupported>
+    <AsuraWorkspaceGatewayRequired Condition="'$(AsuraWorkspaceGatewayRequired)' == ''">false</AsuraWorkspaceGatewayRequired>
+    <AsuraWorkspaceGatewayHostDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(AsuraEffectiveRuntimeIdentifier)</AsuraWorkspaceGatewayHostDirectory>
+    <AsuraWorkspaceGatewayHostName>asura-workspace-gateway-darwin-arm64</AsuraWorkspaceGatewayHostName>
+    <AsuraWorkspaceGatewayHostName Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-x64'">asura-workspace-gateway-darwin-amd64</AsuraWorkspaceGatewayHostName>
+    <AsuraWorkspaceGatewayPayloadAvailable Condition="'$(AsuraWorkspaceGatewaySupported)' == 'true' and Exists('$(AsuraWorkspaceGatewayHostDirectory)/$(AsuraWorkspaceGatewayHostName)') and Exists('$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256') and Exists('$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md') and Exists('$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt')">true</AsuraWorkspaceGatewayPayloadAvailable>
+    <AsuraConnectionEnginesSupported Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64'">true</AsuraConnectionEnginesSupported>
+    <AsuraConnectionEnginesRequired Condition="'$(AsuraConnectionEnginesRequired)' == ''">false</AsuraConnectionEnginesRequired>
+    <AsuraConnectionEnginesDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/connection-engines</AsuraConnectionEnginesDirectory>
+    <AsuraWorkspaceRuntimeDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64/workspace-runtime</AsuraWorkspaceRuntimeDirectory>
+    <AsuraWorkspaceBackendDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/workspace-backend-build/distribution</AsuraWorkspaceBackendDirectory>
+    <AsuraWorkspaceRuntimeRequired Condition="'$(AsuraWorkspaceRuntimeRequired)' == ''">false</AsuraWorkspaceRuntimeRequired>
+    <AsuraWorkspaceRuntimePayloadAvailable Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64' and Exists('$(AsuraWorkspaceRuntimeDirectory)/workspace-runtime') and Exists('$(AsuraWorkspaceRuntimeDirectory)/kernel.bin') and Exists('$(AsuraWorkspaceRuntimeDirectory)/initfs.ext4') and Exists('$(AsuraWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256')">true</AsuraWorkspaceRuntimePayloadAvailable>
+    <AsuraConnectionEnginesPayloadAvailable Condition="'$(AsuraConnectionEnginesSupported)' == 'true' and Exists('$(AsuraConnectionEnginesDirectory)/asura-openvpn-engine') and Exists('$(AsuraConnectionEnginesDirectory)/openconnect') and Exists('$(AsuraConnectionEnginesDirectory)/libopenconnect.5.dylib') and Exists('$(AsuraConnectionEnginesDirectory)/tailscale') and Exists('$(AsuraConnectionEnginesDirectory)/tailscaled') and Exists('$(AsuraConnectionEnginesDirectory)/MANIFEST.sha256') and Exists('$(AsuraConnectionEnginesDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(AsuraConnectionEnginesDirectory)/OPENCONNECT-SOURCE-AND-RELINKING.md') and Exists('$(AsuraConnectionEnginesDirectory)/OPENVPN-VERSIONS.txt') and Exists('$(AsuraConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz')">true</AsuraConnectionEnginesPayloadAvailable>
+    <AsuraCefRuntimeArtifactDirectory Condition="'$(AsuraCefRuntimeArtifactDirectory)' == ''">$(AsuraNativeTerminalArtifactDirectory)/cef</AsuraCefRuntimeArtifactDirectory>
+    <AsuraCefMacRuntime Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'osx-x64'">true</AsuraCefMacRuntime>
+    <AsuraCefFlatRuntime Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'linux-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'linux-x64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64'">true</AsuraCefFlatRuntime>
+    <AsuraCefRuntimeRequired Condition="'$(AsuraCefMacRuntime)' == 'true' or '$(AsuraCefFlatRuntime)' == 'true'">true</AsuraCefRuntimeRequired>
+    <AsuraCefShimLibrary Condition="'$(AsuraCefMacRuntime)' == 'true'">libexclr8cef.dylib</AsuraCefShimLibrary>
+    <AsuraCefShimLibrary Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'linux-arm64' or '$(AsuraEffectiveRuntimeIdentifier)' == 'linux-x64'">libexclr8cef.so</AsuraCefShimLibrary>
+    <AsuraCefShimLibrary Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64'">exclr8cef.dll</AsuraCefShimLibrary>
+  </PropertyGroup>
+
+  <!-- Keep Native AOT scoped to the packaged macOS application. Passing
+       PublishAot as a global command-line property would incorrectly add the
+       AOT toolchain to every ProjectReference lock file. -->
+  <PropertyGroup Condition="'$(AsuraMacReleaseNativeAot)' == 'true'">
+    <NuGetLockFilePath>packages.osx-arm64.aot.lock.json</NuGetLockFilePath>
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StripSymbols>true</StripSymbols>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <!-- Reflection-based JSON is disabled at runtime. First-party projects set
+         IsAotCompatible globally, so unsupported reflection and dynamic-code
+         paths fail in the assembly that owns them. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <IlcGenerateCompleteTypeMetadata>false</IlcGenerateCompleteTypeMetadata>
+    <!-- Dependency warnings remain visible here and are audited separately;
+         first-party IL2026/IL3050 diagnostics are already build errors. -->
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+    <TrimmerSingleWarn>true</TrimmerSingleWarn>
+    <LinkerFlavor Condition="'$(AsuraNativeAotLinker)' != ''">$(AsuraNativeAotLinker)</LinkerFlavor>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(AsuraRuntimePackDirectory)/LICENSE.TXT') and Exists('$(AsuraRuntimePackDirectory)/THIRD-PARTY-NOTICES.TXT')">
+    <Content Include="$(AsuraRuntimePackDirectory)/LICENSE.TXT" Link="DOTNET-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraRuntimePackDirectory)/THIRD-PARTY-NOTICES.TXT" Link="DOTNET-THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The Calcite payload is optional for developer builds and required by release
+       packaging. Preserve the RID layout expected by CalciteSqlLanguageService. -->
+  <ItemGroup Condition="'$(AsuraSqlLanguagePayloadAvailable)' == 'true'">
+    <Content Include="$(AsuraSqlLanguageWorkerPath)" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/$(AsuraSqlLanguageWorkerName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraSqlLanguageArtifactDirectory)/runtime-dependencies.txt" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/runtime-dependencies.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraSqlLanguageArtifactDirectory)/build-receipt.json" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/build-receipt.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraSqlLanguageRequired)' == 'true' and '$(AsuraSqlLanguageSupported)' == 'true'">
+    <AsuraSqlLanguageRequiredFile Include="$(AsuraSqlLanguageWorkerPath)" />
+    <AsuraSqlLanguageRequiredFile Include="$(AsuraSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md" />
+    <AsuraSqlLanguageRequiredFile Include="$(AsuraSqlLanguageArtifactDirectory)/runtime-dependencies.txt" />
+    <AsuraSqlLanguageRequiredFile Include="$(AsuraSqlLanguageArtifactDirectory)/build-receipt.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraWorkspaceGatewayPayloadAvailable)' == 'true'">
+    <Content Include="$(AsuraWorkspaceGatewayHostDirectory)/$(AsuraWorkspaceGatewayHostName)" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/$(AsuraWorkspaceGatewayHostName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/workspace-network-gateway-MANIFEST.sha256" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/workspace-network-gateway-THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" Link="runtimes/$(AsuraEffectiveRuntimeIdentifier)/native/workspace-network-gateway-GO-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraWorkspaceGatewayRequired)' == 'true' and '$(AsuraWorkspaceGatewaySupported)' == 'true'">
+    <AsuraWorkspaceGatewayRequiredFile Include="$(AsuraWorkspaceGatewayHostDirectory)/$(AsuraWorkspaceGatewayHostName)" />
+    <AsuraWorkspaceGatewayRequiredFile Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" />
+    <AsuraWorkspaceGatewayRequiredFile Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" />
+    <AsuraWorkspaceGatewayRequiredFile Include="$(AsuraWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraConnectionEnginesPayloadAvailable)' == 'true'">
+    <Content Include="$(AsuraConnectionEnginesDirectory)/asura-openvpn-engine;$(AsuraConnectionEnginesDirectory)/openconnect;$(AsuraConnectionEnginesDirectory)/libopenconnect.5.dylib;$(AsuraConnectionEnginesDirectory)/tailscale;$(AsuraConnectionEnginesDirectory)/tailscaled" Link="runtimes/osx-arm64/connection-engines/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraConnectionEnginesDirectory)/*.txt;$(AsuraConnectionEnginesDirectory)/*.md;$(AsuraConnectionEnginesDirectory)/*.sha256" Link="connection-engine-legal/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraWorkspaceRuntimePayloadAvailable)' == 'true'">
+    <Content Include="$(AsuraWorkspaceRuntimeDirectory)/**/*" Exclude="$(AsuraWorkspaceRuntimeDirectory)/legal/**/*;$(AsuraWorkspaceRuntimeDirectory)/kernel.bin;$(AsuraWorkspaceRuntimeDirectory)/initfs.ext4" Link="runtimes/osx-arm64/workspace-runtime/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraWorkspaceRuntimeDirectory)/legal/**/*" Exclude="$(AsuraWorkspaceRuntimeDirectory)/legal/sources/**/*" Link="workspace-runtime-legal/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraWorkspaceRuntimeRequired)' == 'true'">
+    <AsuraWorkspaceRuntimeRequiredFile Include="$(AsuraWorkspaceRuntimeDirectory)/boot-assets.json" />
+    <AsuraWorkspaceRuntimeRequiredFile Include="$(AsuraWorkspaceRuntimeDirectory)/legal/SOURCE-MANIFEST.sha256;$(AsuraWorkspaceRuntimeDirectory)/legal/SWIFT-LICENSE.txt;$(AsuraWorkspaceRuntimeDirectory)/legal/MUSL-COPYRIGHT.txt;$(AsuraWorkspaceRuntimeDirectory)/legal/WorkspaceRuntime.entitlements" />
+    <AsuraWorkspaceRuntimeRequiredFile Include="$(AsuraWorkspaceRuntimeDirectory)/workspace-runtime;$(AsuraWorkspaceRuntimeDirectory)/kernel.bin;$(AsuraWorkspaceRuntimeDirectory)/initfs.ext4;$(AsuraWorkspaceRuntimeDirectory)/legal/MANIFEST.sha256;$(AsuraWorkspaceRuntimeDirectory)/legal/Package.resolved;$(AsuraWorkspaceRuntimeDirectory)/legal/THIRD-PARTY-NOTICES.md;$(AsuraWorkspaceRuntimeDirectory)/legal/SOURCE-AND-BUILD.md;$(AsuraWorkspaceRuntimeDirectory)/legal/kernel.config;$(AsuraWorkspaceRuntimeDirectory)/legal/LINUX-GPL-2.0.txt;$(AsuraWorkspaceRuntimeDirectory)/legal/sources/linux-6.18.35.tar.xz;$(AsuraWorkspaceRuntimeDirectory)/legal/sources/kata-containers-3.32.0.tar.gz" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraConnectionEnginesRequired)' == 'true' and '$(AsuraConnectionEnginesSupported)' == 'true'">
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/asura-openvpn-engine" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/openconnect" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/libopenconnect.5.dylib" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/tailscale" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/tailscaled" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/MANIFEST.sha256" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/THIRD-PARTY-NOTICES.md" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/GO-LICENSE.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENCONNECT-LGPL-2.1.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENCONNECT-SOURCE-AND-RELINKING.md" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENSSL-LICENSE.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENVPN-MPL-2.0.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENVPN-LICENSE.md" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/ASIO-LICENSE.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/LZ4-LICENSE.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENVPN-VERSIONS.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/OPENVPN-THIRD-PARTY-NOTICES.txt" />
+    <AsuraConnectionEnginesRequiredFile Include="$(AsuraConnectionEnginesDirectory)/sources/openconnect-9.21.tar.gz" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraNativeTerminalRequired)' == 'true'">
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/$(AsuraNativeTerminalLibrary)" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/libasura_pty.dylib" Condition="$(AsuraEffectiveRuntimeIdentifier.StartsWith('osx-'))" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/libasura_pty.so" Condition="$(AsuraEffectiveRuntimeIdentifier.StartsWith('linux-'))" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/PORTA-PTY-LICENSE" Condition="!$(AsuraEffectiveRuntimeIdentifier.StartsWith('win-'))" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/GHOSTTY-LICENSE" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/ghostty-vt-required-exports.txt" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalArtifactDirectory)/native-terminal-build-receipt.json" />
+    <AsuraNativeTerminalRequiredFile Include="$(MSBuildThisFileDirectory)../../licenses/native-terminal-components.json" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/MANIFEST.sha256" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/SHELL-INTEGRATION-NOTICE.md" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/bash/bash-preexec.sh" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/bash/ghostty.bash" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/fish/vendor_conf.d/ghostty-shell-integration.fish" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/zsh/.zshenv" />
+    <AsuraNativeTerminalRequiredFile Include="$(AsuraNativeTerminalShellIntegrationDirectory)/zsh/ghostty-integration" />
+
+    <Content Include="$(AsuraNativeTerminalArtifactDirectory)/$(AsuraNativeTerminalLibrary)" Link="$(AsuraNativeTerminalLibrary)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalArtifactDirectory)/PORTA-PTY-LICENSE" Link="PORTA-PTY-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="!$(AsuraEffectiveRuntimeIdentifier.StartsWith('win-'))" />
+    <Content Include="$(AsuraNativeTerminalArtifactDirectory)/GHOSTTY-LICENSE" Link="GHOSTTY-LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalArtifactDirectory)/ghostty-vt-required-exports.txt" Link="ghostty-vt-required-exports.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalArtifactDirectory)/native-terminal-build-receipt.json" Link="native-terminal-build-receipt.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/native-terminal-components.json" Link="native-terminal-components.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/MANIFEST.sha256" Link="ghostty/shell-integration/MANIFEST.sha256" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/SHELL-INTEGRATION-NOTICE.md" Link="ghostty/shell-integration/SHELL-INTEGRATION-NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/bash/bash-preexec.sh" Link="ghostty/shell-integration/bash/bash-preexec.sh" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/bash/ghostty.bash" Link="ghostty/shell-integration/bash/ghostty.bash" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/fish/vendor_conf.d/ghostty-shell-integration.fish" Link="ghostty/shell-integration/fish/vendor_conf.d/ghostty-shell-integration.fish" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/zsh/.zshenv" Link="ghostty/shell-integration/zsh/.zshenv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(AsuraNativeTerminalShellIntegrationDirectory)/zsh/ghostty-integration" Link="ghostty/shell-integration/zsh/ghostty-integration" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraCefRuntimeRequired)' == 'true'">
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/$(AsuraCefShimLibrary)" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/CEF-LICENSE.txt" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/CEF-CREDITS.html" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/EXCLR8CEF-LICENSE.txt" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/cef-runtime-build-receipt.json" />
+    <AsuraCefRequiredFile Include="$(MSBuildThisFileDirectory)../../licenses/cef-runtime-components.json" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraCefMacRuntime)' == 'true'">
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Chromium Embedded Framework.framework/Chromium Embedded Framework" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Asura Helper.app/Contents/MacOS/Asura Helper" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Asura Helper (Alerts).app/Contents/MacOS/Asura Helper (Alerts)" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Asura Helper (GPU).app/Contents/MacOS/Asura Helper (GPU)" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Asura Helper (Plugin).app/Contents/MacOS/Asura Helper (Plugin)" />
+    <AsuraCefRequiredFile Include="$(AsuraCefRuntimeArtifactDirectory)/Asura Helper (Renderer).app/Contents/MacOS/Asura Helper (Renderer)" />
+
+    <!-- The unbundled macOS build can resolve the shim for compile/test probes,
+         but CEF itself is runnable only after the app-bundle packager installs
+         its framework and helpers under Contents/Frameworks. -->
+    <Content Include="$(AsuraCefRuntimeArtifactDirectory)/$(AsuraCefShimLibrary)" Link="$(AsuraCefShimLibrary)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" Condition="Exists('$(AsuraCefRuntimeArtifactDirectory)/$(AsuraCefShimLibrary)')" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(AsuraCefFlatRuntime)' == 'true'">
+    <Content Include="$(AsuraCefRuntimeArtifactDirectory)/**/*" Link="%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../licenses/cef-runtime-components.json" Link="cef-runtime-components.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target
+      Name="ValidateNativeTerminalPayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(AsuraNativeTerminalRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="!Exists('%(AsuraNativeTerminalRequiredFile.Identity)')"
+        Text="The required libghostty-vt payload for $(AsuraEffectiveRuntimeIdentifier) is incomplete; missing %(AsuraNativeTerminalRequiredFile.Identity). Run ./scripts/build-libghostty-vt.sh --rid $(AsuraEffectiveRuntimeIdentifier)." />
+  </Target>
+
+  <Target
+      Name="ValidateSqlLanguagePayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(AsuraSqlLanguageRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="'$(AsuraSqlLanguageSupported)' != 'true'"
+        Text="The SQL language worker is not supported for $(AsuraEffectiveRuntimeIdentifier). Supported release RIDs are linux-x64, linux-arm64, osx-x64, osx-arm64, and win-x64; win-arm64 is unsupported by GraalVM Native Image." />
+    <Error
+        Condition="'$(AsuraSqlLanguageSupported)' == 'true' and !Exists('%(AsuraSqlLanguageRequiredFile.Identity)')"
+        Text="The required SQL language payload for $(AsuraEffectiveRuntimeIdentifier) is incomplete; missing %(AsuraSqlLanguageRequiredFile.Identity). Run ./scripts/build-sql-language-worker.sh --rid $(AsuraEffectiveRuntimeIdentifier)." />
+  </Target>
+
+  <Target
+      Name="ValidateWorkspaceGatewayPayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(AsuraWorkspaceGatewayRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="'$(AsuraWorkspaceGatewaySupported)' != 'true'"
+        Text="The workspace network gateway is supported only by the osx-arm64 application." />
+    <Error
+        Condition="'$(AsuraWorkspaceGatewaySupported)' == 'true' and !Exists('%(AsuraWorkspaceGatewayRequiredFile.Identity)')"
+        Text="The required workspace network gateway payload is incomplete; missing %(AsuraWorkspaceGatewayRequiredFile.Identity). Run ./scripts/build-workspace-network-gateway.sh --rid osx-arm64." />
+  </Target>
+
+  <Target
+      Name="ValidateConnectionEnginesPayload"
+      BeforeTargets="PrepareForBuild;Publish"
+      Condition="'$(AsuraConnectionEnginesRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="'$(AsuraConnectionEnginesSupported)' != 'true'"
+        Text="The bundled connection engine payload is supported only by the osx-arm64 application." />
+    <Error
+        Condition="'$(AsuraConnectionEnginesSupported)' == 'true' and !Exists('%(AsuraConnectionEnginesRequiredFile.Identity)')"
+        Text="The bundled connection engine payload is incomplete; missing %(AsuraConnectionEnginesRequiredFile.Identity). Run ./scripts/build-macos-connection-engines.sh." />
+  </Target>
+
+  <ItemGroup Condition="Exists('$(AsuraWorkspaceBackendDirectory)/backend-assets.json')">
+    <!-- Only the signed pin ships in the app; Linux code is provisioned on demand. -->
+    <Content Include="$(AsuraWorkspaceBackendDirectory)/backend-assets.json" Link="runtimes/linux-arm64/workspace-backend/backend-assets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(AsuraWorkspaceBackendDirectory)/x64/backend-assets.json')">
+    <Content Include="$(AsuraWorkspaceBackendDirectory)/x64/backend-assets.json" Link="runtimes/linux-x64/workspace-backend/backend-assets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="ValidateWorkspaceRuntimePayload" BeforeTargets="PrepareForBuild;Publish" Condition="'$(AsuraWorkspaceRuntimeRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(AsuraWorkspaceBackendDirectory)/backend-assets.json')" Text="The on-demand workspace backend descriptor is missing. Run ./scripts/build-workspace-backend.sh." />
+    <Error Condition="'$(AsuraEffectiveRuntimeIdentifier)' != 'osx-arm64'" Text="The SDK workspace runtime is supported only by the osx-arm64 application." />
+    <Error Condition="!Exists('%(AsuraWorkspaceRuntimeRequiredFile.Identity)')" Text="The bundled workspace runtime is incomplete; missing %(AsuraWorkspaceRuntimeRequiredFile.Identity). Run ./scripts/build-workspace-runtime.sh." />
+  </Target>
+
+  <Target
+      Name="ValidateCefRuntimePayload"
+      BeforeTargets="Publish"
+      Condition="'$(AsuraCefRuntimeRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Error
+        Condition="!Exists('%(AsuraCefRequiredFile.Identity)')"
+        Text="The required CEF runtime payload for $(AsuraEffectiveRuntimeIdentifier) is incomplete; missing %(AsuraCefRequiredFile.Identity). Run ./scripts/build-cef-runtime.sh --rid $(AsuraEffectiveRuntimeIdentifier)." />
+  </Target>
+
+  <Target
+      Name="ValidateServicedRuntimePack"
+      AfterTargets="ProcessFrameworkReferences"
+      Condition="'$(SelfContained)' == 'true' and '$(AsuraSqlLanguageSupported)' == 'true'">
+    <ItemGroup>
+      <AsuraSelectedRuntimePack
+          Include="@(RuntimePack)"
+          Condition="'%(RuntimePack.FrameworkName)' == 'Microsoft.NETCore.App' or '%(RuntimePack.FrameworkName)' == 'Microsoft.AspNetCore.App'" />
+    </ItemGroup>
+    <Error
+        Condition="'@(AsuraSelectedRuntimePack)' == ''"
+        Text="The self-contained package did not resolve a Microsoft.NETCore.App runtime pack for $(AsuraEffectiveRuntimeIdentifier)." />
+    <Error
+        Condition="'%(AsuraSelectedRuntimePack.NuGetPackageVersion)' != '$(AsuraRuntimePackVersion)'"
+        Text="The self-contained package selected %(AsuraSelectedRuntimePack.FrameworkName) runtime %(AsuraSelectedRuntimePack.NuGetPackageVersion) for $(AsuraEffectiveRuntimeIdentifier), but release evidence is pinned to $(AsuraRuntimePackVersion)." />
+  </Target>
+
+  <Target
+      Name="BlockUnsandboxedWindowsCefPublish"
+      BeforeTargets="Publish"
+      Condition="'$(AsuraEffectiveRuntimeIdentifier)' == 'win-x64' and '$(AsuraAllowUnsandboxedWindowsCefDevelopment)' != 'true'">
+    <Error Text="CEF 150 Windows publishing is blocked until Asura owns a native bootstrap/CLR launcher. Set AsuraAllowUnsandboxedWindowsCefDevelopment=true only for an explicit non-release development publish." />
+  </Target>
+
+  <!--
+    .NET 10's apphost currently advertises SDK 15.5, which makes macOS 26 retain
+    compatibility chrome. Keep ordinary `dotnet run` builds on the same native
+    title-bar path as packaged builds until the runtime ships an SDK-26 apphost.
+  -->
+  <Target
+      Name="DeclareMacOs26Sdk"
+      AfterTargets="Build"
+      Condition="$([MSBuild]::IsOSPlatform('OSX')) and Exists('$(TargetDir)$(AssemblyName)')">
+    <Exec Command="&quot;$(AsuraRepositoryRoot)scripts/declare-macos-sdk26.sh&quot; &quot;$(TargetDir)$(AssemblyName)&quot;" />
+  </Target>
+
+  <!-- CEF on macOS must run from an application bundle so its framework and
+       five helper subprocess bundles resolve through Contents/Frameworks. -->
+  <Target
+      Name="ConfigureMacOsDevelopmentRun"
+      BeforeTargets="ComputeRunArguments"
+      Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$(AsuraCefMacRuntime)' == 'true'">
+    <PropertyGroup>
+      <AsuraForwardedRunArguments>$(RunArguments)</AsuraForwardedRunArguments>
+      <AsuraMacDevelopmentApp>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)macos-run/Asura.dev.app</AsuraMacDevelopmentApp>
+      <RunCommand>$(AsuraRepositoryRoot)scripts/run-macos-development.sh</RunCommand>
+      <RunArguments>--target-directory &quot;$(TargetDir)&quot; --cef-runtime-root &quot;$(AsuraCefRuntimeArtifactDirectory)&quot; --app &quot;$(AsuraMacDevelopmentApp)&quot; --info-plist-template &quot;$(AsuraRepositoryRoot)tools/Asura.Packaging/MacOS/Info.plist.template&quot; --runtime-identifier &quot;$(AsuraEffectiveRuntimeIdentifier)&quot; -- $(AsuraForwardedRunArguments)</RunArguments>
+    </PropertyGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,106 @@
+<UserControl
+    x:Class="Asura.App.Views.SettingsPages.LocalMcpServerSettingsView"
+    x:DataType="vm:LocalMcpServerSettingsViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia">
+  <!--
+    The app's own MCP listener, as four settings: whether it runs, where it
+    listens, how an agent reaches it, and the token that proves it may. The
+    state sits beside the switch as a chip, and every action lives on the row
+    of the thing it acts on, so nothing has to be read twice to be understood.
+  -->
+  <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+    <controls:SettingsGroup
+        Heading="Use Asura from another agent"
+        Description="Let an agent on this computer call Asura's tools over MCP. Workspace permissions and approval prompts still apply."
+        ControlWidth="380">
+      <controls:SettingRow
+          Label="MCP server"
+          Description="{Binding StatusDetail}">
+        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+          <controls:StatusChip
+              Classes.Success="{Binding IsRunning}"
+              Classes.Neutral="{Binding IsOff}"
+              Classes.Danger="{Binding HasError}"
+              Classes.Notice="{Binding IsBusy}"
+              Content="{Binding StatusLabel}"
+              AutomationProperties.Name="Asura MCP server status" />
+          <ToggleSwitch
+              x:Name="EnableServerToggle"
+              IsChecked="{Binding Enabled, Mode=OneWay}"
+              IsCheckedChanged="OnEnabledChanged"
+              IsEnabled="{Binding CanEdit}"
+              AutomationProperties.Name="Enable Asura MCP server" />
+        </StackPanel>
+      </controls:SettingRow>
+      <controls:SettingRow
+          Label="Port"
+          Description="Listens on this computer only. Changing the port restarts the server.">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <TextBox
+              FontFamily="{DynamicResource ShellDataFontFamily}"
+              MaxLength="5"
+              Text="{Binding Port}"
+              IsEnabled="{Binding CanEdit}"
+              AutomationProperties.Name="Asura MCP server port" />
+          <Button
+              Grid.Column="1"
+              Classes="SecondaryButton"
+              Click="OnApplyClick"
+              Content="{Binding ApplyLabel}"
+              IsEnabled="{Binding CanEdit}"
+              AutomationProperties.Name="Apply Asura MCP server port or retry" />
+        </Grid>
+      </controls:SettingRow>
+      <controls:SettingRow
+          Label="Server URL"
+          Description="In the agent's MCP settings choose Streamable HTTP and paste this address.">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+          <TextBox
+              FontFamily="{DynamicResource ShellDataFontFamily}"
+              IsReadOnly="True"
+              Text="{Binding Endpoint}"
+              AutomationProperties.Name="Asura MCP server URL" />
+          <Button
+              Grid.Column="1"
+              Classes="IconButton"
+              Click="OnCopyUrlClick"
+              IsEnabled="{Binding CanEdit}"
+              ToolTip.Tip="Copy server URL"
+              AutomationProperties.Name="Copy Asura MCP server URL">
+            <icons:SymbolIcon Symbol="Copy" FontSize="14" />
+          </Button>
+        </Grid>
+      </controls:SettingRow>
+      <controls:SettingRow
+          Label="Access token"
+          Description="Sent as an Authorization: Bearer header. Replacing it disconnects every connected agent until it uses the new one.">
+        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+          <Button
+              Classes="SecondaryButton"
+              Click="OnCopyTokenClick"
+              Content="Copy token"
+              IsEnabled="{Binding CanEdit}"
+              AutomationProperties.Name="Copy Asura MCP authentication token" />
+          <Button
+              Classes="SecondaryButton"
+              Click="OnRotateTokenClick"
+              Content="Replace token"
+              IsEnabled="{Binding CanEdit}"
+              AutomationProperties.Name="Replace Asura MCP authentication token" />
+        </StackPanel>
+      </controls:SettingRow>
+    </controls:SettingsGroup>
+
+    <controls:Callout Tone="Notice" ShowsGlyph="False" IsVisible="{Binding HasMessage}">
+      <controls:LiveRegionTextBlock
+          Text="{Binding Message}"
+          TextWrapping="Wrap"
+          AutomationProperties.LiveSetting="Polite"
+          AutomationProperties.Name="Asura MCP server message" />
+    </controls:Callout>
+  </StackPanel>
+</UserControl>

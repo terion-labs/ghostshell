@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Automate bounded packaged GhostSHELL acceptance on Linux arm64 under Xvfb.
+"""Automate bounded packaged Asura acceptance on Linux arm64 under Xvfb.
 
 This is intentionally not a substitute for physical-host acceptance. It drives the
 packaged desktop through X11, sends input through the real managed renderer, and
@@ -57,7 +57,7 @@ def render_markdown(
     evidence: dict[str, object], checks: list[CheckResult]
 ) -> str:
     lines = [
-        "# GhostSHELL Linux arm64 Xvfb packaged acceptance",
+        "# Asura Linux arm64 Xvfb packaged acceptance",
         "",
         f"- Declared system: `{evidence['declaredSystemName']}`",
         f"- Actual execution host: `{evidence['actualHostName']}`",
@@ -207,7 +207,7 @@ class AcceptanceRun:
 
     @property
     def executable(self) -> Path:
-        return self.package / "GhostShell"
+        return self.package / "Asura"
 
     def runtime_path_for_shell(self, name: str) -> str:
         """Return one harness-owned evidence path quoted for the child shell."""
@@ -226,7 +226,7 @@ class AcceptanceRun:
     def start_desktop(self) -> bool:
         self.output.mkdir(parents=True, exist_ok=True)
         self.runtime_evidence.mkdir(parents=True, exist_ok=True)
-        self._app_log = (self.output / "ghostshell.log").open("wb")
+        self._app_log = (self.output / "asura.log").open("wb")
         environment = os.environ.copy()
         environment.update(
             {
@@ -250,14 +250,14 @@ class AcceptanceRun:
             start_new_session=True,
         )
         try:
-            self.main_window = self.wait_for_window(r"^GhostSHELL$")
+            self.main_window = self.wait_for_window(r"^Asura$")
         except TimeoutError as error:
             self.record(
                 "desktop-startup",
                 "Packaged Avalonia desktop startup",
                 "FAIL",
                 str(error),
-                "ghostshell.log",
+                "asura.log",
             )
             return False
 
@@ -274,7 +274,7 @@ class AcceptanceRun:
             "The self-contained package opened its real X11 launcher and remained alive.",
             "launcher.png",
             "launcher-window-geometry.txt",
-            "ghostshell.log",
+            "asura.log",
         )
         return True
 
@@ -293,7 +293,7 @@ class AcceptanceRun:
             f"printf 'tty=%s\\n' \"$(tty)\" > {pty_path}; "
             f"if test -t 0; then printf 'is_tty=yes\\n' >> {pty_path}; "
             f"else printf 'is_tty=no\\n' >> {pty_path}; fi; "
-            "printf 'GHOSTSHELL_PTY_READY\\n'"
+            "printf 'ASURA_PTY_READY\\n'"
         )
         for _ in range(3):
             time.sleep(1.0)
@@ -408,7 +408,7 @@ class AcceptanceRun:
         assert self.main_window is not None
         fixture = self.runtime_evidence / "less-fixture.txt"
         fixture.write_text(
-            "".join(f"GhostSHELL interactive TUI line {index:03d}\n" for index in range(1, 241)),
+            "".join(f"Asura interactive TUI line {index:03d}\n" for index in range(1, 241)),
             encoding="utf-8",
         )
         marker = self.runtime_evidence / "tui.txt"
@@ -639,15 +639,15 @@ class AcceptanceRun:
             [
                 "xmessage",
                 "-title",
-                "GhostSHELL Acceptance Other Client",
-                "Other X11 client used to place keyboard focus outside GhostSHELL.",
+                "Asura Acceptance Other Client",
+                "Other X11 client used to place keyboard focus outside Asura.",
             ],
             env=other_environment,
             stdout=other_log,
             stderr=subprocess.STDOUT,
         )
         try:
-            other_window = self.wait_for_window(r"^GhostSHELL Acceptance Other Client$")
+            other_window = self.wait_for_window(r"^Asura Acceptance Other Client$")
             self.command("xdotool", "windowfocus", "--sync", other_window)
             time.sleep(0.4)
             focused_window = self.command(
@@ -656,7 +656,7 @@ class AcceptanceRun:
             (self.output / "quick-trigger-focus.txt").write_text(
                 focused_window, encoding="utf-8"
             )
-            if "GhostSHELL Acceptance Other Client" not in focused_window:
+            if "Asura Acceptance Other Client" not in focused_window:
                 self.record(
                     "quick-terminal-xvfb-cross-client",
                     "Xvfb cross-client Quick Terminal grab and Escape dismissal",
@@ -668,7 +668,7 @@ class AcceptanceRun:
                 return
 
             self.key("Super_L+grave")
-            quick_window = self.wait_for_window(r"^GhostSHELL Quick Terminal$")
+            quick_window = self.wait_for_window(r"^Asura Quick Terminal$")
             geometry = self.command(
                 "xdotool", "getwindowgeometry", "--shell", quick_window
             ).stdout.decode("ascii", errors="replace")
@@ -677,7 +677,7 @@ class AcceptanceRun:
             )
             self.key("Escape")
             hidden = self.wait_until(
-                lambda: self.find_window(r"^GhostSHELL Quick Terminal$") is None,
+                lambda: self.find_window(r"^Asura Quick Terminal$") is None,
                 timeout=4.0,
             )
             self.record(
@@ -1326,7 +1326,7 @@ def main() -> int:
                 "A required infrastructure operation raised "
                 f"{type(error).__name__}; the run was finalized without inferring "
                 "any remaining observations.",
-                "ghostshell.log",
+                "asura.log",
             )
         return run.finish()
     finally:

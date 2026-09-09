@@ -1,0 +1,28 @@
+<Window
+    x:Class="Asura.App.Views.FileNameDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    Width="440"
+    Height="230"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <controls:DialogShell
+      x:Name="Shell"
+      Subtitle="Names are validated by the selected provider before anything changes.">
+    <controls:DialogShell.Footer>
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+        <Button Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" />
+        <Button x:Name="ConfirmButton" Classes="PrimaryButton" Click="OnConfirmClick" />
+      </StackPanel>
+    </controls:DialogShell.Footer>
+
+    <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+      <controls:LabeledField Label="Name">
+        <TextBox x:Name="NameInput" KeyDown="OnNameKeyDown" />
+      </controls:LabeledField>
+      <TextBlock x:Name="ValidationMessage" Foreground="{DynamicResource ShellDangerBrush}" IsVisible="False" TextWrapping="Wrap" />
+    </StackPanel>
+  </controls:DialogShell>
+</Window>

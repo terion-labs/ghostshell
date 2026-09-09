@@ -6,7 +6,7 @@ Accepted — 2026-08-26.
 
 ## Context
 
-GhostSHELL already has a user-operated Git panel, but model-originating Git
+Asura already has a user-operated Git panel, but model-originating Git
 work needs a narrower boundary. Exposing repository paths, command arguments,
 raw refs, remote URLs, or the ordinary UI client directly would let provider
 text choose authority-bearing native operands. Git mutations can also race a

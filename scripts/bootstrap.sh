@@ -11,7 +11,7 @@ if [[ -x "${sdk_dir}/dotnet" ]] &&
    [[ "$("${sdk_dir}/dotnet" --version)" == "${sdk_version}" ]]; then
     echo ".NET SDK ${sdk_version} is already installed in ${sdk_dir}."
 else
-    installer="$(mktemp -t ghostshell-dotnet-install.XXXXXX)"
+    installer="$(mktemp -t asura-dotnet-install.XXXXXX)"
     trap 'rm -f "${installer}"' EXIT
 
     curl -fsSL https://dot.net/v1/dotnet-install.sh -o "${installer}"
@@ -27,7 +27,7 @@ fi
 "${sdk_dir}/dotnet" tool restore
 "${script_dir}/install-hooks.sh"
 
-if [[ "${GHOSTSHELL_SKIP_NATIVE-0}" != "1" ]]; then
+if [[ "${ASURA_SKIP_NATIVE-0}" != "1" ]]; then
     host_os="$(uname -s)"
     host_arch="$(uname -m)"
     case "${host_os}:${host_arch}" in
@@ -45,7 +45,7 @@ if [[ "${GHOSTSHELL_SKIP_NATIVE-0}" != "1" ]]; then
             native_rid="linux-x64"
             ;;
         *)
-            echo "GhostSHELL has no native terminal build for ${host_os} ${host_arch}." >&2
+            echo "Asura has no native terminal build for ${host_os} ${host_arch}." >&2
             exit 1
             ;;
     esac

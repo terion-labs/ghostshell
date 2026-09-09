@@ -19,7 +19,7 @@ that is already reaching a stable boundary.
 
 Pi separates ordinary follow-ups from steering. Both are ordered user input;
 steering is selected before the next model step, after the current model step
-and any resulting tool batch have settled. GhostSHELL needs the same scheduling
+and any resulting tool batch have settled. Asura needs the same scheduling
 model while preserving its stricter authorization and tool-result boundaries.
 
 ## Decision

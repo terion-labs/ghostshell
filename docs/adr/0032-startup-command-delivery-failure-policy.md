@@ -7,7 +7,7 @@
 
 ## Context
 
-A saved terminal panel can contain startup commands. GhostSHELL already treats
+A saved terminal panel can contain startup commands. Asura already treats
 that command batch as a one-shot side effect: it uses one stable request and
 idempotency identity, audits before writing, retries only a typed retryable
 delivery failure while the same runtime instance remains live, and never

@@ -20,7 +20,7 @@ has better task intent to supply. Requiring Stop followed by a new prompt loses
 the in-flight turn, while appending an ordinary second user turn would let the
 first answer commit before the correction. Pi demonstrates useful steering
 behavior, but it remains a reference only; adding a Node.js process for this
-interaction would contradict GhostSHELL's native in-process agent boundary.
+interaction would contradict Asura's native in-process agent boundary.
 
 Steering is also easy to confuse with authority. Text such as “approve it”,
 “enable the tool”, or “use another host” must not answer a pending
@@ -30,7 +30,7 @@ late output from an adapter that ignores cancellation.
 
 ## Decision
 
-GhostSHELL adds one typed application operation:
+Asura adds one typed application operation:
 
 - `agent.steer`.
 

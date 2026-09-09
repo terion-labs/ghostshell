@@ -20,7 +20,7 @@ def main():
     runtime = pathlib.Path(sys.argv[1])
     destination = pathlib.Path(sys.argv[2])
     destination.mkdir(parents=True, exist_ok=True)
-    archive = destination / "GhostShell-workspace-boot-arm64.zip"
+    archive = destination / "Asura-workspace-boot-arm64.zip"
     temporary = archive.with_suffix(".partial")
     files = {}
     try:

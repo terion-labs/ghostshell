@@ -5,15 +5,15 @@ import Testing
 @testable import WorkspaceRuntime
 
 /// Opt-in: boots only new test disks, never discovers or changes user workspaces.
-@Test(.enabled(if: ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_ASSETS"] != nil))
+@Test(.enabled(if: ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_ASSETS"] != nil))
 func sdkVirtualNICPersistentDiskAndTerminal() async throws {
-  let assets = ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_ASSETS"]!
+  let assets = ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_ASSETS"]!
   let directory = URL(fileURLWithPath: "/tmp/gs-sdk-\(UUID().uuidString.prefix(8))")
   try FileManager.default.createDirectory(
     at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
   defer { try? FileManager.default.removeItem(at: directory) }
   let executable =
-    ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_EXECUTABLE"] ?? assets
+    ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_EXECUTABLE"] ?? assets
     + "/workspace-runtime"
   let rootfs = directory.appendingPathComponent("rootfs.ext4").path
   let socket = directory.appendingPathComponent("control.sock").path
@@ -35,7 +35,7 @@ func sdkVirtualNICPersistentDiskAndTerminal() async throws {
   let config = ServeConfiguration(
     id: "sdk-integration", controlSocketPath: socket, rootfsPath: rootfs,
     kernelPath: assets + "/kernel.bin", initfsPath: assets + "/initfs.ext4",
-    gatewayExecutablePath: ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"]
+    gatewayExecutablePath: ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"]
       ?? "/usr/bin/false",
     cpus: 2, memoryBytes: 536_870_912, hostname: "sdk-integration",
     mounts: [
@@ -56,7 +56,7 @@ func sdkVirtualNICPersistentDiskAndTerminal() async throws {
     #expect(try readLine(output) == "READY v1")
     let command =
       iteration == 0
-      ? "printf persistent > /sdk-proof; ip -4 route; ip -6 route; test ! -e /opt/ghostshell/bin/workspace-gateway"
+      ? "printf persistent > /sdk-proof; ip -4 route; ip -6 route; test ! -e /opt/asura/bin/workspace-gateway"
       : "test \"$(cat /sdk-proof)\" = persistent"
     let result = try await guestExec(socket: socket, command: command)
     #expect(result.code == 0, "\(result.output)")
@@ -91,7 +91,7 @@ func sdkVirtualNICPersistentDiskAndTerminal() async throws {
         terminal: true)
       #expect(terminal.code == 0)
       #expect(terminal.output.contains("31 101"))
-      if let gateway = ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"] {
+      if let gateway = ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"] {
         try await verifyHostOwnedRoute(
           executable: executable, gateway: gateway, socket: socket,
           packetSocket: directory.appendingPathComponent("packet.sock").path)

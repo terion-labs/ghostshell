@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Application\Asura.Application.csproj" />
+    <ProjectReference Include="..\Asura.Core\Asura.Core.csproj" />
+    <ProjectReference Include="..\Asura.Databases\Asura.Databases.csproj" />
+    <ProjectReference Include="..\Asura.Files\Asura.Files.csproj" />
+    <ProjectReference Include="..\Asura.Infrastructure\Asura.Infrastructure.csproj" />
+    <ProjectReference Include="..\Asura.Redis\Asura.Redis.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura" />
+    <InternalsVisibleTo Include="Asura.Backend" />
+    <InternalsVisibleTo Include="Asura.Architecture.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -9,8 +9,8 @@ fi
 executable="$1"
 # Keep the Mach-O identity aligned with the development/release bundle. Without
 # an explicit identifier, ad-hoc signing invents a content hash and macOS cannot
-# associate UserNotifications authorization with app.ghostshell consistently.
-signing_identifier="app.ghostshell"
+# associate UserNotifications authorization with sh.asura consistently.
+signing_identifier="sh.asura"
 if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "The SDK declaration helper can only run on macOS." >&2
     exit 1
@@ -48,7 +48,7 @@ if [[ "${declared_sdk}" == "26.0" ]]; then
     exit 0
 fi
 
-rewritten="$(mktemp "$(dirname "${executable}")/.GhostShell.sdk26.XXXXXX")"
+rewritten="$(mktemp "$(dirname "${executable}")/.Asura.sdk26.XXXXXX")"
 vtool_diagnostics="${rewritten}.vtool.log"
 cleanup() {
     rm -f -- "${rewritten}" "${vtool_diagnostics}"

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "format": "ghostshell-macos-release-legal-closure-v1",
+  "format": "asura-macos-release-legal-closure-v1",
   "platform": "macos-arm64",
   "legalClearance": false,
   "releaseBlockers": [
-    "ghostshell-90w9: Renew the managed-closure approval for stock SqlClient and the shared connection backend before publication."
+    "asura-90w9: Renew the managed-closure approval for stock SqlClient and the shared connection backend before publication."
   ],
   "excludedPlatforms": [
     "windows",
@@ -25,12 +25,12 @@
     "nativeTerminalAndShell": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the pinned libghostty-vt closure and retained GPL-covered shell resources for this exact macOS closure, including the pinned MIT Porta.Pty-native 1.0.7-ghostshell.1 descriptor-boundary patch and its retained source, license and build evidence."
+      "comment": "The project owner accepts the pinned libghostty-vt closure and retained GPL-covered shell resources for this exact macOS closure, including the pinned MIT Porta.Pty-native 1.0.7-asura.1 descriptor-boundary patch and its retained source, license and build evidence."
     },
     "cefMacos": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits, including CEF 150.0.9+g81b0088+chromium-150.0.7871.46 and the 0.8.0-ghostshell.10 binding source and patch evidence, and owns the security-update decision."
+      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits, including CEF 150.0.9+g81b0088+chromium-150.0.7871.46 and the 0.8.0-asura.10 binding source and patch evidence, and owns the security-update decision."
     },
     "sqlLanguageWorker": {
       "status": "accepted-by-owner-for-macos",
@@ -45,7 +45,7 @@
     },
     {
       "path": "assets/macos/product-identity.json",
-      "sha256": "8ab160c4d8c8a66eff49d5ac9bedef7677f89467d7c2432ff6ceeee1149c7a28"
+      "sha256": "02e1b2036cb6b00560d3a60b5098e0348926945de311b2e5a2ba65d7f06a1f5e"
     },
     {
       "path": "licenses/GPL-3.0.txt",
@@ -57,11 +57,11 @@
     },
     {
       "path": "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md",
-      "sha256": "910c55e6254a3067fb8745e933e694c632aaffd10c950819c2d6e1d1769281a7"
+      "sha256": "965b93f0b3fa6a2a62e7e8d18accf5236781e737929126b12bdd79d40e5e1475"
     },
     {
       "path": "licenses/SMBLIBRARY-SOURCE.json",
-      "sha256": "808c6618b7bf37420456bc4d310ce70601016053e326d5d01a0088027f2571b4"
+      "sha256": "f483a52588c84283c277bc7dd078cd1b88cb755292131260ad273de4e8daa7e3"
     },
     {
       "path": "licenses/SQLCLIENT-MIT.txt",
@@ -69,27 +69,27 @@
     },
     {
       "path": "licenses/THIRD-PARTY-NOTICES.md",
-      "sha256": "4cc5d7a7779b8c1db65484a4fe5d1f8c4d1da34b252c149f0b8a9de9f11e8de2"
+      "sha256": "531dd3d7cc5841ebbea8753dd9a6f1d5b10a192c1bf61e1c93244e9ab052b9d3"
     },
     {
       "path": "licenses/cef-runtime-components.json",
-      "sha256": "a144d9b709052d7e44010c7936af8ac46f91c8329543a8070aeec597529476d2"
+      "sha256": "7ac1d9ad7c402b0a123296dbba8e94a5689a39dc5bd4b44eb5783531b4db551e"
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "d536833dbd9eacef100a7b02d31377881dad796df97d3ec6089ddb00f37bb3cc"
+      "sha256": "844d21b0df724e3b6fd366c039ac0fe3f6a1f055b72e7fc85d0456a7f00ffb4b"
     },
     {
       "path": "licenses/native-terminal-components.json",
-      "sha256": "d7a0d0ae744e940f1d8d9b22d4eeca5ee8f0164e2cd6cb04a2a655632d6419cf"
+      "sha256": "7c3639b433450fad2187387858b920b0922a56f88167a63799f5600a6abac0c3"
     },
     {
       "path": "licenses/terminal-font-assets.json",
-      "sha256": "9345434d91afea9b743ea846387ff5e6321d306b5d6b0b1f0063d4185e422820"
+      "sha256": "57ccaf4932d9473d3a35e0a1b8f847f0762dcf10daf078fbb1a33bd4b35d61a4"
     },
     {
       "path": "native/ghostty-vt/SHELL-INTEGRATION-NOTICE.md",
-      "sha256": "bb85a91121f785ce83bada6b80d7b1b86ac41f49f0abc4a44ef9aff38a4e7b1b"
+      "sha256": "991cfc8ce87faf4282eeddaabe829075c7ebbce160950289b6bcef74b97d0b5b"
     },
     {
       "path": "native/sql-language-worker/src/legal/legal-review.tsv",

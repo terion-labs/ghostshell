@@ -1,0 +1,71 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.ShellLockView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:vm="using:Asura.App.ViewModels"
+    x:DataType="vm:ApplicationSecurityEditorViewModel">
+
+  <!-- The veil is opaque on purpose: a lock screen that lets the content
+       shimmer through is a screenshot of the content. It also covers the
+       custom title bar, so it takes over the title bar's one duty: any
+       press on its background drags the window. -->
+  <Border Background="{DynamicResource ShellBackgroundBrush}"
+      PointerPressed="OnVeilPointerPressed">
+    <controls:SurfaceCard
+        Width="360"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Padding="0">
+      <StackPanel Margin="{controls:Inset Xl}" Spacing="{DynamicResource ShellSpaceLg}">
+        <StackPanel HorizontalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+          <icons:SymbolIcon
+              HorizontalAlignment="Center"
+              FontSize="28"
+              Foreground="{DynamicResource ShellAccentBrush}"
+              Symbol="LockClosed" />
+          <TextBlock
+              HorizontalAlignment="Center"
+              FontSize="{DynamicResource ShellFontSize14}"
+              FontWeight="SemiBold"
+              Text="Asura is locked" />
+          <TextBlock
+              HorizontalAlignment="Center"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="Enter your PIN to continue." />
+        </StackPanel>
+        <TextBox
+            x:Name="PinInput"
+            HorizontalContentAlignment="Center"
+            PasswordChar="●"
+            KeyDown="OnPinKeyDown"
+            Text="{CompiledBinding UnlockPin}"
+            AutomationProperties.Name="Unlock PIN" />
+        <TextBlock
+            HorizontalAlignment="Center"
+            Foreground="{DynamicResource ShellDangerBrush}"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="{CompiledBinding UnlockStatus}"
+            TextWrapping="Wrap"
+            IsVisible="{CompiledBinding HasUnlockStatus}" />
+        <Button
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Classes="PrimaryButton"
+            Click="OnUnlockClick"
+            Content="Unlock"
+            AutomationProperties.Name="Unlock Asura" />
+        <Button
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Classes="SecondaryButton"
+            Click="OnBiometricUnlockClick"
+            Content="{CompiledBinding BiometricUnlockLabel}"
+            IsVisible="{CompiledBinding CanUseBiometrics}"
+            AutomationProperties.Name="Unlock with biometrics" />
+      </StackPanel>
+    </controls:SurfaceCard>
+  </Border>
+</UserControl>

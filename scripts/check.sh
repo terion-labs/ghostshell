@@ -14,8 +14,8 @@ case "${mode}" in
         ;;
 esac
 
-if [[ -n "${GHOSTSHELL_DOTNET:-}" ]]; then
-    dotnet="${GHOSTSHELL_DOTNET}"
+if [[ -n "${ASURA_DOTNET:-}" ]]; then
+    dotnet="${ASURA_DOTNET}"
 elif [[ -x "${repository_dir}/.dotnet/dotnet" ]]; then
     dotnet="${repository_dir}/.dotnet/dotnet"
 elif command -v dotnet >/dev/null 2>&1; then
@@ -38,22 +38,23 @@ fi
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
-export GHOSTSHELL_DOTNET="${dotnet}"
+export ASURA_DOTNET="${dotnet}"
 export NUGET_PACKAGES="${repository_dir}/.nuget/packages"
 
 cd "${repository_dir}"
 
+python3 "${script_dir}/check-product-name.py"
 "${script_dir}/check-network-native.sh" "${mode}"
 "${dotnet}" tool restore
-"${dotnet}" restore GhostShell.slnx --locked-mode
+"${dotnet}" restore Asura.slnx --locked-mode
 "${script_dir}/audit-dependencies.sh"
-"${dotnet}" format GhostShell.slnx \
+"${dotnet}" format Asura.slnx \
     --verify-no-changes \
     --no-restore \
     --exclude vendor/exclr8cef \
     --exclude vendor/sqlclient/tests/upstream \
     --severity warn
-"${dotnet}" build GhostShell.slnx \
+"${dotnet}" build Asura.slnx \
     --configuration Release \
     --no-restore \
     --nologo
@@ -67,7 +68,7 @@ run_test_project() {
     local -a test_command
 
     project_name="$(basename "${project}" .csproj)"
-    results_root="${GHOSTSHELL_TEST_RESULTS_ROOT:-${repository_dir}/.test-results}"
+    results_root="${ASURA_TEST_RESULTS_ROOT:-${repository_dir}/.test-results}"
     results_directory="${results_root}/${project_name}"
 
     test_command=("${dotnet}" test "${project}" \
@@ -77,7 +78,7 @@ run_test_project() {
         --results-directory "${results_directory}" \
         --logger "trx;LogFileName=${project_name}.trx")
 
-    if [[ "${GHOSTSHELL_COLLECT_COVERAGE:-0}" == "1" ]] &&
+    if [[ "${ASURA_COLLECT_COVERAGE:-0}" == "1" ]] &&
        grep -q '<PackageReference Include="coverlet.collector"' "${project}"; then
         test_command+=(--collect "XPlat Code Coverage")
     fi
@@ -87,7 +88,7 @@ run_test_project() {
 
 if [[ "${mode}" == "--quick" ]]; then
     run_test_project \
-        "${repository_dir}/tests/GhostShell.Architecture.Tests/GhostShell.Architecture.Tests.csproj"
+        "${repository_dir}/tests/Asura.Architecture.Tests/Asura.Architecture.Tests.csproj"
 else
     while IFS= read -r project; do
         run_test_project "${project}"

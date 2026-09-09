@@ -1,6 +1,6 @@
 # macOS release-candidate packaging
 
-GhostSHELL can currently produce a Native AOT macOS arm64 application
+Asura can currently produce a Native AOT macOS arm64 application
 bundle for local release validation. Candidates are completely ad-hoc sealed by
 default; the
 same pipeline can apply nested Developer ID signatures and submit
@@ -18,14 +18,14 @@ Install the workspace-local .NET SDK and build the pinned native terminal and
 SQL-language runtimes:
 
 ```sh
-GHOSTSHELL_SKIP_NATIVE=1 ./scripts/bootstrap.sh
+ASURA_SKIP_NATIVE=1 ./scripts/bootstrap.sh
 ./scripts/build-libghostty-vt.sh --rid osx-arm64
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
 ./scripts/build-cef-runtime.sh --rid osx-arm64
 ```
 
-Install LLVM's `ld64.lld` as well. GhostSHELL's Native AOT object exceeds the
-limits of Apple's current linker. Set `GHOSTSHELL_NATIVE_AOT_LINKER` when the
+Install LLVM's `ld64.lld` as well. Asura's Native AOT object exceeds the
+limits of Apple's current linker. Set `ASURA_NATIVE_AOT_LINKER` when the
 linker is not on `PATH`.
 
 Install full Xcode 26 or newer before packaging. CommandLineTools alone does not
@@ -37,14 +37,14 @@ the checked-in compatibility icon:
 ./scripts/build-macos-icon.sh
 ```
 
-`assets/macos/GhostShell.icon` is the layered source. It uses automatic and
+`assets/macos/Asura.icon` is the layered source. It uses automatic and
 system fills so Icon Composer can render default, dark, tinted, and clear
 appearances while macOS supplies its mask, material, shadow, and highlight.
-`GhostShell.icns` is the deterministic compatibility rendition for macOS 13
+`Asura.icns` is the deterministic compatibility rendition for macOS 13
 through 25. During every package build, `compile-macos-app-icon.sh` requires
 Xcode `actool` 26 or newer and compiles the same layered source into
 `Assets.car`. The script verifies the generated partial property list and uses
-`assetutil` to require a named `GhostShell` icon image. Copying a raw `.icon`
+`assetutil` to require a named `Asura` icon image. Copying a raw `.icon`
 document into an application bundle is not a supported substitute.
 
 On macOS 26, the running application recolors its Dock icon from the current
@@ -68,7 +68,7 @@ The native build checks out Ghostty commit
 from `native/ghostty-vt/patches` to a disposable checkout, builds the public
 libghostty-vt C ABI with pinned Zig 0.16.0, runs Ghostty's patched
 `test-lib-vt` suite, verifies the complete managed-import export set and exact
-GhostSHELL extension ABI, and publishes:
+Asura extension ABI, and publishes:
 
 - `native/artifacts/osx-arm64/libghostty-vt.dylib`;
 - `GHOSTTY-LICENSE`;
@@ -88,7 +88,7 @@ The CEF build consumes the exact release and Exclr8CEF source commit in
 `licenses/cef-runtime-components.json`, verifies the already-patched vendored
 source against the full-source and patch-set manifests, and uses disposable
 build and staging trees to produce an explicit runtime root. The root
-contains the CEF framework, Exclr8CEF shim, all five `GhostSHELL Helper` app
+contains the CEF framework, Exclr8CEF shim, all five `Asura Helper` app
 variants, CEF license and Chromium credits, binding license, and a sorted
 file-level SHA-256 receipt. The packager validates that receipt before running
 the more expensive desktop publish.
@@ -103,7 +103,7 @@ output fails the native build before publication.
 
 The SQL-language build separately compiles Calcite with GraalVM Native Image,
 runs the linked executable's framed-protocol smoke test, and atomically publishes
-`ghostshell-sql-language`, its resolved dependency list, third-party notices,
+`asura-sql-language`, its resolved dependency list, third-party notices,
 and `build-receipt.json`. The receipt binds the executable hash, `osx-arm64`
 RID, `darwin-arm64` ABI, protocol version, minimum macOS version, legal-closure
 format, dependency/document/review-required counts, and hashes of both legal
@@ -120,10 +120,10 @@ mkdir -p artifacts/macos-arm64-rc
   --version 0.1.0 \
   --build-version 1 \
   --runtime-identifier osx-arm64 \
-  --output artifacts/macos-arm64-rc/GhostShell.app
+  --output artifacts/macos-arm64-rc/Asura.app
 ```
 
-The destination must be named `GhostShell.app` and must not already exist. The
+The destination must be named `Asura.app` and must not already exist. The
 script publishes an `osx-arm64`, speed-optimized Native AOT application, rejects symbolic
 links and special entries, verifies that the executable and libghostty-vt are
 arm64 Mach-O files, verifies the CEF shim, framework libraries,
@@ -144,18 +144,18 @@ bundle; all three copies must match the receipt.
 The isolated workspace backend is a separate on-demand download, never Linux
 code embedded in the macOS app. `./scripts/build-workspace-backend.sh` uses the
 repository-pinned SDK and locked Linux ARM64 dependency graph to publish the
-UI-free `GhostShell.Backend` with self-contained .NET 10.0.11. It rejects browser
+UI-free `Asura.Backend` with self-contained .NET 10.0.11. It rejects browser
 and Avalonia assemblies, non-ARM64 native libraries, links, and unsafe paths.
-Its deterministic `GhostShell-workspace-backend-arm64.tar.gz` includes a
+Its deterministic `Asura-workspace-backend-arm64.tar.gz` includes a
 `MANIFEST.sha256` for verifying extracted files; the signed app contains only
 `Contents/Resources/runtimes/linux-arm64/workspace-backend/backend-assets.json`,
 which pins the archive hash, length, and executable. Rehearsal builds this
 sidecar locally, packaging rejects stale build receipts, and the release uploads
 it beside the boot archive. Development uses the same descriptor and sets
-`GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE` to the local sidecar. The development
+`ASURA_WORKSPACE_BACKEND_ARCHIVE` to the local sidecar. The development
 launcher rebuilds a stale backend before starting the app.
 
-Linux backend publication is currently blocked by `ghostshell-90w9` and
+Linux backend publication is currently blocked by `asura-90w9` and
 `licenses/workspace-backend-release-legal.json`. The existing macOS owner
 decision is not reused as Linux approval. Local backend builds and tests remain
 available; signed release assembly, rehearsal, and the tag lane require the
@@ -180,7 +180,7 @@ destination absent.
 Adaptive icon compilation also fails closed before the managed publish. The
 selected developer directory must be full Xcode, `actool` must report version
 26 or newer, and both the generated partial plist and `Assets.car` must declare
-`GhostShell` as the primary icon. The focused identity and release jobs run on
+`Asura` as the primary icon. The focused identity and release jobs run on
 a macOS 26 host, select a matching Xcode installation explicitly, and repeat
 the `assetutil` check after extracting the signed archive. This avoids the
 Xcode 26 AssetRuntime crash observed when the hosted compiler ran on macOS 15.
@@ -204,11 +204,11 @@ order without `codesign --deep` mutation:
   --version 0.1.0 \
   --build-version 1 \
   --runtime-identifier osx-arm64 \
-  --output artifacts/macos-arm64-rc/GhostShell.app \
+  --output artifacts/macos-arm64-rc/Asura.app \
   --sign-identity "Developer ID Application: Example Corp (TEAMID)"
 ```
 
-Add `--notary-profile ghostshell-release` to ZIP the candidate temporarily,
+Add `--notary-profile asura-release` to ZIP the candidate temporarily,
 submit it with `notarytool --wait`, staple the accepted ticket, and validate it
 with both `stapler` and Gatekeeper. The profile must already exist in the
 login keychain; credentials are never accepted on the command line or written
@@ -223,11 +223,11 @@ lower-level candidate directly:
   --build-version 1 \
   --output-dir artifacts/macos-arm64-direct \
   --sign-identity "Developer ID Application: Example Corp (TEAMID)" \
-  --notary-profile ghostshell-release \
+  --notary-profile asura-release \
   --keychain /path/to/release.keychain-db \
   --release-evidence-dir /outside/source/release-evidence \
   --source-seal /outside/source/source-seal \
-  --security-campaign-tool /outside/source/GhostShell.SecurityCampaign.dll \
+  --security-campaign-tool /outside/source/Asura.SecurityCampaign.dll \
   --build-artifacts-root /outside/source/build
 ```
 
@@ -259,7 +259,7 @@ before GitHub Release publication.
 ## Update and rollback policy
 
 The macOS arm64 bundle now records `github-release`, `velopack`, and
-`osx-arm64-stable` in `Contents/Resources/distribution.json`. GhostSHELL never
+`osx-arm64-stable` in `Contents/Resources/distribution.json`. Asura never
 checks in the background. A user can check and download from the About page only
 when Velopack confirms that the running bundle contains its installation
 metadata and updater. The application contains no release-signing,
@@ -289,17 +289,17 @@ implemented and tested.
 
 The packager fails closed unless the Native AOT publish contains:
 
-- the GhostSHELL Native AOT executable, with no managed application DLLs,
+- the Asura Native AOT executable, with no managed application DLLs,
   dependency manifest, runtime configuration, or JIT runtime;
 - `Contents/Resources/Assets.car`, compiled by Xcode 26 or newer from the
-  checked-in layered `assets/macos/GhostShell.icon` source and declared by
+  checked-in layered `assets/macos/Asura.icon` source and declared by
   `CFBundleIconName`;
-- `Contents/Resources/GhostShell.icns`, containing every required 16 through
+- `Contents/Resources/Asura.icns`, containing every required 16 through
   1024 pixel compatibility rendition and declared by `CFBundleIconFile`;
 - the exact approved product-identity manifest under
   `Contents/Resources/Licenses/ProductIdentity`;
 - exactly the current terminal library `libghostty-vt.dylib` rather than
-  `libghostshell-ghostty.dylib` or full `libghostty.dylib`;
+  `libasura-ghostty.dylib` or full `libghostty.dylib`;
 - the pinned Ghostty license, native component catalog, and native build
   receipt;
 - the exact reviewed libghostty-vt export manifest;
@@ -310,7 +310,7 @@ The packager fails closed unless the Native AOT publish contains:
 - the reviewed managed-component catalog, NuGet archive evidence, .NET license,
   and third-party notices.
 - the exact CEF 150 framework/resource/locale closure and Exclr8CEF shim;
-- `GhostSHELL Helper.app` plus the Alerts, GPU, Plugin, and Renderer variants,
+- `Asura Helper.app` plus the Alerts, GPU, Plugin, and Renderer variants,
   each with matching executable and bundle identity;
 - the CEF BSD license, Chromium `CREDITS.html`, Exclr8CEF MIT license, reviewed
   CEF catalog, file-level build receipt, and a deterministic CEF SPDX document.
@@ -320,7 +320,7 @@ exact extension ABI, then compares the packaged dylib, reviewed export
 manifest, license, shell-integration manifest, and every staged shell resource
 with the build receipt and native component catalog. A separate locked
 self-contained publish provides managed provenance without entering the app
-bundle. Validation compares its complete `GhostShell.deps.json` closure with the reviewed catalog, NuGet
+bundle. Validation compares its complete `Asura.deps.json` closure with the reviewed catalog, NuGet
 content hashes, archive SHA-512 receipts, nuspec identity/version/license
 metadata, and resolved dependency graph. Unknown, missing, malformed,
 ambiguous, linked, or tampered evidence fails assembly.
@@ -336,11 +336,11 @@ package error, not an implicit extension point.
 
 The bundle declares:
 
-- display and bundle name `GhostSHELL`;
-- bundle identifier `app.ghostshell`;
-- executable `Contents/MacOS/GhostShell`;
-- primary adaptive icon name `GhostShell` and compatibility icon file
-  `GhostShell.icns`;
+- display and bundle name `Asura`;
+- bundle identifier `sh.asura`;
+- executable `Contents/MacOS/Asura`;
+- primary adaptive icon name `Asura` and compatibility icon file
+  `Asura.icns`;
 - minimum system version macOS 13;
 - the supplied `CFBundleShortVersionString` and `CFBundleVersion`;
 - `Contents/Resources/Licenses/GHOSTTY-LICENSE`;
@@ -372,13 +372,13 @@ The package can be inspected without starting an application process:
 
 ```sh
 ./.dotnet/dotnet run \
-  --project tools/GhostShell.AccessibilityAcceptance/GhostShell.AccessibilityAcceptance.csproj \
+  --project tools/Asura.AccessibilityAcceptance/Asura.AccessibilityAcceptance.csproj \
   --configuration Release \
   -- \
   inspect-package \
   --platform MacOS \
   --build-label macos-0.1.0-1 \
-  --package artifacts/macos-arm64-rc/GhostShell.app
+  --package artifacts/macos-arm64-rc/Asura.app
 ```
 
 This checks bundle identity, executable mode, regular-file boundaries,
@@ -404,12 +404,12 @@ independent legal review. `review.status` and `review.basis` state that decision
 directly; `legalClearance` means internal release clearance, not a legal opinion
 from counsel.
 
-GhostSHELL is MIT licensed. SMBLibrary remains LGPL-3.0-or-later and is compiled
+Asura is MIT licensed. SMBLibrary remains LGPL-3.0-or-later and is compiled
 into the Native AOT executable. The bundle retains LGPLv3 and GPLv3 text, exact
 source provenance for upstream commit
 `255339717ccc9a278579d563f42939d9f2668506`, and
 `SMBLIBRARY-SOURCE-AND-RELINKING.md`. Those materials explain how to replace the
-library and rebuild GhostSHELL. The project owner accepts that documented path
+library and rebuild Asura. The project owner accepts that documented path
 for the exact macOS closure.
 
 The pipeline supports Developer ID signing, Chromium JIT hardened-runtime

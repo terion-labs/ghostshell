@@ -63,7 +63,7 @@ test('CONNECT requires one exact proxy authorization before dialing', { timeout:
   for (const supplied of [null, 'Basic incorrect', `${authorization}\r\nProxy-Authorization: ${authorization}`]) {
     const response = await request(fixture, connectPacket(authority, supplied, 'GET / HTTP/1.1\r\n\r\n'));
     assert.match(response, /^HTTP\/1.1 407 /);
-    assert.match(response, /Proxy-Authenticate: Basic realm="ghostshell-proxy-fixture"/);
+    assert.match(response, /Proxy-Authenticate: Basic realm="asura-proxy-fixture"/);
   }
   assert.equal(fixture.records.filter(record => record.source === 'origin').length, 0);
 });

@@ -1,0 +1,105 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.EmbeddedTerminalSessionView"
+    x:DataType="vm:TerminalRuntimePanelViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    AutomationProperties.Name="Container shell">
+  <!-- The panel material behind this view is the chrome's translucent surface;
+       painting the shell background here made every embedded terminal opaque
+       regardless of the appearance settings. -->
+  <Grid>
+    <controls:TerminalPresentationHost
+        x:Name="EmbeddedTerminal"
+        Margin="0"
+        ClientId="{Binding ClientId}"
+        SessionClient="{Binding SessionClient}"
+        StartupCommandDispatchState="{Binding StartupCommandDispatchState}"
+        StartupCommandDispatcher="{Binding StartupCommandDispatcher}"
+        SessionRequest="{Binding SessionRequest}"
+        RenderProfile="{Binding RenderProfile}"
+        BackgroundOpacity="{DynamicResource ShellSurfaceOpacity}"
+        SessionSnapshotChanged="OnSessionSnapshotChanged"
+        SessionInitializationFailed="OnSessionInitializationFailed" />
+
+    <Border
+        Margin="0"
+        Padding="{controls:Inset Xl}"
+        Background="{DynamicResource ShellSurfaceBrush}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding ShowFallback, ElementName=EmbeddedTerminal}">
+      <StackPanel MaxWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+        <icons:SymbolIcon Symbol="WindowConsole" FontSize="24" Foreground="{DynamicResource ShellMutedBrush}" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize11}"
+            Text="{Binding StatusMessage, ElementName=EmbeddedTerminal}"
+            TextAlignment="Center"
+            TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Border
+        Margin="{controls:Inset Md}"
+        Padding="{controls:Inset Horizontal=Md, Vertical=Sm}"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Top"
+        MaxWidth="420"
+        Background="{DynamicResource ShellWarningOverlayBrush}"
+        BorderBrush="{DynamicResource ShellWarningBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource ShellControlCornerRadius}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding HasStartupCommandError}">
+      <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource ShellWarningBrush}" Text="{Binding StartupCommandErrorTitle}" />
+        <TextBlock Classes="Muted" Text="{Binding StartupCommandErrorDetail}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Border
+        Margin="{controls:Inset Md}"
+        Padding="{controls:Inset Sm}"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        Background="{DynamicResource ShellWarningOverlayBrush}"
+        BorderBrush="{DynamicResource ShellWarningBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource ShellControlCornerRadius}"
+        IsHitTestVisible="False"
+        IsVisible="{Binding IsCopyMode}">
+      <TextBlock FontSize="{DynamicResource ShellFontSize9}" Foreground="{DynamicResource ShellWarningBrush}" Text="COPY MODE · scroll/select with the pointer · copy normally · Esc exits" />
+    </Border>
+
+    <Border
+        Margin="0"
+        Padding="{controls:Inset Xl}"
+        Background="{DynamicResource ShellSurfaceBrush}"
+        IsVisible="{Binding HasConnectionOverlay}">
+      <StackPanel MaxWidth="460" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+        <icons:SymbolIcon Symbol="WindowConsole" FontSize="25" Foreground="{DynamicResource ShellWarningBrush}" />
+        <TextBlock FontSize="{DynamicResource ShellFontSize15}" FontWeight="SemiBold" Text="{Binding ConnectionStatus}" TextAlignment="Center" />
+        <TextBlock Classes="Muted" Text="{Binding ConnectionDetail}" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding RecoveryLabel}" TextAlignment="Center" TextWrapping="Wrap" />
+        <controls:SurfaceCard Padding="0" IsVisible="{Binding HasHostKeyReview}">
+          <StackPanel Margin="{controls:Inset Md}" Spacing="{DynamicResource ShellSpaceXs}">
+            <TextBlock FontWeight="SemiBold" Text="{Binding HostKeyReviewTitle}" TextAlignment="Center" />
+            <TextBlock FontSize="{DynamicResource ShellFontSize9}" Text="{Binding HostKeyReview.Presented.Algorithm}" TextAlignment="Center" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding HostKeyReview.Presented.Sha256Fingerprint}" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding TrustedHostKeyFingerprint}" TextAlignment="Center" TextWrapping="Wrap" />
+            <Button Classes="SecondaryButton" Click="OnTrustHostKeyClick" Content="{Binding TrustHostKeyLabel}" IsVisible="{Binding CanTrustHostKey}" />
+          </StackPanel>
+        </controls:SurfaceCard>
+        <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="{Binding ReconnectStatus}" IsVisible="{Binding IsReconnecting}" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+          <Button Classes="SecondaryButton" Click="OnRetryConnectionClick" Content="Retry connection" IsVisible="{Binding CanRetry}" />
+          <Button Classes="TextButton" Click="OnCancelReconnectClick" Content="{Binding CancelConnectionLabel}" IsVisible="{Binding CanCancelConnection}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

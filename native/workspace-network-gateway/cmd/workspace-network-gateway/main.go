@@ -11,10 +11,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/ethernet"
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/guest"
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/host"
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/relay"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/ethernet"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/guest"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/host"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/relay"
 )
 
 func main() {

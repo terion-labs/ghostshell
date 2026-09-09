@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "format": "ghostshell-smblibrary-source-provenance-v1",
+  "format": "asura-smblibrary-source-provenance-v1",
   "package": {
     "identity": "SMBLibrary/1.5.7.1",
     "nuGetPackageSha512": "j3jZ+Uva5aPBuqhG67GVBk2XOFLxu7HZe7zKNrOx6tIs9PBmOeCRxBXNJMKuuS4VJOyYOAA3X37VHhnfvDuc2Q==",

@@ -1,0 +1,286 @@
+<Window
+    x:Class="Asura.App.Views.QuickTerminalWindow"
+    x:DataType="vm:QuickTerminalViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:views="using:Asura.App.Views"
+    Title="Asura Quick Terminal"
+    Width="1200"
+    Height="520"
+    MinWidth="640"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowDecorations="None"
+    Background="Transparent"
+    Topmost="True"
+    WindowStartupLocation="Manual">
+  <Window.Styles>
+    <!-- The same agent surface as the main workspace. Quick Terminal is
+         shorter, so the floating surface stretches within its content area
+         instead of assuming the main window's 620px flyout height. -->
+    <Style Selector="views|AgentWorkspaceView">
+      <Setter Property="Width" Value="352" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating">
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.anchorBottom">
+      <Setter Property="Margin" Value="0,12,0,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.anchorTop">
+      <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating Border.AgentPanel">
+      <Setter Property="BoxShadow" Value="{DynamicResource ShellFlyoutShadow}" />
+      <Setter Property="Background" Value="{DynamicResource ShellSidebarOverlayBrush}" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="9,0,0,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="9,0,0,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="0,9,9,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="0,9,9,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight.anchorBottom Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="9,9,0,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight.anchorBottom controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="9,9,0,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight.anchorTop Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="9,0,9,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeRight.anchorTop controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="9,0,9,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft.anchorBottom Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="9,9,9,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft.anchorBottom controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="9,9,9,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft.anchorTop Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="0,9,9,9" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.floating.edgeLeft.anchorTop controls|BlurBehindSurface#FlyoutBackdrop">
+      <Setter Property="CornerRadius" Value="0,9,9,9" />
+    </Style>
+    <!-- Pinned is a real split, not a card hovering in a reserved slot. -->
+    <Style Selector="views|AgentWorkspaceView.docked Border.AgentPanel">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BoxShadow" Value="none" />
+      <Setter Property="BorderThickness" Value="1,0,1,0" />
+    </Style>
+    <Style Selector="views|AgentWorkspaceView.docked.nativeMaterial Border.AgentPanel">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </Window.Styles>
+  <!-- The panel always fills a fixed-size native window. The reveal moves that
+       whole window, so the platform material and the terminal surface are one
+       composited object and the terminal never relayouts during the slide. -->
+  <Grid
+      x:Name="RevealViewport"
+      Background="Transparent"
+      ClipToBounds="True">
+    <Border
+        x:Name="SlidingPanel"
+        Background="Transparent"
+        BorderBrush="{DynamicResource ShellAccentBrush}"
+        BorderThickness="0,0,0,1"
+        ClipToBounds="True"
+        CornerRadius="0">
+      <Grid RowDefinitions="*,36">
+        <DockPanel LastChildFill="True">
+          <!-- Docking reserves the exact slot occupied by the always-parented
+               overlay below, preserving the conversation while the terminal
+               canvas moves out of its way. -->
+          <Border
+              DockPanel.Dock="{Binding AgentPanelDock}"
+              Width="{Binding #QuickTerminalAgentSurface.Bounds.Width}"
+              Margin="0"
+              IsVisible="{Binding IsAgentPanelDockedVisible}" />
+          <Grid>
+            <controls:TerminalPresentationHost
+                x:Name="QuickTerminalHost"
+                ClientId="{Binding ClientId}"
+                IsVisible="{Binding IsTerminalAvailable}"
+                RenderProfile="{Binding RenderProfile}"
+                SessionClient="{Binding SessionClient}"
+                SessionRequest="{Binding TerminalRequest}" />
+
+            <Grid
+                IsVisible="{Binding ShowTerminalPlaceholder}">
+              <Border
+                  x:Name="QuickTerminalPlaceholderBackground"
+                  Background="{DynamicResource ShellBackgroundBrush}"
+                  IsHitTestVisible="False" />
+              <controls:StateOverlay
+                  Kind="Unsupported"
+                  Heading="{Binding TerminalPlaceholderTitle}"
+                  Body="{Binding TerminalUnavailableMessage}" />
+            </Grid>
+          </Grid>
+        </DockPanel>
+
+        <!-- Quick Terminal owns a native terminal surface rather than a
+             PanelChrome. Mirror the shared, turn-scoped panel-presence glow
+             here so its active terminal receives the same signal as every
+             ordinary workspace panel. -->
+        <Border
+            Grid.Row="0"
+            ZIndex="80"
+            Background="Transparent"
+            BorderBrush="{DynamicResource ShellAccentBrush}"
+            BorderThickness="1"
+            BoxShadow="{DynamicResource ShellAgentPanelGlowShadow}"
+            Classes="PanelAgentGlow"
+            CornerRadius="0"
+            IsHitTestVisible="False"
+            IsVisible="{Binding ActiveTab.HasAgentActivity}" />
+
+        <Panel
+            x:Name="AgentViewport"
+            Grid.Row="0"
+            ZIndex="90"
+            ClipToBounds="False"
+            IsVisible="{Binding IsAgentPanelVisible}">
+          <views:AgentWorkspaceView
+              x:Name="QuickTerminalAgentSurface"
+              Classes="edgeResizable"
+              ClipToBounds="False"
+              MaxHeight="{Binding #AgentViewport.Bounds.Height}"
+              HorizontalAlignment="{Binding AgentPanelAlignment}"
+              VerticalAlignment="{Binding AgentPanelVerticalAlignment}"
+              Classes.floating="{Binding !IsAgentPanelDocked}"
+              Classes.docked="{Binding IsAgentPanelDocked}"
+              Classes.edgeLeft="{Binding IsAgentPanelOnLeft}"
+              Classes.edgeRight="{Binding IsAgentPanelOnRight}"
+              Classes.anchorBottom="{Binding IsAgentPanelAnchoredBottom}"
+              Classes.anchorTop="{Binding IsAgentPanelAnchoredTop}"
+              AgentQuestionResponseKeyDownRequested="OnAgentQuestionResponseKeyDown"
+              ApproveAgentActionRequested="OnApproveAgentActionClick"
+              CancelAgentActionRequested="OnCancelAgentActionClick"
+              CancelAgentChatRequested="OnCancelAgentChatClick"
+              ClearAgentChatRequested="OnClearAgentChatClick"
+              DeclineAgentQuestionRequested="OnDeclineAgentQuestionClick"
+              DenyAgentActionRequested="OnDenyAgentActionClick"
+              DisableAgentYoloRequested="OnDisableAgentYoloClick"
+              EnableAgentCapabilityAskRequested="OnEnableAgentCapabilityAskClick"
+              EnableAgentYoloRequested="OnEnableAgentYoloClick"
+              KeepAgentCapabilityOffRequested="OnKeepAgentCapabilityOffClick"
+              LoadOlderAgentAuditRequested="OnLoadOlderAgentAuditClick"
+              MoveQueuedFollowUpRequested="OnMoveAgentQueuedFollowUpRequested"
+              RefreshAgentAuditRequested="OnRefreshAgentAuditClick"
+              ApplyAgentHistoryRetentionRequested="OnApplyAgentHistoryRetentionClick"
+              ExportAgentHistoryRequested="OnExportAgentHistoryClick"
+              StartNewAgentConversationRequested="OnStartNewAgentConversationClick"
+              OpenAgentConversationRequested="OnOpenAgentConversationClick"
+              DeleteAgentConversationRequested="OnDeleteAgentConversationClick"
+              CopyAgentMessageRequested="OnCopyAgentMessageClick"
+              ForkAgentConversationRequested="OnForkAgentConversationClick"
+              SelectAgentModelRequested="OnSelectAgentModelClick"
+              ToggleAgentModelFavoriteRequested="OnToggleAgentModelFavoriteClick"
+              RefreshAgentModelsRequested="OnRefreshAgentModelsClick"
+              SendAgentChatRequested="OnSendAgentChatClick"
+              QueueAgentSteeringRequested="OnQueueAgentSteeringClick"
+              AttachAgentImageRequested="OnAttachAgentImageClick"
+              ClearAgentImagesRequested="OnClearAgentImagesClick"
+              ShowAgentSettingsRequested="OnShowAgentSettingsClick"
+              SubmitAgentQuestionRequested="OnSubmitAgentQuestionClick"
+              ToggleAgentPinRequested="OnToggleAgentPinClick" />
+        </Panel>
+
+        <Grid Grid.Row="1">
+          <Border
+              x:Name="QuickTerminalStatusBackground"
+              Background="{DynamicResource ShellSurfaceBrush}"
+              IsHitTestVisible="False" />
+          <!-- This divider cannot belong to the Avalonia background above:
+               that fallback is hidden when the native HUD material exists. -->
+          <Border
+              x:Name="QuickTerminalStatusDivider"
+              Height="1"
+              VerticalAlignment="Top"
+              Background="{DynamicResource ShellBorderBrush}"
+              IsHitTestVisible="False" />
+          <Grid Margin="{controls:Inset Left=Md, Right=Xs}" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+            <components:RuntimeTabStripView
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Tabs="{Binding Tabs}"
+                Orientation="Horizontal"
+                IconPickerPlacement="TopEdgeAlignedLeft"
+                ShowsOverflowSeparator="False"
+                AddTabRequested="OnAddTabRequested"
+                ActivateRequested="OnActivateTabRequested"
+                CloseRequested="OnCloseTabRequested"
+                TitleEditRequested="OnTabTitleEditRequested"
+                IconEditRequested="OnTabIconEditRequested"
+                ReorderPointerCaptureLost="OnTabReorderPointerCaptureLost"
+                ReorderPointerMoved="OnTabReorderPointerMoved"
+                ReorderPointerPressed="OnTabReorderPointerPressed"
+                ReorderPointerReleased="OnTabReorderPointerReleased"
+                AutomationProperties.Name="Quick Terminal tabs" />
+            <components:PanelConnectionSelectorView
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Options="{Binding ConnectionOptions}"
+                SelectedLabel="{Binding ConnectionName}"
+                ConnectionSelected="OnConnectionSelected"
+                NewConnectionRequested="OnNewConnectionRequested" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" VerticalAlignment="Center">
+              <Button
+                  Classes="IconButton"
+                  Click="OnToggleAgentClick"
+                  ToolTip.Tip="Toggle agent panel"
+                  AutomationProperties.Name="Toggle AI agent panel">
+                <Grid>
+                  <icons:SymbolIcon
+                      FontSize="13"
+                      Foreground="{DynamicResource ShellForegroundBrush}"
+                      Symbol="Bot" />
+                  <icons:SymbolIcon
+                      Classes="AgentToolbarActivityPulse"
+                      Classes.running="{Binding AgentChat.IsBusy}"
+                      FontSize="13"
+                      Foreground="{DynamicResource ShellAccentBrush}"
+                      Opacity="0"
+                      Symbol="Bot" />
+                </Grid>
+              </Button>
+              <Button
+                  Classes="IconButton"
+                  Click="OnHideClick"
+                  ToolTip.Tip="Hide Quick Terminal"
+                  AutomationProperties.Name="Hide Quick Terminal">
+                <icons:SymbolIcon Symbol="Dismiss" FontSize="12" />
+              </Button>
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Border>
+    <Border
+        x:Name="ResizeGrip"
+        Height="6"
+        VerticalAlignment="Bottom"
+        Background="Transparent"
+        Cursor="SizeNorthSouth"
+        PointerCaptureLost="OnResizeGripPointerCaptureLost"
+        PointerMoved="OnResizeGripPointerMoved"
+        PointerPressed="OnResizeGripPointerPressed"
+        PointerReleased="OnResizeGripPointerReleased"
+        ToolTip.Tip="Drag to resize Quick Terminal"
+        AutomationProperties.Name="Resize Quick Terminal" />
+  </Grid>
+</Window>

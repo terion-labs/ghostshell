@@ -7,19 +7,19 @@ profile.
 
 | Storage | Installed app | Development |
 | --- | --- | --- |
-| macOS Application Support, Caches, Logs directory | `GhostShell` | `GhostShell Development` |
-| Windows local application directory | `GhostShell` | `GhostShell Development` |
-| Linux XDG application directory | `ghostshell` | `ghostshell-development` |
-| OS vault service | `app.ghostshell` | `app.ghostshell.development` |
-| Temporary browser working-tree parent | `GhostShell` | `GhostShell Development` |
-| macOS bundle identifier | `app.ghostshell` | `app.ghostshell.development` |
+| macOS Application Support, Caches, Logs directory | `Asura` | `Asura Development` |
+| Windows local application directory | `Asura` | `Asura Development` |
+| Linux XDG application directory | `asura` | `asura-development` |
+| OS vault service | `sh.asura` | `sh.asura.development` |
+| Temporary browser working-tree parent | `Asura` | `Asura Development` |
+| macOS bundle identifier | `sh.asura` | `sh.asura.development` |
 
 Database, startup protection, browser archives, VPN state, SDK workspace disks,
 and single-instance coordination inherit the data root. Encryption and stored
 connection credentials inherit the vault service. Account names can stay the
 same because the vault service distinguishes their owners.
 
-`scripts/package-macos.sh` explicitly passes `GhostShellProductionBuild=true`
+`scripts/package-macos.sh` explicitly passes `AsuraProductionBuild=true`
 to both managed-evidence and Native AOT publishing. Do not pass this property
 to development builds or tests. Production retains its existing paths and keys.
 

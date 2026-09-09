@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	guestToHostLabel = []byte("GhostSHELL workspace packet channel guest to host v1")
-	hostToGuestLabel = []byte("GhostSHELL workspace packet channel host to guest v1")
+	guestToHostLabel = []byte("Asura workspace packet channel guest to host v1")
+	hostToGuestLabel = []byte("Asura workspace packet channel host to guest v1")
 )
 
 type Channel struct {

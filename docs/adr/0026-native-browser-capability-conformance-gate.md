@@ -13,7 +13,7 @@
 
 ## Context
 
-GhostSHELL has closed native C# contracts and fixed adapter scripts for browser
+Asura has closed native C# contracts and fixed adapter scripts for browser
 snapshot, exact-reference click, and bounded fill. Those scripts execute in the
 page JavaScript realm, not an isolated browser world or native accessibility
 API. A hostile page can poison realm-visible built-ins and prototypes before or

@@ -1,12 +1,12 @@
 <Project>
   <!-- Test-only upstream TDS server boundary. Production SqlClient comes from
-       NuGet; GhostShell drivers and assertions retain first-party analyzers. -->
+       NuGet; Asura drivers and assertions retain first-party analyzers. -->
   <PropertyGroup>
-    <GhostShellVendoredTestProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'tests/Tds.TestSupport.csproj'))</GhostShellVendoredTestProject>
+    <AsuraVendoredTestProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'tests/Tds.TestSupport.csproj'))</AsuraVendoredTestProject>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(MSBuildProjectFullPath)' == '$(GhostShellVendoredTestProject)'">
+  <PropertyGroup Condition="'$(MSBuildProjectFullPath)' == '$(AsuraVendoredTestProject)'">
     <!-- Share the repository's runtime-lock validation without first-party analyzers. -->
-    <GhostShellVendoredLockedProject>true</GhostShellVendoredLockedProject>
+    <AsuraVendoredLockedProject>true</AsuraVendoredLockedProject>
     <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != ''">packages.$(RuntimeIdentifier).lock.json</NuGetLockFilePath>
     <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != ''">packages.$(RuntimeIdentifiers).lock.json</NuGetLockFilePath>
   </PropertyGroup>

@@ -5,24 +5,24 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 vendor_dir="${repository_dir}/vendor/exclr8cef"
 catalog="${repository_dir}/licenses/cef-runtime-components.json"
-patch_manifest="${vendor_dir}/GHOSTSHELL-PATCHSET.sha256"
-source_manifest="${vendor_dir}/GHOSTSHELL-SOURCE-SNAPSHOT.sha256"
+patch_manifest="${vendor_dir}/ASURA-PATCHSET.sha256"
+source_manifest="${vendor_dir}/ASURA-SOURCE-SNAPSHOT.sha256"
 artifact_parent_dir="${repository_dir}/native/artifacts"
 download_cache_dir="${repository_dir}/.deps/cef"
 dotnet=""
 target_rid=""
 allow_unsandboxed_windows=false
-cef_build_jobs="${GHOSTSHELL_CEF_BUILD_JOBS:-4}"
+cef_build_jobs="${ASURA_CEF_BUILD_JOBS:-4}"
 dotnet_artifacts_arguments=()
-if [[ -n "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT:-}" ]]; then
-    dotnet_artifacts_arguments=(--artifacts-path "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT}")
+if [[ -n "${ASURA_BUILD_ARTIFACTS_ROOT:-}" ]]; then
+    dotnet_artifacts_arguments=(--artifacts-path "${ASURA_BUILD_ARTIFACTS_ROOT}")
 fi
 
 usage() {
     cat >&2 <<'EOF'
 Usage: ./scripts/build-cef-runtime.sh --rid <runtime-identifier> [options]
 
-Builds the pinned GhostSHELL Exclr8CEF source snapshot against the reviewed CEF
+Builds the pinned Asura Exclr8CEF source snapshot against the reviewed CEF
 archive, creates and validates a complete runtime receipt, and atomically
 publishes native/artifacts/<rid>/cef while preserving other RID artifacts.
 
@@ -69,7 +69,7 @@ if [[ -z "${target_rid}" ]]; then
     exit 64
 fi
 if [[ ! "${cef_build_jobs}" =~ ^[1-9][0-9]*$ ]]; then
-    echo "GHOSTSHELL_CEF_BUILD_JOBS must be a positive integer." >&2
+    echo "ASURA_CEF_BUILD_JOBS must be a positive integer." >&2
     exit 64
 fi
 
@@ -326,8 +326,8 @@ if [[ "${actual_archive_sha1}" != "${archive_sha1}" \
     exit 1
 fi
 
-build_run_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-cef-runtime.XXXXXX")"
-artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.ghostshell-native-artifacts.XXXXXX")"
+build_run_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-cef-runtime.XXXXXX")"
+artifact_staging_parent="$(mktemp -d "${artifact_parent_dir}/.asura-native-artifacts.XXXXXX")"
 artifact_dir="${artifact_staging_parent}/${target_rid}"
 cef_artifact_dir="${artifact_dir}/cef"
 cleanup() {
@@ -415,7 +415,7 @@ if [[ "${target_os}" == "Darwin" ]]; then
     helper_identifiers=("" ".alerts" ".gpu" ".plugin" ".renderer")
     for index in "${!helper_suffixes[@]}"; do
         source_name="exclr8cef_demo Helper${helper_suffixes[$index]}"
-        target_name="GhostSHELL Helper${helper_suffixes[$index]}"
+        target_name="Asura Helper${helper_suffixes[$index]}"
         source_bundle="$(find_built_helper "${source_name}.app")"
         target_bundle="${cef_artifact_dir}/${target_name}.app"
         cp -RL "${source_bundle}" "${target_bundle}"
@@ -426,7 +426,7 @@ if [[ "${target_os}" == "Darwin" ]]; then
         python3 - \
             "${target_bundle}/Contents/Info.plist" \
             "${target_name}" \
-            "app.ghostshell.helper${helper_identifiers[$index]}" <<'PY'
+            "sh.asura.helper${helper_identifiers[$index]}" <<'PY'
 import pathlib
 import plistlib
 import sys
@@ -505,7 +505,7 @@ require_architecture "${cef_artifact_dir}/${shim_name}"
 if [[ "${target_os}" == "Darwin" ]]; then
     require_architecture "${cef_artifact_dir}/${framework_name}/${framework_name%.framework}"
     for suffix in "${helper_suffixes[@]}"; do
-        helper_name="GhostSHELL Helper${suffix}"
+        helper_name="Asura Helper${suffix}"
         require_architecture \
             "${cef_artifact_dir}/${helper_name}.app/Contents/MacOS/${helper_name}"
     done
@@ -536,7 +536,7 @@ if [[ "${target_rid}" == "${host_rid}" ]]; then
 
     if [[ "${target_os}" == "Darwin" ]]; then
         set +e
-        "${cef_artifact_dir}/GhostSHELL Helper.app/Contents/MacOS/GhostSHELL Helper"
+        "${cef_artifact_dir}/Asura Helper.app/Contents/MacOS/Asura Helper"
         helper_exit=$?
         set -e
         if [[ ${helper_exit} -ne 255 ]]; then
@@ -547,7 +547,7 @@ if [[ "${target_rid}" == "${host_rid}" ]]; then
 fi
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
@@ -562,7 +562,7 @@ fi
     --output "${cef_artifact_dir}/cef-runtime-build-receipt.json"
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
@@ -580,7 +580,7 @@ fi
 existing_artifact_dir="${artifact_parent_dir}/${target_rid}"
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \

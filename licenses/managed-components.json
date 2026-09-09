@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
-  "documentName": "GhostSHELL ${productVersion} managed-component evidence",
+  "documentName": "Asura ${productVersion} managed-component evidence",
   "documentCreatedUtc": "2026-08-25T00:00:00Z",
-  "namespaceBase": "https://ghostshell.app/spdx/managed-components/${productVersion}",
+  "namespaceBase": "https://asura.sh/spdx/managed-components/${productVersion}",
   "releaseBlockers": [],
   "dependencies": [
     {
@@ -529,172 +529,172 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "GhostShell/${productVersion}",
+      "identity": "Asura/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.dll"
+      "file": "Asura.dll"
     },
     {
-      "identity": "GhostShell.Agent/${productVersion}",
+      "identity": "Asura.Agent/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Agent.dll"
+      "file": "Asura.Agent.dll"
     },
     {
-      "identity": "GhostShell.Agent.Providers/${productVersion}",
+      "identity": "Asura.Agent.Providers/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Agent.Providers.dll"
+      "file": "Asura.Agent.Providers.dll"
     },
     {
-      "identity": "GhostShell.Agent.Runtime/${productVersion}",
+      "identity": "Asura.Agent.Runtime/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Agent.Runtime.dll"
+      "file": "Asura.Agent.Runtime.dll"
     },
     {
-      "identity": "GhostShell.App/${productVersion}",
+      "identity": "Asura.App/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.App.dll"
+      "file": "Asura.App.dll"
     },
     {
-      "identity": "GhostShell.Application/${productVersion}",
+      "identity": "Asura.Application/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Application.dll"
+      "file": "Asura.Application.dll"
     },
     {
-      "identity": "GhostShell.Browser/${productVersion}",
+      "identity": "Asura.Browser/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Browser.dll"
+      "file": "Asura.Browser.dll"
     },
     {
-      "identity": "GhostShell.ConnectionBackend/${productVersion}",
+      "identity": "Asura.ConnectionBackend/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.ConnectionBackend.dll"
+      "file": "Asura.ConnectionBackend.dll"
     },
     {
-      "identity": "GhostShell.Core/${productVersion}",
+      "identity": "Asura.Core/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Core.dll"
+      "file": "Asura.Core.dll"
     },
     {
-      "identity": "GhostShell.Databases/${productVersion}",
+      "identity": "Asura.Databases/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Databases.dll"
+      "file": "Asura.Databases.dll"
     },
     {
-      "identity": "GhostShell.Docker/${productVersion}",
+      "identity": "Asura.Docker/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Docker.dll"
+      "file": "Asura.Docker.dll"
     },
     {
-      "identity": "GhostShell.Docking/${productVersion}",
+      "identity": "Asura.Docking/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Docking.dll"
+      "file": "Asura.Docking.dll"
     },
     {
-      "identity": "GhostShell.Files/${productVersion}",
+      "identity": "Asura.Files/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Files.dll"
+      "file": "Asura.Files.dll"
     },
     {
-      "identity": "GhostShell.Git/${productVersion}",
+      "identity": "Asura.Git/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Git.dll"
+      "file": "Asura.Git.dll"
     },
     {
-      "identity": "GhostShell.Infrastructure/${productVersion}",
+      "identity": "Asura.Infrastructure/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Infrastructure.dll"
+      "file": "Asura.Infrastructure.dll"
     },
     {
-      "identity": "GhostShell.Mcp/${productVersion}",
+      "identity": "Asura.Mcp/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Mcp.dll"
+      "file": "Asura.Mcp.dll"
     },
     {
-      "identity": "GhostShell.Mcp.Server/${productVersion}",
+      "identity": "Asura.Mcp.Server/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Mcp.Server.dll"
+      "file": "Asura.Mcp.Server.dll"
     },
     {
-      "identity": "GhostShell.Monitoring/${productVersion}",
+      "identity": "Asura.Monitoring/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Monitoring.dll"
+      "file": "Asura.Monitoring.dll"
     },
     {
-      "identity": "GhostShell.Previews/${productVersion}",
+      "identity": "Asura.Previews/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Previews.dll"
+      "file": "Asura.Previews.dll"
     },
     {
-      "identity": "GhostShell.Protocol/${productVersion}",
+      "identity": "Asura.Protocol/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Protocol.dll"
+      "file": "Asura.Protocol.dll"
     },
     {
-      "identity": "GhostShell.Redis/${productVersion}",
+      "identity": "Asura.Redis/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Redis.dll"
+      "file": "Asura.Redis.dll"
     },
     {
-      "identity": "GhostShell.SessionHost/${productVersion}",
+      "identity": "Asura.SessionHost/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.SessionHost.dll"
+      "file": "Asura.SessionHost.dll"
     },
     {
-      "identity": "GhostShell.Terminal/${productVersion}",
+      "identity": "Asura.Terminal/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Terminal.dll"
+      "file": "Asura.Terminal.dll"
     },
     {
-      "identity": "GhostShell.Updates/${productVersion}",
+      "identity": "Asura.Updates/${productVersion}",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Updates.dll"
+      "file": "Asura.Updates.dll"
     },
     {
       "identity": "HarfBuzzSharp/8.3.1.3",

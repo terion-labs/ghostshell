@@ -18,12 +18,12 @@ uses `SendEnv`; none requires placing the value in argv.
 
 ## Decision
 
-`GhostShell.Application` owns `IConnectionCredentialBroker` and its non-secret request. A prepared
+`Asura.Application` owns `IConnectionCredentialBroker` and its non-secret request. A prepared
 `ConnectionOpenPlan` retains its opaque `ConnectionSecretRequirement` values for inspection and
 audit, but records that an executable broker launch has been prepared. Existing desktop and Quick
 Terminal paths can therefore execute the helper launch without receiving a secret value.
 
-`GhostShell.Infrastructure` implements one current-user named-pipe ticket per planned launch. A
+`Asura.Infrastructure` implements one current-user named-pipe ticket per planned launch. A
 ticket has an independent random pipe name, ticket ID, and 256-bit bearer token; is bound to the
 exact `ConnectionId`; accepts at most three invalid claims; expires after 30 seconds; and succeeds
 only once. A successful or exhausted ticket is removed, so it cannot be replayed. Requests and
@@ -45,7 +45,7 @@ only public-key authentication, disables keyboard-interactive and the alternate 
 method, and uses non-interactive host-key policy; a different challenge therefore cannot consume
 the credential.
 
-When GhostSHELL is itself started through `dotnet GhostShell.dll`, helper re-entry preserves that
+When Asura is itself started through `dotnet Asura.dll`, helper re-entry preserves that
 trusted managed-assembly prefix. Because `SSH_ASKPASS` accepts only an executable path, it uses the
 sibling apphost and receives `DOTNET_ROOT` derived from the active `dotnet` host directory. Existing
 architecture-specific `DOTNET_ROOT_*` values are left intact. Neither value contains user input or

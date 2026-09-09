@@ -16,22 +16,22 @@ temporary inputs and were not added to this repository. A subsequent concurrent 
 completed 13 rounds per connection over roughly 12 minutes: all 78 HTTPS responses were HTTP 200.
 This is not a live Tailscale test or coverage of every VPN server configuration.
 
-Tailscale follow-up (`ghostshell-3m8`): a fresh memory-only instance of the bundled 1.98.2
+Tailscale follow-up (`asura-3m8`): a fresh memory-only instance of the bundled 1.98.2
 daemon reproduced rejection of a named `--exit-node` before the CLI even read its auth-key
-file. The CLI resolves names against the pre-login peer map. GhostShell now runs `up`
+file. The CLI resolves names against the pre-login peer map. Asura now runs `up`
 with an explicitly cleared exit-node selection, then `set --exit-node=...` after login.
 Neither stage publishes a workspace route; both must succeed before readiness checks and
 session publication. Regression tests cover first login, persisted-identity reconnect,
 and cleanup with distinct errors for login versus exit-node selection failures. This
 reproduction did not read a real auth key or authenticate to the user's tailnet.
 The user subsequently confirmed login succeeds but exit-node selection still fails in the
-same tailnet. `ghostshell-r11` maps the pinned CLI's missing-peer, unadvertised-exit-node,
+same tailnet. `asura-r11` maps the pinned CLI's missing-peer, unadvertised-exit-node,
 ambiguous-name, and self-selection errors to separate safe messages, without exposing raw
 peer or server diagnostics. The live rejection cause is still awaiting the new test result;
 these diagnostic changes must not be reported as a working Tailscale connection.
 
-Development-bundle follow-up (`ghostshell-6hc`): live inspection found an empty
-`/opt/ghostshell/bin` inside a running isolate while its host bind source contained the
+Development-bundle follow-up (`asura-6hc`): live inspection found an empty
+`/opt/asura/bin` inside a running isolate while its host bind source contained the
 gateway binary. The development launcher had deleted and replaced that source directory.
 It now preserves the mounted directory inode when replacing the bundle and restores it
 on an installation failure. Regression tests execute the actual replacement block for
@@ -40,7 +40,7 @@ helper still fails closed, with a workspace-restart message instead of nested CL
 The user authorized restarting the affected container; its helper became executable again
 and its default route remained absent. No workspace reset or new VPN login was performed.
 
-SDK boundary follow-up (`ghostshell-e5a`) supersedes the CLI guest-router and development
+SDK boundary follow-up (`asura-e5a`) supersedes the CLI guest-router and development
 mount workaround above. The default macOS provider now owns a Containerization 0.42.0 VM
 directly. Its single virtio NIC terminates at a host datagram socket; gVisor provides host-side
 ARP, neighbour discovery, forwarding and translation into the existing provider packet channel.
@@ -95,8 +95,8 @@ validates the original hostname and trust through a relay, but its SNI remains t
 and OS revocation downloads retain the provider's OS networking behavior. Oracle TCPS/TNS stays
 explicitly unsupported through the relay: a real pinned ODP.NET 23.7 test reproduces an empty
 `CONNECT :1522` authority when the logical host cannot resolve on the host. The speculative
-workaround was removed rather than weakening TLS identity (`ghostshell-ntw.25`). SQL Server
-server-directed routing still needs a driver transport boundary (`ghostshell-ntw.24`). These are not
+workaround was removed rather than weakening TLS identity (`asura-ntw.25`). SQL Server
+server-directed routing still needs a driver transport boundary (`asura-ntw.24`). These are not
 fixed by green tests elsewhere and prevent an unconditional “all connections” claim.
 
 See [ADR 0054](../adr/0054-workspace-network-routing.md) for the current implementation mapping.
@@ -137,63 +137,63 @@ Live provider tests used temporary, owner-private test files and an in-memory va
 
 ### P1: WireGuard's UDP relay is reachable outside loopback
 
-[HostUserspaceVpnTransport.cs:149](../../src/GhostShell.Infrastructure/HostUserspaceVpnTransport.cs#L149) configures only the TCP SOCKS listener on loopback. The bundled wireproxy v1.1.3 dependency, `github.com/things-go/go-socks5@v0.0.5`, opens its UDP listener with `net.ListenUDP("udp", nil)` at `handle.go:178`. For a zero-address UDP ASSOCIATE request, it does not constrain the sender to the TCP peer. The gateway's tun2socks client sends exactly that request.
+[HostUserspaceVpnTransport.cs:149](../../src/Asura.Infrastructure/HostUserspaceVpnTransport.cs#L149) configures only the TCP SOCKS listener on loopback. The bundled wireproxy v1.1.3 dependency, `github.com/things-go/go-socks5@v0.0.5`, opens its UDP listener with `net.ListenUDP("udp", nil)` at `handle.go:178`. For a zero-address UDP ASSOCIATE request, it does not constrain the sender to the TCP peer. The gateway's tun2socks client sends exactly that request.
 
 A local-only reproduction using the exact dependency and a fake upstream confirmed that a datagram sent through the host's non-loopback interface, from a different address than the TCP control peer, reached the relay and received a response. No external traffic or VPN credentials were used for that reproduction. LAN reachability is subject to the host firewall, but the implementation itself imposes no correct interface/session boundary.
 
-Fix the bundled implementation or replace this path with a packet backend that enforces loopback binding and association ownership. Merely authenticating the TCP SOCKS handshake does not fix the UDP sender check. Add a regression against the packaged engine. Tracked in `ghostshell-ntw.17`.
+Fix the bundled implementation or replace this path with a packet backend that enforces loopback binding and association ownership. Merely authenticating the TCP SOCKS handshake does not fix the UDP sender check. Add a regression against the packaged engine. Tracked in `asura-ntw.17`.
 
 ### P1: OpenVPN is unimplemented
 
-[HostUserspaceVpnTransport.cs:93](../../src/GhostShell.Infrastructure/HostUserspaceVpnTransport.cs#L93) returns `openvpn_host_userspace_adapter_missing` unconditionally. Both placements ultimately depend on this host transport, and the bundle contains no OpenVPN engine. The current test asserts rejection, not traffic. Implement and bundle the userspace adapter before advertising usable OpenVPN support. Tracked in `ghostshell-ntw.1`.
+[HostUserspaceVpnTransport.cs:93](../../src/Asura.Infrastructure/HostUserspaceVpnTransport.cs#L93) returns `openvpn_host_userspace_adapter_missing` unconditionally. Both placements ultimately depend on this host transport, and the bundle contains no OpenVPN engine. The current test asserts rejection, not traffic. Implement and bundle the userspace adapter before advertising usable OpenVPN support. Tracked in `asura-ntw.1`.
 
 ### P1: Isolated proxy and Tailscale always fail DNS preparation
 
-[BundledWorkspacePacketGatewayBackend.cs:504](../../src/GhostShell.Infrastructure/BundledWorkspacePacketGatewayBackend.cs#L504) rejects sessions with no DNS servers. `ProxySession` never supplies them; the Tailscale success path at [HostUserspaceVpnTransport.cs:598](../../src/GhostShell.Infrastructure/HostUserspaceVpnTransport.cs#L598) omits them too. A WireGuard configuration without an explicit DNS field also encounters this restriction.
+[BundledWorkspacePacketGatewayBackend.cs:504](../../src/Asura.Infrastructure/BundledWorkspacePacketGatewayBackend.cs#L504) rejects sessions with no DNS servers. `ProxySession` never supplies them; the Tailscale success path at [HostUserspaceVpnTransport.cs:598](../../src/Asura.Infrastructure/HostUserspaceVpnTransport.cs#L598) omits them too. A WireGuard configuration without an explicit DNS field also encounters this restriction.
 
-This explains why a provider test can succeed while isolated attachment fails. Keep DNS within the chosen route, but implement an explicit provider-appropriate DNS path. Tests need to compose concrete provider sessions with the real gateway contract instead of substituting fake sessions that already have DNS. Tracked in `ghostshell-ntw.18`.
+This explains why a provider test can succeed while isolated attachment fails. Keep DNS within the chosen route, but implement an explicit provider-appropriate DNS path. Tests need to compose concrete provider sessions with the real gateway contract instead of substituting fake sessions that already have DNS. Tracked in `asura-ntw.18`.
 
 ### P1: SSH masters can cross workspace boundaries
 
-[ConnectionCommandExecutor.cs:438](../../src/GhostShell.Infrastructure/ConnectionCommandExecutor.cs#L438) derives its SSH control socket from connection/authentication identity, not workspace route identity. Two workspaces using the same saved SSH profile can reuse the first workspace's master transport. Different proxy commands do not prevent the collision; a local `ssh -G` comparison confirmed the same expanded control path.
+[ConnectionCommandExecutor.cs:438](../../src/Asura.Infrastructure/ConnectionCommandExecutor.cs#L438) derives its SSH control socket from connection/authentication identity, not workspace route identity. Two workspaces using the same saved SSH profile can reuse the first workspace's master transport. Different proxy commands do not prevent the collision; a local `ssh -G` comparison confirmed the same expanded control path.
 
-Include workspace/route ownership in multiplexing identity and verify route-local cancellation. Test two workspace brokers and the same SSH profile. Tracked in `ghostshell-ntw.19`.
+Include workspace/route ownership in multiplexing identity and verify route-local cancellation. Test two workspace brokers and the same SSH profile. Tracked in `asura-ntw.19`.
 
 ### P1: First-time SSH host-key inspection bypasses routing
 
-[RuntimeWorkspaceViewModels.cs:3008](../../src/GhostShell.App/ViewModels/RuntimeWorkspaceViewModels.cs#L3008) calls the global security runtime before routed launch preparation. [SshNetHostKeyScanner.cs:28](../../src/GhostShell.Infrastructure/SshNetHostKeyScanner.cs#L28) creates an ordinary direct connection. New VPN-only SSH hosts cannot complete trust setup, and inspection ignores the selected route/kill switch. File-provider repair uses the same runtime.
+[RuntimeWorkspaceViewModels.cs:3008](../../src/Asura.App/ViewModels/RuntimeWorkspaceViewModels.cs#L3008) calls the global security runtime before routed launch preparation. [SshNetHostKeyScanner.cs:28](../../src/Asura.Infrastructure/SshNetHostKeyScanner.cs#L28) creates an ordinary direct connection. New VPN-only SSH hosts cannot complete trust setup, and inspection ignores the selected route/kill switch. File-provider repair uses the same runtime.
 
-This is an existing direct-socket path left outside the new feature's routing coverage, not a newly introduced scanner. Route first-use and changed-key inspection through the workspace connector. Add a connector-only SSH fixture. Tracked in `ghostshell-1be.2`.
+This is an existing direct-socket path left outside the new feature's routing coverage, not a newly introduced scanner. Route first-use and changed-key inspection through the workspace connector. Add a connector-only SSH fixture. Tracked in `asura-1be.2`.
 
 ### P1: Governed Git remote reads undo proxy injection
 
-[GitRepositoryClient.Governed.cs:1213](../../src/GhostShell.Git/GitRepositoryClient.Governed.cs#L1213) runs remote reads with an environment that clears proxy variables. Its options at [line 1316](../../src/GhostShell.Git/GitRepositoryClient.Governed.cs#L1316) explicitly clear `http.proxy` too. This preexisting sanitization runs after the new workspace launch injection, so application-owned remote reads on local repositories bypass the selected route.
+[GitRepositoryClient.Governed.cs:1213](../../src/Asura.Git/GitRepositoryClient.Governed.cs#L1213) runs remote reads with an environment that clears proxy variables. Its options at [line 1316](../../src/Asura.Git/GitRepositoryClient.Governed.cs#L1316) explicitly clear `http.proxy` too. This preexisting sanitization runs after the new workspace launch injection, so application-owned remote reads on local repositories bypass the selected route.
 
-Preserve protection against untrusted repository configuration while supplying the trusted workspace transport. Verify that a local HTTPS destination is contacted only through the recording broker. Ordinary local-repository SSH remotes also need a routing test; local terminal proxy variables alone do not configure OpenSSH. Tracked in `ghostshell-ntw.20`.
+Preserve protection against untrusted repository configuration while supplying the trusted workspace transport. Verify that a local HTTPS destination is contacted only through the recording broker. Ordinary local-repository SSH remotes also need a routing test; local terminal proxy variables alone do not configure OpenSSH. Tracked in `asura-ntw.20`.
 
 ### P1: Database routing loses the logical TLS hostname
 
-[DatabasePanelClient.cs:1443](../../src/GhostShell.Databases/DatabasePanelClient.cs#L1443) now applies the default relay to all network databases, including Direct non-isolated workspaces. At line 1469 it rewrites the server address to `127.0.0.1`. Driver endpoint rewrites do not preserve the original certificate identity. Redis similarly rewrites its endpoint without supplying `SslHost`.
+[DatabasePanelClient.cs:1443](../../src/Asura.Databases/DatabasePanelClient.cs#L1443) now applies the default relay to all network databases, including Direct non-isolated workspaces. At line 1469 it rewrites the server address to `127.0.0.1`. Driver endpoint rewrites do not preserve the original certificate identity. Redis similarly rewrites its endpoint without supplying `SslHost`.
 
-Hostname-verifying TLS configurations that previously validated a certificate for the real server now validate against loopback unless the user supplied a separate identity override. Separate transport addressing from TLS identity. Test real hostname-valid and invalid certificates for the supported drivers; do not fix this by disabling validation. These driver-specific TLS scenarios were identified from code, not exercised against live databases in this review. Tracked in `ghostshell-ntw.21`.
+Hostname-verifying TLS configurations that previously validated a certificate for the real server now validate against loopback unless the user supplied a separate identity override. Separate transport addressing from TLS identity. Test real hostname-valid and invalid certificates for the supported drivers; do not fix this by disabling validation. These driver-specific TLS scenarios were identified from code, not exercised against live databases in this review. Tracked in `asura-ntw.21`.
 
 ### P1: Non-isolated browser persistence still depends on a random port
 
-[DesktopBrowserRendererViewFactory.cs:93](../../src/GhostShell.Desktop/DesktopBrowserRendererViewFactory.cs#L93) supplies the broker endpoint as the browser route identity. `HostWorkspaceSocksProxy` does not implement the existing stable `BrowserProfileRouteIdentity` contract. [CefBrowserProfileStore.cs:502](../../src/GhostShell.Browser/CefBrowserProfileStore.cs#L502) therefore includes the random port in its persistent state key. A restarted host workspace restores a different cookie namespace.
+[DesktopBrowserRendererViewFactory.cs:93](../../src/Asura.Desktop/DesktopBrowserRendererViewFactory.cs#L93) supplies the broker endpoint as the browser route identity. `HostWorkspaceSocksProxy` does not implement the existing stable `BrowserProfileRouteIdentity` contract. [CefBrowserProfileStore.cs:502](../../src/Asura.Browser/CefBrowserProfileStore.cs#L502) therefore includes the random port in its persistent state key. A restarted host workspace restores a different cookie namespace.
 
-Use the existing durable workspace identity contract and test a restart with a changed listener port. Reopened `ghostshell-ntw.13` for the host case; the isolated implementation already supplies a stable identity.
+Use the existing durable workspace identity contract and test a restart with a changed listener port. Reopened `asura-ntw.13` for the host case; the isolated implementation already supplies a stable identity.
 
 ### P2: Deleting NO_PROXY from overrides leaves inherited values intact
 
-[WorkspaceNetworkConnectionRuntime.cs:111](../../src/GhostShell.App/WorkspaceNetworkConnectionRuntime.cs#L111) removes `NO_PROXY` from a launch dictionary. [ConnectionCommandExecutor.cs:252](../../src/GhostShell.Infrastructure/ConnectionCommandExecutor.cs#L252) overlays that dictionary on inherited process environment, so an ambient `NO_PROXY=*` survives and bypasses proxies in cooperating programs. Carry explicit removal semantics or override with empty values. Verify the actual spawned process, not only the launch dictionary. Tracked in `ghostshell-ntw.22`.
+[WorkspaceNetworkConnectionRuntime.cs:111](../../src/Asura.App/WorkspaceNetworkConnectionRuntime.cs#L111) removes `NO_PROXY` from a launch dictionary. [ConnectionCommandExecutor.cs:252](../../src/Asura.Infrastructure/ConnectionCommandExecutor.cs#L252) overlays that dictionary on inherited process environment, so an ambient `NO_PROXY=*` survives and bypasses proxies in cooperating programs. Carry explicit removal semantics or override with empty values. Verify the actual spawned process, not only the launch dictionary. Tracked in `asura-ntw.22`.
 
 ### Other P2 findings
 
-- [native host/run.go:161](../../native/workspace-network-gateway/internal/host/run.go#L161) advertises UDP merely because an upstream URI is SOCKS5. `ProxySocksAdapter` supports CONNECT only, even when wrapping HTTP/HTTPS. Fixing DNS alone does not make this a UDP-capable route. Carry concrete capabilities and negotiate UDP support. Tracked with `ghostshell-ntw.9.2`.
-- WireGuard readiness at [HostUserspaceVpnTransport.cs:197](../../src/GhostShell.Infrastructure/HostUserspaceVpnTransport.cs#L197) checks a local listening socket, not a peer handshake. Later monitoring observes process exit only. An unreachable peer can stay "Connected". Use provider handshake/session evidence, without requiring public Internet access.
+- [native host/run.go:161](../../native/workspace-network-gateway/internal/host/run.go#L161) advertises UDP merely because an upstream URI is SOCKS5. `ProxySocksAdapter` supports CONNECT only, even when wrapping HTTP/HTTPS. Fixing DNS alone does not make this a UDP-capable route. Carry concrete capabilities and negotiate UDP support. Tracked with `asura-ntw.9.2`.
+- WireGuard readiness at [HostUserspaceVpnTransport.cs:197](../../src/Asura.Infrastructure/HostUserspaceVpnTransport.cs#L197) checks a local listening socket, not a peer handshake. Later monitoring observes process exit only. An unreachable peer can stay "Connected". Use provider handshake/session evidence, without requiring public Internet access.
 - [openconnect_socks.go:74](../../native/workspace-network-gateway/internal/host/openconnect_socks.go#L74) tries only the first DNS answer. Try alternate addresses within the same routing policy and bounded timeout. This must not introduce VPN-failure fallback to Direct.
-- [RedisPanelSessionFactory.cs:30](../../src/GhostShell.Redis/RedisPanelSessionFactory.cs#L30) rejects multi-endpoint/Sentinel configurations when the newly mandatory default relay is present, including Direct mode. Add discovery/failover coverage or explicitly limit support. Tracked with `ghostshell-ntw.21`.
-- The mandatory [check.sh](../../scripts/check.sh) does not run native networking tests. Include Go tests/vet in the required gate on a supported runner. Tracked in `ghostshell-ntw.23`.
+- [RedisPanelSessionFactory.cs:30](../../src/Asura.Redis/RedisPanelSessionFactory.cs#L30) rejects multi-endpoint/Sentinel configurations when the newly mandatory default relay is present, including Direct mode. Add discovery/failover coverage or explicitly limit support. Tracked with `asura-ntw.21`.
+- The mandatory [check.sh](../../scripts/check.sh) does not run native networking tests. Include Go tests/vet in the required gate on a supported runner. Tracked in `asura-ntw.23`.
 
 ## Architecture and bundling
 

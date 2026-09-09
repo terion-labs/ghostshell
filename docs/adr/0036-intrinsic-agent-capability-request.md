@@ -10,7 +10,7 @@
 
 ## Context
 
-GhostSHELL deliberately keeps some agent capabilities `Off`. A live run can
+Asura deliberately keeps some agent capabilities `Off`. A live run can
 still advertise ordinary production tool definitions for such a capability
 when the target supports them; an attempted action remains inert because the
 broker denies the disabled capability. Ending the turn and asking the user to
@@ -26,7 +26,7 @@ other operation subject to its ordinary exact authorization.
 
 ## Decision
 
-GhostSHELL adds one intrinsic runtime tool:
+Asura adds one intrinsic runtime tool:
 
 - `agent.request_capability`.
 

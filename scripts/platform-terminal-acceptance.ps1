@@ -35,7 +35,7 @@ $dotnet = if (Test-Path -LiteralPath $workspaceDotnet -PathType Leaf) {
     $command = Get-Command dotnet -ErrorAction Stop
     $command.Source
 }
-$runnerProject = Join-Path $repositoryRoot "tools/GhostShell.TerminalAcceptance/GhostShell.TerminalAcceptance.csproj"
+$runnerProject = Join-Path $repositoryRoot "tools/Asura.TerminalAcceptance/Asura.TerminalAcceptance.csproj"
 
 & $dotnet run --project $runnerProject -- run `
     --platform $Platform `

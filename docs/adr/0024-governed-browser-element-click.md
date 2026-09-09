@@ -24,12 +24,12 @@ provider JavaScript, selectors, DOM objects, or a native-webview object.
 Activation is a page mutation. It may submit data, change application state, or
 start top-level navigation before a portable native script call returns.
 Cancellation and native failure therefore need an explicit dispatch-commit
-boundary: once activation may have occurred, GhostSHELL must not report a safe
+boundary: once activation may have occurred, Asura must not report a safe
 cancellation or retry an uncertain effect.
 
 ## Decision
 
-GhostSHELL adds `browser.click` as the eighth governed browser tool. It is a
+Asura adds `browser.click` as the eighth governed browser tool. It is a
 trusted mutation under a distinct `BrowserInteraction` capability, separate
 from `BrowserData` observations and `BrowserNavigation` mutations. Its default
 permission is `Ask`. The broker binds one approval to the exact provider-visible
@@ -123,14 +123,14 @@ navigation terminal event, post-dispatch cancellation exception, mismatched
 receipt, or otherwise ambiguous completion returns the non-retryable stable
 code `browser_interaction_outcome_unknown`. Native-surface ambiguity and
 cross-origin navigation denial invalidate references and attempt to quarantine
-the old adapter. When replacement succeeds, GhostSHELL installs a fresh
+the old adapter. When replacement succeeds, Asura installs a fresh
 `about:blank` adapter and advances the document revision; late callbacks remain
 confined to the old adapter. If adapter, dispatcher, or receipt recovery cannot
 be confirmed, the surface remains unavailable rather than permitting another
 interaction.
 
 Every `browser_interaction_outcome_unknown` is committed as a non-retryable
-failed tool result. GhostSHELL skips the remainder of the stale provider batch,
+failed tool result. Asura skips the remainder of the stale provider batch,
 then lets the provider inspect the replacement/current browser state before it
 chooses another action. The native adapter may remain quarantined or
 unavailable when recovery cannot be confirmed, but ordinary interaction

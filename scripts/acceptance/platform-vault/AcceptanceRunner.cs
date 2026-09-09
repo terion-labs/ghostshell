@@ -4,19 +4,19 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Xml.Linq;
 
-namespace GhostShell.PlatformVaultAcceptance;
+namespace Asura.PlatformVaultAcceptance;
 
 internal sealed class AcceptanceRunner(
     string repositoryRoot,
     string dotnetPath)
 {
     public const string TestId =
-        "GhostShell.Infrastructure.Tests.PlatformSecretVaultIntegrationTests.Native_vault_round_trips_only_when_explicitly_enabled";
+        "Asura.Infrastructure.Tests.PlatformSecretVaultIntegrationTests.Native_vault_round_trips_only_when_explicitly_enabled";
 
-    private const string EnabledEnvironmentVariable = "GHOSTSHELL_RUN_SECRET_VAULT_INTEGRATION";
-    private const string RunIdEnvironmentVariable = "GHOSTSHELL_SECRET_VAULT_ACCEPTANCE_RUN_ID";
-    private const string SecretReferenceEnvironmentVariable = "GHOSTSHELL_SECRET_VAULT_ACCEPTANCE_REFERENCE";
-    private const string RootEnvironmentVariable = "GHOSTSHELL_SECRET_VAULT_ACCEPTANCE_ROOT";
+    private const string EnabledEnvironmentVariable = "ASURA_RUN_SECRET_VAULT_INTEGRATION";
+    private const string RunIdEnvironmentVariable = "ASURA_SECRET_VAULT_ACCEPTANCE_RUN_ID";
+    private const string SecretReferenceEnvironmentVariable = "ASURA_SECRET_VAULT_ACCEPTANCE_REFERENCE";
+    private const string RootEnvironmentVariable = "ASURA_SECRET_VAULT_ACCEPTANCE_ROOT";
     private static readonly TimeSpan TestTimeout = TimeSpan.FromMinutes(3);
 
     private readonly string _repositoryRoot = Path.GetFullPath(repositoryRoot);
@@ -137,8 +137,8 @@ internal sealed class AcceptanceRunner(
         var project = Path.Combine(
             _repositoryRoot,
             "tests",
-            "GhostShell.Infrastructure.Tests",
-            "GhostShell.Infrastructure.Tests.csproj");
+            "Asura.Infrastructure.Tests",
+            "Asura.Infrastructure.Tests.csproj");
         if (!File.Exists(project))
         {
             return new TestExecution("NOT_RUN", null, 0);
@@ -507,7 +507,7 @@ internal sealed record IsolatedVaultRun(
     {
         var runId = Guid.NewGuid().ToString("N");
         var secretReference = Guid.NewGuid().ToString("N");
-        var rootPath = Path.Combine(Path.GetTempPath(), $"ghostshell-platform-vault-{runId}");
+        var rootPath = Path.Combine(Path.GetTempPath(), $"asura-platform-vault-{runId}");
         Directory.CreateDirectory(rootPath);
         var run = new IsolatedVaultRun(
             runId,
@@ -515,7 +515,7 @@ internal sealed record IsolatedVaultRun(
             rootPath,
             Path.Combine(rootPath, "metadata"),
             Path.Combine(rootPath, "state.json"),
-            $"app.ghostshell.integration-tests.{runId}");
+            $"sh.asura.integration-tests.{runId}");
         WriteRecoveryManifest(run);
         return run;
     }

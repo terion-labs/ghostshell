@@ -8,7 +8,7 @@
 ## Context
 
 The database workspace needs schema-aware SQL completion and validation without
-making the desktop process depend on a JVM or a second CoreCLR. GhostSHELL's
+making the desktop process depend on a JVM or a second CoreCLR. Asura's
 production desktop is also intended to support .NET Native AOT. Loading Apache
 Calcite through IKVM would place a large Java compatibility runtime and a broad
 reflection surface inside that process, while translating Calcite to a managed
@@ -24,11 +24,11 @@ credentials.
 ### An isolated native worker
 
 Each supported runtime identifier ships a native executable named
-`ghostshell-sql-language` (with `.exe` on Windows), built from Calcite and a
-small GhostSHELL Java wrapper using GraalVM Native Image:
+`asura-sql-language` (with `.exe` on Windows), built from Calcite and a
+small Asura Java wrapper using GraalVM Native Image:
 
 ```text
-runtimes/<rid>/native/ghostshell-sql-language[.exe]
+runtimes/<rid>/native/asura-sql-language[.exe]
 ```
 
 The .NET Native-AOT-compatible client starts one worker process for each active
@@ -79,12 +79,12 @@ The worker receives a provider-neutral `SqlCatalogSnapshot` containing:
   corroborate Calcite operators without inventing new SQL constructs.
 
 It never receives a connection string, credential, tunnel, provider object, or
-live database connection. GhostSHELL reads the snapshot through the existing
+live database connection. Asura reads the snapshot through the existing
 database client and refreshes it after connection changes and successful
 schema-changing statements. Names retain their exact provider-reported case;
 driver profiles select Calcite quoting and casing rules.
 
-Function completion is metadata-derived rather than maintained as a GhostSHELL
+Function completion is metadata-derived rather than maintained as an Asura
 name list. The active Calcite dialect library supplies parser/operator
 semantics, while the connected server's detached routine and intrinsic
 catalogs establish availability and invocation identity. Complete provider
@@ -142,11 +142,11 @@ manifest and third-party notices; release packaging re-hashes both legal files
 rather than trusting their filenames. Platform receipts also bind the
 executable ABI and compatibility floor. The macOS packager compares the
 receipted minimum OS version with the Mach-O `LC_BUILD_VERSION` command and
-rejects a worker that requires anything newer than GhostShell's macOS 13
+rejects a worker that requires anything newer than Asura's macOS 13
 deployment target.
 
 Release publishing must opt into the desktop project's
-`GhostShellSqlLanguageRequired=true` gate. Ordinary developer builds may omit
+`AsuraSqlLanguageRequired=true` gate. Ordinary developer builds may omit
 the worker, but a gated publish fails when the executable, dependency list,
 notices, or receipt is absent. The repository's portable release gate currently
 builds complete `linux-x64` and `linux-arm64` payloads. The macOS arm64 candidate

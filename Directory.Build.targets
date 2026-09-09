@@ -5,28 +5,28 @@
   <Target
       Name="RequireExistingRuntimeLockForLockedRestore"
       BeforeTargets="_GenerateRestoreGraphProjectEntry;Restore"
-      Condition="('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and '$(RestoreLockedMode)' == 'true' and ('$(GhostShellFirstPartyProject)' == 'True' or '$(GhostShellVendoredLockedProject)' == 'true' or '$(MSBuildProjectName)' == 'GhostShell.Desktop')">
+      Condition="('$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != '') and '$(RestoreLockedMode)' == 'true' and ('$(AsuraFirstPartyProject)' == 'True' or '$(AsuraVendoredLockedProject)' == 'true' or '$(MSBuildProjectName)' == 'Asura.Desktop')">
     <ItemGroup>
-      <GhostShellExpectedRuntimeLock
+      <AsuraExpectedRuntimeLock
           Include="$([System.IO.Path]::GetFullPath('packages.$(RuntimeIdentifier).lock.json', '$(MSBuildProjectDirectory)'))"
-          Condition="'$(RuntimeIdentifier)' != '' and !('$(MSBuildProjectName)' == 'GhostShell.Desktop' and '$(GhostShellMacReleaseNativeAot)' == 'true')" />
-      <GhostShellExpectedRuntimeLock
+          Condition="'$(RuntimeIdentifier)' != '' and !('$(MSBuildProjectName)' == 'Asura.Desktop' and '$(AsuraMacReleaseNativeAot)' == 'true')" />
+      <AsuraExpectedRuntimeLock
           Include="$([System.IO.Path]::GetFullPath('packages.$(RuntimeIdentifier).aot.lock.json', '$(MSBuildProjectDirectory)'))"
-          Condition="'$(RuntimeIdentifier)' != '' and '$(MSBuildProjectName)' == 'GhostShell.Desktop' and '$(GhostShellMacReleaseNativeAot)' == 'true'" />
-      <GhostShellExpectedRuntimeLock
+          Condition="'$(RuntimeIdentifier)' != '' and '$(MSBuildProjectName)' == 'Asura.Desktop' and '$(AsuraMacReleaseNativeAot)' == 'true'" />
+      <AsuraExpectedRuntimeLock
           Include="$([System.IO.Path]::GetFullPath('packages.$(RuntimeIdentifiers).lock.json', '$(MSBuildProjectDirectory)'))"
           Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != '' and !$([System.String]::Copy('$(RuntimeIdentifiers)').Contains(';'))" />
-      <GhostShellSelectedRuntimeLock
+      <AsuraSelectedRuntimeLock
           Include="$([System.IO.Path]::GetFullPath('$(NuGetLockFilePath)', '$(MSBuildProjectDirectory)'))"
           Condition="'$(NuGetLockFilePath)' != ''" />
     </ItemGroup>
-    <ItemGroup Condition="'$(MSBuildProjectName)' == 'GhostShell.Desktop'">
-      <GhostShellRuntimeLockProject Include="$(MSBuildThisFileDirectory)src/GhostShell.*/*.csproj" />
-      <GhostShellRequiredRuntimeLock
-          Include="@(GhostShellRuntimeLockProject->'%(RootDir)%(Directory)packages.$(RuntimeIdentifier).lock.json')"
+    <ItemGroup Condition="'$(MSBuildProjectName)' == 'Asura.Desktop'">
+      <AsuraRuntimeLockProject Include="$(MSBuildThisFileDirectory)src/Asura.*/*.csproj" />
+      <AsuraRequiredRuntimeLock
+          Include="@(AsuraRuntimeLockProject->'%(RootDir)%(Directory)packages.$(RuntimeIdentifier).lock.json')"
           Condition="'$(RuntimeIdentifier)' != ''" />
-      <GhostShellRequiredRuntimeLock
-          Include="@(GhostShellRuntimeLockProject->'%(RootDir)%(Directory)packages.$(RuntimeIdentifiers).lock.json')"
+      <AsuraRequiredRuntimeLock
+          Include="@(AsuraRuntimeLockProject->'%(RootDir)%(Directory)packages.$(RuntimeIdentifiers).lock.json')"
           Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' != '' and !$([System.String]::Copy('$(RuntimeIdentifiers)').Contains(';'))" />
     </ItemGroup>
     <Error
@@ -34,29 +34,29 @@
         Text="Locked restore for $(MSBuildProjectName) requires one reviewed runtime identifier at a time; received $(RuntimeIdentifiers)." />
     <Error
         Condition="'$(NuGetLockFilePath)' == ''"
-        Text="Locked restore for $(MSBuildProjectName) requires NuGetLockFilePath to select @(GhostShellExpectedRuntimeLock->'%(Filename)%(Extension)')." />
+        Text="Locked restore for $(MSBuildProjectName) requires NuGetLockFilePath to select @(AsuraExpectedRuntimeLock->'%(Filename)%(Extension)')." />
     <Error
-        Condition="'$(NuGetLockFilePath)' != '' and '@(GhostShellSelectedRuntimeLock)' != '@(GhostShellExpectedRuntimeLock)'"
-        Text="Locked restore for $(MSBuildProjectName) requires the reviewed runtime lock path @(GhostShellExpectedRuntimeLock); received @(GhostShellSelectedRuntimeLock)." />
+        Condition="'$(NuGetLockFilePath)' != '' and '@(AsuraSelectedRuntimeLock)' != '@(AsuraExpectedRuntimeLock)'"
+        Text="Locked restore for $(MSBuildProjectName) requires the reviewed runtime lock path @(AsuraExpectedRuntimeLock); received @(AsuraSelectedRuntimeLock)." />
     <Error
-        Condition="!Exists('@(GhostShellExpectedRuntimeLock)')"
-        Text="Locked restore for $(MSBuildProjectName) requires the reviewed runtime lock @(GhostShellExpectedRuntimeLock)." />
+        Condition="!Exists('@(AsuraExpectedRuntimeLock)')"
+        Text="Locked restore for $(MSBuildProjectName) requires the reviewed runtime lock @(AsuraExpectedRuntimeLock)." />
     <Error
-        Condition="'$(MSBuildProjectName)' == 'GhostShell.Desktop' and !Exists('%(GhostShellRequiredRuntimeLock.Identity)')"
-        Text="Locked restore for GhostShell.Desktop requires the complete reviewed runtime-lock closure; missing %(GhostShellRequiredRuntimeLock.Identity)." />
+        Condition="'$(MSBuildProjectName)' == 'Asura.Desktop' and !Exists('%(AsuraRequiredRuntimeLock.Identity)')"
+        Text="Locked restore for Asura.Desktop requires the complete reviewed runtime-lock closure; missing %(AsuraRequiredRuntimeLock.Identity)." />
   </Target>
 
   <Target
       Name="RequireLockedRestoreForSelfContainedDesktopPackage"
       DependsOnTargets="RequireExistingRuntimeLockForLockedRestore"
       BeforeTargets="_GenerateRestoreGraphProjectEntry;Restore;PrepareForBuild;Publish"
-      Condition="'$(MSBuildProjectName)' == 'GhostShell.Desktop' and '$(SelfContained)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(RestoreForceEvaluate)' != 'true'">
+      Condition="'$(MSBuildProjectName)' == 'Asura.Desktop' and '$(SelfContained)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(RestoreForceEvaluate)' != 'true'">
     <Error
         Condition="'$(RuntimeIdentifier)' == ''"
-        Text="Self-contained GhostShell.Desktop packaging requires an explicit RuntimeIdentifier and its reviewed packages.&lt;RID&gt;.lock.json closure." />
+        Text="Self-contained Asura.Desktop packaging requires an explicit RuntimeIdentifier and its reviewed packages.&lt;RID&gt;.lock.json closure." />
     <Error
         Condition="'$(RestoreLockedMode)' != 'true'"
-        Text="Self-contained GhostShell.Desktop packaging requires RestoreLockedMode=true and a prior locked restore using $(NuGetLockFilePath)." />
+        Text="Self-contained Asura.Desktop packaging requires RestoreLockedMode=true and a prior locked restore using $(NuGetLockFilePath)." />
   </Target>
 
   <!-- The source seal is consumed by the compiler, not added after packaging.
@@ -65,9 +65,9 @@
   <Target
       Name="RequireValidReleaseSourceManifestIdentity"
       BeforeTargets="CoreCompile"
-      Condition="'$(GhostShellFirstPartyProject)' == 'True' and '$(GhostShellReleaseSourceManifestSha256)' != ''">
+      Condition="'$(AsuraFirstPartyProject)' == 'True' and '$(AsuraReleaseSourceManifestSha256)' != ''">
     <Error
-        Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(GhostShellReleaseSourceManifestSha256)', '^[0-9a-f]{64}$'))"
-        Text="GhostShellReleaseSourceManifestSha256 must be an exact lowercase SHA-256 digest." />
+        Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(AsuraReleaseSourceManifestSha256)', '^[0-9a-f]{64}$'))"
+        Text="AsuraReleaseSourceManifestSha256 must be an exact lowercase SHA-256 digest." />
   </Target>
 </Project>

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GhostShell.PlatformVaultAcceptance;
+namespace Asura.PlatformVaultAcceptance;
 
 internal static class Program
 {
@@ -137,7 +137,7 @@ internal static class Program
     {
         for (var directory = new DirectoryInfo(Path.GetFullPath(start)); directory is not null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "GhostShell.slnx")))
+            if (File.Exists(Path.Combine(directory.FullName, "Asura.slnx")))
             {
                 return directory.FullName;
             }

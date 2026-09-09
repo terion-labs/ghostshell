@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Asura.App/Asura.App.csproj" />
+    <ProjectReference Include="../../src/Asura.Databases/Asura.Databases.csproj" />
+    <ProjectReference Include="../../src/Asura.Previews/Asura.Previews.csproj" />
+    <!-- The harness renders the real file panel over a real local provider, so
+         a preview capture is the shipped path rather than a mock of it. -->
+    <ProjectReference Include="../../src/Asura.Files/Asura.Files.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

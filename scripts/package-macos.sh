@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
-dotnet="${GHOSTSHELL_DOTNET:-${repository_dir}/.dotnet/dotnet}"
+dotnet="${ASURA_DOTNET:-${repository_dir}/.dotnet/dotnet}"
 configuration="Release"
 version=""
 build_version=""
@@ -16,9 +16,9 @@ release_evidence_dir=""
 source_seal=""
 security_campaign_tool=""
 build_artifacts_root=""
-native_aot_linker="${GHOSTSHELL_NATIVE_AOT_LINKER:-}"
+native_aot_linker="${ASURA_NATIVE_AOT_LINKER:-}"
 component_catalog="${repository_dir}/licenses/managed-components.json"
-desktop_project="${repository_dir}/src/GhostShell.Desktop/GhostShell.Desktop.csproj"
+desktop_project="${repository_dir}/src/Asura.Desktop/Asura.Desktop.csproj"
 cef_runtime_catalog="${repository_dir}/licenses/cef-runtime-components.json"
 native_component_catalog="${repository_dir}/licenses/native-terminal-components.json"
 font_assets_catalog="${repository_dir}/licenses/terminal-font-assets.json"
@@ -31,14 +31,14 @@ sign_notarize_macos="${repository_dir}/scripts/sign-notarize-macos.sh"
 namespace_avalonia_native="${repository_dir}/scripts/namespace-avalonia-native-macos.sh"
 nuget_packages="${NUGET_PACKAGES:-${repository_dir}/.nuget/packages}"
 sql_language_artifact_directory="${repository_dir}/native/artifacts/osx-arm64"
-sql_language_worker="${sql_language_artifact_directory}/ghostshell-sql-language"
+sql_language_worker="${sql_language_artifact_directory}/asura-sql-language"
 sql_language_receipt="${sql_language_artifact_directory}/build-receipt.json"
 workspace_gateway_host_directory="${repository_dir}/native/artifacts/osx-arm64"
-workspace_gateway_host_name="ghostshell-workspace-gateway-darwin-arm64"
+workspace_gateway_host_name="asura-workspace-gateway-darwin-arm64"
 connection_engine_directory="${repository_dir}/native/artifacts/osx-arm64/connection-engines"
 workspace_runtime_directory="${repository_dir}/native/artifacts/osx-arm64/workspace-runtime"
 connection_engine_code_files=(
-    ghostshell-openvpn-engine
+    asura-openvpn-engine
     openconnect
     libopenconnect.5.dylib
     tailscale
@@ -131,7 +131,7 @@ Usage:
   ./scripts/package-macos.sh \
     --version <major.minor.patch> \
     --build-version <number[.number...]> \
-    --output <path/to/GhostShell.app> \
+    --output <path/to/Asura.app> \
     [--runtime-identifier osx-arm64] \
     [--cef-runtime-root <verified-runtime-directory>] \
     [--configuration Release] \
@@ -247,8 +247,8 @@ if [[ "${runtime_identifier}" != "osx-arm64" ]]; then
     exit 64
 fi
 expected_macho_architecture="arm64"
-runtime_lock="${repository_dir}/src/GhostShell.Desktop/packages.${runtime_identifier}.lock.json"
-native_aot_runtime_lock="${repository_dir}/src/GhostShell.Desktop/packages.${runtime_identifier}.aot.lock.json"
+runtime_lock="${repository_dir}/src/Asura.Desktop/packages.${runtime_identifier}.lock.json"
+native_aot_runtime_lock="${repository_dir}/src/Asura.Desktop/packages.${runtime_identifier}.aot.lock.json"
 if [[ ! -f "${runtime_lock}" ]]; then
     echo "The reviewed ${runtime_identifier} dependency lock is missing: ${runtime_lock}." >&2
     exit 1
@@ -284,9 +284,9 @@ if [[ -n "${release_evidence_dir}" \
     && ( -z "${source_seal}" \
         || -z "${security_campaign_tool}" \
         || -z "${build_artifacts_root}" \
-        || -z "${GHOSTSHELL_RELEASE_SOURCE_COMMIT:-}" \
-        || -z "${GHOSTSHELL_RELEASE_SOURCE_TREE:-}" \
-        || -z "${GHOSTSHELL_RELEASE_SOURCE_TAG:-}" ) ]]; then
+        || -z "${ASURA_RELEASE_SOURCE_COMMIT:-}" \
+        || -z "${ASURA_RELEASE_SOURCE_TREE:-}" \
+        || -z "${ASURA_RELEASE_SOURCE_TAG:-}" ) ]]; then
     echo "Release evidence requires the sealed source, verifier, external build root, and exact source identity." >&2
     exit 64
 fi
@@ -326,14 +326,14 @@ verify_release_source() {
         verify-release-source \
         --source-root "${repository_dir}" \
         --source-seal "${source_seal}" \
-        --source-commit "${GHOSTSHELL_RELEASE_SOURCE_COMMIT}" \
-        --source-tree "${GHOSTSHELL_RELEASE_SOURCE_TREE}" \
-        --tag "${GHOSTSHELL_RELEASE_SOURCE_TAG}" \
+        --source-commit "${ASURA_RELEASE_SOURCE_COMMIT}" \
+        --source-tree "${ASURA_RELEASE_SOURCE_TREE}" \
+        --tag "${ASURA_RELEASE_SOURCE_TAG}" \
         ${identity_arguments[@]+"${identity_arguments[@]}"}
 }
 
 if [[ ! -x "${dotnet}" ]]; then
-    echo "Run ./scripts/bootstrap.sh before packaging GhostSHELL." >&2
+    echo "Run ./scripts/bootstrap.sh before packaging Asura." >&2
     exit 1
 fi
 
@@ -351,7 +351,7 @@ if [[ -z "${native_aot_linker}" ]]; then
     native_aot_linker="$(command -v ld64.lld || true)"
 fi
 if [[ -z "${native_aot_linker}" || ! -x "${native_aot_linker}" ]]; then
-    echo "Native AOT packaging requires LLVM's ld64.lld. Set GHOSTSHELL_NATIVE_AOT_LINKER to its absolute path." >&2
+    echo "Native AOT packaging requires LLVM's ld64.lld. Set ASURA_NATIVE_AOT_LINKER to its absolute path." >&2
     exit 1
 fi
 native_aot_linker_version="$("${native_aot_linker}" --version)"
@@ -382,8 +382,8 @@ if [[ ! -f "${product_identity_manifest}" || -L "${product_identity_manifest}" ]
     exit 1
 fi
 
-if [[ "$(basename "${output}")" != "GhostShell.app" ]]; then
-    echo "The --output path must end in GhostShell.app." >&2
+if [[ "$(basename "${output}")" != "Asura.app" ]]; then
+    echo "The --output path must end in Asura.app." >&2
     exit 64
 fi
 
@@ -393,8 +393,8 @@ if [[ ! -d "${output_parent}" ]]; then
     exit 1
 fi
 output_parent="$(cd "${output_parent}" && pwd -P)"
-output="${output_parent}/GhostShell.app"
-symbol_output="${output_parent}/GhostShell.dSYM"
+output="${output_parent}/Asura.app"
+symbol_output="${output_parent}/Asura.dSYM"
 
 if [[ -e "${output}" ]]; then
     echo "The package destination already exists and will not be overwritten." >&2
@@ -437,7 +437,7 @@ for required in "${required_native[@]}"; do
 done
 "${repository_dir}/scripts/build-workspace-runtime.sh" --verify
 "${repository_dir}/scripts/build-workspace-backend.sh" --verify
-GHOSTSHELL_BACKEND_ARCH=x64 "${repository_dir}/scripts/build-workspace-backend.sh" --verify
+ASURA_BACKEND_ARCH=x64 "${repository_dir}/scripts/build-workspace-backend.sh" --verify
 for required in \
     "${connection_engine_code_files[@]}" \
     "${connection_engine_legal_files[@]}" \
@@ -478,7 +478,7 @@ sql_language_actual_maven_lock_sha="$(/usr/bin/shasum -a 256 "${maven_content_lo
 sql_language_file_type="$(/usr/bin/file -b "${sql_language_worker}")"
 if [[ "${sql_language_receipt_rid}" != "osx-arm64" \
     || "${sql_language_receipt_protocol}" != "1" \
-    || "${sql_language_receipt_artifact}" != "ghostshell-sql-language" \
+    || "${sql_language_receipt_artifact}" != "asura-sql-language" \
     || "${sql_language_receipt_abi}" != "darwin-arm64" \
     || "${sql_language_expected_sha}" != "${sql_language_actual_sha}" \
     || "${sql_language_file_type}" != *"Mach-O 64-bit executable arm64"* ]]; then
@@ -540,7 +540,7 @@ fi
 if ! macos_version_is_at_most \
     "${sql_language_minos_normalized}" \
     "${maximum_sql_language_macos_version_normalized}"; then
-    echo "The SQL language worker requires macOS ${sql_language_minos}, newer than GhostShell's macOS ${maximum_sql_language_macos_version} minimum." >&2
+    echo "The SQL language worker requires macOS ${sql_language_minos}, newer than Asura's macOS ${maximum_sql_language_macos_version} minimum." >&2
     exit 1
 fi
 
@@ -554,7 +554,7 @@ if [[ ! -f "${cef_runtime_catalog}" ]]; then
 fi
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
@@ -571,11 +571,11 @@ cef_macho_files=(
     "${cef_framework}/Libraries/libGLESv2.dylib"
     "${cef_framework}/Libraries/libcef_sandbox.dylib"
     "${cef_framework}/Libraries/libvk_swiftshader.dylib"
-    "${cef_runtime_root}/GhostSHELL Helper.app/Contents/MacOS/GhostSHELL Helper"
-    "${cef_runtime_root}/GhostSHELL Helper (Alerts).app/Contents/MacOS/GhostSHELL Helper (Alerts)"
-    "${cef_runtime_root}/GhostSHELL Helper (GPU).app/Contents/MacOS/GhostSHELL Helper (GPU)"
-    "${cef_runtime_root}/GhostSHELL Helper (Plugin).app/Contents/MacOS/GhostSHELL Helper (Plugin)"
-    "${cef_runtime_root}/GhostSHELL Helper (Renderer).app/Contents/MacOS/GhostSHELL Helper (Renderer)"
+    "${cef_runtime_root}/Asura Helper.app/Contents/MacOS/Asura Helper"
+    "${cef_runtime_root}/Asura Helper (Alerts).app/Contents/MacOS/Asura Helper (Alerts)"
+    "${cef_runtime_root}/Asura Helper (GPU).app/Contents/MacOS/Asura Helper (GPU)"
+    "${cef_runtime_root}/Asura Helper (Plugin).app/Contents/MacOS/Asura Helper (Plugin)"
+    "${cef_runtime_root}/Asura Helper (Renderer).app/Contents/MacOS/Asura Helper (Renderer)"
 )
 for cef_macho in "${cef_macho_files[@]}"; do
     cef_file_description="$(/usr/bin/file -b "${cef_macho}")"
@@ -586,9 +586,9 @@ for cef_macho in "${cef_macho_files[@]}"; do
     fi
 done
 
-working_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-package-macos.XXXXXX")"
-candidate_parent="$(mktemp -d "${output_parent}/.ghostshell-package.XXXXXX")"
-candidate="${candidate_parent}/GhostShell.app"
+working_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-package-macos.XXXXXX")"
+candidate_parent="$(mktemp -d "${output_parent}/.asura-package.XXXXXX")"
+candidate="${candidate_parent}/Asura.app"
 cleanup() {
     rm -rf -- "${working_dir}"
     rm -rf -- "${candidate_parent}"
@@ -610,9 +610,9 @@ fi
     -maxcpucount:4 \
     --runtime "${runtime_identifier}" \
     --locked-mode \
-    -p:GhostShellProductVersion="${version}" \
-    -p:GhostShellProductionBuild=true \
-    -p:GhostShellMacReleaseNativeAot=true
+    -p:AsuraProductVersion="${version}" \
+    -p:AsuraProductionBuild=true \
+    -p:AsuraMacReleaseNativeAot=true
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
     verify_release_source --capture-build-identity
@@ -632,16 +632,16 @@ fi
     --no-restore \
     --output "${managed_evidence_dir}" \
     -p:RestoreLockedMode=true \
-    -p:GhostShellProductVersion="${version}" \
-    -p:GhostShellProductionBuild=true \
-    -p:GhostShellReleaseSourceManifestSha256="${source_manifest_sha:-}" \
-    -p:GhostShellCefRuntimeArtifactDirectory="${cef_runtime_root}" \
+    -p:AsuraProductVersion="${version}" \
+    -p:AsuraProductionBuild=true \
+    -p:AsuraReleaseSourceManifestSha256="${source_manifest_sha:-}" \
+    -p:AsuraCefRuntimeArtifactDirectory="${cef_runtime_root}" \
     -p:DebugType=None \
     -p:DebugSymbols=false \
-    -p:GhostShellSqlLanguageRequired=true \
-    -p:GhostShellWorkspaceGatewayRequired=true \
-    -p:GhostShellConnectionEnginesRequired=true \
-    -p:GhostShellWorkspaceRuntimeRequired=true
+    -p:AsuraSqlLanguageRequired=true \
+    -p:AsuraWorkspaceGatewayRequired=true \
+    -p:AsuraConnectionEnginesRequired=true \
+    -p:AsuraWorkspaceRuntimeRequired=true
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
 fi
@@ -655,40 +655,40 @@ fi
     --no-restore \
     --output "${publish_dir}" \
     -p:RestoreLockedMode=true \
-    -p:GhostShellMacReleaseNativeAot=true \
-    -p:GhostShellNativeAotLinker="${native_aot_linker}" \
-    -p:GhostShellProductVersion="${version}" \
-    -p:GhostShellProductionBuild=true \
-    -p:GhostShellReleaseSourceManifestSha256="${source_manifest_sha:-}" \
-    -p:GhostShellCefRuntimeArtifactDirectory="${cef_runtime_root}" \
+    -p:AsuraMacReleaseNativeAot=true \
+    -p:AsuraNativeAotLinker="${native_aot_linker}" \
+    -p:AsuraProductVersion="${version}" \
+    -p:AsuraProductionBuild=true \
+    -p:AsuraReleaseSourceManifestSha256="${source_manifest_sha:-}" \
+    -p:AsuraCefRuntimeArtifactDirectory="${cef_runtime_root}" \
     -p:DebugType=None \
     -p:DebugSymbols=false \
-    -p:GhostShellSqlLanguageRequired=true \
-    -p:GhostShellWorkspaceGatewayRequired=true \
-    -p:GhostShellConnectionEnginesRequired=true \
-    -p:GhostShellWorkspaceRuntimeRequired=true \
+    -p:AsuraSqlLanguageRequired=true \
+    -p:AsuraWorkspaceGatewayRequired=true \
+    -p:AsuraConnectionEnginesRequired=true \
+    -p:AsuraWorkspaceRuntimeRequired=true \
     2>&1 | /usr/bin/tee "${aot_publish_log}"
 if [[ -n "${source_seal}" ]]; then
     verify_release_source
-    if ! LC_ALL=C /usr/bin/grep -aFq "${source_manifest_sha}" "${publish_dir}/GhostShell"; then
+    if ! LC_ALL=C /usr/bin/grep -aFq "${source_manifest_sha}" "${publish_dir}/Asura"; then
         echo "The Native AOT executable does not embed the sealed source manifest identity." >&2
         exit 1
     fi
 fi
 
 if /usr/bin/grep -E \
-    'ILC : (Trim analysis warning IL2026|AOT analysis warning IL3050): GhostShell\.' \
+    'ILC : (Trim analysis warning IL2026|AOT analysis warning IL3050): Asura\.' \
     "${aot_publish_log}"; then
     echo "Native AOT packaging rejected unsupported reflection in first-party code." >&2
     exit 1
 fi
 
 # Project-reference symbols are build artifacts, not release payload. Native
-# AOT folds application IL into GhostShell, so no managed symbols are useful in
+# AOT folds application IL into Asura, so no managed symbols are useful in
 # the bundle.
 find "${publish_dir}" -type f -name '*.pdb' -delete
-published_symbols="${publish_dir}/GhostShell.dSYM"
-staged_symbols="${working_dir}/GhostShell.dSYM"
+published_symbols="${publish_dir}/Asura.dSYM"
+staged_symbols="${working_dir}/Asura.dSYM"
 if [[ ! -d "${published_symbols}" || -L "${published_symbols}" ]]; then
     echo "The Native AOT debug symbol bundle is missing or linked." >&2
     exit 1
@@ -718,12 +718,12 @@ cp "${font_assets_directory}/OFL.txt" \
     "${publish_dir}/JETBRAINS-MONO-OFL.txt"
 
 required_publish=(
-    "${publish_dir}/GhostShell"
+    "${publish_dir}/Asura"
     "${publish_dir}/libAvaloniaNative.dylib"
     "${publish_dir}/libghostty-vt.dylib"
     "${publish_dir}/GHOSTTY-LICENSE"
     "${publish_dir}/ghostty-vt-required-exports.txt"
-    "${publish_dir}/runtimes/osx-arm64/native/ghostshell-sql-language"
+    "${publish_dir}/runtimes/osx-arm64/native/asura-sql-language"
     "${publish_dir}/runtimes/osx-arm64/native/THIRD-PARTY-NOTICES.md"
     "${publish_dir}/runtimes/osx-arm64/native/runtime-dependencies.txt"
     "${publish_dir}/runtimes/osx-arm64/native/build-receipt.json"
@@ -797,7 +797,7 @@ done
 cp "${publish_dir}/libAvaloniaNative.dylib" \
     "${managed_evidence_dir}/libAvaloniaNative.dylib"
 
-published_sql_language_worker="${publish_dir}/runtimes/osx-arm64/native/ghostshell-sql-language"
+published_sql_language_worker="${publish_dir}/runtimes/osx-arm64/native/asura-sql-language"
 published_sql_language_receipt="${publish_dir}/runtimes/osx-arm64/native/build-receipt.json"
 published_sql_language_dependencies="${publish_dir}/runtimes/osx-arm64/native/runtime-dependencies.txt"
 published_sql_language_notices="${publish_dir}/runtimes/osx-arm64/native/THIRD-PARTY-NOTICES.md"
@@ -821,7 +821,7 @@ fi
 # macOS uses the executable's SDK marker for compatibility styling. Rewrite the
 # temporary Native AOT executable before any package fingerprint is produced; release signing
 # replaces the helper's ad-hoc signature later.
-"${declare_macos_sdk}" "${publish_dir}/GhostShell"
+"${declare_macos_sdk}" "${publish_dir}/Asura"
 
 if find "${publish_dir}" -type f \
         \( -name '*.dll' -o -name '*.deps.json' -o -name '*.runtimeconfig.json' -o -name '*.pdb' \) \
@@ -831,30 +831,30 @@ if find "${publish_dir}" -type f \
 fi
 
 first_party_assemblies=(
-    "GhostShell.dll"
-    "GhostShell.Agent.dll"
-    "GhostShell.Agent.Providers.dll"
-    "GhostShell.Agent.Runtime.dll"
-    "GhostShell.App.dll"
-    "GhostShell.Application.dll"
-    "GhostShell.Browser.dll"
-    "GhostShell.ConnectionBackend.dll"
-    "GhostShell.Core.dll"
-    "GhostShell.Databases.dll"
-    "GhostShell.Docker.dll"
-    "GhostShell.Docking.dll"
-    "GhostShell.Files.dll"
-    "GhostShell.Git.dll"
-    "GhostShell.Infrastructure.dll"
-    "GhostShell.Mcp.dll"
-    "GhostShell.Mcp.Server.dll"
-    "GhostShell.Monitoring.dll"
-    "GhostShell.Previews.dll"
-    "GhostShell.Protocol.dll"
-    "GhostShell.Redis.dll"
-    "GhostShell.SessionHost.dll"
-    "GhostShell.Terminal.dll"
-    "GhostShell.Updates.dll"
+    "Asura.dll"
+    "Asura.Agent.dll"
+    "Asura.Agent.Providers.dll"
+    "Asura.Agent.Runtime.dll"
+    "Asura.App.dll"
+    "Asura.Application.dll"
+    "Asura.Browser.dll"
+    "Asura.ConnectionBackend.dll"
+    "Asura.Core.dll"
+    "Asura.Databases.dll"
+    "Asura.Docker.dll"
+    "Asura.Docking.dll"
+    "Asura.Files.dll"
+    "Asura.Git.dll"
+    "Asura.Infrastructure.dll"
+    "Asura.Mcp.dll"
+    "Asura.Mcp.Server.dll"
+    "Asura.Monitoring.dll"
+    "Asura.Previews.dll"
+    "Asura.Protocol.dll"
+    "Asura.Redis.dll"
+    "Asura.SessionHost.dll"
+    "Asura.Terminal.dll"
+    "Asura.Updates.dll"
 )
 for assembly in "${first_party_assemblies[@]}"; do
     if [[ ! -f "${managed_evidence_dir}/${assembly}" ]]; then
@@ -873,9 +873,9 @@ if find "${publish_dir}" ! -type f ! -type d -print -quit | grep -q .; then
     exit 1
 fi
 
-if ! /usr/bin/file "${publish_dir}/GhostShell" \
+if ! /usr/bin/file "${publish_dir}/Asura" \
         | grep -Eq "Mach-O 64-bit executable ${expected_macho_architecture}"; then
-    echo "The published GhostShell executable has the wrong macOS architecture." >&2
+    echo "The published Asura executable has the wrong macOS architecture." >&2
     exit 1
 fi
 
@@ -916,7 +916,7 @@ if [[ -n "${source_seal}" ]]; then
     verify_release_source
 fi
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \
@@ -950,7 +950,7 @@ if [[ -n "${source_seal}" ]]; then
 fi
 
 /usr/bin/plutil -lint "${candidate}/Contents/Info.plist"
-candidate_icon="${candidate}/Contents/Resources/GhostShell.icns"
+candidate_icon="${candidate}/Contents/Resources/Asura.icns"
 candidate_asset_catalog="${candidate}/Contents/Resources/Assets.car"
 candidate_identity="${candidate}/Contents/Resources/Licenses/ProductIdentity/product-identity.json"
 if [[ ! -f "${candidate_icon}" || -L "${candidate_icon}" ]]; then
@@ -966,28 +966,28 @@ if ! /usr/bin/cmp -s "${product_identity_manifest}" "${candidate_identity}"; the
     exit 1
 fi
 candidate_info_plist="${candidate}/Contents/Info.plist"
-if [[ "$(/usr/bin/plutil -extract CFBundleDisplayName raw "${candidate_info_plist}")" != "GhostSHELL" \
-    || "$(/usr/bin/plutil -extract CFBundleName raw "${candidate_info_plist}")" != "GhostSHELL" \
-    || "$(/usr/bin/plutil -extract CFBundleExecutable raw "${candidate_info_plist}")" != "GhostShell" \
-    || "$(/usr/bin/plutil -extract CFBundleIdentifier raw "${candidate_info_plist}")" != "app.ghostshell" \
-    || "$(/usr/bin/plutil -extract CFBundleIconFile raw "${candidate_info_plist}")" != "GhostShell" \
-    || "$(/usr/bin/plutil -extract CFBundleIconName raw "${candidate_info_plist}")" != "GhostShell" ]]; then
+if [[ "$(/usr/bin/plutil -extract CFBundleDisplayName raw "${candidate_info_plist}")" != "Asura" \
+    || "$(/usr/bin/plutil -extract CFBundleName raw "${candidate_info_plist}")" != "Asura" \
+    || "$(/usr/bin/plutil -extract CFBundleExecutable raw "${candidate_info_plist}")" != "Asura" \
+    || "$(/usr/bin/plutil -extract CFBundleIdentifier raw "${candidate_info_plist}")" != "sh.asura" \
+    || "$(/usr/bin/plutil -extract CFBundleIconFile raw "${candidate_info_plist}")" != "Asura" \
+    || "$(/usr/bin/plutil -extract CFBundleIconName raw "${candidate_info_plist}")" != "Asura" ]]; then
     echo "The packaged macOS application icon declaration is invalid." >&2
     exit 1
 fi
 candidate_asset_info="${working_dir}/candidate-Assets.info.json"
 /usr/bin/assetutil --info "${candidate_asset_catalog}" > "${candidate_asset_info}"
 if ! /usr/bin/grep -Fq '"AssetType" : "Icon Image"' "${candidate_asset_info}" \
-    || ! /usr/bin/grep -Fq '"Name" : "GhostShell"' "${candidate_asset_info}"; then
-    echo "The packaged Assets.car does not contain the named GhostShell icon." >&2
+    || ! /usr/bin/grep -Fq '"Name" : "Asura"' "${candidate_asset_info}"; then
+    echo "The packaged Assets.car does not contain the named Asura icon." >&2
     exit 1
 fi
 
-if [[ ! -x "${candidate}/Contents/MacOS/GhostShell" ]]; then
-    echo "The packaged GhostShell executable is not executable." >&2
+if [[ ! -x "${candidate}/Contents/MacOS/Asura" ]]; then
+    echo "The packaged Asura executable is not executable." >&2
     exit 1
 fi
-if [[ ! -x "${candidate}/Contents/MacOS/runtimes/osx-arm64/native/ghostshell-sql-language" ]]; then
+if [[ ! -x "${candidate}/Contents/MacOS/runtimes/osx-arm64/native/asura-sql-language" ]]; then
     echo "The packaged SQL language worker is missing or not executable." >&2
     exit 1
 fi
@@ -1046,7 +1046,7 @@ for required in \
         exit 1
     fi
 done
-candidate_sql_language_sha="$(/usr/bin/shasum -a 256 "${candidate_sql_language_directory}/ghostshell-sql-language" | /usr/bin/awk '{print $1}')"
+candidate_sql_language_sha="$(/usr/bin/shasum -a 256 "${candidate_sql_language_directory}/asura-sql-language" | /usr/bin/awk '{print $1}')"
 if [[ "${candidate_sql_language_sha}" != "${sql_language_expected_sha}" ]]; then
     echo "The packaged SQL language worker does not match its build receipt." >&2
     exit 1
@@ -1084,7 +1084,7 @@ fi
 
 "${dotnet}" run \
     --project \
-    "${repository_dir}/tools/GhostShell.AccessibilityAcceptance/GhostShell.AccessibilityAcceptance.csproj" \
+    "${repository_dir}/tools/Asura.AccessibilityAcceptance/Asura.AccessibilityAcceptance.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     -- \

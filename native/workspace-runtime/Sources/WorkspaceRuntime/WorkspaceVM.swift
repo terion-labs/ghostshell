@@ -51,7 +51,7 @@ final class WorkspaceVM: @unchecked Sendable {
     config.maskedPaths = []
     config.readonlyPaths = []
     config.process.environmentVariables = [
-      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "container=ghostshell",
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "container=asura",
     ]
     config.mounts += configuration.mounts.map {
       .share(source: $0.source, destination: $0.destination, options: $0.readOnly ? ["ro"] : [])

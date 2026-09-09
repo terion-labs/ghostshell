@@ -91,6 +91,6 @@ struct NetworkExit: Sendable {
   let reason: String
 
   var diagnostic: Data {
-    Data("GHOSTSHELL_GATEWAY_EXIT_REASON=\(reason)\n".utf8)
+    Data("ASURA_GATEWAY_EXIT_REASON=\(reason)\n".utf8)
   }
 }

@@ -33,7 +33,7 @@ const proxyAuthenticated = request => {
   return count === 1 && request.headers['proxy-authorization'] === credentials;
 };
 const html = (body) => `<!doctype html><meta charset="utf-8"><style>body{font:18px system-ui;background:#eef3f8;color:#142638;padding:22px}button{font:inherit;padding:12px;margin:8px}pre{white-space:pre-wrap}h1{font-size:26px}</style>${body}`;
-const parent = html(`<h1>GhostShell disposable browser fixture</h1>
+const parent = html(`<h1>Asura disposable browser fixture</h1>
 <p>Fixture pages are loopback-only. Fake credentials: fixture / fixture.</p>
 <button id="open" onclick="popup=window.open('', 'fixture');status('WindowProxy: '+!!popup);setTimeout(()=>{if(popup&&!popup.closed)popup.location='/child'},450)">Open blank popup, then navigate</button>
 <button onclick="count++;status('Parent clicks: '+count)">Parent remains interactive</button>
@@ -66,7 +66,7 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify(counters)); return;
   }
   if (request.url === '/auth' && request.headers.authorization !== credentials) {
-    response.writeHead(401, {'WWW-Authenticate':'Basic realm="ghostshell-fixture"', 'Content-Type':'text/html'});
+    response.writeHead(401, {'WWW-Authenticate':'Basic realm="asura-fixture"', 'Content-Type':'text/html'});
     response.end(html('<h1>Authentication required</h1><p>No credentials were supplied to this fixture origin.</p>'));
     return;
   }
@@ -96,7 +96,7 @@ const proxy = http.createServer((request, response) => {
   if (proxyAuthenticated(request)) counters.proxyAuthenticated++;
   console.log(JSON.stringify({source:'proxy', method:request.method, url:request.url, authenticated:proxyAuthenticated(request)}));
   if (!proxyAuthenticated(request)) {
-    response.writeHead(407, {'Proxy-Authenticate':'Basic realm="ghostshell-proxy-fixture"'}); response.end(); return;
+    response.writeHead(407, {'Proxy-Authenticate':'Basic realm="asura-proxy-fixture"'}); response.end(); return;
   }
   let url;
   try { url = new URL(request.url); } catch { response.writeHead(400); response.end(); return; }
@@ -128,7 +128,7 @@ proxy.on('connect', (request, socket, head) => {
   if (authenticated && destination) counters.connectAllowed++;
   console.log(JSON.stringify({source:'connect', authenticated, allowed:destination !== undefined}));
   if (!authenticated) {
-    socket.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="ghostshell-proxy-fixture"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
+    socket.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="asura-proxy-fixture"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
     return;
   }
   if (!destination) {

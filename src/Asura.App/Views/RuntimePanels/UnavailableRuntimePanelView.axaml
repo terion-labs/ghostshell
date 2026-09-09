@@ -1,0 +1,30 @@
+<UserControl
+    x:Class="Asura.App.Views.RuntimePanels.UnavailableRuntimePanelView"
+    x:DataType="vm:UnavailableRuntimePanelViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
+    Classes="RuntimePanelFocusTarget"
+    Focusable="True"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    IsVisible="{Binding IsVisibleInLayout}">
+  <controls:PanelChrome
+      CloseRequested="OnCloseClick"
+      HasAttention="{Binding HasAttention}"
+      IsActive="{Binding IsActive}"
+      IsAgentActive="{Binding IsAgentActive}"
+      IsNotificationPulseActive="{Binding IsNotificationPulseActive}"
+      IsZoomed="{Binding IsZoomed}"
+      SplitRequested="OnSplitRequested"
+      Title="{Binding Title}">
+    <controls:StateOverlay
+        Kind="Unsupported"
+        Heading="{Binding StateHeading}"
+        ActionLabel="{Binding StateActionLabel}"
+        ActionCommand="{Binding StateActionCommand}"
+        Body="{Binding CapabilityMessage}" />
+  </controls:PanelChrome>
+</UserControl>

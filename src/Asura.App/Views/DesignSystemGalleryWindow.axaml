@@ -1,0 +1,434 @@
+<Window
+    x:Class="Asura.App.Views.DesignSystemGalleryWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    Title="Asura design system"
+    Width="880"
+    SizeToContent="Height"
+    CanResize="False"
+    ShowInTaskbar="False"
+    Background="{DynamicResource ShellBackgroundBrush}">
+  <!--
+    Every component the shell is built from, on one page.
+
+    It exists so the design system can be looked at rather than reasoned about. A
+    component that only ever appears inside a running window is a component whose
+    drift nobody notices until a screenshot arrives; here a changed radius, a
+    changed gap, or a tone that stopped resolving shows up in one image.
+
+    It also states the rule the rest of the markup follows: not a single literal
+    size, gap, radius, or colour below this line.
+  -->
+    <StackPanel Margin="{DynamicResource ShellInsetXl}" Spacing="{DynamicResource ShellSpaceXl}">
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+        <TextBlock
+            FontSize="{DynamicResource ShellFontSize18}"
+            FontWeight="SemiBold"
+            Text="Design system" />
+        <TextBlock
+            Classes="Muted"
+            Text="Every value on this page comes from a published token, so it moves with the platform profile, the density, the text scale, and the corner-radius setting."
+            TextWrapping="Wrap" />
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Surfaces" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="One card. A view names what it is, never what it looks like."
+            TextWrapping="Wrap" />
+        <UniformGrid Columns="3" ColumnSpacing="{DynamicResource ShellSpaceMd}" RowSpacing="{DynamicResource ShellSpaceMd}">
+          <controls:SurfaceCard>
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Default" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Content grouped on the page." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Raised">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Raised" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="A control inside another card." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Sunken" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="A well the page recedes into." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Notice">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Notice" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Read this before acting." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Warning">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Warning" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="This will ask before it proceeds." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Danger">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock FontWeight="SemiBold" Text="Danger" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="This cannot be undone." TextWrapping="Wrap" />
+            </StackPanel>
+          </controls:SurfaceCard>
+        </UniformGrid>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Status" />
+        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+          <controls:StatusChip Content="Connected" />
+          <controls:StatusChip Tone="Warning" Content="Needs attention" />
+          <controls:StatusChip Tone="Danger" Content="Full access enabled" />
+          <controls:StatusChip Tone="Notice" Content="Provider model" />
+          <controls:StatusChip Tone="Default" Content="Ask" />
+          <controls:StatusChip Shape="Rounded" Content="SSH" />
+          <controls:StatusChip Shape="Rounded" Content="Docker" />
+          <controls:SignalDot />
+          <Border Classes="StatusDot available" />
+          <Border Classes="Keycap"><TextBlock Text="⌘K" /></Border>
+          <Button Classes="Chip" Content="Run scope · This tab" />
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Callouts" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="A sentence the page wants read before the user acts. The tone says how seriously; the glyph carries it at a glance."
+            TextWrapping="Wrap" />
+        <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+          <controls:Callout
+              Glyph="Shield"
+              Text="Credential values stay in the operating-system vault and are never shown here." />
+          <controls:Callout
+              Tone="Warning"
+              Glyph="Warning"
+              Title="Run a local process"
+              Text="This server runs as a local process with your user's permissions."
+              Footnote="Trust is granted per profile and can be withdrawn in settings." />
+          <controls:Callout Tone="Danger" Glyph="ErrorCircle" Title="Delivery failed" Text="The startup command was not delivered to the session.">
+            <controls:Callout.Action>
+              <Button Classes="SecondaryButton" Content="Retry" />
+            </controls:Callout.Action>
+          </controls:Callout>
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="States" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="Every not-content state uses one typed vocabulary. Copy and recovery actions remain specific to the screen."
+            TextWrapping="Wrap" />
+        <UniformGrid Columns="3" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Empty"
+                Heading="Nothing here yet"
+                Body="Choose a location to browse." />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="NoResults"
+                Heading="No matching sessions"
+                Body="Change the search or clear its filters." />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Loading"
+                Heading="Waiting for first sample…"
+                Body="Collecting resource statistics…" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Offline"
+                Heading="Host is offline"
+                Body="The last successful result remains visible."
+                ActionLabel="Reconnect" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="PermissionRequired"
+                Heading="Permission needed"
+                Body="Approve read access to continue."
+                ActionLabel="Review access" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Unsupported"
+                Heading="Preview unavailable"
+                Body="This file type can still be downloaded." />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Stale"
+                Heading="Showing an older snapshot"
+                Body="Refresh to check for current data."
+                ActionLabel="Refresh" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Partial"
+                Heading="Some results could not be loaded"
+                Body="The successful results remain available."
+                ActionLabel="Retry missing" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Conflict"
+                Heading="Settings changed elsewhere"
+                Body="Your draft is retained until you reload or save a copy."
+                ActionLabel="Review conflict" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Retry"
+                Heading="Connection interrupted"
+                Body="No input was discarded."
+                ActionLabel="Retry" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="TerminalError"
+                Heading="Engine unreachable"
+                Body="The Docker socket did not answer."
+                ActionLabel="Retry" />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="Cancelled"
+                Heading="Export cancelled"
+                Body="No partial archive was retained." />
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Sunken" MinHeight="230" Padding="0">
+            <controls:StateOverlay
+                Kind="DestructiveAction"
+                Heading="Clear all previous snapshots?"
+                Body="Saved recovery files will be deleted. The current live run is not affected."
+                ActionLabel="Clear snapshots" />
+          </controls:SurfaceCard>
+        </UniformGrid>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Choosers and lists" />
+        <UniformGrid Columns="3" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+          <controls:ChooserTile Icon="WindowConsole" Title="New terminal" Description="Open the default local shell" />
+          <controls:ChooserTile Icon="Globe" Title="New browser" Description="Embedded Chromium browser panel" />
+          <controls:ChooserTile Icon="Database" Title="Database" Description="Query SQLite, Postgres, MySQL" />
+        </UniformGrid>
+        <controls:SurfaceCard Padding="0">
+          <StackPanel>
+            <Button Classes="ListRow">
+              <controls:ListItem
+                  ContentPadding="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                  Title="production-api"
+                  Detail="ssh deploy@prod.example.com">
+                <controls:ListItem.Leading>
+                  <controls:IdentityTile TileSize="Small" Tint="{DynamicResource ShellAccentSoftBrush}" Symbol="ServerLink" />
+                </controls:ListItem.Leading>
+                <controls:ListItem.Trailing>
+                  <controls:StatusChip Shape="Rounded" Content="SSH" />
+                </controls:ListItem.Trailing>
+              </controls:ListItem>
+            </Button>
+            <Button Classes="ListRow selected">
+              <controls:ListItem
+                  ContentPadding="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                  Title="analytics.sqlite"
+                  Detail="Local file · read-only">
+                <controls:ListItem.Leading>
+                  <controls:IdentityTile TileSize="Small" Tint="{DynamicResource ShellAccentSoftBrush}" Symbol="Database" />
+                </controls:ListItem.Leading>
+                <controls:ListItem.Trailing>
+                  <controls:StatusChip Shape="Rounded" Content="SQLite" />
+                </controls:ListItem.Trailing>
+              </controls:ListItem>
+            </Button>
+          </StackPanel>
+        </controls:SurfaceCard>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Pickers" />
+        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceMd}">
+          <Border VerticalAlignment="Center" Classes="Segmented">
+            <UniformGrid Columns="3">
+              <ToggleButton Classes="Segment" IsChecked="True" Content="Data" />
+              <ToggleButton Classes="Segment" Content="Structure" />
+              <ToggleButton Classes="Segment" Content="Indexes" />
+            </UniformGrid>
+          </Border>
+          <controls:SurfaceCard Tone="Raised" VerticalAlignment="Center" Padding="{DynamicResource ShellCardPaddingCompact}" MinWidth="280">
+            <controls:ToggleField Label="Keep the session alive" IsChecked="True" />
+          </controls:SurfaceCard>
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Actions" />
+        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+          <Button Classes="PrimaryButton" Content="Save" />
+          <Button Classes="SecondaryButton" Content="Test connection" />
+          <Button Classes="TextButton" Content="Clear" />
+          <Button Classes="DestructiveButton" Content="Delete" />
+          <Button Classes="SecondaryButton" Content="Disabled" IsEnabled="False" />
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Settings" />
+        <controls:SettingsGroup
+            Heading="Quick Terminal"
+            Description="The group owns the column width and the separators, so no row has to know where it sits."
+            ControlWidth="240">
+          <controls:SettingRow
+              Label="Global hotkey"
+              Description="Press the shortcut that summons the panel from anywhere.">
+            <TextBox Text="Ctrl+Alt+T" />
+          </controls:SettingRow>
+          <controls:SettingRow
+              Label="Show on display"
+              Description="Follow the Asura window or always use the primary display.">
+            <ComboBox HorizontalAlignment="Stretch" SelectedIndex="0">
+              <ComboBoxItem Content="Follow the window" />
+              <ComboBoxItem Content="Primary display" />
+            </ComboBox>
+          </controls:SettingRow>
+          <controls:SettingRow
+              Label="Retain the session"
+              Description="Keep the shell running when the panel is dismissed.">
+            <ToggleSwitch HorizontalAlignment="Right" IsChecked="True" />
+          </controls:SettingRow>
+          <controls:SettingRow
+              Label="Allowed hosts"
+              Description="A list is a setting too. Stacked, it takes the row's whole width under its name."
+              IsStacked="True">
+            <controls:SurfaceCard Tone="Sunken" Padding="{DynamicResource ShellCardPaddingCompact}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                <controls:ListItem Title="bastion.example.com" Detail="Read only">
+                  <controls:ListItem.Trailing>
+                    <controls:StatusChip Shape="Rounded" Tone="Default" Content="SSH" />
+                  </controls:ListItem.Trailing>
+                </controls:ListItem>
+                <controls:ListItem Title="cache.internal" Detail="Read &amp; write">
+                  <controls:ListItem.Trailing>
+                    <controls:StatusChip Shape="Rounded" Tone="Default" Content="Redis" />
+                  </controls:ListItem.Trailing>
+                </controls:ListItem>
+              </StackPanel>
+            </controls:SurfaceCard>
+          </controls:SettingRow>
+        </controls:SettingsGroup>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Panel chrome" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="A filled header inside a rounded card, shown as the active panel. If the card does not clip, the header squares off the two corners the border draws round; if the active class does not reach it, the accent outline is missing."
+            TextWrapping="Wrap" />
+        <controls:SurfaceCard Tone="Sunken" ClipsContent="True" Padding="0" Height="90" Classes="active">
+          <Grid RowDefinitions="36,*">
+            <Border Grid.Row="0" Classes="PanelHeader">
+              <TextBlock
+                  Margin="{controls:Inset Horizontal=Md}"
+                  VerticalAlignment="Center"
+                  FontWeight="SemiBold"
+                  Text="Local terminal" />
+            </Border>
+          </Grid>
+        </controls:SurfaceCard>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Fields" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="A field names the control above it; a row names it beside. Separate on purpose — merging them behind a flag would make every use site say which it meant."
+            TextWrapping="Wrap" />
+        <UniformGrid Columns="3" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+          <controls:SurfaceCard Tone="Raised">
+            <controls:LabeledField Label="Platform profile" Hint="Closest host-native chrome, radii, and density.">
+              <ComboBox HorizontalAlignment="Stretch" SelectedIndex="0">
+                <ComboBoxItem Content="Automatic" />
+              </ComboBox>
+            </controls:LabeledField>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Raised">
+            <controls:LabeledField Label="Family">
+              <ComboBox HorizontalAlignment="Stretch" SelectedIndex="0">
+                <ComboBoxItem Content="JetBrains Mono" />
+              </ComboBox>
+            </controls:LabeledField>
+          </controls:SurfaceCard>
+          <controls:SurfaceCard Tone="Raised">
+            <controls:LabeledField Label="Size">
+              <NumericUpDown Minimum="8" Maximum="32" Value="14" />
+            </controls:LabeledField>
+          </controls:SurfaceCard>
+        </UniformGrid>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Empty states" />
+        <controls:SurfaceCard Height="260" Padding="0">
+          <controls:EmptyStatePanel
+              Glyph="Bot"
+              Heading="Connect an AI provider"
+              Body="Add a model provider to start using the AI agent.">
+            <Button Classes="PrimaryButton" Content="Open provider settings" />
+          </controls:EmptyStatePanel>
+        </controls:SurfaceCard>
+      </StackPanel>
+
+      <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+        <TextBlock Classes="SectionHeading" Text="Spacing scale" />
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize10}"
+            Text="Derived from the host's own grid step, scaled by density and text size. Six steps, because a scale with a value for every occasion is the same as no scale."
+            TextWrapping="Wrap" />
+        <controls:SurfaceCard>
+          <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="XS" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceXs}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="SM" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceSm}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="MD" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceMd}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="LG" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceLg}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="XL" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceXl}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+            <Grid ColumnDefinitions="70,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+              <TextBlock Classes="Eyebrow" Text="XXL" VerticalAlignment="Center" />
+              <Border Grid.Column="1" Height="{DynamicResource ShellSpaceXs}" HorizontalAlignment="Left" Width="{DynamicResource ShellSpaceXxl}" Background="{DynamicResource ShellAccentBrush}" />
+            </Grid>
+          </StackPanel>
+        </controls:SurfaceCard>
+      </StackPanel>
+
+    </StackPanel>
+</Window>

@@ -1,0 +1,31 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.SectionHeader"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Asura.App.Views.Components"
+    Focusable="False">
+  <!--
+    The heading over a group of settings. Every page wrote this pair by hand —
+    a semibold line and a muted one under it — and the sizes drifted apart page
+    by page, which is what makes two sections of the same product look like two
+    products.
+  -->
+  <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+      <TextBlock
+          FontSize="{DynamicResource ShellFontSize14}"
+          FontWeight="SemiBold"
+          Text="{Binding Heading, ElementName=Root}" />
+      <local:CountPill
+          Value="{Binding Count, ElementName=Root}"
+          IsVisible="{Binding HasCount, ElementName=Root}" />
+    </StackPanel>
+    <TextBlock
+        Classes="Muted"
+        FontSize="{DynamicResource ShellFontSize12}"
+        Text="{Binding Description, ElementName=Root}"
+        TextWrapping="Wrap"
+        IsVisible="{Binding HasDescription, ElementName=Root}" />
+  </StackPanel>
+</UserControl>

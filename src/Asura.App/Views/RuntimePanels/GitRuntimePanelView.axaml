@@ -1,0 +1,1370 @@
+<UserControl
+    x:Class="Asura.App.Views.RuntimePanels.GitRuntimePanelView"
+    x:DataType="vm:GitRuntimePanelViewModel"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    Classes="RuntimePanelFocusTarget"
+    Focusable="True"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    IsVisible="{Binding IsVisibleInLayout}"
+    AutomationProperties.Name="Git panel"
+    Container.Name="gitPanel"
+    Container.Sizing="Width">
+  <UserControl.Styles>
+    <Style Selector="Button.GitNav">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+    </Style>
+    <Style Selector="Button.GitNav:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Button.GitNav.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.GitSidebarRow">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize10}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight10}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Grid.GitSidebarRowLayout">
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+    </Style>
+    <Style Selector="ListBox.GitChanges ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Xs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="MinHeight" Value="30" />
+    </Style>
+    <Style Selector="ListBox.GitChanges">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Border.GitKindBadge">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellInnerCornerRadius}" />
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.GitKindBadge TextBlock">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize9}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.addition">
+      <Setter Property="Background" Value="{DynamicResource ShellSuccessSoftBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.addition TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ShellSuccessBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.removal">
+      <Setter Property="Background" Value="{DynamicResource ShellDangerSoftBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.removal TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ShellDangerBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.conflict">
+      <Setter Property="Background" Value="{DynamicResource ShellWarningSoftBrush}" />
+    </Style>
+    <Style Selector="Border.GitKindBadge.conflict TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ShellWarningBrush}" />
+    </Style>
+    <Style Selector="ListBox.GitCommits">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.GitCommits ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Xs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellInnerCornerRadius}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="MinHeight" Value="24" />
+    </Style>
+    <Style Selector="TextBlock.GitCommitCell">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize10}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight10}" />
+    </Style>
+    <Style Selector="Border.GitRefTag">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellPillCornerRadius}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Xs}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.GitRefTag TextBlock">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize9}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight9}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
+    <Style Selector="Border.GitCountBadge">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellPillCornerRadius}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Xs}" />
+      <Setter Property="MinWidth" Value="18" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.GitCountBadge TextBlock">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize9}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight9}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.GitMetaLabel">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize9}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight9}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.GitDetailTab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinHeight" Value="{DynamicResource ShellControlMinHeight}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Button.GitDetailTab.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellTextBrush}" />
+    </Style>
+    <Style Selector="StackPanel#GitCompactSections">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="TextBlock.GitSidebarRow.current">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <!-- No LineHeight here on purpose: an inflated line box centers digits
+         differently from arrows, and the whole point of one text run is a
+         shared baseline. -->
+    <Style Selector="TextBlock.GitTrackingText">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize10}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellMutedBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Ref rows are plain data wrapped in a hit-testable band so the whole
+         row answers to the pointer; the current branch wears the accent. -->
+    <Style Selector="Border.GitRefRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Border.GitRefRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Border.GitRefRow.current">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Border.GitRefRow.current:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+    </Style>
+    <!-- A section heading is the disclosure control for its list: the whole
+         band answers the pointer, and the chevron on the left says which way. -->
+    <Style Selector="Button.GitSectionHeader">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+    </Style>
+    <Style Selector="Button.GitSectionHeader:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <ContainerQuery Name="gitPanel" Query="max-width:700">
+      <Style Selector="Border#GitSidebar">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+      <!-- The splitter follows the sidebar out of the narrow layout; the
+           column itself collapses through the view model, which the
+           code-behind informs from the sidebar's visibility. -->
+      <Style Selector="Border#GitSidebarSplitterLine">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+      <Style Selector="GridSplitter#GitSidebarSplitter">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+      <Style Selector="StackPanel#GitCompactSections">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+    </ContainerQuery>
+    <ContainerQuery Name="gitPanel" Query="max-width:1000">
+      <Style Selector="TextBlock.GitCommitAuthor">
+        <Setter Property="IsVisible" Value="False" />
+      </Style>
+    </ContainerQuery>
+  </UserControl.Styles>
+
+  <controls:PanelChrome
+      CloseLabel="Close Git panel"
+      CloseRequested="OnCloseClick"
+      HasAttention="{Binding HasAttention}"
+      IsActive="{Binding IsActive}"
+      IsAgentActive="{Binding IsAgentActive}"
+      IsNotificationPulseActive="{Binding IsNotificationPulseActive}"
+      IsZoomed="{Binding IsZoomed}"
+      SplitRequested="OnSplitRequested"
+      Title="{Binding Title}">
+    <controls:PanelChrome.Status>
+      <Border Classes="StatusDot available" />
+    </controls:PanelChrome.Status>
+
+    <controls:PanelChrome.Leading>
+      <components:PanelConnectionSelectorView
+          Options="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PanelConnectionOptions}"
+          SelectedLabel="{Binding ConnectionDisplayName}"
+          ConnectionSelected="OnConnectionSelected"
+          NewConnectionRequested="OnNewConnectionRequested" />
+    </controls:PanelChrome.Leading>
+
+    <controls:PanelChrome.Actions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+        <!-- No LineHeight: the status line carries ↑/↓ arrows beside digits,
+             and only an uninflated line box keeps them on one centerline. -->
+        <controls:LiveRegionTextBlock
+            VerticalAlignment="Center"
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            Text="{Binding StatusText}"
+            AutomationProperties.LiveSetting="Polite" />
+        <Button
+            Classes="IconButton"
+            Command="{Binding PullCommand}"
+            ToolTip.Tip="Pull"
+            AutomationProperties.Name="Pull">
+          <icons:SymbolIcon Symbol="ArrowDown" FontSize="14" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Command="{Binding PushCommand}"
+            ToolTip.Tip="Push"
+            AutomationProperties.Name="Push">
+          <icons:SymbolIcon Symbol="ArrowUp" FontSize="14" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Command="{Binding SyncCommand}"
+            ToolTip.Tip="Pull, then push"
+            AutomationProperties.Name="Pull, then push">
+          <icons:SymbolIcon Symbol="ArrowSync" FontSize="14" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Click="OnStashClick"
+            IsEnabled="{Binding CanMutateRepository}"
+            ToolTip.Tip="Stash working changes"
+            AutomationProperties.Name="Stash working changes">
+          <icons:SymbolIcon Symbol="Archive" FontSize="14" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Command="{Binding RefreshCommand}"
+            ToolTip.Tip="Refresh repository state"
+            AutomationProperties.Name="Refresh repository state">
+          <icons:SymbolIcon Symbol="ArrowClockwise" FontSize="14" />
+        </Button>
+      </StackPanel>
+    </controls:PanelChrome.Actions>
+
+    <controls:PanelChrome.Footer>
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <TextBlock
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            LineHeight="{DynamicResource ShellLineHeight9}"
+            Text="{Binding RepositoryRoot}"
+            TextTrimming="CharacterEllipsis" />
+        <TextBlock
+            Grid.Column="1"
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            LineHeight="{DynamicResource ShellLineHeight9}"
+            Text="{Binding ConnectionDisplayName, StringFormat=Target · {0}}" />
+        <!-- Impersonation is visible, never silent: when Git runs as the
+             repository's owner rather than the signed-in user, the footer
+             says so for the panel's whole life. -->
+        <TextBlock
+            Grid.Column="2"
+            Classes="Muted"
+            FontSize="{DynamicResource ShellFontSize9}"
+            LineHeight="{DynamicResource ShellLineHeight9}"
+            Text="{Binding EffectiveGitUser, StringFormat=· git as {0}}"
+            IsVisible="{Binding HasEffectiveGitUser}" />
+      </Grid>
+    </controls:PanelChrome.Footer>
+
+    <!-- No panel-wide fill: like the File Viewer and Process Monitor, the
+         content stays transparent so the shell's glass shows through. -->
+    <Grid>
+      <!-- Repository chooser: what the panel is before a repository is open. -->
+      <ScrollViewer IsVisible="{Binding !IsRepositoryOpen}">
+        <controls:SurfaceCard
+            MaxWidth="480"
+            Margin="{controls:Inset Xl}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Padding="{DynamicResource ShellCardPadding}">
+          <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock Classes="Eyebrow" Text="Git" />
+              <TextBlock
+                  FontSize="{DynamicResource ShellFontSize15}"
+                  LineHeight="{DynamicResource ShellLineHeight15}"
+                  FontWeight="SemiBold"
+                  Text="Open a repository" />
+              <TextBlock
+                  Classes="Muted"
+                  Text="Point the panel at a working tree on this connection. The target's own Git does the work."
+                  TextWrapping="Wrap" />
+            </StackPanel>
+            <controls:LabeledField Label="Repository path">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                <TextBox
+                    Text="{Binding RepositoryPathInput, Mode=TwoWay}"
+                    PlaceholderText="/path/to/repository"
+                    KeyDown="OnRepositoryPathKeyDown"
+                    AutomationProperties.Name="Repository path" />
+                <Button
+                    Grid.Column="1"
+                    Classes="SecondaryButton"
+                    VerticalAlignment="Stretch"
+                    Click="OnBrowseRepositoryClick"
+                    Content="Browse…" />
+              </Grid>
+            </controls:LabeledField>
+            <controls:Callout
+                Tone="Danger"
+                Title="{Binding IssueTitle}"
+                Text="{Binding IssueMessage}"
+                IsVisible="{Binding HasIssue}">
+              <controls:Callout.Action>
+                <Button
+                    Classes="SecondaryButton"
+                    Click="OnTrustRepositoryClick"
+                    Content="Trust this repository"
+                    IsVisible="{Binding CanTrustRepository}" />
+              </controls:Callout.Action>
+            </controls:Callout>
+            <Button
+                Classes="PrimaryButton"
+                HorizontalAlignment="Left"
+                Command="{Binding OpenRepositoryCommand}"
+                Content="Open repository" />
+          </StackPanel>
+        </controls:SurfaceCard>
+      </ScrollViewer>
+
+      <Grid IsVisible="{Binding IsRepositoryOpen}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="{Binding SidebarColumnWidth, Mode=TwoWay}" MinWidth="{Binding SidebarColumnMinWidth}" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <!-- Repository sidebar: sections, then refs, mirroring the reference
+             client's information architecture with the shell's own visuals. -->
+        <Border
+            x:Name="GitSidebar"
+            Grid.Column="0"
+            BorderBrush="{DynamicResource ShellBorderBrush}"
+            BorderThickness="0,0,1,0">
+          <Grid Margin="{controls:Inset Sm}" RowDefinitions="Auto,*">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock
+                  Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                  Classes="Eyebrow"
+                  Text="{Binding RepositoryName}" />
+              <Button Classes="GitNav" Classes.selected="{Binding IsLocalChangesSection}" Click="OnLocalChangesClick">
+                <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <icons:SymbolIcon VerticalAlignment="Center" Symbol="Edit" FontSize="15" />
+                  <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Local Changes" />
+                  <Border Grid.Column="2" HorizontalAlignment="Right" Classes="GitCountBadge">
+                    <TextBlock Text="{Binding UnstagedCount}" />
+                  </Border>
+                </Grid>
+              </Button>
+              <Button Classes="GitNav" Classes.selected="{Binding IsAllCommitsSection}" Click="OnAllCommitsClick">
+                <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <icons:SymbolIcon VerticalAlignment="Center" Symbol="History" FontSize="15" />
+                  <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="All Commits" />
+                </Grid>
+              </Button>
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" Margin="{controls:Inset Top=Sm}">
+              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+                <StackPanel Spacing="0">
+                  <Button Classes="GitSectionHeader" Click="OnToggleBranchesSection">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                      <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsBranchesSectionExpanded}" />
+                      <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsBranchesSectionExpanded}" />
+                      <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Branches" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding LocalBranches}" IsVisible="{Binding IsBranchesSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border
+                            Classes="GitRefRow"
+                            Classes.current="{Binding IsCurrent}"
+                            DoubleTapped="OnBranchRowDoubleTapped">
+                          <Border.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem
+                                  Header="{Binding CheckoutLabel}"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnCheckoutBranchClick" />
+                              <MenuItem
+                                  Header="Checkout as Worktree…"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnCheckoutWorktreeClick" />
+                              <Separator IsVisible="{Binding !IsCurrent}" />
+                              <MenuItem
+                                  Header="{Binding FastForwardLabel}"
+                                  IsVisible="{Binding HasUpstream}"
+                                  Click="OnFastForwardBranchClick" />
+                              <MenuItem
+                                  Header="{Binding PushLabel}"
+                                  IsVisible="{Binding HasPushRemote}"
+                                  Click="OnPushBranchClick" />
+                              <Separator />
+                              <MenuItem
+                                  Header="{Binding MergeLabel}"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnMergeBranchClick" />
+                              <MenuItem
+                                  Header="{Binding RebaseLabel}"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnRebaseBranchClick" />
+                              <Separator IsVisible="{Binding !IsCurrent}" />
+                              <MenuItem Header="New Branch…" Click="OnNewBranchClick" />
+                              <MenuItem Header="New Tag…" Click="OnNewTagAtBranchClick" />
+                              <Separator />
+                              <MenuItem
+                                  Header="Rename…"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnRenameBranchClick" />
+                              <MenuItem
+                                  Header="Delete…"
+                                  IsVisible="{Binding !IsCurrent}"
+                                  Click="OnDeleteBranchClick" />
+                              <Separator IsVisible="{Binding !IsCurrent}" />
+                              <MenuItem Header="Copy Branch Name" Click="OnCopyBranchNameClick" />
+                            </ContextMenu>
+                          </Border.ContextMenu>
+                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                            <icons:SymbolIcon
+                                VerticalAlignment="Center"
+                                Symbol="BranchFork"
+                                FontSize="11"
+                                Foreground="{DynamicResource ShellMutedBrush}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Classes="GitSidebarRow"
+                                Classes.current="{Binding IsCurrent}"
+                                Text="{Binding Name}" />
+                            <!-- One text run renders “↑1 ↓3”: arrows from the
+                                 digits' own font share their baseline by
+                                 construction. -->
+                            <TextBlock
+                                Grid.Column="2"
+                                Classes="GitTrackingText"
+                                Text="{Binding TrackingText}"
+                                IsVisible="{Binding HasTracking}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="0">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                    <Button Classes="GitSectionHeader" Click="OnToggleRemotesSection">
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                        <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsRemotesSectionExpanded}" />
+                        <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsRemotesSectionExpanded}" />
+                        <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Remotes" />
+                      </StackPanel>
+                    </Button>
+                    <Button
+                        Grid.Column="1"
+                        Classes="IconButton Compact"
+                        Click="OnAddRemoteClick"
+                        ToolTip.Tip="Add remote"
+                        AutomationProperties.Name="Add remote">
+                      <icons:SymbolIcon Symbol="Add" FontSize="12" />
+                    </Button>
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding RemoteBranches}" IsVisible="{Binding IsRemotesSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Classes="GitRefRow">
+                          <Border.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="{Binding FetchLabel}" Click="OnFetchRemoteClick" />
+                              <Separator />
+                              <MenuItem Header="Edit…" Click="OnEditRemoteClick" />
+                              <MenuItem Header="Delete…" Click="OnRemoveRemoteClick" />
+                            </ContextMenu>
+                          </Border.ContextMenu>
+                          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                            <icons:SymbolIcon
+                                VerticalAlignment="Center"
+                                Symbol="Globe"
+                                FontSize="11"
+                                Foreground="{DynamicResource ShellMutedBrush}" />
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="GitSidebarRow" Text="{Binding Name}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="0">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                    <Button Classes="GitSectionHeader" Click="OnToggleTagsSection">
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                        <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsTagsSectionExpanded}" />
+                        <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsTagsSectionExpanded}" />
+                        <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Tags" />
+                      </StackPanel>
+                    </Button>
+                    <Button
+                        Grid.Column="1"
+                        Classes="IconButton Compact"
+                        Click="OnCreateTagClick"
+                        ToolTip.Tip="Create tag"
+                        AutomationProperties.Name="Create tag">
+                      <icons:SymbolIcon Symbol="Add" FontSize="12" />
+                    </Button>
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding IsTagsSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Classes="GitRefRow">
+                          <Border.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="Delete…" Click="OnDeleteTagClick" />
+                            </ContextMenu>
+                          </Border.ContextMenu>
+                          <TextBlock Classes="GitSidebarRow" Text="{Binding Name}" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="0">
+                  <Button Classes="GitSectionHeader" Click="OnToggleStashesSection">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                      <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsStashesSectionExpanded}" />
+                      <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsStashesSectionExpanded}" />
+                      <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Stashes" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding Stashes}" IsVisible="{Binding IsStashesSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Classes="GitRefRow">
+                          <Border.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="Apply" Click="OnStashApplyClick" />
+                              <MenuItem Header="Pop" Click="OnStashPopClick" />
+                              <Separator />
+                              <MenuItem Header="Drop…" Click="OnStashDropClick" />
+                            </ContextMenu>
+                          </Border.ContextMenu>
+                          <TextBlock
+                              Classes="GitSidebarRow"
+                              Text="{Binding Subject}"
+                              ToolTip.Tip="{Binding Reference}" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="0">
+                  <Button Classes="GitSectionHeader" Click="OnToggleWorktreesSection">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                      <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsWorktreesSectionExpanded}" />
+                      <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsWorktreesSectionExpanded}" />
+                      <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Worktrees" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding Worktrees}" IsVisible="{Binding IsWorktreesSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Classes="GitRefRow">
+                          <TextBlock
+                              Classes="GitSidebarRow"
+                              Text="{Binding Path}"
+                              ToolTip.Tip="{Binding Branch}" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="0" IsVisible="{Binding HasSubmodules}">
+                  <Button Classes="GitSectionHeader" Click="OnToggleSubmodulesSection">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                      <icons:SymbolIcon Symbol="ChevronDown" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding IsSubmodulesSectionExpanded}" />
+                      <icons:SymbolIcon Symbol="ChevronRight" FontSize="9" Foreground="{DynamicResource ShellMutedBrush}" IsVisible="{Binding !IsSubmodulesSectionExpanded}" />
+                      <TextBlock VerticalAlignment="Center" Classes="Eyebrow" Text="Submodules" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding Submodules}" IsVisible="{Binding IsSubmodulesSectionExpanded}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Classes="GitRefRow">
+                          <TextBlock
+                              Classes="GitSidebarRow"
+                              Text="{Binding Path}"
+                              ToolTip.Tip="{Binding State}" />
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+        </Border>
+
+        <Border
+            x:Name="GitSidebarSplitterLine"
+            Grid.Column="1"
+            Width="1"
+            HorizontalAlignment="Center"
+            Background="{DynamicResource ShellBorderBrush}"
+            IsHitTestVisible="False" />
+        <GridSplitter
+            x:Name="GitSidebarSplitter"
+            Grid.Column="1"
+            Width="5"
+            HorizontalAlignment="Stretch"
+            Background="Transparent"
+            ResizeDirection="Columns"
+            ResizeBehavior="PreviousAndNext"
+            AutomationProperties.Name="Resize repository sidebar" />
+
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+          <!-- Narrow layout keeps the two sections reachable without the sidebar. -->
+          <StackPanel
+              x:Name="GitCompactSections"
+              Margin="{controls:Inset Horizontal=Md, Vertical=Xs}"
+              Orientation="Horizontal"
+              Spacing="{DynamicResource ShellSpaceXs}">
+            <Button
+                Classes="GitDetailTab"
+                Classes.selected="{Binding IsLocalChangesSection}"
+                Click="OnLocalChangesClick"
+                Content="Local Changes" />
+            <Button
+                Classes="GitDetailTab"
+                Classes.selected="{Binding IsAllCommitsSection}"
+                Click="OnAllCommitsClick"
+                Content="All Commits" />
+          </StackPanel>
+
+          <controls:Callout
+              Grid.Row="1"
+              Margin="{controls:Inset Horizontal=Md, Vertical=Xs}"
+              Tone="Danger"
+              Title="{Binding IssueTitle}"
+              Text="{Binding IssueMessage}"
+              IsVisible="{Binding HasIssue}" />
+
+          <!-- Local Changes: working set, composer, and diff. -->
+          <Grid Grid.Row="2" IsVisible="{Binding IsLocalChangesSection}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="{Binding ChangesColumnWidth, Mode=TwoWay}" MinWidth="240" />
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="{Binding DiffColumnWidth, Mode=TwoWay}" MinWidth="280" />
+            </Grid.ColumnDefinitions>
+
+            <Grid RowDefinitions="Auto,*,Auto,*,Auto">
+              <!-- A bordered band, so an empty section still reads as a
+                   section rather than stray text floating in space. -->
+              <Border
+                  Classes="PanelToolbar"
+                  MinHeight="{DynamicResource ShellControlMinHeight}"
+                  Padding="{controls:Inset Horizontal=Md, Vertical=Xs}">
+                <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Unstaged" />
+                  <Border Grid.Column="1" Classes="GitCountBadge">
+                    <TextBlock Text="{Binding UnstagedCount}" />
+                  </Border>
+                  <Button
+                      Grid.Column="3"
+                      Classes="IconButton"
+                      Click="OnUnstagedViewToggleClick"
+                      ToolTip.Tip="{Binding UnstagedViewToggleLabel}"
+                      AutomationProperties.Name="{Binding UnstagedViewToggleLabel}">
+                    <Panel>
+                      <icons:SymbolIcon Symbol="Folder" FontSize="13" IsVisible="{Binding !UnstagedViewIsTree}" />
+                      <icons:SymbolIcon Symbol="Navigation" FontSize="13" IsVisible="{Binding UnstagedViewIsTree}" />
+                    </Panel>
+                  </Button>
+                  <Button
+                      Grid.Column="4"
+                      Classes="IconButton Danger"
+                      Click="OnDiscardClick"
+                      IsEnabled="{Binding HasUnstagedSelection}"
+                      ToolTip.Tip="Discard selected changes"
+                      AutomationProperties.Name="Discard selected changes">
+                    <icons:SymbolIcon Symbol="Delete" FontSize="13" />
+                  </Button>
+                  <Button
+                      Grid.Column="5"
+                      Classes="SecondaryButton Dense"
+                      Command="{Binding StageCommand}"
+                      Content="Stage"
+                      ToolTip.Tip="Stage selected changes"
+                      AutomationProperties.Name="Stage selected changes" />
+                  <Button
+                      Grid.Column="6"
+                      Classes="SecondaryButton Dense"
+                      Command="{Binding StageAllCommand}"
+                      Content="All"
+                      ToolTip.Tip="Stage all"
+                      AutomationProperties.Name="Stage all" />
+                </Grid>
+              </Border>
+              <ListBox
+                  x:Name="UnstagedList"
+                  Grid.Row="1"
+                  Classes="GitChanges"
+                  SelectionMode="Multiple"
+                  ItemsSource="{Binding UnstagedItems}"
+                  SelectionChanged="OnUnstagedSelectionChanged"
+                  DoubleTapped="OnUnstagedDoubleTapped"
+                  IsVisible="{Binding !UnstagedViewIsTree}"
+                  AutomationProperties.Name="Unstaged changes">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <controls:ListItem
+                        ContentPadding="{DynamicResource ShellListRowPadding}"
+                        Title="{Binding FileName}"
+                        Detail="{Binding Directory}"
+                        AutomationProperties.Name="{Binding AccessibleSummary}">
+                      <controls:ListItem.Leading>
+                        <Border
+                            Classes="GitKindBadge"
+                            Classes.addition="{Binding IsAdditionLike}"
+                            Classes.removal="{Binding IsRemovalLike}"
+                            Classes.conflict="{Binding IsConflicted}"
+                            ToolTip.Tip="{Binding KindLabel}">
+                          <TextBlock Text="{Binding KindBadge}" />
+                        </Border>
+                      </controls:ListItem.Leading>
+                    </controls:ListItem>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TreeView
+                  x:Name="UnstagedTree"
+                  Grid.Row="1"
+                  ItemsSource="{Binding UnstagedTreeRoots}"
+                  SelectionChanged="OnUnstagedTreeSelectionChanged"
+                  IsVisible="{Binding UnstagedViewIsTree}"
+                  AutomationProperties.Name="Unstaged changes tree">
+                <TreeView.ItemContainerTheme>
+                  <ControlTheme TargetType="TreeViewItem" x:DataType="vm:GitChangeTreeNodeViewModel" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    <Setter Property="Padding" Value="{controls:Inset Horizontal=Xs}" />
+                    <Setter Property="MinHeight" Value="24" />
+                  </ControlTheme>
+                </TreeView.ItemContainerTheme>
+                <TreeView.ItemTemplate>
+                  <TreeDataTemplate ItemsSource="{Binding Children}">
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="{DynamicResource ShellSpaceXs}"
+                        AutomationProperties.Name="{Binding AccessibleSummary}">
+                      <icons:SymbolIcon
+                          VerticalAlignment="Center"
+                          Symbol="Folder"
+                          FontSize="12"
+                          Foreground="{DynamicResource ShellMutedBrush}"
+                          IsVisible="{Binding IsDirectory}" />
+                      <Border
+                          Classes="GitKindBadge"
+                          Classes.addition="{Binding IsAdditionLike}"
+                          Classes.removal="{Binding IsRemovalLike}"
+                          Classes.conflict="{Binding IsConflicted}"
+                          IsVisible="{Binding !IsDirectory}">
+                        <TextBlock Text="{Binding KindBadge}" />
+                      </Border>
+                      <TextBlock VerticalAlignment="Center" Classes="GitCommitCell" Text="{Binding Name}" />
+                    </StackPanel>
+                  </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+              </TreeView>
+
+              <Border
+                  Grid.Row="2"
+                  Classes="PanelToolbar"
+                  MinHeight="{DynamicResource ShellControlMinHeight}"
+                  Padding="{controls:Inset Horizontal=Md, Vertical=Xs}">
+                <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Staged" />
+                  <Border Grid.Column="1" Classes="GitCountBadge">
+                    <TextBlock Text="{Binding StagedCount}" />
+                  </Border>
+                  <Button
+                      Grid.Column="3"
+                      Classes="IconButton"
+                      Click="OnStagedViewToggleClick"
+                      ToolTip.Tip="{Binding StagedViewToggleLabel}"
+                      AutomationProperties.Name="{Binding StagedViewToggleLabel}">
+                    <Panel>
+                      <icons:SymbolIcon Symbol="Folder" FontSize="13" IsVisible="{Binding !StagedViewIsTree}" />
+                      <icons:SymbolIcon Symbol="Navigation" FontSize="13" IsVisible="{Binding StagedViewIsTree}" />
+                    </Panel>
+                  </Button>
+                  <Button
+                      Grid.Column="4"
+                      Classes="SecondaryButton Dense"
+                      Command="{Binding UnstageCommand}"
+                      Content="Unstage"
+                      ToolTip.Tip="Unstage selected changes"
+                      AutomationProperties.Name="Unstage selected changes" />
+                  <Button
+                      Grid.Column="5"
+                      Classes="SecondaryButton Dense"
+                      Command="{Binding UnstageAllCommand}"
+                      Content="All"
+                      ToolTip.Tip="Unstage all"
+                      AutomationProperties.Name="Unstage all" />
+                </Grid>
+              </Border>
+              <ListBox
+                  x:Name="StagedList"
+                  Grid.Row="3"
+                  Classes="GitChanges"
+                  SelectionMode="Multiple"
+                  ItemsSource="{Binding StagedItems}"
+                  SelectionChanged="OnStagedSelectionChanged"
+                  DoubleTapped="OnStagedDoubleTapped"
+                  IsVisible="{Binding !StagedViewIsTree}"
+                  AutomationProperties.Name="Staged changes">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <controls:ListItem
+                        ContentPadding="{DynamicResource ShellListRowPadding}"
+                        Title="{Binding FileName}"
+                        Detail="{Binding Directory}"
+                        AutomationProperties.Name="{Binding AccessibleSummary}">
+                      <controls:ListItem.Leading>
+                        <Border
+                            Classes="GitKindBadge"
+                            Classes.addition="{Binding IsAdditionLike}"
+                            Classes.removal="{Binding IsRemovalLike}"
+                            Classes.conflict="{Binding IsConflicted}"
+                            ToolTip.Tip="{Binding KindLabel}">
+                          <TextBlock Text="{Binding KindBadge}" />
+                        </Border>
+                      </controls:ListItem.Leading>
+                    </controls:ListItem>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TreeView
+                  x:Name="StagedTree"
+                  Grid.Row="3"
+                  ItemsSource="{Binding StagedTreeRoots}"
+                  SelectionChanged="OnStagedTreeSelectionChanged"
+                  IsVisible="{Binding StagedViewIsTree}"
+                  AutomationProperties.Name="Staged changes tree">
+                <TreeView.ItemContainerTheme>
+                  <ControlTheme TargetType="TreeViewItem" x:DataType="vm:GitChangeTreeNodeViewModel" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    <Setter Property="Padding" Value="{controls:Inset Horizontal=Xs}" />
+                    <Setter Property="MinHeight" Value="24" />
+                  </ControlTheme>
+                </TreeView.ItemContainerTheme>
+                <TreeView.ItemTemplate>
+                  <TreeDataTemplate ItemsSource="{Binding Children}">
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="{DynamicResource ShellSpaceXs}"
+                        AutomationProperties.Name="{Binding AccessibleSummary}">
+                      <icons:SymbolIcon
+                          VerticalAlignment="Center"
+                          Symbol="Folder"
+                          FontSize="12"
+                          Foreground="{DynamicResource ShellMutedBrush}"
+                          IsVisible="{Binding IsDirectory}" />
+                      <Border
+                          Classes="GitKindBadge"
+                          Classes.addition="{Binding IsAdditionLike}"
+                          Classes.removal="{Binding IsRemovalLike}"
+                          Classes.conflict="{Binding IsConflicted}"
+                          IsVisible="{Binding !IsDirectory}">
+                        <TextBlock Text="{Binding KindBadge}" />
+                      </Border>
+                      <TextBlock VerticalAlignment="Center" Classes="GitCommitCell" Text="{Binding Name}" />
+                    </StackPanel>
+                  </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+              </TreeView>
+
+              <!-- The commit composer persists across refreshes: drafts live
+                   on the view model, not in the controls. -->
+              <Border
+                  Grid.Row="4"
+                  Classes="PanelFooter"
+                  Padding="{controls:Inset Md}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBox
+                      Text="{Binding CommitSubject, Mode=TwoWay}"
+                      PlaceholderText="Commit subject"
+                      AutomationProperties.Name="Commit subject" />
+                  <TextBox
+                      MinHeight="52"
+                      AcceptsReturn="True"
+                      TextWrapping="Wrap"
+                      Text="{Binding CommitBody, Mode=TwoWay}"
+                      PlaceholderText="Description (optional)"
+                      AutomationProperties.Name="Commit description" />
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                    <CheckBox
+                        VerticalAlignment="Center"
+                        IsChecked="{Binding Amend, Mode=TwoWay}"
+                        Content="Amend" />
+                    <Button
+                        Grid.Column="2"
+                        Classes="PrimaryButton"
+                        Command="{Binding CommitCommand}"
+                        Content="Commit" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Border
+                Grid.Column="1"
+                Width="1"
+                HorizontalAlignment="Center"
+                Background="{DynamicResource ShellBorderBrush}"
+                IsHitTestVisible="False" />
+            <GridSplitter
+                Grid.Column="1"
+                Width="5"
+                HorizontalAlignment="Stretch"
+                Background="Transparent"
+                ResizeDirection="Columns"
+                ResizeBehavior="PreviousAndNext"
+                AutomationProperties.Name="Resize diff" />
+
+            <components:GitDiffView Grid.Column="2" />
+          </Grid>
+
+          <!-- All Commits: history above, commit details and diff below. -->
+          <Grid Grid.Row="2" IsVisible="{Binding IsAllCommitsSection}">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="{Binding HistoryRowHeight, Mode=TwoWay}" MinHeight="120" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="{Binding DetailRowHeight, Mode=TwoWay}" MinHeight="140" />
+            </Grid.RowDefinitions>
+
+            <Grid RowDefinitions="*,Auto">
+              <!-- Fork-density history: graph rail, subject with ref tags,
+                   then author, SHA, and date columns. -->
+              <ListBox
+                  Classes="GitCommits"
+                  ItemsSource="{Binding Commits}"
+                  SelectedItem="{Binding SelectedCommit, Mode=TwoWay}"
+                  AutomationProperties.Name="Commit history">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Grid
+                        ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                        ColumnSpacing="{DynamicResource ShellSpaceSm}"
+                        AutomationProperties.Name="{Binding AccessibleSummary}">
+                      <components:GitCommitGraphRowView
+                          Margin="{controls:Inset Left=Xs}"
+                          VerticalAlignment="Stretch"
+                          Row="{Binding Graph}" />
+                      <!-- Tags take what they need; the subject gets the rest
+                           of the column and trims with an ellipsis instead of
+                           running under the author and SHA cells (a horizontal
+                           StackPanel would measure it unbounded). -->
+                      <Grid
+                          Grid.Column="1"
+                          VerticalAlignment="Center"
+                          ColumnDefinitions="Auto,*"
+                          ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                        <ItemsControl VerticalAlignment="Center" ItemsSource="{Binding RefNames}" IsVisible="{Binding HasRefs}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Classes="GitRefTag">
+                                <TextBlock Text="{Binding}" />
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Classes="GitCommitCell"
+                            Text="{Binding Subject}"
+                            TextTrimming="CharacterEllipsis" />
+                      </Grid>
+                      <TextBlock
+                          Grid.Column="2"
+                          Width="120"
+                          VerticalAlignment="Center"
+                          Classes="GitCommitCell Muted GitCommitAuthor"
+                          Text="{Binding AuthorName}"
+                          TextTrimming="CharacterEllipsis" />
+                      <TextBlock
+                          Grid.Column="3"
+                          Width="70"
+                          VerticalAlignment="Center"
+                          Classes="GitCommitCell Muted"
+                          FontFamily="{DynamicResource ShellDataFontFamily}"
+                          Text="{Binding ShortSha}" />
+                      <TextBlock
+                          Grid.Column="4"
+                          Width="118"
+                          Margin="{controls:Inset Right=Sm}"
+                          VerticalAlignment="Center"
+                          TextAlignment="Right"
+                          Classes="GitCommitCell Muted"
+                          Text="{Binding AuthoredAtText}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <Button
+                  Grid.Row="1"
+                  Classes="TextButton"
+                  HorizontalAlignment="Center"
+                  Command="{Binding LoadMoreCommitsCommand}"
+                  Content="Load more commits"
+                  IsVisible="{Binding HasMoreCommits}" />
+            </Grid>
+
+            <Border
+                Grid.Row="1"
+                Height="1"
+                VerticalAlignment="Center"
+                Background="{DynamicResource ShellBorderBrush}"
+                IsHitTestVisible="False" />
+            <GridSplitter
+                Grid.Row="1"
+                Height="5"
+                VerticalAlignment="Stretch"
+                Background="Transparent"
+                ResizeDirection="Rows"
+                ResizeBehavior="PreviousAndNext"
+                AutomationProperties.Name="Resize commit details" />
+
+            <!-- The Commit tab reads full width; only Changes and File Tree
+                 split into list-plus-comparison columns. -->
+            <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                <StackPanel
+                    Margin="{controls:Inset Horizontal=Md, Vertical=Xs}"
+                    Orientation="Horizontal"
+                    Spacing="{DynamicResource ShellSpaceXs}">
+                  <Button
+                      Classes="GitDetailTab"
+                      Classes.selected="{Binding IsCommitTab}"
+                      Click="OnCommitTabClick"
+                      Content="Commit" />
+                  <Button
+                      Classes="GitDetailTab"
+                      Classes.selected="{Binding IsChangesTab}"
+                      Click="OnChangesTabClick"
+                      Content="Changes" />
+                  <Button
+                      Classes="GitDetailTab"
+                      Classes.selected="{Binding IsFileTreeTab}"
+                      Click="OnFileTreeTabClick"
+                      Content="File Tree" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" IsVisible="{Binding IsCommitTab}">
+                  <StackPanel Margin="{controls:Inset Md}" Spacing="{DynamicResource ShellSpaceSm}">
+                    <Grid
+                        ColumnDefinitions="Auto,*"
+                        RowDefinitions="Auto,Auto,Auto,Auto"
+                        ColumnSpacing="{DynamicResource ShellSpaceSm}"
+                        RowSpacing="{DynamicResource ShellSpaceXs}">
+                      <TextBlock Classes="GitMetaLabel" Text="AUTHOR" />
+                      <TextBlock
+                          Grid.Column="1"
+                          Classes="GitCommitCell"
+                          Text="{Binding CommitDetailMeta}"
+                          TextWrapping="Wrap" />
+                      <TextBlock Grid.Row="1" Classes="GitMetaLabel" Text="REFS" IsVisible="{Binding SelectedCommit.HasRefs}" />
+                      <ItemsControl
+                          Grid.Row="1"
+                          Grid.Column="1"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding SelectedCommit.RefNames}"
+                          IsVisible="{Binding SelectedCommit.HasRefs}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Classes="GitRefTag">
+                              <TextBlock Text="{Binding}" />
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBlock Grid.Row="2" Classes="GitMetaLabel" Text="SHA" />
+                      <TextBlock
+                          Grid.Row="2"
+                          Grid.Column="1"
+                          Classes="GitCommitCell Muted"
+                          FontFamily="{DynamicResource ShellDataFontFamily}"
+                          Text="{Binding SelectedCommit.Commit.Sha}"
+                          TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Row="3" Classes="GitMetaLabel" Text="PARENTS" IsVisible="{Binding HasCommitParents}" />
+                      <ItemsControl
+                          Grid.Row="3"
+                          Grid.Column="1"
+                          ItemsSource="{Binding CommitParentShas}"
+                          IsVisible="{Binding HasCommitParents}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Button
+                                Classes="TextButton Accent Dense"
+                                Click="OnParentShaClick"
+                                Content="{Binding}"
+                                FontFamily="{DynamicResource ShellDataFontFamily}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Grid>
+
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Text="{Binding SelectedCommit.Subject}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Text="{Binding CommitDetailBody}"
+                        TextWrapping="Wrap"
+                        IsVisible="{Binding HasCommitDetailBody}" />
+
+                    <!-- The changed files, opening in the Changes tab. -->
+                    <ItemsControl ItemsSource="{Binding CommitChanges}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button
+                              Classes="ListRow"
+                              Click="OnCommitChangeRowClick"
+                              AutomationProperties.Name="{Binding AccessibleSummary}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                              <Border
+                                  Classes="GitKindBadge"
+                                  Classes.addition="{Binding IsAdditionLike}"
+                                  Classes.removal="{Binding IsRemovalLike}"
+                                  Classes.conflict="{Binding IsConflicted}"
+                                  ToolTip.Tip="{Binding KindLabel}">
+                                <TextBlock Text="{Binding KindBadge}" />
+                              </Border>
+                              <TextBlock
+                                  Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  Classes="GitCommitCell"
+                                  Text="{Binding Path}"
+                                  TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </ScrollViewer>
+
+                <Grid
+                    Grid.Row="1"
+                    ColumnDefinitions="2*,Auto,3*"
+                    IsVisible="{Binding !IsCommitTab}">
+                <Grid>
+                <TreeView
+                    ItemsSource="{Binding CommitTreeRoots}"
+                    SelectedItem="{Binding SelectedTreeNode, Mode=TwoWay}"
+                    IsVisible="{Binding IsFileTreeTab}"
+                    AutomationProperties.Name="Commit file tree">
+                  <TreeView.ItemContainerTheme>
+                    <ControlTheme TargetType="TreeViewItem" x:DataType="vm:GitTreeNodeViewModel" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                      <Setter Property="Padding" Value="{controls:Inset Horizontal=Xs}" />
+                      <Setter Property="MinHeight" Value="24" />
+                    </ControlTheme>
+                  </TreeView.ItemContainerTheme>
+                  <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                        <icons:SymbolIcon
+                            VerticalAlignment="Center"
+                            Symbol="Folder"
+                            FontSize="12"
+                            Foreground="{DynamicResource ShellMutedBrush}"
+                            IsVisible="{Binding IsDirectory}" />
+                        <icons:SymbolIcon
+                            VerticalAlignment="Center"
+                            Symbol="Document"
+                            FontSize="12"
+                            Foreground="{DynamicResource ShellMutedBrush}"
+                            IsVisible="{Binding !IsDirectory}" />
+                        <TextBlock VerticalAlignment="Center" Classes="GitCommitCell" Text="{Binding Name}" />
+                      </StackPanel>
+                    </TreeDataTemplate>
+                  </TreeView.ItemTemplate>
+                </TreeView>
+
+                <ListBox
+                    Classes="GitChanges"
+                    ItemsSource="{Binding CommitChanges}"
+                    SelectedItem="{Binding SelectedCommitChange, Mode=TwoWay}"
+                    IsVisible="{Binding IsChangesTab}"
+                    AutomationProperties.Name="Commit changes">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <controls:ListItem
+                          ContentPadding="{DynamicResource ShellListRowPadding}"
+                          Title="{Binding FileName}"
+                          Detail="{Binding Directory}"
+                          AutomationProperties.Name="{Binding AccessibleSummary}">
+                        <controls:ListItem.Leading>
+                          <Border
+                              Classes="GitKindBadge"
+                              Classes.addition="{Binding IsAdditionLike}"
+                              Classes.removal="{Binding IsRemovalLike}"
+                              Classes.conflict="{Binding IsConflicted}"
+                              ToolTip.Tip="{Binding KindLabel}">
+                            <TextBlock Text="{Binding KindBadge}" />
+                          </Border>
+                        </controls:ListItem.Leading>
+                      </controls:ListItem>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+
+              <Border
+                  Grid.Column="1"
+                  Width="1"
+                  HorizontalAlignment="Center"
+                  Background="{DynamicResource ShellBorderBrush}"
+                  IsHitTestVisible="False" />
+              <GridSplitter
+                  Grid.Column="1"
+                  Width="5"
+                  HorizontalAlignment="Stretch"
+                  Background="Transparent"
+                  ResizeDirection="Columns"
+                  ResizeBehavior="PreviousAndNext"
+                  AutomationProperties.Name="Resize commit diff" />
+
+              <Grid Grid.Column="2">
+                <components:GitDiffView IsVisible="{Binding !IsFileTreeTab}" />
+
+                <!-- The File Tree tab previews the file as the commit
+                     recorded it, through the shared code preview. -->
+                <Grid RowDefinitions="Auto,*" IsVisible="{Binding IsFileTreeTab}">
+                  <Border
+                      Classes="PanelToolbar"
+                      Padding="{controls:Inset Horizontal=Md, Vertical=Xs}"
+                      IsVisible="{Binding HasCommitFile}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontFamily="{DynamicResource ShellDataFontFamily}"
+                        FontSize="{DynamicResource ShellFontSize10}"
+                        LineHeight="{DynamicResource ShellLineHeight10}"
+                        Text="{Binding CommitFileName}"
+                        TextTrimming="CharacterEllipsis" />
+                  </Border>
+                  <components:CodePreviewView
+                      Grid.Row="1"
+                      Text="{Binding CommitFileText}"
+                      FileName="{Binding CommitFileName}"
+                      WordWrap="False"
+                      IsVisible="{Binding HasCommitFile}" />
+                  <controls:StateOverlay
+                      Grid.Row="1"
+                      Kind="Empty"
+                      Heading="No file selected"
+                      Body="Choose a file to read it as this commit recorded it."
+                      IsVisible="{Binding !HasCommitFile}" />
+                  <controls:Callout
+                      Grid.Row="1"
+                      Margin="{controls:Inset Md}"
+                      VerticalAlignment="Top"
+                      Tone="Default"
+                      Title="Binary file"
+                      Text="This file has no text preview."
+                      IsVisible="{Binding CommitFileIsBinary}" />
+                  <controls:StateOverlay
+                      Grid.Row="1"
+                      Kind="Loading"
+                      Heading="Reading file…"
+                      IsVisible="{Binding IsCommitFileLoading}" />
+                </Grid>
+              </Grid>
+              </Grid>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Grid>
+  </controls:PanelChrome>
+</UserControl>

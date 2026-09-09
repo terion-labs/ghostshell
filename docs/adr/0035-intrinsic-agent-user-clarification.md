@@ -19,14 +19,14 @@ free-text answer must never create capability authority, widen scope, or
 authorize a command.
 
 The clarification text is also untrusted model output. It can attempt to
-phish a credential, impersonate GhostSHELL's trusted approval UI, flood the
+phish a credential, impersonate Asura's trusted approval UI, flood the
 surface, or bind a late answer to a different question. A user's answer can
 itself contain unsafe Unicode or a literal secret. The first slice therefore
 needs a small native contract with an explicit non-authority boundary.
 
 ## Decision
 
-GhostSHELL adds one intrinsic runtime tool:
+Asura adds one intrinsic runtime tool:
 
 - `agent.ask_user`.
 

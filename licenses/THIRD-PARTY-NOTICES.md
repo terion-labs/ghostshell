@@ -1,13 +1,13 @@
-# GhostSHELL third-party notices
+# Asura third-party notices
 
-This file records the managed packages resolved for the GhostSHELL desktop
+This file records the managed packages resolved for the Asura desktop
 project and indexes the runtime notices currently bundled with the application.
 Package authors retain all rights granted by their respective licenses.
-GhostSHELL does not claim ownership of these components.
+Asura does not claim ownership of these components.
 
 The application bundle also includes:
 
-- `GHOSTSHELL-LICENSE.txt`, GhostSHELL's MIT license;
+- `ASURA-LICENSE.txt`, Asura's MIT license;
 - `SMBLIBRARY-LGPL-3.0.txt`, `GPL-3.0.txt`, exact source provenance, and
   Native AOT replacement instructions for SMBLibrary 1.5.7.1;
 - `DOTNET-LICENSE.txt` and `DOTNET-THIRD-PARTY-NOTICES.txt` for the
@@ -18,7 +18,7 @@ The application bundle also includes:
   bold, italic, and bold-italic terminal faces;
 - `CEF-LICENSE.txt` and `Chromium-CREDITS.html` for the pinned Chromium
   Embedded Framework runtime;
-- `Exclr8CEF-MIT.txt` for GhostSHELL's pinned, patched Exclr8CEF binding;
+- `Exclr8CEF-MIT.txt` for Asura's pinned, patched Exclr8CEF binding;
 - `runtimes/osx-arm64/native/THIRD-PARTY-NOTICES.md` and
   `runtime-dependencies.txt` for the separately receipted native SQL language
   worker closure;
@@ -26,7 +26,7 @@ The application bundle also includes:
   `panel-top-close`, and `fullscreen` vector geometry under the ISC license;
 - Mozilla Readability 0.6.0, embedded for browser-side article extraction,
   under the Apache-2.0 license (retained at
-  `src/GhostShell.Browser/Assets/Readability.LICENSE.md`);
+  `src/Asura.Browser/Assets/Readability.LICENSE.md`);
 - package-specific copyright and repository metadata in the corresponding
   NuGet packages.
 
@@ -72,7 +72,7 @@ SPDX license texts are available from <https://spdx.org/licenses/>.
 The table below is the conservative managed third-party inventory in the
 current `osx-arm64` release catalog. It contains the NuGet package closure and
 the two separately licensed Exclr8CEF binding projects.
-First-party GhostSHELL project assemblies are omitted; the self-contained
+First-party Asura project assemblies are omitted; the self-contained
 .NET runtimepack is indexed by the retained .NET license and notice files
 rather than duplicated here.
 

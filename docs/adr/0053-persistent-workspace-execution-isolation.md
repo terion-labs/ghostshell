@@ -13,7 +13,7 @@ after the last window releases it.
 
 An execution boundary is not automatically a filesystem-security boundary.
 Every configured read/write host mount gives the guest the same authority over
-that host data as GhostSHELL has. Mounting the host home or root deliberately
+that host data as Asura has. Mounting the host home or root deliberately
 gives up confidentiality for those paths.
 
 ## Decision
@@ -23,7 +23,7 @@ host-to-guest mounts. Each mount has an absolute host source, an absolute Linux
 guest destination, and explicit read-only/read-write access. The CLI bootstrap
 currently accepts directory sources; the durable model does not prevent a native
 provider from supporting regular files later. An empty collection is valid and
-creates a guest-only workspace. GhostSHELL never adds a host mount implicitly;
+creates a guest-only workspace. Asura never adds a host mount implicitly;
 every source and access level comes from an explicit workspace setting.
 
 The isolation setting and mounts are restart configuration. The editor keeps
@@ -57,7 +57,7 @@ Containerization already runs each Linux container in its own lightweight VM,
 uses Virtualization.framework on Apple silicon, provides OCI image and ext4
 storage management, exposes host directories through virtiofs, and controls
 guest processes through `vminitd` over vsock. Building on bare
-`VZVirtualMachine` would make GhostSHELL recreate all of those layers without
+`VZVirtualMachine` would make Asura recreate all of those layers without
 producing a lighter execution boundary.
 
 As of 2026-09-05, the default provider uses Containerization 0.42.0 directly.
@@ -94,7 +94,7 @@ the bootstrap adapter does not forward the host agent implicitly.
 
 Verified SSH fails closed in the bootstrap adapter. A host-side key scan would
 escape the workspace's future network boundary, while delegating `accept-new` to
-guest OpenSSH would create a second trust decision that GhostSHELL never showed
+guest OpenSSH would create a second trust decision that Asura never showed
 or approved. Until the provider can scan through the isolated network, return
 the candidate for app review, and atomically persist the approved key inside the
 guest, isolated SSH is limited to profiles where the user explicitly selected
@@ -105,11 +105,11 @@ the guest network, only when an explicitly unverified SSH terminal is requested.
 
 ### Linux and Windows
 
-Raw Firecracker is not the default Linux direction. It requires GhostSHELL to
+Raw Firecracker is not the default Linux direction. It requires Asura to
 assemble the kernel, root disk, guest agent, TAP/NAT, and a separate host-file
 sharing mechanism. Apple Containerization now ships a Linux backend using
 cloud-hypervisor, KVM, virtiofsd, TAP, and the same `vminitd` contract. We will
-prototype that shared backend first; Linux remains unavailable until GhostSHELL
+prototype that shared backend first; Linux remains unavailable until Asura
 packages its host dependencies and its unprivileged KVM access, networking,
 lifecycle, and recovery meet the same contract as macOS.
 

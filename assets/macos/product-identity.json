@@ -1,22 +1,22 @@
 {
-  "format": "ghostshell-macos-product-identity-v1",
+  "format": "asura-macos-product-identity-v1",
   "platform": "macos",
-  "displayName": "GhostSHELL",
-  "bundleName": "GhostSHELL",
-  "executableName": "GhostShell",
-  "bundleIdentifier": "app.ghostshell",
-  "iconName": "GhostShell",
+  "displayName": "Asura",
+  "bundleName": "Asura",
+  "executableName": "Asura",
+  "bundleIdentifier": "sh.asura",
+  "iconName": "Asura",
   "artwork": {
-    "source": "Original first-party GhostSHELL artwork",
+    "source": "Original first-party Asura artwork",
     "owner": "Terion Labs",
     "license": "MIT",
     "copyright": "Copyright (c) 2026 Terion Labs"
   },
   "approval": {
     "status": "approved",
-    "approvedBy": "terion-labs/ghostshell maintainer",
+    "approvedBy": "terion-labs/asura maintainer",
     "approvedAt": "2026-08-25",
-    "evidence": "https://github.com/terion-labs/ghostshell/issues/42"
+    "evidence": "https://github.com/terion-labs/asura/issues/42"
   },
   "requiredAppearances": [
     "Default",
@@ -29,17 +29,17 @@
   "files": [
     {
       "role": "icon-composer-document",
-      "path": "assets/macos/GhostShell.icon/icon.json",
-      "sha256": "43835ebe3168e3660c3253474e7a505f6ea21ba6ebb976bf86499158a5684ac7"
+      "path": "assets/macos/Asura.icon/icon.json",
+      "sha256": "a141251fed77afcec5c8a4fbf5944705380821e34875f0af6b1cb9109b5a7f2e"
     },
     {
       "role": "source-artwork",
-      "path": "assets/macos/GhostShell.icon/Assets/logo.svg",
+      "path": "assets/macos/Asura.icon/Assets/logo.svg",
       "sha256": "731c57eda7be0d1bab3dc3da88b99d9384a21ee13dcc1b185fcc6b74eaa0c301"
     },
     {
       "role": "icns-fallback",
-      "path": "assets/macos/GhostShell.icns",
+      "path": "assets/macos/Asura.icns",
       "sha256": "b34caed0c327299dfdd14e70cdb44af823136a91973749f668452cc89e4f7e5f"
     }
   ]

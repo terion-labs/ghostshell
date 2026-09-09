@@ -1,0 +1,114 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.PreviewTableView"
+    x:DataType="vm:PreviewTableViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch">
+  <Grid RowDefinitions="*,Auto">
+    <!-- Rows scroll under a header that stays put, the same reading the
+         database results grid gives: the columns are only useful while their
+         names are still on screen. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <Grid RowDefinitions="Auto,*">
+        <Border
+            Background="{DynamicResource ShellSurfaceBrush}"
+            BorderBrush="{DynamicResource ShellBorderBrush}"
+            BorderThickness="0,0,0,1">
+          <StackPanel Orientation="Horizontal">
+            <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
+              <TextBlock
+                  Width="40"
+                  Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                  Classes="Muted"
+                  FontSize="{DynamicResource ShellFontSize9}"
+                  Text="#"
+                  TextAlignment="Right" />
+            </Border>
+            <ItemsControl ItemsSource="{Binding Columns}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
+                    <TextBlock
+                        Width="{Binding Width}"
+                        Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                        FontSize="{DynamicResource ShellFontSize10}"
+                        FontWeight="SemiBold"
+                        Text="{Binding Name}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip.Tip="{Binding Name}" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+        <!-- A list rather than a stack of every row: only the rows on screen
+             are realised, so a long table costs what a short one does. -->
+        <ListBox
+            Grid.Row="1"
+            Classes="Dense"
+            ItemsSource="{Binding Rows}"
+            SelectionMode="Single"
+            AutomationProperties.Name="Rows">
+          <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="PreviewRow" Classes.even="{Binding IsEven}">
+                  <StackPanel Orientation="Horizontal">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
+                      <TextBlock
+                          Width="40"
+                          Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                          Classes="Muted"
+                          FontSize="{DynamicResource ShellFontSize9}"
+                          Text="{Binding Number}"
+                          TextAlignment="Right" />
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Cells}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
+                            <TextBlock
+                                Width="{Binding Width}"
+                                Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+                                FontFamily="{DynamicResource ShellDataFontFamily}"
+                                FontSize="{DynamicResource ShellFontSize10}"
+                                Text="{Binding Text}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip.Tip="{Binding Text}" />
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </ScrollViewer>
+    <TextBlock
+        Grid.Row="1"
+        Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}"
+        Classes="Muted"
+        FontSize="{DynamicResource ShellFontSize9}"
+        Text="{Binding Summary}" />
+  </Grid>
+  <UserControl.Styles>
+    <Style Selector="Border.PreviewRow">
+      <Setter Property="BorderBrush" Value="{DynamicResource ShellBorderBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+    <Style Selector="Border.PreviewRow.even">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceBrush}" />
+    </Style>
+  </UserControl.Styles>
+</UserControl>

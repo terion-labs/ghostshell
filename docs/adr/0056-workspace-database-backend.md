@@ -11,8 +11,8 @@ Moving only query execution missed metadata and schema-renderer connections.
 
 ## Decision
 
-Extract the existing owned database worker into `GhostShell.ConnectionBackend`
-and give it a UI-free `GhostShell.Backend database` executable. Keep the current
+Extract the existing owned database worker into `Asura.ConnectionBackend`
+and give it a UI-free `Asura.Backend database` executable. Keep the current
 application contracts and provider implementations. All eleven SQL operation
 families, including connectivity probes, catalogs, object metadata and counts,
 now cross `IDatabaseOperationExecutor` when an executor is configured.
@@ -23,7 +23,7 @@ For an isolated workspace without an explicit SSH database hop:
 Desktop database panel
   -> IDatabaseOperationExecutor (typed, bounded stdin/stdout)
   -> owner-private SDK exec / vminitd channel (no PTY)
-  -> GhostShell.Backend database, inside the workspace
+  -> Asura.Backend database, inside the workspace
   -> database driver -> guest default gateway -> host-selected route
 ```
 
@@ -173,11 +173,11 @@ To repeat native tests on a supported Apple Silicon Mac after building the
 gateway, workspace runtime and backend sidecar:
 
 ```sh
-export GHOSTSHELL_TEST_SDK_RUNTIME_ROOT="$PWD/native/artifacts/osx-arm64/workspace-runtime"
-export GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE="$PWD/native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
+export ASURA_TEST_SDK_RUNTIME_ROOT="$PWD/native/artifacts/osx-arm64/workspace-runtime"
+export ASURA_WORKSPACE_BACKEND_ARCHIVE="$PWD/native/artifacts/workspace-backend-build/distribution/Asura-workspace-backend-arm64.tar.gz"
 ./scripts/build-workspace-backend.sh --verify
-./.dotnet/dotnet test tests/GhostShell.Infrastructure.Tests/GhostShell.Infrastructure.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~WorkspaceServiceNetworkingNativeTests
-./.dotnet/dotnet test tests/GhostShell.Architecture.Tests/GhostShell.Architecture.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~WorkspaceDatabaseBackendNativeTests
+./.dotnet/dotnet test tests/Asura.Infrastructure.Tests/Asura.Infrastructure.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~WorkspaceServiceNetworkingNativeTests
+./.dotnet/dotnet test tests/Asura.Architecture.Tests/Asura.Architecture.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~WorkspaceDatabaseBackendNativeTests
 ```
 
 These fixtures may download distro test tools into their disposable VM. They

@@ -33,7 +33,7 @@ RUN apt-get update \
     && yes | unminimize
 
 RUN useradd --system --no-create-home --home-dir /nonexistent \
-        --shell /usr/sbin/nologin ghostshell-net
+        --shell /usr/sbin/nologin asura-net
 
 RUN : > /etc/machine-id \
     && : > /var/lib/dbus/machine-id \

@@ -7,15 +7,15 @@ on:
       - "native/sql-language-worker/**"
       - "scripts/build-sql-language-worker.sh"
       - "scripts/test-database-viewer-integration.sh"
-      - "src/GhostShell.App/**"
-      - "src/GhostShell.Application/**"
-      - "src/GhostShell.Databases/**"
-      - "src/GhostShell.Infrastructure/**"
-      - "src/GhostShell.Redis/**"
-      - "tests/GhostShell.Databases.IntegrationTests/**"
-      - "tests/GhostShell.Redis.Tests/**"
-      - "tests/GhostShell.Infrastructure.Tests/CalciteSqlLanguageNativeIntegrationTests.cs"
-      - "tools/GhostShell.SqlLanguageAotProbe/**"
+      - "src/Asura.App/**"
+      - "src/Asura.Application/**"
+      - "src/Asura.Databases/**"
+      - "src/Asura.Infrastructure/**"
+      - "src/Asura.Redis/**"
+      - "tests/Asura.Databases.IntegrationTests/**"
+      - "tests/Asura.Redis.Tests/**"
+      - "tests/Asura.Infrastructure.Tests/CalciteSqlLanguageNativeIntegrationTests.cs"
+      - "tools/Asura.SqlLanguageAotProbe/**"
   workflow_dispatch:
   schedule:
     - cron: "17 4 * * 0"
@@ -55,12 +55,12 @@ jobs:
       - name: Publish the production client as Native AOT
         run: |
           dotnet restore \
-            tools/GhostShell.SqlLanguageAotProbe/GhostShell.SqlLanguageAotProbe.csproj \
+            tools/Asura.SqlLanguageAotProbe/Asura.SqlLanguageAotProbe.csproj \
             --runtime linux-x64 \
             --locked-mode \
             -p:PublishAot=true
           dotnet publish \
-            tools/GhostShell.SqlLanguageAotProbe/GhostShell.SqlLanguageAotProbe.csproj \
+            tools/Asura.SqlLanguageAotProbe/Asura.SqlLanguageAotProbe.csproj \
             --configuration Release \
             --runtime linux-x64 \
             --self-contained true \
@@ -70,13 +70,13 @@ jobs:
 
       - name: Run Native-AOT client without the optional worker
         run: >-
-          env -u GHOSTSHELL_SQL_LANGUAGE_WORKER
-          ./artifacts/sql-language-aot-probe/GhostShell.SqlLanguageAotProbe
+          env -u ASURA_SQL_LANGUAGE_WORKER
+          ./artifacts/sql-language-aot-probe/Asura.SqlLanguageAotProbe
 
       - name: Run Native-AOT client through the real worker
         env:
-          GHOSTSHELL_SQL_LANGUAGE_WORKER: ${{ github.workspace }}/native/artifacts/linux-x64/ghostshell-sql-language
-        run: ./artifacts/sql-language-aot-probe/GhostShell.SqlLanguageAotProbe
+          ASURA_SQL_LANGUAGE_WORKER: ${{ github.workspace }}/native/artifacts/linux-x64/asura-sql-language
+        run: ./artifacts/sql-language-aot-probe/Asura.SqlLanguageAotProbe
 
       - name: Upload the tested worker
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -93,8 +93,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     env:
-      GHOSTSHELL_RUN_SQL_LANGUAGE_NATIVE: "1"
-      GHOSTSHELL_SQL_LANGUAGE_WORKER: ${{ github.workspace }}/native/artifacts/linux-x64/ghostshell-sql-language
+      ASURA_RUN_SQL_LANGUAGE_NATIVE: "1"
+      ASURA_SQL_LANGUAGE_WORKER: ${{ github.workspace }}/native/artifacts/linux-x64/asura-sql-language
     strategy:
       fail-fast: false
       matrix:
@@ -124,8 +124,8 @@ jobs:
 
       - name: Restore the worker executable bit
         run: |
-          chmod +x native/artifacts/linux-x64/ghostshell-sql-language
-          test -x native/artifacts/linux-x64/ghostshell-sql-language
+          chmod +x native/artifacts/linux-x64/asura-sql-language
+          test -x native/artifacts/linux-x64/asura-sql-language
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -138,12 +138,12 @@ jobs:
           ln -s "$(command -v dotnet)" .dotnet/dotnet
 
       - name: Restore the locked dependency graph
-        run: dotnet restore GhostShell.slnx --locked-mode
+        run: dotnet restore Asura.slnx --locked-mode
 
       - name: Run the real native client lifecycle
         run: >-
           ./.dotnet/dotnet test
-          tests/GhostShell.Infrastructure.Tests/GhostShell.Infrastructure.Tests.csproj
+          tests/Asura.Infrastructure.Tests/Asura.Infrastructure.Tests.csproj
           --configuration Release
           --no-restore
           --filter "FullyQualifiedName~CalciteSqlLanguageNativeIntegrationTests"
@@ -162,6 +162,6 @@ jobs:
         with:
           name: database-viewer-${{ matrix.provider }}-results
           path: |
-            tests/GhostShell.Databases.IntegrationTests/TestResults/*.trx
-            tests/GhostShell.Infrastructure.Tests/TestResults/*.trx
+            tests/Asura.Databases.IntegrationTests/TestResults/*.trx
+            tests/Asura.Infrastructure.Tests/TestResults/*.trx
           if-no-files-found: warn

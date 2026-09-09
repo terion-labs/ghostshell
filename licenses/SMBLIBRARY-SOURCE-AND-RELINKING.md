@@ -1,13 +1,13 @@
-# Replacing SMBLibrary in a GhostSHELL Native AOT build
+# Replacing SMBLibrary in an Asura Native AOT build
 
-GhostSHELL uses the unmodified `SMBLibrary` NuGet package version `1.5.7.1`
+Asura uses the unmodified `SMBLibrary` NuGet package version `1.5.7.1`
 under `LGPL-3.0-or-later`. The macOS release compiles that managed library into
 the Native AOT executable. It does not ship a separately replaceable
 `SMBLibrary.dll`.
 
-This repository contains GhostSHELL's corresponding application source and
+This repository contains Asura's corresponding application source and
 build scripts. The steps below let a recipient replace SMBLibrary with a
-modified build and produce a new GhostSHELL executable. This is engineering
+modified build and produce a new Asura executable. This is engineering
 evidence for review, not a claim of legal clearance.
 
 ## Obtain the linked source
@@ -36,7 +36,7 @@ The archive's `SMBLibrary/SMBLibrary.csproj` declares version `1.5.7.1` and
 ## Build a replacement package
 
 Extract the archive, make the desired changes, and keep those changes under the
-applicable LGPL terms. Build the package with the pinned GhostSHELL SDK:
+applicable LGPL terms. Build the package with the pinned Asura SDK:
 
 ```sh
 ./.dotnet/dotnet pack \
@@ -49,10 +49,10 @@ Debug configuration avoids upstream's Windows-only release `ILRepack` target.
 The resulting package must retain identity `SMBLibrary/1.5.7.1`. If a modified
 package uses another version, update `Directory.Packages.props` to that version.
 
-## Point GhostSHELL at the replacement
+## Point Asura at the replacement
 
-Obtain GhostSHELL's application source from
-<https://github.com/terion-labs/ghostshell>. For a published build, check out
+Obtain Asura's application source from
+<https://github.com/terion-labs/asura>. For a published build, check out
 the `v<version>` tag matching the application's `CFBundleShortVersionString`;
 GitHub also attaches that tag's source archive to the release. Work in a copy
 of that source tree. Add the local feed to the copy's `NuGet.Config`, map
@@ -61,9 +61,9 @@ the cached `smblibrary/1.5.7.1` directory from the copy's `.nuget/packages`
 directory.
 
 Regenerate every affected checked-in lock file with `--force-evaluate`. At a
-minimum this includes the lock files under `src/GhostShell.Files` and
-`src/GhostShell.Desktop`, including
-`src/GhostShell.Desktop/packages.osx-arm64.aot.lock.json`. Review the diff and
+minimum this includes the lock files under `src/Asura.Files` and
+`src/Asura.Desktop`, including
+`src/Asura.Desktop/packages.osx-arm64.aot.lock.json`. Review the diff and
 confirm that only the intended SMBLibrary version and content hashes changed.
 
 Update the `SMBLibrary/1.5.7.1` entry in
@@ -85,7 +85,7 @@ release.
 Build the native dependencies and package the replacement executable:
 
 ```sh
-GHOSTSHELL_SKIP_NATIVE=1 ./scripts/bootstrap.sh
+ASURA_SKIP_NATIVE=1 ./scripts/bootstrap.sh
 ./scripts/build-libghostty-vt.sh --rid osx-arm64
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
 ./scripts/build-cef-runtime.sh --rid osx-arm64
@@ -93,13 +93,13 @@ GHOSTSHELL_SKIP_NATIVE=1 ./scripts/bootstrap.sh
   --version 0.1.0 \
   --build-version 1 \
   --runtime-identifier osx-arm64 \
-  --output artifacts/relinked/GhostShell.app
+  --output artifacts/relinked/Asura.app
 ```
 
 The packaging command performs the Native AOT compile and produces the
-replacement `Contents/MacOS/GhostShell` executable. Developer ID signing and
+replacement `Contents/MacOS/Asura` executable. Developer ID signing and
 notarization are not required to exercise or inspect a locally rebuilt copy.
 
-GhostSHELL imposes no term that forbids reverse engineering for debugging a
-modified SMBLibrary. The GhostSHELL source remains under MIT. SMBLibrary and
+Asura imposes no term that forbids reverse engineering for debugging a
+modified SMBLibrary. The Asura source remains under MIT. SMBLibrary and
 any modifications to it remain governed by `LGPL-3.0-or-later`.

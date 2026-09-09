@@ -27,7 +27,7 @@ cannot prove that the page is unchanged.
 
 ## Decision
 
-GhostSHELL adds `browser.check` as the tenth closed governed browser tool
+Asura adds `browser.check` as the tenth closed governed browser tool
 contract. It is a mutation under `BrowserInteraction`, with default permission
 `Ask`. The broker escalates `BrowserInteraction=Auto` to an exact
 `HumanApproval`, and the SessionHost domain gate independently accepts
@@ -82,7 +82,7 @@ cancelled. Same-origin navigation must reach its matching terminal event and
 final-address check before success.
 
 A nominal checked result with no observed navigation does not complete in the
-same UI turn. GhostSHELL posts one navigation-observation barrier while the
+same UI turn. Asura posts one navigation-observation barrier while the
 pending interaction and frozen-origin guard remain installed. Navigation
 events already queued by native activation are therefore handled before
 success can commit. Named-platform conformance must still prove the selected
@@ -97,7 +97,7 @@ mismatch, dispatcher failure, or late cancellation become non-retryable
 `browser_interaction_outcome_unknown`. The deadline atomically claims the
 result and resolves the caller before UI-thread quarantine work, so a stalled
 dispatcher or an earlier queued native result cannot convert a timeout into
-success. GhostSHELL never redispatches check. Native-surface ambiguity attempts
+success. Asura never redispatches check. Native-surface ambiguity attempts
 adapter quarantine and replacement. Every unknown outcome becomes a
 non-retryable failed tool result, skips the remainder of the stale batch, and
 returns control to the provider for fresh inspection.

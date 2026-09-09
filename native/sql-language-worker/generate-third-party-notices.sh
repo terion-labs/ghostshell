@@ -108,7 +108,7 @@ absolute_path() {
     echo "$directory/$base"
 }
 
-work_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-sql-legal.XXXXXX")"
+work_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-sql-legal.XXXXXX")"
 cleanup() {
     rm -rf -- "$work_directory"
 }
@@ -394,7 +394,7 @@ legal_review_required_count="$(wc -l < "$legal_review_entries" | tr -d ' ')"
 
 generated_output="$work_directory/THIRD-PARTY-NOTICES.md"
 {
-    echo '# GhostShell SQL language worker — third-party notices'
+    echo '# Asura SQL language worker — third-party notices'
     echo
     echo "Legal closure format: $FORMAT_VERSION"
     echo

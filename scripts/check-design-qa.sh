@@ -3,12 +3,12 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository_dir="$(cd "${script_dir}/.." && pwd)"
-if [[ -n "${GHOSTSHELL_DESIGN_QA_CAPTURE_DIR:-}" ]]; then
-    capture_dir="${GHOSTSHELL_DESIGN_QA_CAPTURE_DIR}"
+if [[ -n "${ASURA_DESIGN_QA_CAPTURE_DIR:-}" ]]; then
+    capture_dir="${ASURA_DESIGN_QA_CAPTURE_DIR}"
     mkdir -p "${capture_dir}"
     preserve_captures=1
 else
-    capture_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-design-qa.XXXXXX")"
+    capture_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-design-qa.XXXXXX")"
     preserve_captures=0
 fi
 
@@ -22,19 +22,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -n "${GHOSTSHELL_DOTNET:-}" ]]; then
-    dotnet="${GHOSTSHELL_DOTNET}"
+if [[ -n "${ASURA_DOTNET:-}" ]]; then
+    dotnet="${ASURA_DOTNET}"
 else
     dotnet="${repository_dir}/.dotnet/dotnet"
 fi
 
 cd "${repository_dir}"
 "${dotnet}" run \
-    --project tools/GhostShell.DesignQa \
+    --project tools/Asura.DesignQa \
     --configuration Release \
     --no-build \
     --no-restore \
     -- \
     --gate \
     "${capture_dir}" \
-    "${repository_dir}/tools/GhostShell.DesignQa/design-qa-baseline.json"
+    "${repository_dir}/tools/Asura.DesignQa/design-qa-baseline.json"

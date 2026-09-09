@@ -6,7 +6,7 @@ import (
 	"errors"
 	"net/netip"
 
-	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/protocol"
+	"github.com/terion-labs/asura/native/workspace-network-gateway/internal/protocol"
 )
 
 func lockDownControlNetwork(netip.Addr) error {

@@ -1,0 +1,75 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Asura.App/Asura.App.csproj" />
+    <Project Path="src/Asura.Agent/Asura.Agent.csproj" />
+    <Project Path="src/Asura.Agent.Providers/Asura.Agent.Providers.csproj" />
+    <Project Path="src/Asura.Agent.Runtime/Asura.Agent.Runtime.csproj" />
+    <Project Path="src/Asura.Application/Asura.Application.csproj" />
+    <Project Path="src/Asura.Backend/Asura.Backend.csproj" />
+    <Project Path="src/Asura.Browser/Asura.Browser.csproj" />
+    <Project Path="src/Asura.Core/Asura.Core.csproj" />
+    <Project Path="src/Asura.Databases/Asura.Databases.csproj" />
+    <Project Path="src/Asura.ConnectionBackend/Asura.ConnectionBackend.csproj" />
+    <Project Path="src/Asura.Docker/Asura.Docker.csproj" />
+    <Project Path="src/Asura.Desktop/Asura.Desktop.csproj" />
+    <Project Path="src/Asura.Docking/Asura.Docking.csproj" />
+    <Project Path="src/Asura.Files/Asura.Files.csproj" />
+    <Project Path="src/Asura.Git/Asura.Git.csproj" />
+    <Project Path="src/Asura.Infrastructure/Asura.Infrastructure.csproj" />
+    <Project Path="src/Asura.Mcp/Asura.Mcp.csproj" />
+    <Project Path="src/Asura.Mcp.Server/Asura.Mcp.Server.csproj" />
+    <Project Path="src/Asura.Monitoring/Asura.Monitoring.csproj" />
+    <Project Path="src/Asura.Previews/Asura.Previews.csproj" />
+    <Project Path="src/Asura.Protocol/Asura.Protocol.csproj" />
+    <Project Path="src/Asura.Redis/Asura.Redis.csproj" />
+    <Project Path="src/Asura.SessionHost/Asura.SessionHost.csproj" />
+    <Project Path="src/Asura.Terminal/Asura.Terminal.csproj" />
+    <Project Path="src/Asura.Updates/Asura.Updates.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Asura.Mcp.Server.Tests/Asura.Mcp.Server.Tests.csproj" />
+    <Project Path="tests/Asura.App.Tests/Asura.App.Tests.csproj" />
+    <Project Path="tests/Asura.Agent.Tests/Asura.Agent.Tests.csproj" />
+    <Project Path="tests/Asura.Agent.Providers.Tests/Asura.Agent.Providers.Tests.csproj" />
+    <Project Path="tests/Asura.Agent.Runtime.Tests/Asura.Agent.Runtime.Tests.csproj" />
+    <Project Path="tests/Asura.AccessibilityAcceptance.Tests/Asura.AccessibilityAcceptance.Tests.csproj" />
+    <Project Path="tests/Asura.Architecture.Tests/Asura.Architecture.Tests.csproj" />
+    <Project Path="tests/Asura.Application.Tests/Asura.Application.Tests.csproj" />
+    <Project Path="tests/Asura.Browser.Tests/Asura.Browser.Tests.csproj" />
+    <Project Path="tests/Asura.Core.Tests/Asura.Core.Tests.csproj" />
+    <Project Path="tests/Asura.Databases.Tests/Asura.Databases.Tests.csproj" />
+    <Project Path="tests/Asura.Databases.IntegrationTests/Asura.Databases.IntegrationTests.csproj" />
+    <Project Path="tests/Asura.Docker.Tests/Asura.Docker.Tests.csproj" />
+    <Project Path="tests/Asura.Files.Tests/Asura.Files.Tests.csproj" />
+    <Project Path="tests/Asura.SshNet.Tests/Asura.SshNet.Tests.csproj" />
+    <Project Path="tests/Asura.Git.Tests/Asura.Git.Tests.csproj" />
+    <Project Path="tests/Asura.Infrastructure.Tests/Asura.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Asura.Mcp.Tests/Asura.Mcp.Tests.csproj" />
+    <Project Path="tests/Asura.Monitoring.Tests/Asura.Monitoring.Tests.csproj" />
+    <Project Path="tests/Asura.Previews.Tests/Asura.Previews.Tests.csproj" />
+    <Project Path="tests/Asura.Protocol.Tests/Asura.Protocol.Tests.csproj" />
+    <Project Path="tests/Asura.Redis.Tests/Asura.Redis.Tests.csproj" />
+    <Project Path="tests/Asura.SessionHost.Tests/Asura.SessionHost.Tests.csproj" />
+    <Project Path="tests/Asura.SoakAcceptance.Tests/Asura.SoakAcceptance.Tests.csproj" />
+    <Project Path="tests/Asura.Terminal.Tests/Asura.Terminal.Tests.csproj" />
+    <Project Path="tests/Asura.TerminalAcceptance.Tests/Asura.TerminalAcceptance.Tests.csproj" />
+    <Project Path="tests/Asura.Updates.Tests/Asura.Updates.Tests.csproj" />
+  </Folder>
+  <Folder Name="/vendor/">
+    <Project Path="vendor/exclr8cef/src/Exclr8Cef/Exclr8Cef.csproj" />
+    <Project Path="vendor/exclr8cef/src/Exclr8Cef.WebView/Exclr8Cef.WebView.csproj" />
+    <Project Path="vendor/sqlclient/tests/Tds.TestSupport.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Asura.AccessibilityAcceptance/Asura.AccessibilityAcceptance.csproj" />
+    <Project Path="tools/Asura.DesignQa/Asura.DesignQa.csproj" />
+    <Project Path="tools/Asura.Packaging/Asura.Packaging.csproj" />
+    <Project Path="tools/Asura.SecurityKeyProbe/Asura.SecurityKeyProbe.csproj" />
+    <Project Path="tools/Asura.SecurityCampaign/Asura.SecurityCampaign.csproj" />
+    <Project Path="tools/Asura.SoakAcceptance/Asura.SoakAcceptance.csproj" />
+    <Project Path="tools/Asura.SingleInstanceTestHost/Asura.SingleInstanceTestHost.csproj" />
+    <Project Path="tools/Asura.SqlLanguageAotProbe/Asura.SqlLanguageAotProbe.csproj" />
+    <Project Path="tools/Asura.SqlLanguageTestWorker/Asura.SqlLanguageTestWorker.csproj" />
+    <Project Path="tools/Asura.TerminalAcceptance/Asura.TerminalAcceptance.csproj" />
+  </Folder>
+</Solution>

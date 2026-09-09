@@ -46,13 +46,13 @@ VM execution requires `com.apple.security.virtualization` signing entitlement.
 
 Full Xcode is needed for Swift Testing on this machine. Run tests with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test --package-path native/workspace-runtime`.
-Set `GHOSTSHELL_RUNTIME_TEST_ASSETS` to the signed runtime payload directory and
-`GHOSTSHELL_RUNTIME_TEST_GATEWAY` to the built Ethernet-enabled Go gateway to run
+Set `ASURA_RUNTIME_TEST_ASSETS` to the signed runtime payload directory and
+`ASURA_RUNTIME_TEST_GATEWAY` to the built Ethernet-enabled Go gateway to run
 the fresh-VM integration test. It creates and removes only its own temporary
 Alpine disk. It covers host-UID writable/read-only shares, concurrent exec, PTY
 input/resizing, DNS/HTTP and a package-index download over 1 MiB through the host
 gateway, blocked egress before/after a lease, and persistent restart.
-`GHOSTSHELL_RUNTIME_TEST_EXECUTABLE` optionally
+`ASURA_RUNTIME_TEST_EXECUTABLE` optionally
 selects a separately signed development binary.
 
 The virtual NIC hardware ceiling is 1500 bytes because Apple requires it. The

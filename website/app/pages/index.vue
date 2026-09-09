@@ -1,26 +1,28 @@
 <script setup lang="ts">
 const base = useRuntimeConfig().app.baseURL
 
-const siteUrl = 'https://ghostshell.terion.name'
+const siteUrl = 'https://asura.sh'
+
+useHead({ link: [{ rel: 'canonical', href: `${siteUrl}/` }] })
 
 useSeoMeta({
-  title: 'GhostSHELL — a ghost in your shell',
+  title: 'Asura — your terminal workspace',
   description:
     'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH. Terminal, browser, files, databases, Docker, Git, and monitoring in one window, each workspace in its own VM and on its own VPN. Nothing to install on your servers.',
-  ogTitle: 'GhostSHELL — a ghost in your shell',
+  ogTitle: 'Asura — your terminal workspace',
   ogDescription:
     'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH. Nothing to install on your servers.',
   ogType: 'website',
   ogUrl: `${siteUrl}/`,
-  ogSiteName: 'GhostSHELL',
+  ogSiteName: 'Asura',
   ogImage: `${siteUrl}/share.png`,
-  ogImageWidth: 1200,
-  ogImageHeight: 630,
+  ogImageWidth: 1731,
+  ogImageHeight: 909,
   ogImageType: 'image/png',
   ogImageAlt:
-    'GhostSHELL logo: AI-native terminal workspaces and multitool',
+    'Asura logo: AI-native terminal workspaces and multitool',
   twitterCard: 'summary_large_image',
-  twitterTitle: 'GhostSHELL — a ghost in your shell',
+  twitterTitle: 'Asura — your terminal workspace',
   twitterDescription:
     'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH.',
   twitterImage: `${siteUrl}/share.png`,
@@ -47,11 +49,11 @@ const faqs = [
   },
   {
     q: 'How does the browser reach a remote localhost?',
-    a: 'When you bind a browser panel to an SSH connection, GhostSHELL routes that panel through the existing SSH session. Requests to localhost or private subnet addresses resolve on the remote side, so a dev server on the remote machine loads like a local page. No VPN, no manual ssh -L, no proxy config files.',
+    a: 'When you bind a browser panel to an SSH connection, Asura routes that panel through the existing SSH session. Requests to localhost or private subnet addresses resolve on the remote side, so a dev server on the remote machine loads like a local page. No VPN, no manual ssh -L, no proxy config files.',
   },
   {
     q: 'Is this an Electron app?',
-    a: 'No. GhostSHELL is a native desktop application. The terminal runs on libghostty-vt, the C engine from the Ghostty project, so it feels like Ghostty, not like a web page pretending to be a terminal. The only web engine in the app is the Chromium behind the browser panels, and it never touches the terminal.',
+    a: 'No. Asura is a native desktop application. The terminal runs on libghostty-vt, the C engine from the Ghostty project, so it feels like Ghostty, not like a web page pretending to be a terminal. The only web engine in the app is the Chromium behind the browser panels, and it never touches the terminal.',
   },
   {
     q: 'Can the AI agent see my passwords or keys?',
@@ -67,11 +69,11 @@ const faqs = [
   },
   {
     q: 'Does a workspace VPN affect the rest of my machine?',
-    a: 'No. Each connection runs as a userspace tunnel inside GhostSHELL: no system VPN profile, no kernel extension, no change to your routing table. Only the workspaces that chose that connection send traffic through it, and different workspaces can be on different tunnels at the same time. Your browser, mail, and everything else on the machine keep using the network as before.',
+    a: 'No. Each connection runs as a userspace tunnel inside Asura: no system VPN profile, no kernel extension, no change to your routing table. Only the workspaces that chose that connection send traffic through it, and different workspaces can be on different tunnels at the same time. Your browser, mail, and everything else on the machine keep using the network as before.',
   },
   {
     q: 'What happens when a VPN drops?',
-    a: 'That is what the kill switch is for. With it on, a workspace whose route fails stops sending traffic until the route is back or you turn networking off for that workspace. It never quietly falls back to your direct connection. Inside an isolated workspace this is enforced by the VM itself, which has no other way out; in a non-isolated workspace it covers everything GhostSHELL routes, while a stray program that ignores proxy settings could still reach the network directly.',
+    a: 'That is what the kill switch is for. With it on, a workspace whose route fails stops sending traffic until the route is back or you turn networking off for that workspace. It never quietly falls back to your direct connection. Inside an isolated workspace this is enforced by the VM itself, which has no other way out; in a non-isolated workspace it covers everything Asura routes, while a stray program that ignores proxy settings could still reach the network directly.',
   },
   {
     q: 'What does workspace isolation actually isolate?',
@@ -88,7 +90,7 @@ const open = ref<number | null>(0)
       <div class="wrap notice__row">
         <span class="notice__badge">Alpha</span>
         <span>
-          GhostSHELL is in early alpha and currently macOS only.
+          Asura is in early alpha and currently macOS only.
           Windows and Linux are on the way.
         </span>
       </div>
@@ -102,9 +104,9 @@ const open = ref<number | null>(0)
         <div class="wrap">
           <div class="hero__inner">
             <p class="eyebrow">The AI-native terminal workspace</p>
-            <h1 class="hero__title">A ghost in your shell</h1>
+            <h1 class="hero__title">Your terminal workspace</h1>
             <p class="hero__lede">
-              GhostSHELL is a native terminal workspace with an AI agent that
+              Asura is a native terminal workspace with an AI agent that
               operates your machines, local and remote, over plain SSH.
               Terminal, browser, files, databases, Docker, Git, and monitoring
               in one window. Nothing to install on your servers.
@@ -114,7 +116,7 @@ const open = ref<number | null>(0)
                 Download for macOS
                 <span class="btn__sub">Apple silicon</span>
               </a>
-              <a class="btn" href="https://github.com/terion-labs/ghostshel">
+              <a class="btn" href="https://github.com/terion-labs/asura">
                 View on GitHub
               </a>
             </div>
@@ -129,7 +131,7 @@ const open = ref<number | null>(0)
           <div class="shot hero__shot">
             <img
               :src="`${base}shots/workspace-agent.webp`"
-              alt="GhostSHELL workspace: an SSH terminal, a browser panel, and the AI agent fixing a failed deploy"
+              alt="Asura workspace: an SSH terminal, a browser panel, and the AI agent fixing a failed deploy"
               width="2880"
               height="1800"
               fetchpriority="high"
@@ -149,7 +151,7 @@ const open = ref<number | null>(0)
               <p>
                 Your dev server runs on a cloud box at
                 <code>localhost:3000</code>. Open a browser panel, pick that
-                SSH connection, type the address. GhostSHELL routes the panel
+                SSH connection, type the address. Asura routes the panel
                 through the tunnel and the page loads, private subnet
                 dashboards included. No VPN, no <code>ssh -L</code> ritual.
                 And the agent can browse those pages too.
@@ -193,7 +195,7 @@ const open = ref<number | null>(0)
       <section id="agent" class="section section--alt">
         <div class="wrap split">
           <div class="split__text" data-reveal>
-            <p class="eyebrow">The ghost</p>
+            <p class="eyebrow">The agent</p>
             <h2 data-reveal class="section-title">An agent that works where you work</h2>
             <p data-reveal style="--rd: 1" class="section-lede">
               Ask it to fix a failed deploy and it reads the logs, checks the
@@ -323,7 +325,7 @@ const open = ref<number | null>(0)
                 database, and monitor reopens exactly as you left it.
               </li>
               <li>
-                Workspace-scoped agent: the ghost only sees the panels of the
+                Workspace-scoped agent: the agent only sees the panels of the
                 workspace it lives in.
               </li>
             </ul>
@@ -396,8 +398,8 @@ const open = ref<number | null>(0)
             <img
               :src="`${base}shots/workspace-isolation.webp`"
               alt="Workspace settings with the Isolate workspace switch and host mount options"
-              width="1280"
-              height="1110"
+              width="1760"
+              height="1100"
               loading="lazy"
             />
           </div>
@@ -540,7 +542,7 @@ const open = ref<number | null>(0)
             height="96"
             loading="lazy"
           />
-          <h2 data-reveal class="section-title download__title">Put a ghost in your shell</h2>
+          <h2 data-reveal class="section-title download__title">Get Asura</h2>
           <p data-reveal style="--rd: 1" class="section-lede download__lede">
             Free early release. Signed and notarized macOS build for Apple
             silicon; Windows and Linux build from source until their
@@ -549,19 +551,19 @@ const open = ref<number | null>(0)
           <div class="hero__ctas download__ctas">
             <a
               class="btn btn--primary"
-              href="https://github.com/terion-labs/ghostshel/releases/latest/download/GhostShell-macOS-arm64.zip"
+              href="https://github.com/terion-labs/asura/releases/latest/download/Asura-macOS-arm64.zip"
             >
               Download for macOS
               <span class="btn__sub">.zip · arm64</span>
             </a>
-            <a class="btn" href="https://github.com/terion-labs/ghostshel">
+            <a class="btn" href="https://github.com/terion-labs/asura">
               Build from source
             </a>
           </div>
           <p class="download__checksum">
             Verify the archive against its
             <a
-              href="https://github.com/terion-labs/ghostshel/releases/latest/download/GhostShell-macOS-arm64.zip.sha256"
+              href="https://github.com/terion-labs/asura/releases/latest/download/Asura-macOS-arm64.zip.sha256"
             >SHA-256 checksum</a>.
           </p>
         </div>

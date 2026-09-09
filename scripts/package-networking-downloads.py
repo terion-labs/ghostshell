@@ -37,10 +37,10 @@ def main():
     for path in app.rglob("*"):
         if path.name in ("kernel.bin", "initfs.ext4") or path.name.endswith((".tar.xz", ".tar.gz")):
             raise ValueError(f"On-demand or source payload leaked into app: {path}")
-    boot = repository / "native/artifacts/workspace-runtime-build/distribution/GhostShell-workspace-boot-arm64.zip"
-    backend = repository / "native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
+    boot = repository / "native/artifacts/workspace-runtime-build/distribution/Asura-workspace-boot-arm64.zip"
+    backend = repository / "native/artifacts/workspace-backend-build/distribution/Asura-workspace-backend-arm64.tar.gz"
     backend_pin = json.loads((app / "Contents/Resources/runtimes/linux-arm64/workspace-backend/backend-assets.json").read_text())
-    if backend_pin != {"sha256": digest(backend), "size": backend.stat().st_size, "executable": "GhostShell.Backend"}:
+    if backend_pin != {"sha256": digest(backend), "size": backend.stat().st_size, "executable": "Asura.Backend"}:
         raise ValueError("Backend sidecar differs from signed app pin")
     assert digest(boot) == pin["sha256"] and boot.stat().st_size == pin["size"], "Boot sidecar differs from signed app pin"
     with zipfile.ZipFile(boot) as archive:
@@ -52,10 +52,10 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     copy_pinned_archive(boot, output / boot.name, pin)
     copy_pinned_archive(backend, output / backend.name, backend_pin)
-    x64_backend = repository / "native/artifacts/workspace-backend-build/distribution/x64/GhostShell-workspace-backend-x64.tar.gz"
+    x64_backend = repository / "native/artifacts/workspace-backend-build/distribution/x64/Asura-workspace-backend-x64.tar.gz"
     x64_pin = json.loads((app / "Contents/Resources/runtimes/linux-x64/workspace-backend/backend-assets.json").read_text())
     copy_pinned_archive(x64_backend, output / x64_backend.name, x64_pin)
-    sources = output / "GhostShell-networking-sources.zip"
+    sources = output / "Asura-networking-sources.zip"
     with zipfile.ZipFile(sources, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for root, prefix in ((runtime / "legal", "workspace-runtime"), (engines, "connection-engines")):
             for path in sorted(root.rglob("*")):

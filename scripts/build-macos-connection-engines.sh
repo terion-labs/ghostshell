@@ -12,7 +12,7 @@ openconnect_version="9.21"
 openconnect_sha256="5b32369467db6e5f317aa1ed12cfcbb81ed00bdbc765450b6bfcbdc300944a58"
 openssl_version="3.6.4"
 openssl_sha256="9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef"
-code_payload=(ghostshell-openvpn-engine tailscale tailscaled openconnect libopenconnect.5.dylib)
+code_payload=(asura-openvpn-engine tailscale tailscaled openconnect libopenconnect.5.dylib)
 legal_payload=(GO-LICENSE.txt OPENCONNECT-LGPL-2.1.txt OPENCONNECT-SOURCE-AND-RELINKING.md
     OPENSSL-LICENSE.txt OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md ASIO-LICENSE.txt
     LZ4-LICENSE.txt OPENVPN-VERSIONS.txt OPENVPN-THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.md)
@@ -38,7 +38,7 @@ verify_payload() (
     ./openconnect --version >/dev/null || exit 1
     # The packet engine has no version command; its argument error proves dyld loaded it.
     engine_status=0
-    ./ghostshell-openvpn-engine </dev/null >/dev/null 2>&1 || engine_status=$?
+    ./asura-openvpn-engine </dev/null >/dev/null 2>&1 || engine_status=$?
     [[ "${engine_status}" == 64 ]] || exit 1
     ./tailscale --version >/dev/null || exit 1
     ./tailscaled --version >/dev/null || exit 1
@@ -90,7 +90,7 @@ if [[ $# -gt 0 ]]; then
         done
         "${code_destination}/openconnect" --version >/dev/null
         engine_status=0
-        "${code_destination}/ghostshell-openvpn-engine" </dev/null >/dev/null 2>&1 || engine_status=$?
+        "${code_destination}/asura-openvpn-engine" </dev/null >/dev/null 2>&1 || engine_status=$?
         [[ "${engine_status}" == 64 ]]
         "${code_destination}/tailscale" --version >/dev/null
         "${code_destination}/tailscaled" --version >/dev/null
@@ -129,7 +129,7 @@ export SOURCE_DATE_EPOCH=0
 export TZ=UTC
 export MACOSX_DEPLOYMENT_TARGET=13.0
 
-staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-connection-engines.XXXXXX")"
+staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-connection-engines.XXXXXX")"
 cleanup() {
     rm -rf -- "${staging_directory}"
 }
@@ -223,8 +223,8 @@ parallelism="$(sysctl -n hw.logicalcpu 2>/dev/null || printf '%s' 4)"
             no-docs \
             no-shared \
             no-tests \
-            --prefix=/opt/ghostshell/connection-engines/openssl \
-            --openssldir=/opt/ghostshell/connection-engines/openssl
+            --prefix=/opt/asura/connection-engines/openssl \
+            --openssldir=/opt/asura/connection-engines/openssl
     make -j"${parallelism}" build_libs
 )
 
@@ -270,13 +270,13 @@ if ! "${script_dir}/build-openvpn-engine.sh" --verify >/dev/null 2>&1; then
     "${script_dir}/build-openvpn-engine.sh"
 fi
 "${script_dir}/build-openvpn-engine.sh" --verify
-for payload in ghostshell-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
+for payload in asura-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
     ASIO-LICENSE.txt LZ4-LICENSE.txt OPENVPN-VERSIONS.txt; do
     cp "${openvpn_directory}/${payload}" "${staging_directory}/${payload}"
 done
 cp "${openvpn_directory}/THIRD-PARTY-NOTICES.txt" "${staging_directory}/OPENVPN-THIRD-PARTY-NOTICES.txt"
 
-for executable in openconnect ghostshell-openvpn-engine; do
+for executable in openconnect asura-openvpn-engine; do
     if [[ "$(file -b "${staging_directory}/${executable}")" != *"Mach-O 64-bit executable arm64"* ]]; then
         echo "The ${executable} payload is not a macOS arm64 executable." >&2
         exit 1
@@ -286,7 +286,7 @@ if [[ "$(file -b "${staging_directory}/libopenconnect.5.dylib")" != *"Mach-O 64-
     echo "The libopenconnect payload is not a macOS arm64 library." >&2
     exit 1
 fi
-for code_file in openconnect ghostshell-openvpn-engine libopenconnect.5.dylib; do
+for code_file in openconnect asura-openvpn-engine libopenconnect.5.dylib; do
     unexpected_dependencies="$(otool -L "${staging_directory}/${code_file}" \
         | tail -n +2 \
         | awk '{print $1}' \
@@ -305,9 +305,9 @@ relinking="${staging_directory}/OPENCONNECT-SOURCE-AND-RELINKING.md"
 cat > "${relinking}" <<EOF
 # OpenConnect source and relinking
 
-GhostSHELL invokes OpenConnect ${openconnect_version} as a separate executable and ships
+Asura invokes OpenConnect ${openconnect_version} as a separate executable and ships
 libopenconnect as a replaceable dynamic library. The complete corresponding OpenConnect
-source is distributed in GhostShell-networking-sources.zip beside the app in the
+source is distributed in Asura-networking-sources.zip beside the app in the
 same GitHub release, at connection-engines/sources/openconnect-${openconnect_version}.tar.gz.
 The source archive is not needed at runtime and is not embedded in the app. Its SHA-256 is:
 
@@ -343,7 +343,7 @@ linked_modules="${staging_directory}/linked-modules.tsv"
 notices="${staging_directory}/THIRD-PARTY-NOTICES.md"
 {
     printf '# Bundled connection engine notices\n\n'
-    printf 'GhostSHELL bundles Tailscale %s, OpenConnect %s, and ghostshell-openvpn-engine as separate executables. OpenVPN component versions and licenses are recorded in OPENVPN-VERSIONS.txt and OPENVPN-THIRD-PARTY-NOTICES.txt. WireGuard is linked into the workspace gateway. The Go programs were built with %s; its license is shipped as GO-LICENSE.txt.\n' \
+    printf 'Asura bundles Tailscale %s, OpenConnect %s, and asura-openvpn-engine as separate executables. OpenVPN component versions and licenses are recorded in OPENVPN-VERSIONS.txt and OPENVPN-THIRD-PARTY-NOTICES.txt. WireGuard is linked into the workspace gateway. The Go programs were built with %s; its license is shipped as GO-LICENSE.txt.\n' \
         "${tailscale_version#v}" "${openconnect_version}" "${expected_go_version}"
     while IFS=$'\t' read -r module version; do
         if [[ "${module}:${version}" == "${tailscale_module}:${tailscale_version}" ]]; then
@@ -382,7 +382,7 @@ manifest="${staging_directory}/MANIFEST.sha256"
 (
     cd "${staging_directory}"
     shasum -a 256 \
-        ghostshell-openvpn-engine \
+        asura-openvpn-engine \
         tailscale \
         tailscaled \
         openconnect \
@@ -406,7 +406,7 @@ manifest="${staging_directory}/MANIFEST.sha256"
 rm -rf -- "${artifact_directory}"
 mkdir -p "${artifact_directory}"
 for payload in \
-    ghostshell-openvpn-engine tailscale tailscaled openconnect libopenconnect.5.dylib \
+    asura-openvpn-engine tailscale tailscaled openconnect libopenconnect.5.dylib \
     GO-LICENSE.txt OPENCONNECT-LGPL-2.1.txt OPENCONNECT-SOURCE-AND-RELINKING.md \
     OPENSSL-LICENSE.txt OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md ASIO-LICENSE.txt \
     LZ4-LICENSE.txt OPENVPN-VERSIONS.txt OPENVPN-THIRD-PARTY-NOTICES.txt \

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>GhostShell.SqlClient.Tds.TestSupport</AssemblyName>
+    <AssemblyName>Asura.SqlClient.Tds.TestSupport</AssemblyName>
     <Version>6.0.2</Version>
     <IsPackable>false</IsPackable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

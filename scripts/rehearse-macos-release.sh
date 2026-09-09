@@ -34,8 +34,8 @@ Required local toolchain:
   GRAALVM_HOME                 GraalVM 25.0.4 home containing native-image.
 
 Optional toolchain overrides:
-  GHOSTSHELL_XCODE_APP         Full Xcode 26 or newer application directory.
-  GHOSTSHELL_NATIVE_AOT_LINKER Absolute path to LLVM ld64.lld 22.x.
+  ASURA_XCODE_APP         Full Xcode 26 or newer application directory.
+  ASURA_NATIVE_AOT_LINKER Absolute path to LLVM ld64.lld 22.x.
 
 This is the local equivalent of the tag release job. It runs the full repository
 gate, builds from a read-only sealed source export, builds every native payload,
@@ -106,7 +106,7 @@ if [[ ! "${build_version}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
 fi
 
 git_dir="$(git rev-parse --absolute-git-dir)"
-receipt_directory="${git_dir}/ghostshell-release-rehearsals"
+receipt_directory="${git_dir}/asura-release-rehearsals"
 receipt_path="${receipt_directory}/${tag}.receipt"
 if [[ "${reuse_pass}" == true && -f "${receipt_path}" ]]; then
     expected_receipt="status=pass
@@ -119,7 +119,7 @@ tree=${tree}"
     fi
 fi
 
-xcode_application="${GHOSTSHELL_XCODE_APP:-/Applications/Xcode.app}"
+xcode_application="${ASURA_XCODE_APP:-/Applications/Xcode.app}"
 if [[ ! -d "${xcode_application}/Contents/Developer" ]] \
     || ! DEVELOPER_DIR="${xcode_application}/Contents/Developer" \
         xcrun actool --version --output-format=human-readable-text 2>/dev/null \
@@ -150,7 +150,7 @@ if [[ ! "${native_image_version}" =~ ^native-image[[:space:]]+25\.0\.4([[:space:
 fi
 export JAVA_HOME="${GRAALVM_HOME}"
 
-native_aot_linker="${GHOSTSHELL_NATIVE_AOT_LINKER:-}"
+native_aot_linker="${ASURA_NATIVE_AOT_LINKER:-}"
 if [[ -z "${native_aot_linker}" ]] && command -v brew >/dev/null 2>&1; then
     native_aot_linker="$(brew --prefix lld@22 2>/dev/null || true)/bin/ld64.lld"
 fi
@@ -163,7 +163,7 @@ if [[ ! "${linker_version}" =~ LLD[[:space:]]22\. ]]; then
     echo "Release rehearsal requires LLVM lld 22.x; found ${linker_version}." >&2
     exit 1
 fi
-export GHOSTSHELL_NATIVE_AOT_LINKER="${native_aot_linker}"
+export ASURA_NATIVE_AOT_LINKER="${native_aot_linker}"
 
 for required_variable in \
     APPLE_CERTIFICATE_P12_BASE64 \
@@ -184,7 +184,7 @@ for required_command in assetutil cmake curl ditto file go mvn python3 security 
     fi
 done
 
-working_directory="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-release-rehearsal.XXXXXX")"
+working_directory="$(mktemp -d "${TMPDIR:-/tmp}/asura-release-rehearsal.XXXXXX")"
 working_directory="$(cd -- "${working_directory}" && pwd -P)"
 dotnet_cli_home="${working_directory}/dotnet-home"
 sealed_source="${working_directory}/sealed-source"
@@ -200,7 +200,7 @@ signing_directory="${working_directory}/signing"
 signing_keychain="${signing_directory}/release.keychain-db"
 signing_password="$(uuidgen)"
 signing_identity="${APPLE_DEVELOPER_ID_APPLICATION}"
-notary_profile="ghostshell-local-$$"
+notary_profile="asura-local-$$"
 previous_keychains=()
 while IFS= read -r keychain; do
     keychain="$(printf '%s\n' "${keychain}" \
@@ -266,16 +266,16 @@ mkdir -p \
     "${nuget_packages}"
 
 echo "Running the complete repository gate before release assembly."
-GHOSTSHELL_TEST_RESULTS_ROOT="${release_artifacts}/campaign-test-results" \
+ASURA_TEST_RESULTS_ROOT="${release_artifacts}/campaign-test-results" \
     ./scripts/check.sh --full
 
 git archive --format=tar "${commit}" | tar -xf - -C "${dependency_source}"
 NUGET_PACKAGES="${nuget_packages}" "${dotnet}" restore \
-    "${dependency_source}/GhostShell.slnx" \
+    "${dependency_source}/Asura.slnx" \
     --locked-mode
 mkdir -p "${release_artifacts}/dependency-scan"
 NUGET_PACKAGES="${nuget_packages}" "${dotnet}" package list \
-    --project "${dependency_source}/GhostShell.slnx" \
+    --project "${dependency_source}/Asura.slnx" \
     --vulnerable \
     --include-transitive \
     --format json \
@@ -325,11 +325,11 @@ GRYPE_DB_CACHE_DIR="${repository_dir}/.deps/tools/grype-cache" \
 
 git archive --format=tar "${commit}" | tar -xf - -C "${sealed_source}"
 NUGET_PACKAGES="${nuget_packages}" "${dotnet}" publish \
-    "${sealed_source}/tools/GhostShell.SecurityCampaign/GhostShell.SecurityCampaign.csproj" \
+    "${sealed_source}/tools/Asura.SecurityCampaign/Asura.SecurityCampaign.csproj" \
     --configuration Release \
     --artifacts-path "${campaign_build}" \
     --output "${campaign_tool}"
-campaign_dll="${campaign_tool}/GhostShell.SecurityCampaign.dll"
+campaign_dll="${campaign_tool}/Asura.SecurityCampaign.dll"
 "${dotnet}" "${campaign_dll}" \
     assemble-dependency-evidence \
     --source-commit "${commit}" \
@@ -350,23 +350,23 @@ chmod -R u+rwX "${sealed_source}/.deps" "${sealed_source}/native/artifacts"
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
-export GHOSTSHELL_RELEASE_SOURCE_ROOT="${sealed_source}"
-export GHOSTSHELL_RELEASE_SOURCE_SEAL="${source_seal}"
-export GHOSTSHELL_SECURITY_CAMPAIGN_TOOL="${campaign_dll}"
-export GHOSTSHELL_RELEASE_ARTIFACTS="${release_artifacts}"
-export GHOSTSHELL_BUILD_ARTIFACTS_ROOT="${build_artifacts}"
-export GHOSTSHELL_DOTNET="${dotnet}"
-export GHOSTSHELL_RELEASE_SOURCE_COMMIT="${commit}"
-export GHOSTSHELL_RELEASE_SOURCE_TREE="${tree}"
-export GHOSTSHELL_RELEASE_SOURCE_TAG="${tag}"
+export ASURA_RELEASE_SOURCE_ROOT="${sealed_source}"
+export ASURA_RELEASE_SOURCE_SEAL="${source_seal}"
+export ASURA_SECURITY_CAMPAIGN_TOOL="${campaign_dll}"
+export ASURA_RELEASE_ARTIFACTS="${release_artifacts}"
+export ASURA_BUILD_ARTIFACTS_ROOT="${build_artifacts}"
+export ASURA_DOTNET="${dotnet}"
+export ASURA_RELEASE_SOURCE_COMMIT="${commit}"
+export ASURA_RELEASE_SOURCE_TREE="${tree}"
+export ASURA_RELEASE_SOURCE_TAG="${tag}"
 export NUGET_PACKAGES="${nuget_packages}"
 
 version="${tag#v}"
 cd "${sealed_source}"
 python3 ./scripts/package-workspace-backend.py verify-release-clearance .
-GHOSTSHELL_BACKEND_ARCH=x64 python3 ./scripts/package-workspace-backend.py verify-release-clearance .
+ASURA_BACKEND_ARCH=x64 python3 ./scripts/package-workspace-backend.py verify-release-clearance .
 "${dotnet}" run \
-    --project tools/GhostShell.Packaging/GhostShell.Packaging.csproj \
+    --project tools/Asura.Packaging/Asura.Packaging.csproj \
     --configuration Release \
     --artifacts-path "${build_artifacts}/legal" \
     -- \
@@ -378,7 +378,7 @@ GHOSTSHELL_BACKEND_ARCH=x64 python3 ./scripts/package-workspace-backend.py verif
 ./scripts/build-workspace-network-gateway.sh --rid osx-arm64
 ./scripts/build-workspace-runtime.sh
 ./scripts/build-workspace-backend.sh
-GHOSTSHELL_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh
+ASURA_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh
 ./scripts/build-openvpn-engine.sh
 ./scripts/build-macos-connection-engines.sh
 ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
@@ -399,24 +399,24 @@ security find-identity -v -p codesigning "${signing_keychain}" \
     --build-artifacts-root "${build_artifacts}/package" \
     --output-dir "${release_artifacts}/distribution"
 
-archive="${release_artifacts}/distribution/GhostShell-macOS-arm64.zip"
+archive="${release_artifacts}/distribution/Asura-macOS-arm64.zip"
 verification_directory="${working_directory}/archive"
 mkdir "${verification_directory}"
 ditto -x -k "${archive}" "${verification_directory}"
-extracted_app="${verification_directory}/GhostShell.app"
+extracted_app="${verification_directory}/Asura.app"
 codesign --verify --deep --strict --verbose=2 "${extracted_app}"
 xcrun stapler validate "${extracted_app}"
 spctl --assess --type execute --verbose=2 "${extracted_app}"
 info_plist="${extracted_app}/Contents/Info.plist"
 test "$(plutil -extract CFBundleShortVersionString raw "${info_plist}")" = "${version}"
-test "$(plutil -extract CFBundleDisplayName raw "${info_plist}")" = "GhostSHELL"
-test "$(plutil -extract CFBundleExecutable raw "${info_plist}")" = "GhostShell"
-test "$(plutil -extract CFBundleIdentifier raw "${info_plist}")" = "app.ghostshell"
-test "$(plutil -extract CFBundleIconName raw "${info_plist}")" = "GhostShell"
+test "$(plutil -extract CFBundleDisplayName raw "${info_plist}")" = "Asura"
+test "$(plutil -extract CFBundleExecutable raw "${info_plist}")" = "Asura"
+test "$(plutil -extract CFBundleIdentifier raw "${info_plist}")" = "sh.asura"
+test "$(plutil -extract CFBundleIconName raw "${info_plist}")" = "Asura"
 assets_car="${extracted_app}/Contents/Resources/Assets.car"
 assetutil --info "${assets_car}" > "${verification_directory}/Assets.info.json"
 grep -Fq '"AssetType" : "Icon Image"' "${verification_directory}/Assets.info.json"
-grep -Fq '"Name" : "GhostShell"' "${verification_directory}/Assets.info.json"
+grep -Fq '"Name" : "Asura"' "${verification_directory}/Assets.info.json"
 test -x "${extracted_app}/Contents/MacOS/UpdateMac"
 test "$(readlink "${extracted_app}/Contents/MacOS/sq.version")" \
     = "../Resources/sq.version"

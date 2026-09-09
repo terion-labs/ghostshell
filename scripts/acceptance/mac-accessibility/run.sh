@@ -8,7 +8,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
     exit 2
 fi
 
-build_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-mac-accessibility.XXXXXX")"
+build_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-mac-accessibility.XXXXXX")"
 cleanup() {
     rm -rf -- "${build_dir}"
 }
@@ -17,12 +17,12 @@ trap cleanup EXIT
 xcrun swiftc \
     -parse-as-library \
     -warnings-as-errors \
-    "${script_dir}/GhostShellAccessibilityProbe.swift" \
-    -o "${build_dir}/ghostshell-mac-accessibility"
+    "${script_dir}/AsuraAccessibilityProbe.swift" \
+    -o "${build_dir}/asura-mac-accessibility"
 
 receipt_path="${build_dir}/receipt.json"
 set +e
-"${build_dir}/ghostshell-mac-accessibility" >"${receipt_path}"
+"${build_dir}/asura-mac-accessibility" >"${receipt_path}"
 probe_exit_code=$?
 set -e
 

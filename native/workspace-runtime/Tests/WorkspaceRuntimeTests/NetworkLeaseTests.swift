@@ -4,9 +4,9 @@ import Testing
 
 @testable import WorkspaceRuntime
 
-@Test(.enabled(if: ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"] != nil))
+@Test(.enabled(if: ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"] != nil))
 func packetSocketCanBeReusedAfterGracefulStopAndCrash() throws {
-  let executable = ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"]!
+  let executable = ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"]!
   let directory = "/tmp/gs-lease-\(UUID().uuidString.prefix(8))"
   try FileManager.default.createDirectory(
     atPath: directory, withIntermediateDirectories: false,
@@ -26,9 +26,9 @@ func packetSocketCanBeReusedAfterGracefulStopAndCrash() throws {
   }
 }
 
-@Test(.enabled(if: ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"] != nil))
+@Test(.enabled(if: ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"] != nil))
 func packetCleanupDoesNotDeleteReplacementSocket() throws {
-  let executable = ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"]!
+  let executable = ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"]!
   let directory = "/tmp/gs-inode-\(UUID().uuidString.prefix(8))"
   try FileManager.default.createDirectory(
     atPath: directory, withIntermediateDirectories: false,
@@ -46,9 +46,9 @@ func packetCleanupDoesNotDeleteReplacementSocket() throws {
   #expect(FileManager.default.fileExists(atPath: path))
 }
 
-@Test(.enabled(if: ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"] != nil))
+@Test(.enabled(if: ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"] != nil))
 func packetGatewayExitKeepsChildReasonAndSignalStatus() async throws {
-  let executable = ProcessInfo.processInfo.environment["GHOSTSHELL_RUNTIME_TEST_GATEWAY"]!
+  let executable = ProcessInfo.processInfo.environment["ASURA_RUNTIME_TEST_GATEWAY"]!
   let directory = "/tmp/gs-reason-\(UUID().uuidString.prefix(8))"
   try FileManager.default.createDirectory(
     atPath: directory, withIntermediateDirectories: false,

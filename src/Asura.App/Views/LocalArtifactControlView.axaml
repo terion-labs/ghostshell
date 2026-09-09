@@ -1,0 +1,91 @@
+<UserControl
+    x:Class="Asura.App.Views.LocalArtifactControlView"
+    x:DataType="vm:LocalArtifactControlViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:controls="using:Asura.App.Controls">
+  <controls:SurfaceCard>
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+          <TextBlock FontWeight="SemiBold" Text="App-managed cache &amp; logs" />
+          <TextBlock
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="Review only files stored in Asura’s dedicated cache and inactive-log locations."
+              TextWrapping="Wrap" />
+        </StackPanel>
+        <Button
+            x:Name="RefreshLocalArtifactsButton"
+            Grid.Column="1"
+            Classes="SecondaryButton"
+            Click="OnRefreshClick"
+            Content="Refresh"
+            IsEnabled="{Binding CanRefresh}"
+            AutomationProperties.Name="Refresh app-managed cache and log metadata" />
+      </Grid>
+
+      <controls:Callout
+          Tone="Notice"
+          Glyph="Shield"
+          Text="Saved definitions, secrets, history, recovery snapshots, terminal content, OS caches, debug trace output, and any active log are outside this cleanup boundary." />
+
+      <controls:LiveRegionTextBlock
+          Classes="Muted"
+          FontSize="{DynamicResource ShellFontSize9}"
+          Text="{Binding StatusMessage}"
+          TextWrapping="Wrap"
+          AutomationProperties.LiveSetting="Polite"
+          AutomationProperties.Name="{Binding StatusAutomationName}" />
+
+      <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}" IsVisible="{Binding HasNoInventory}">
+        <controls:EmptyStatePanel
+            ShowsGlyph="False"
+            Heading="No storage metadata"
+            Body="Use Refresh to inspect Asura’s app-managed locations." />
+      </controls:SurfaceCard>
+
+      <controls:Callout
+          Tone="Notice"
+          ShowsGlyph="False"
+          Title="Storage metadata unavailable"
+          Text="The storage scan could not be completed. No additional files will be removed automatically; use Refresh to try again."
+          IsVisible="{Binding HasError}" />
+
+      <ItemsControl
+          ItemsSource="{Binding Items}"
+          IsEnabled="{Binding CanClearItems}"
+          IsVisible="{Binding HasInventory}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <controls:SurfaceCard Tone="Notice" Padding="{DynamicResource ShellCardPaddingCompact}" Margin="{controls:Inset Bottom=Sm}">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                  <TextBlock
+                      Classes="Muted"
+                      FontSize="{DynamicResource ShellFontSize9}"
+                      Text="{Binding Description}"
+                      TextWrapping="Wrap" />
+                  <WrapPanel Orientation="Horizontal">
+                    <TextBlock Margin="{controls:Inset Right=Md}" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding FileCountLabel}" />
+                    <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" Text="{Binding SizeLabel}" />
+                  </WrapPanel>
+                </StackPanel>
+                <Button
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Classes="DestructiveButton"
+                    Click="OnClearClick"
+                    Content="Clear"
+                    IsEnabled="{Binding HasFiles}"
+                    AutomationProperties.Name="{Binding ClearAutomationName}" />
+              </Grid>
+            </controls:SurfaceCard>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </controls:SurfaceCard>
+</UserControl>

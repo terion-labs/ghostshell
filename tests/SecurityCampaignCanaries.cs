@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace GhostShell.SecurityCampaign.Tests;
+namespace Asura.SecurityCampaign.Tests;
 
 internal static class SecurityCampaignCanaries
 {

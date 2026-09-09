@@ -1,0 +1,50 @@
+<Window
+    x:Class="Asura.App.Views.DefinitionImportModeDialog"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    Title="Import definitions"
+    Width="560"
+    SizeToContent="Height"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <Grid Margin="{controls:Inset Xl}" RowDefinitions="Auto,Auto,Auto" RowSpacing="{DynamicResource ShellSpaceLg}">
+    <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+      <TextBlock FontSize="{DynamicResource ShellFontSize17}" FontWeight="SemiBold" Text="Import definitions" />
+      <TextBlock
+          Classes="Muted"
+          Text="Choose how identities already stored in this profile should be handled. The selected file is validated before anything changes."
+          TextWrapping="Wrap" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Spacing="{DynamicResource ShellSpaceSm}">
+      <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}">
+        <RadioButton
+            x:Name="FailOnConflictOption"
+            GroupName="ImportMode"
+            IsChecked="True">
+          <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+            <TextBlock FontWeight="SemiBold" Text="Stop on conflicts" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Safest. Existing definitions are never replaced." />
+          </StackPanel>
+        </RadioButton>
+      </controls:SurfaceCard>
+      <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}">
+        <RadioButton
+            x:Name="ReplaceExistingOption"
+            GroupName="ImportMode">
+          <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+            <TextBlock FontWeight="SemiBold" Text="Replace matching definitions" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" Text="Matching stable identities are replaced after preflight and explicit confirmation." TextWrapping="Wrap" />
+          </StackPanel>
+        </RadioButton>
+      </controls:SurfaceCard>
+    </StackPanel>
+
+    <StackPanel Grid.Row="2" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+      <Button MinWidth="88" Click="OnCancelClick" Content="Cancel" IsCancel="True" />
+      <Button MinWidth="112" Classes="PrimaryButton" Click="OnChooseFileClick" Content="Choose file…" />
+    </StackPanel>
+  </Grid>
+</Window>

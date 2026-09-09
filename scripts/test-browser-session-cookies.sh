@@ -16,7 +16,7 @@ if [[ "${keychain_mode}" == transition ]]; then
 fi
 [[ "$(uname -s):$(uname -m)" == Darwin:arm64 ]] || { echo "Requires Apple Silicon macOS." >&2; exit 1; }
 [[ -f "${runtime}/cef-runtime-build-receipt.json" ]] || { echo "Build the CEF runtime first." >&2; exit 1; }
-test_dir="$(mktemp -d "${TMPDIR:-/tmp}/ghostshell-cookie-restart.XXXXXX")"
+test_dir="$(mktemp -d "${TMPDIR:-/tmp}/asura-cookie-restart.XXXXXX")"
 trap 'rm -rf -- "${test_dir}"' EXIT
 app="${test_dir}/SessionCookies.app"
 mkdir -p "${app}/Contents/MacOS" "${app}/Contents/Frameworks" "${test_dir}/state"
@@ -33,7 +33,7 @@ xcrun clang -std=c11 -Wall -Wextra -Werror \
     -Wl,-rpath,@executable_path/../Frameworks \
     -o "${app}/Contents/MacOS/SessionCookies"
 codesign --force --sign - "${app}"
-helper="${app}/Contents/Frameworks/GhostSHELL Helper.app/Contents/MacOS/GhostSHELL Helper"
+helper="${app}/Contents/Frameworks/Asura Helper.app/Contents/MacOS/Asura Helper"
 "${app}/Contents/MacOS/SessionCookies" write "${test_dir}/state" "${helper}" "${write_mode}"
 cookie_database="${test_dir}/state/profile/Cookies"
 [[ -f "${cookie_database}" ]] || { echo "Fixture cookie database missing." >&2; exit 1; }

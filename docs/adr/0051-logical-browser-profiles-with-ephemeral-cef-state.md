@@ -12,7 +12,7 @@ navigation/session files. Definition metadata alone does not satisfy that
 contract.
 
 CEF requires a real directory for durable request-context state; it cannot use
-an application blob store directly. GhostSHELL already has an OS-keystore-backed
+an application blob store directly. Asura already has an OS-keystore-backed
 application-encryption key and an encrypted LiteDB content-store pattern. A
 mounted decrypted disk image would expose a broadly discoverable volume while
 the app runs, so it is not used.
@@ -29,7 +29,7 @@ lease.
 
 During a run, each durable request context receives an owner-only temporary
 directory under CEF's private runtime root. CEF may use that directory normally.
-After all browsers close, GhostSHELL releases request contexts, shuts CEF down
+After all browsers close, Asura releases request contexts, shuts CEF down
 so Chromium has flushed its files, archives the complete context directory into
 an encrypted LiteDB blob, atomically switches the manifest to the completed
 blob, and removes the plaintext runtime tree. The archive rejects links,
@@ -39,7 +39,7 @@ excessive expanded size.
 CEF's runtime-global `Local State` is sealed separately in the same encrypted
 store because Chromium needs its OS-crypt metadata to reopen cookies and other
 protected context databases. On macOS the private runtime uses Chromium's mock
-Safe Storage key, while GhostSHELL's application encryption protects the full
+Safe Storage key, while Asura's application encryption protects the full
 archive at rest. This avoids a second, Chromium-owned login-keychain prompt.
 CEF initialization waits for startup unlock and both global and per-context
 recovery.
@@ -70,12 +70,12 @@ bundles strip credential references. OAuth remains an explicit user-initiated
 
 - Cookies, local storage, IndexedDB, cache, and the rest of Chromium's context
   state survive clean restarts for durable profiles.
-- A private temporary directory exists while GhostSHELL is running because CEF
+- A private temporary directory exists while Asura is running because CEF
   requires filesystem storage. It is owner-only, is never presented as a
   mounted volume, and is removed after a successful encrypted seal.
 - A crash can leave that private directory until next-start recovery; failure
   to recover is visible and fails closed.
-- The macOS runtime uses `use-mock-keychain`; GhostSHELL's encrypted archive,
+- The macOS runtime uses `use-mock-keychain`; Asura's encrypted archive,
   rather than Chromium's separate login-keychain item, protects durable state
   at rest.
 - The UI describes durable profiles as encrypted sessions restored between

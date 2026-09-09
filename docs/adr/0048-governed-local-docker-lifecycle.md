@@ -6,7 +6,7 @@ Accepted — 2026-08-26.
 
 ## Context
 
-GhostSHELL already exposes bounded Docker observations and user-operated
+Asura already exposes bounded Docker observations and user-operated
 container lifecycle buttons. Model-originating lifecycle changes need a
 narrower boundary: a container ID can be reused or its state can change after
 approval, cancellation can race daemon dispatch, and provider error text can
@@ -64,7 +64,7 @@ own platform work and evidence.
   actions use this governed boundary.
 - External Docker clients can still change daemon state in the narrow interval
   between refresh and command dispatch. The full-ID and revision guard prevents
-  stale GhostSHELL authority but is not a daemon transaction.
+  stale Asura authority but is not a daemon transaction.
 - SSH Docker sessions and non-macOS sessions advertise no lifecycle tools.
   Their absence is `notApplicable` under the porting-deferred scope, not passed
   platform evidence.
@@ -72,8 +72,8 @@ own platform work and evidence.
   a separate tested adapter and an ADR amendment.
 - `DockerLiveSmokeTests.GovernedLifecycleControlsOneExactDisposableLocalContainer`
   is an opt-in production-adapter check. It requires
-  `GHOSTSHELL_RUN_DOCKER_LIFECYCLE_INTEGRATION=1` and an already-present,
-  long-running image in `GHOSTSHELL_DOCKER_LIFECYCLE_IMAGE`; it never pulls.
+  `ASURA_RUN_DOCKER_LIFECYCLE_INTEGRATION=1` and an already-present,
+  long-running image in `ASURA_DOCKER_LIFECYCLE_IMAGE`; it never pulls.
   The test creates one random labeled container, verifies its full 64-hex ID
   and each state/receipt through start, restart, pause, resume, stop, and
   remove, then force-cleans only that owned ID/name in `finally`.
@@ -85,10 +85,10 @@ daemon (`29.4.0`, Linux/arm64 engine) using the already-present `redis:latest`
 image and no pull:
 
 ```sh
-GHOSTSHELL_RUN_DOCKER_LIFECYCLE_INTEGRATION=1 \
-GHOSTSHELL_DOCKER_LIFECYCLE_IMAGE=redis:latest \
+ASURA_RUN_DOCKER_LIFECYCLE_INTEGRATION=1 \
+ASURA_DOCKER_LIFECYCLE_IMAGE=redis:latest \
 ./.dotnet/dotnet test \
-  tests/GhostShell.Docker.Tests/GhostShell.Docker.Tests.csproj \
+  tests/Asura.Docker.Tests/Asura.Docker.Tests.csproj \
   --no-restore -c Release \
   --filter 'FullyQualifiedName~GovernedLifecycleControlsOneExactDisposableLocalContainer'
 ```

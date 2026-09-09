@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
     if (!excef_set_preference_async(context, "proxy", proxy, 1)
         || !wait_value(&preference_completed, 1) || !atomic_load(&preference_accepted)) return 4;
     atomic_store(&preference_completed, 0);
-    if (!excef_set_preference_async(context, "ghostshell.invalid.preference", "true", 2)
+    if (!excef_set_preference_async(context, "asura.invalid.preference", "true", 2)
         || !wait_value(&preference_completed, 1) || atomic_load(&preference_accepted)) return 4;
     int parent = create_parent(context), success = parent > 0;
     if (success) success = evaluate(parent, "document.cookie='fixture=shared; path=/'; document.cookie.includes('fixture=shared')");

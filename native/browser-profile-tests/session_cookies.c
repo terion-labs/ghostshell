@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
         || snprintf(other, sizeof(other), "%s/other", argv[2]) >= (int)sizeof(other)) return 64;
     excef_init_settings settings = {0};
     settings.root_cache_path = argv[2];
-    settings.persist_session_cookies = 1; // Same global setting as GhostSHELL.
+    settings.persist_session_cookies = 1; // Same global setting as Asura.
     settings.log_severity = 3; // Surface CEF profile-path errors in the test.
     excef_set_init_settings(&settings);
     // Explicit test-only mode lets noninteractive build hosts validate CEF's

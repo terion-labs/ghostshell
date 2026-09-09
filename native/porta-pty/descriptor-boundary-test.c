@@ -12,7 +12,7 @@
 
 typedef struct { int master_fd; int pid; int error; } spawn_result;
 extern spawn_result pty_spawn(const char*, char* const[], char* const[], const char*, const void*, const void*);
-extern int ghostshell_pty_descriptor_boundary_abi(void);
+extern int asura_pty_descriptor_boundary_abi(void);
 
 static void require(int condition, const char* detail) {
     if (!condition) { fprintf(stderr, "FAIL: %s (errno=%d)\n", detail, errno); exit(1); }
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
         require(strcmp(input, "ping\n") == 0, "PTY input changed");
         return 0;
     }
-    require(ghostshell_pty_descriptor_boundary_abi() == 1, "ABI marker");
+    require(asura_pty_descriptor_boundary_abi() == 1, "ABI marker");
     struct rlimit available;
     require(getrlimit(RLIMIT_NOFILE, &available) == 0, "descriptor limit");
     if (available.rlim_cur <= 4096) {
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
         available.rlim_cur = 4097;
         require(setrlimit(RLIMIT_NOFILE, &available) == 0, "raise soft limit for high descriptor test");
     }
-    char path[] = "/tmp/ghostshell-pty-lock-XXXXXX";
+    char path[] = "/tmp/asura-pty-lock-XXXXXX";
     int file = mkstemp(path);
     require(file >= 0, "private test file");
     int inherited = fcntl(file, F_DUPFD, 4096);

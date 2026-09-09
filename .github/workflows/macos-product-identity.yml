@@ -4,16 +4,16 @@ on:
   pull_request:
     paths:
       - ".github/workflows/macos-product-identity.yml"
-      - "assets/macos/GhostShell.icon/**"
-      - "assets/macos/GhostShell.icns"
+      - "assets/macos/Asura.icon/**"
+      - "assets/macos/Asura.icns"
       - "assets/macos/product-identity.json"
       - "scripts/compile-macos-app-icon.sh"
   push:
     branches: [main]
     paths:
       - ".github/workflows/macos-product-identity.yml"
-      - "assets/macos/GhostShell.icon/**"
-      - "assets/macos/GhostShell.icns"
+      - "assets/macos/Asura.icon/**"
+      - "assets/macos/Asura.icns"
       - "assets/macos/product-identity.json"
       - "scripts/compile-macos-app-icon.sh"
   workflow_dispatch:

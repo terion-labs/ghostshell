@@ -12,13 +12,13 @@ The complete browser design includes profiles, permissions, downloads, document 
 
 ## Decision
 
-`GhostShell.Application` owns the engine-neutral browser values and ports. The initial closed capability set is:
+`Asura.Application` owns the engine-neutral browser values and ports. The initial closed capability set is:
 
 - read URL/title/load state and document revision;
 - navigate to an HTTP(S) URL or `about:blank`;
 - back, forward, reload, and stop.
 
-`GhostShell.Browser` is the only project that references `Avalonia.Controls.WebView` 12.0.1. Its public `BrowserSurface` implements the application renderer port; the package's `NativeWebView` remains private. The official wrapper selects `WKWebView` on macOS, the installed WebView2 runtime on Windows, and WPE WebKit on Linux with its GTK/WebKitGTK fallback.
+`Asura.Browser` is the only project that references `Avalonia.Controls.WebView` 12.0.1. Its public `BrowserSurface` implements the application renderer port; the package's `NativeWebView` remains private. The official wrapper selects `WKWebView` on macOS, the installed WebView2 runtime on Windows, and WPE WebKit on Linux with its GTK/WebKitGTK fallback.
 
 The desktop composition root creates the native renderer view and supplies the logical `BrowserPanelSession` factory to the in-process session host. The host owns session identity, exact graph ownership, interactive attachment authority, cancellation, close, and typed dispatch. Presentation owns only the view lifetime and engine-neutral renderer reference.
 

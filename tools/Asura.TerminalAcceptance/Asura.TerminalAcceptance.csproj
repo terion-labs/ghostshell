@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Asura.TerminalAcceptance</AssemblyName>
+    <RootNamespace>Asura.TerminalAcceptance</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura.TerminalAcceptance.Tests" />
+  </ItemGroup>
+
+</Project>

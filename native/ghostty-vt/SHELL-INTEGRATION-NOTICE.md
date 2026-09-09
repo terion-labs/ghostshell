@@ -1,6 +1,6 @@
 # Ghostty shell-integration assets
 
-GhostSHELL stages the following files byte-for-byte from Ghostty commit
+Asura stages the following files byte-for-byte from Ghostty commit
 `08f039fbb3dea9c6b1cdb5ff4550666598122346`:
 
 - `bash/bash-preexec.sh`

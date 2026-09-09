@@ -9,7 +9,7 @@ and the optional loopback SOCKS projection.
 ## Process contract
 
 ```
-ghostshell-openvpn-engine --config /private/profile.ovpn --tun-fd 3 --username USER
+asura-openvpn-engine --config /private/profile.ovpn --tun-fd 3 --username USER
 ```
 
 The parent supplies a password as one newline-terminated line on stdin, then

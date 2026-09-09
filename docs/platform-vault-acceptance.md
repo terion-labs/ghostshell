@@ -1,6 +1,6 @@
-# GhostSHELL platform vault acceptance
+# Asura platform vault acceptance
 
-Native vault verification is opt in because it mutates the current user's operating-system credential store. A run uses only synthetic bytes, a unique service namespace, a fresh opaque `SecretRef`, and an isolated temporary metadata directory. It deletes the exact item in `finally`, zeroes copied byte buffers, and never prints secret material. If emergency deletion fails or the child test times out after creation, the runner emits the synthetic service/reference and preserves its isolated metadata for manual cleanup. Before launching the child test it also writes those non-secret identifiers to `recovery.json` inside the isolated `ghostshell-platform-vault-*` directory, so an abrupt runner termination cannot strand an unidentified test item even though it cannot emit a receipt. The normal repository gate reports this case as **skipped** rather than silently counting an early return as a pass.
+Native vault verification is opt in because it mutates the current user's operating-system credential store. A run uses only synthetic bytes, a unique service namespace, a fresh opaque `SecretRef`, and an isolated temporary metadata directory. It deletes the exact item in `finally`, zeroes copied byte buffers, and never prints secret material. If emergency deletion fails or the child test times out after creation, the runner emits the synthetic service/reference and preserves its isolated metadata for manual cleanup. Before launching the child test it also writes those non-secret identifiers to `recovery.json` inside the isolated `asura-platform-vault-*` directory, so an abrupt runner termination cannot strand an unidentified test item even though it cannot emit a receipt. The normal repository gate reports this case as **skipped** rather than silently counting an early return as a pass.
 
 ## Reproducible runner
 
@@ -8,15 +8,15 @@ Run from the repository root on the named desktop host whose credential store is
 
 ```sh
 ./.dotnet/dotnet run \
-  --project scripts/acceptance/platform-vault/GhostShell.PlatformVaultAcceptance.csproj \
+  --project scripts/acceptance/platform-vault/Asura.PlatformVaultAcceptance.csproj \
   -- self-test
 
 ./.dotnet/dotnet run \
-  --project scripts/acceptance/platform-vault/GhostShell.PlatformVaultAcceptance.csproj \
+  --project scripts/acceptance/platform-vault/Asura.PlatformVaultAcceptance.csproj \
   -- run --receipt artifacts/platform-vault-acceptance/current-host.json
 
 ./.dotnet/dotnet run \
-  --project scripts/acceptance/platform-vault/GhostShell.PlatformVaultAcceptance.csproj \
+  --project scripts/acceptance/platform-vault/Asura.PlatformVaultAcceptance.csproj \
   -- validate artifacts/platform-vault-acceptance/current-host.json
 ```
 

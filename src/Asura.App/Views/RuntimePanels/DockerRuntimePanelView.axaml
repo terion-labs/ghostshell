@@ -1,0 +1,737 @@
+<UserControl
+    x:Class="Asura.App.Views.RuntimePanels.DockerRuntimePanelView"
+    x:DataType="vm:DockerRuntimePanelViewModel"
+    x:Name="Root"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Asura.App.ViewModels"
+    xmlns:components="using:Asura.App.Views.Components"
+    xmlns:panelViews="using:Asura.App.Views.RuntimePanels"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:runtimePanels="using:Asura.App.Views.RuntimePanels"
+    Classes="RuntimePanelFocusTarget"
+    Focusable="True"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    IsVisible="{Binding IsVisibleInLayout}"
+    AutomationProperties.Name="Docker panel">
+  <UserControl.Resources>
+    <DataTemplate x:Key="DockerResourceItemTemplate" x:DataType="vm:DockerResourceItemViewModel">
+      <controls:ListItem
+          Classes="DockerResourceListItem"
+          ContentPadding="{DynamicResource ShellListRowPadding}"
+          Title="{Binding Title}"
+          Detail="{Binding Subtitle}"
+          Metadata="{Binding Tertiary}">
+        <controls:ListItem.Leading>
+          <controls:IdentityTile
+              TileSize="Small"
+              Tint="{Binding StatusColor}"
+              Symbol="{Binding Icon}" />
+        </controls:ListItem.Leading>
+        <controls:ListItem.Trailing>
+          <icons:SymbolIcon
+              VerticalAlignment="Center"
+              Symbol="ChevronRight"
+              FontSize="12"
+              Foreground="{DynamicResource ShellMutedBrush}" />
+        </controls:ListItem.Trailing>
+      </controls:ListItem>
+    </DataTemplate>
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <Style Selector="Button.DockerNav">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+    </Style>
+    <Style Selector="Button.DockerNav:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Button.DockerNav.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
+    <Style Selector="Button.DockerTab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinHeight" Value="{DynamicResource ShellControlMinHeight}" />
+      <Setter Property="Padding" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Button.DockerTab.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellTextBrush}" />
+    </Style>
+    <Style Selector="ListBox.DockerResources ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Sm}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBox.DockerResources">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.DockerResources ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.DockerLogs ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Focusable" Value="False" />
+    </Style>
+    <Style Selector="ListBox.DockerLogs ListBoxItem:selected">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.DockerLogMessageSegment.match">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
+    <Style Selector="Border.DockerLogMessageSegment.match TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.DockerResourceRow">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Sm}" />
+    </Style>
+    <Style Selector="Button.DockerResourceRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Button.DockerResourceRow.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+    </Style>
+    <Style Selector="controls|ListItem.DockerResourceListItem">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="controls|ListItem.DockerResourceListItem /template/ ContentPresenter#PART_Leading">
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="{controls:Inset Top=Xs}" />
+    </Style>
+    <Style Selector="controls|ListItem.DockerResourceListItem /template/ TextBlock#PART_Title">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize11}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight11}" />
+    </Style>
+    <Style Selector="controls|ListItem.DockerResourceListItem /template/ TextBlock#PART_Detail">
+      <Setter Property="FontSize" Value="{DynamicResource ShellFontSize10}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight10}" />
+    </Style>
+    <Style Selector="controls|ListItem.DockerResourceListItem /template/ TextBlock#PART_Metadata">
+      <Setter Property="FontSize" Value="{DynamicResource ShellPillFontSize}" />
+      <Setter Property="LineHeight" Value="{DynamicResource ShellLineHeight9}" />
+    </Style>
+    <Style Selector="Border.DockerStackHeaderSurface">
+      <Setter Property="Background" Value="{DynamicResource ShellSurfaceHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ShellAccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+      <Setter Property="Margin" Value="{controls:Inset Horizontal=Sm, Vertical=Xs}" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerStackToggle">
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerToolbarAction">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Background" Value="{DynamicResource ShellControlSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ShellControlBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerToolbarAction /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ShellControlSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ShellControlBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerToolbarAction:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ShellControlHoverBrush}" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerToolbarAction:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+    </Style>
+    <Style Selector="Button.IconButton.DockerToolbarAction:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ShellControlSurfaceBrush}" />
+    </Style>
+    <Style Selector="Button.DockerToolbarButton">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+    <Style Selector="Button.DockerCompactSection">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="{DynamicResource ShellInsetXs}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource ShellControlCornerRadius}" />
+    </Style>
+    <Style Selector="Button.DockerCompactSection.selected">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel Border.DockerFamilyRail">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.DockerFamilyRail">
+      <Setter Property="Width" Value="180" />
+    </Style>
+    <Style Selector="Grid.DockerResourceColumn">
+      <Setter Property="Width" Value="280" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel Grid.DockerResourceColumn">
+      <Setter Property="Width" Value="220" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView StackPanel.DockerCompactSections">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel StackPanel.DockerCompactSections">
+      <Setter Property="IsVisible" Value="True" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel StackPanel.DockerSectionHeading">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel TextBlock.DockerStatusSummary">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Grid.compactDetails TextBlock.DockerShellLabel">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.DockerDetailMenuButton">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Grid.compactDetails StackPanel.DockerDetailTabs">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Grid.compactDetails Button.DockerDetailMenuButton.hasSelection">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="MenuItem.DockerDetailMenuItem.active">
+      <Setter Property="Background" Value="{DynamicResource ShellAccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource ShellAccentBrush}" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel TextBlock.DockerSearchLabel">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="runtimePanels|DockerRuntimePanelView.narrowPanel TextBlock.DockerStackSummary">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </UserControl.Styles>
+
+  <controls:PanelChrome
+      CloseLabel="Close Docker panel"
+      CloseRequested="OnCloseClick"
+      HasAttention="{Binding HasAttention}"
+      IsActive="{Binding IsActive}"
+      IsAgentActive="{Binding IsAgentActive}"
+      IsNotificationPulseActive="{Binding IsNotificationPulseActive}"
+      IsZoomed="{Binding IsZoomed}"
+      SplitRequested="OnSplitRequested"
+      Title="{Binding Title}">
+    <controls:PanelChrome.Status>
+      <Border Classes="StatusDot" Background="{DynamicResource ShellSuccessBrush}" />
+    </controls:PanelChrome.Status>
+
+    <controls:PanelChrome.Leading>
+      <components:PanelConnectionSelectorView
+          Options="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).PanelConnectionOptions}"
+          SelectedLabel="{Binding ConnectionDisplayName}"
+          ConnectionSelected="OnConnectionSelected"
+          NewConnectionRequested="OnNewConnectionRequested" />
+    </controls:PanelChrome.Leading>
+
+    <controls:PanelChrome.Actions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+        <controls:LiveRegionTextBlock
+            VerticalAlignment="Center"
+            Classes="Muted DockerStatusSummary"
+            FontSize="{DynamicResource ShellFontSize9}"
+            LineHeight="{DynamicResource ShellLineHeight9}"
+            Text="{Binding StatusText}"
+            AutomationProperties.LiveSetting="Polite" />
+        <Button
+            Classes="IconButton"
+            Command="{Binding RefreshCommand}"
+            ToolTip.Tip="Refresh Docker resources"
+            AutomationProperties.Name="Refresh Docker resources">
+          <icons:SymbolIcon Symbol="ArrowClockwise" FontSize="14" />
+        </Button>
+      </StackPanel>
+    </controls:PanelChrome.Actions>
+
+    <controls:PanelChrome.Footer>
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+        <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" LineHeight="{DynamicResource ShellLineHeight9}" Text="{Binding EnginePlatform}" />
+        <TextBlock Grid.Column="2" Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" LineHeight="{DynamicResource ShellLineHeight9}" Text="{Binding ConnectionDisplayName, StringFormat=Target · {0}}" />
+      </Grid>
+    </controls:PanelChrome.Footer>
+
+    <Grid Name="DockerBody" ColumnDefinitions="Auto,Auto,*">
+      <!-- Resource families follow the compact left navigation of the reference,
+           while keeping Asura's own spacing, typography, and colors. -->
+      <Border Grid.Column="0" Classes="DockerFamilyRail" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
+        <Grid Margin="{controls:Inset Sm}" RowDefinitions="Auto,*,Auto" RowSpacing="{DynamicResource ShellSpaceSm}">
+          <StackPanel x:Name="DockerFamilyNavigation" Spacing="{DynamicResource ShellSpaceXs}">
+            <TextBlock Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}" Classes="Eyebrow" Text="Docker" />
+            <Button Classes="DockerNav" Classes.selected="{Binding IsContainersSection}" Click="OnContainersClick">
+              <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon VerticalAlignment="Center" Symbol="Box" FontSize="15" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Containers" />
+                <controls:StatusChip Grid.Column="2" MinWidth="28" HorizontalAlignment="Right" VerticalAlignment="Center" Shape="Rounded" Tone="Default" IsOutlined="False" Content="{Binding ContainerCount}" />
+              </Grid>
+            </Button>
+            <Button Classes="DockerNav" Classes.selected="{Binding IsImagesSection}" Click="OnImagesClick">
+              <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon VerticalAlignment="Center" Symbol="Archive" FontSize="15" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Images" />
+                <controls:StatusChip Grid.Column="2" MinWidth="28" HorizontalAlignment="Right" VerticalAlignment="Center" Shape="Rounded" Tone="Default" IsOutlined="False" Content="{Binding ImageCount}" />
+              </Grid>
+            </Button>
+            <Button Classes="DockerNav" Classes.selected="{Binding IsVolumesSection}" Click="OnVolumesClick">
+              <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon VerticalAlignment="Center" Symbol="HardDrive" FontSize="15" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Volumes" />
+                <controls:StatusChip Grid.Column="2" MinWidth="28" HorizontalAlignment="Right" VerticalAlignment="Center" Shape="Rounded" Tone="Default" IsOutlined="False" Content="{Binding VolumeCount}" />
+              </Grid>
+            </Button>
+            <Button Classes="DockerNav" Classes.selected="{Binding IsNetworksSection}" Click="OnNetworksClick">
+              <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <icons:SymbolIcon VerticalAlignment="Center" Symbol="Globe" FontSize="15" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Networks" />
+                <controls:StatusChip Grid.Column="2" MinWidth="28" HorizontalAlignment="Right" VerticalAlignment="Center" Shape="Rounded" Tone="Default" IsOutlined="False" Content="{Binding NetworkCount}" />
+              </Grid>
+            </Button>
+          </StackPanel>
+
+          <controls:SurfaceCard Grid.Row="2" Tone="Sunken" Padding="{controls:Inset Sm}">
+            <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+              <TextBlock Classes="Eyebrow" Text="Engine" />
+              <TextBlock FontWeight="SemiBold" Text="{Binding EngineVersion, StringFormat=Docker {0}}" />
+              <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" LineHeight="{DynamicResource ShellLineHeight9}" Text="{Binding RunningContainerCount, StringFormat={}{0} running}" />
+            </StackPanel>
+          </controls:SurfaceCard>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Column="1" Classes="DockerResourceColumn" RowDefinitions="Auto,*">
+        <Grid Margin="{controls:Inset Horizontal=Md, Vertical=Sm}" ColumnDefinitions="*,Auto">
+          <StackPanel Classes="DockerSectionHeading">
+            <TextBlock FontSize="{DynamicResource ShellFontSize13}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight13}" Text="{Binding Section}" />
+            <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize9}" LineHeight="{DynamicResource ShellLineHeight9}" Text="{Binding ResourceSummary}" />
+          </StackPanel>
+          <StackPanel Grid.Column="0" Classes="DockerCompactSections" HorizontalAlignment="Left" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+            <Button Classes="DockerCompactSection" Classes.selected="{Binding IsContainersSection}" Click="OnContainersClick" ToolTip.Tip="Containers" AutomationProperties.Name="Show containers">
+              <icons:SymbolIcon Symbol="Box" FontSize="14" />
+            </Button>
+            <Button Classes="DockerCompactSection" Classes.selected="{Binding IsImagesSection}" Click="OnImagesClick" ToolTip.Tip="Images" AutomationProperties.Name="Show images">
+              <icons:SymbolIcon Symbol="Archive" FontSize="14" />
+            </Button>
+            <Button Classes="DockerCompactSection" Classes.selected="{Binding IsVolumesSection}" Click="OnVolumesClick" ToolTip.Tip="Volumes" AutomationProperties.Name="Show volumes">
+              <icons:SymbolIcon Symbol="HardDrive" FontSize="14" />
+            </Button>
+            <Button Classes="DockerCompactSection" Classes.selected="{Binding IsNetworksSection}" Click="OnNetworksClick" ToolTip.Tip="Networks" AutomationProperties.Name="Show networks">
+              <icons:SymbolIcon Symbol="Globe" FontSize="14" />
+            </Button>
+          </StackPanel>
+          <ProgressBar
+              Grid.ColumnSpan="2"
+              Classes="WorkingStripe"
+              VerticalAlignment="Bottom"
+              IsVisible="{Binding ShowResourceProgress}"
+              AutomationProperties.Name="Loading Docker resources" />
+        </Grid>
+        <Grid Grid.Row="1">
+          <ScrollViewer
+              x:Name="ContainerResourceHost"
+              Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              HorizontalScrollBarVisibility="Disabled"
+              IsVisible="{Binding IsContainersSection}">
+            <ItemsControl x:Name="ContainerStackList" Classes="StretchItems" ItemsSource="{Binding ContainerStacks}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid Classes="DockerStack" RowDefinitions="Auto,Auto">
+                    <Border Classes="DockerStackHeaderSurface">
+                      <Grid Classes="DockerStackHeader" MinHeight="42" Margin="{controls:Inset Horizontal=Sm, Vertical=Xs}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceXs}">
+                        <Button Grid.Column="0" Classes="IconButton DockerStackToggle" Click="OnToggleStackClick" ToolTip.Tip="Expand or collapse stack" AutomationProperties.Name="Expand or collapse stack">
+                          <icons:SymbolIcon Symbol="{Binding ExpandIcon}" FontSize="10" />
+                        </Button>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock FontSize="{DynamicResource ShellFontSize13}" FontWeight="Bold" LineHeight="{DynamicResource ShellLineHeight13}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="Muted DockerStackSummary" FontSize="{DynamicResource ShellPillFontSize}" Text="{Binding Summary}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" IsVisible="{Binding HasLifecycleControls}">
+                          <Grid Width="24" Height="24">
+                            <Button Classes="IconButton Compact" Click="OnStartStackClick" IsVisible="{Binding !CanStop}" ToolTip.Tip="Start stack" AutomationProperties.Name="Start stack">
+                              <icons:SymbolIcon Symbol="Play" FontSize="12" />
+                            </Button>
+                            <Button Classes="IconButton Compact" Click="OnStopStackClick" IsVisible="{Binding CanStop}" ToolTip.Tip="Stop stack" AutomationProperties.Name="Stop stack">
+                              <icons:SymbolIcon Symbol="Stop" FontSize="12" />
+                            </Button>
+                          </Grid>
+                          <Button Classes="IconButton Compact" Click="OnRestartStackClick" IsVisible="{Binding CanRestart}" ToolTip.Tip="Restart running containers in stack" AutomationProperties.Name="Restart stack">
+                            <icons:SymbolIcon Symbol="ArrowClockwise" FontSize="12" />
+                          </Button>
+                          <Grid Width="24" Height="24" IsVisible="{Binding CanStop}">
+                            <Button Classes="IconButton Compact" Click="OnPauseStackClick" IsVisible="{Binding CanPause}" ToolTip.Tip="Pause stack" AutomationProperties.Name="Pause stack">
+                              <icons:SymbolIcon Symbol="Pause" FontSize="12" />
+                            </Button>
+                            <Button Classes="IconButton Compact" Click="OnResumeStackClick" IsVisible="{Binding !CanPause}" ToolTip.Tip="Resume stack" AutomationProperties.Name="Resume stack">
+                              <icons:SymbolIcon Symbol="PauseOff" FontSize="12" />
+                            </Button>
+                          </Grid>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                    <ItemsControl Grid.Row="1" Classes="StretchItems" ItemsSource="{Binding Containers}" IsVisible="{Binding IsExpanded}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button
+                              Classes="DockerResourceRow"
+                              Classes.selected="{Binding IsSelected}"
+                              Click="OnContainerResourceClick"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource DockerResourceItemTemplate}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <ListBox
+              x:Name="FlatResourceHost"
+              Classes="DockerResources"
+              IsVisible="{Binding !IsContainersSection}"
+              ItemsSource="{Binding Resources}"
+              ItemTemplate="{StaticResource DockerResourceItemTemplate}"
+              SelectedItem="{Binding SelectedResource}">
+          </ListBox>
+        </Grid>
+      </Grid>
+
+      <Border Grid.Column="2" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="1,0,0,0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid x:Name="DockerDetailHeader" Margin="{controls:Inset Horizontal=Md, Vertical=Sm}" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+          <Grid>
+            <StackPanel Classes="DockerDetailTabs" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+              <Button Classes="DockerTab" Classes.selected="{Binding IsInfoDetail}" Click="OnInfoClick" IsVisible="{Binding HasSelection}" ToolTip.Tip="Info" AutomationProperties.Name="Show container info"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="Info" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="Info" /></StackPanel></Button>
+              <Button Classes="DockerTab" Classes.selected="{Binding IsLogsDetail}" Click="OnLogsClick" IsVisible="{Binding ShowLogsTab}" ToolTip.Tip="Logs" AutomationProperties.Name="Show container logs"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="DocumentText" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="Logs" /></StackPanel></Button>
+              <Button Classes="DockerTab" Classes.selected="{Binding IsStatsDetail}" Click="OnStatsClick" IsVisible="{Binding ShowStatsTab}" ToolTip.Tip="Stats" AutomationProperties.Name="Show container statistics"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="PulseSquare" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="Stats" /></StackPanel></Button>
+              <Button Classes="DockerTab" Classes.selected="{Binding IsShellDetail}" Click="OnShellClick" IsVisible="{Binding ShowShellTab}" ToolTip.Tip="Shell" AutomationProperties.Name="Show container shell"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="WindowConsole" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="Shell" /></StackPanel></Button>
+              <Button Classes="DockerTab" Classes.selected="{Binding IsFilesDetail}" Click="OnFilesClick" IsVisible="{Binding ShowFilesTab}" ToolTip.Tip="Files" AutomationProperties.Name="Show container files"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="Folder" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="Files" /></StackPanel></Button>
+              <Button Classes="DockerTab" Classes.selected="{Binding IsJsonDetail}" Click="OnJsonClick" IsVisible="{Binding ShowJsonTab}" ToolTip.Tip="JSON" AutomationProperties.Name="Show container JSON"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}"><icons:SymbolIcon Symbol="Code" FontSize="13" /><TextBlock Classes="DockerTabLabel" Text="JSON" /></StackPanel></Button>
+            </StackPanel>
+            <Button Classes="IconButton DockerDetailMenuButton" Classes.hasSelection="{Binding HasSelection}" ToolTip.Tip="Container views" AutomationProperties.Name="Open container view menu">
+              <icons:SymbolIcon Symbol="Navigation" FontSize="15" />
+              <Button.Flyout>
+                <MenuFlyout Placement="Bottom">
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsInfoDetail}" Click="OnInfoClick" IsVisible="{Binding HasSelection}" AutomationProperties.Name="Show container info"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="Info" FontSize="13" /><TextBlock Text="Info" /></StackPanel></MenuItem>
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsLogsDetail}" Click="OnLogsClick" IsVisible="{Binding ShowLogsTab}" AutomationProperties.Name="Show container logs"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="DocumentText" FontSize="13" /><TextBlock Text="Logs" /></StackPanel></MenuItem>
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsStatsDetail}" Click="OnStatsClick" IsVisible="{Binding ShowStatsTab}" AutomationProperties.Name="Show container statistics"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="PulseSquare" FontSize="13" /><TextBlock Text="Stats" /></StackPanel></MenuItem>
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsShellDetail}" Click="OnShellClick" IsVisible="{Binding ShowShellTab}" AutomationProperties.Name="Show container shell"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="WindowConsole" FontSize="13" /><TextBlock Text="Shell" /></StackPanel></MenuItem>
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsFilesDetail}" Click="OnFilesClick" IsVisible="{Binding ShowFilesTab}" AutomationProperties.Name="Show container files"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="Folder" FontSize="13" /><TextBlock Text="Files" /></StackPanel></MenuItem>
+                  <MenuItem Classes="DockerDetailMenuItem" Classes.active="{Binding IsJsonDetail}" Click="OnJsonClick" IsVisible="{Binding ShowJsonTab}" AutomationProperties.Name="Show container JSON"><StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}"><icons:SymbolIcon Symbol="Code" FontSize="13" /><TextBlock Text="JSON" /></StackPanel></MenuItem>
+                </MenuFlyout>
+              </Button.Flyout>
+            </Button>
+          </Grid>
+          <StackPanel Grid.Column="1" Classes="DockerContainerActions" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" IsVisible="{Binding SelectedResource.IsContainer}">
+            <Grid Width="32" Height="32">
+              <Button Width="32" Height="32" Classes="IconButton DockerToolbarAction" Command="{Binding StartCommand}" IsEnabled="{Binding CanStartSelectedContainer}" IsVisible="{Binding SelectedContainerIsStopped}" ToolTip.Tip="Start container" AutomationProperties.Name="Start container">
+                <icons:SymbolIcon Symbol="Play" FontSize="14" />
+              </Button>
+              <Button Width="32" Height="32" Classes="IconButton DockerToolbarAction" Command="{Binding StopCommand}" IsEnabled="{Binding CanStopSelectedContainer}" IsVisible="{Binding SelectedContainerIsActive}" ToolTip.Tip="Stop container" AutomationProperties.Name="Stop container">
+                <icons:SymbolIcon Symbol="Stop" FontSize="14" />
+              </Button>
+            </Grid>
+            <Button Width="32" Height="32" Classes="IconButton DockerToolbarAction" Command="{Binding RestartCommand}" IsEnabled="{Binding CanRestartSelectedContainer}" ToolTip.Tip="Restart container" AutomationProperties.Name="Restart container">
+              <icons:SymbolIcon Symbol="ArrowClockwise" FontSize="14" />
+            </Button>
+            <Grid Width="32" Height="32">
+              <Button Width="32" Height="32" Classes="IconButton DockerToolbarAction" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPauseSelectedContainer}" IsVisible="{Binding !SelectedResource.IsPaused}" ToolTip.Tip="Pause container" AutomationProperties.Name="Pause container">
+                <icons:SymbolIcon Symbol="Pause" FontSize="14" />
+              </Button>
+              <Button Width="32" Height="32" Classes="IconButton DockerToolbarAction" Command="{Binding ResumeCommand}" IsEnabled="{Binding CanResumeSelectedContainer}" IsVisible="{Binding SelectedResource.IsPaused}" ToolTip.Tip="Resume container" AutomationProperties.Name="Resume container">
+                <icons:SymbolIcon Symbol="PauseOff" FontSize="14" />
+              </Button>
+            </Grid>
+            <Button Classes="PrimaryButton DockerToolbarButton" Click="OnOpenShellClick" IsEnabled="{Binding CanOpenShell}" ToolTip.Tip="Open shell in a new tab" AutomationProperties.Name="Open shell in a new tab">
+              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                <icons:SymbolIcon Symbol="Open" FontSize="14" />
+                <TextBlock Classes="DockerShellLabel" Text="Shell" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+          <ScrollViewer Margin="{controls:Inset Lg}" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding IsInfoDetail}">
+            <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+              <StackPanel IsVisible="{Binding HasSelection}">
+                <TextBlock FontSize="{DynamicResource ShellFontSize18}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight18}" Text="{Binding SelectedResource.Title}" TextWrapping="Wrap" />
+                <TextBlock Classes="Muted" Text="{Binding SelectedResource.Resource.Id}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <controls:SurfaceCard Padding="0" IsVisible="{Binding HasInspection}">
+                <ItemsControl Classes="StretchItems" ItemsSource="{Binding Inspection.Properties}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid MinHeight="38" Margin="{controls:Inset Horizontal=Md}" ColumnDefinitions="120,*" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                        <TextBlock Margin="{controls:Inset Vertical=Xs}" VerticalAlignment="Center" Classes="Muted" LineHeight="{DynamicResource ShellLineHeight12}" Text="{Binding Name}" />
+                        <TextBlock Grid.Column="1" Margin="{controls:Inset Vertical=Xs}" HorizontalAlignment="Stretch" VerticalAlignment="Center" Classes="DockerPropertyValue" LineHeight="{DynamicResource ShellLineHeight12}" Text="{Binding Value}" TextAlignment="Right" TextWrapping="Wrap" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </controls:SurfaceCard>
+            </StackPanel>
+          </ScrollViewer>
+
+          <Grid IsVisible="{Binding IsLogsDetail}" RowDefinitions="Auto,*,Auto">
+            <Border Padding="{controls:Inset Horizontal=Md, Vertical=Sm}" Background="{DynamicResource ShellSurfaceRaisedBrush}" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,1,0,1">
+              <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                <Grid>
+                  <TextBox
+                      x:Name="LogSearchBox"
+                      MinWidth="180"
+                      Padding="{controls:Inset Left=Sm, Right=Xxl}"
+                      Text="{Binding LogSearchText, Mode=TwoWay}"
+                      KeyDown="OnLogSearchKeyDown"
+                      PlaceholderText="Search all container logs"
+                      AutomationProperties.Name="Search all container logs" />
+                  <Button
+                      x:Name="LogSearchClearButton"
+                      Classes="IconButton Compact"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      Margin="{controls:Inset Right=Xs}"
+                      Click="OnClearLogSearchClick"
+                      IsVisible="{Binding IsLogSearchActive}"
+                      ToolTip.Tip="Clear log search"
+                      AutomationProperties.Name="Clear log search">
+                    <icons:SymbolIcon Symbol="Dismiss" FontSize="12" />
+                  </Button>
+                </Grid>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" VerticalAlignment="Center">
+                  <TextBlock Classes="Muted" Text="Context" VerticalAlignment="Center" />
+                  <NumericUpDown
+                      x:Name="LogSearchContextInput"
+                      Width="72"
+                      Minimum="0"
+                      Maximum="100"
+                      Increment="1"
+                      ClipValueToMinMax="True"
+                      FormatString="0"
+                      ShowButtonSpinner="False"
+                      Value="{Binding LogSearchContextInput, Mode=TwoWay}"
+                      TextAlignment="Center"
+                      AutomationProperties.Name="Search context lines" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="PrimaryButton DockerToolbarButton" Click="OnLogSearchClick" ToolTip.Tip="Search on the Docker target" AutomationProperties.Name="Search container logs">
+                  <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}">
+                    <icons:SymbolIcon Symbol="Search" FontSize="13" />
+                    <TextBlock Classes="DockerSearchLabel" Text="Search" />
+                  </StackPanel>
+                </Button>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceXs}" VerticalAlignment="Center">
+                  <TextBlock Classes="Muted" Text="Follow" VerticalAlignment="Center" />
+                  <ToggleSwitch
+                      IsChecked="{Binding FollowLogs, Mode=TwoWay}"
+                      IsEnabled="{Binding CanFollowLogs}"
+                      AutomationProperties.Name="Follow container logs" />
+                </StackPanel>
+                <Button Grid.Column="4" Classes="IconButton DockerToolbarAction" Click="OnDownloadLogsClick" IsEnabled="{Binding !IsDownloadingLogs}" ToolTip.Tip="Download complete container logs" AutomationProperties.Name="Download complete container logs">
+                  <icons:SymbolIcon Symbol="DocumentArrowDown" FontSize="14" />
+                </Button>
+              </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
+              <ListBox
+                  x:Name="LogList"
+                  Classes="DockerLogs"
+                  ItemsSource="{Binding LogRows}"
+                  SelectionMode="Single"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Grid RowDefinitions="Auto,Auto">
+                      <Border Height="1" Margin="{controls:Inset Vertical=Sm}" Background="{DynamicResource ShellBorderBrush}" IsVisible="{Binding StartsContextBlock}" />
+                      <Grid Grid.Row="1" MinHeight="22" Margin="{controls:Inset Horizontal=Md, Vertical=Xs}" ColumnDefinitions="150,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                        <TextBlock
+                            Classes="Muted"
+                            FontFamily="avares://Asura.App/Assets/Fonts/JetBrainsMono#JetBrains Mono"
+                            FontSize="{DynamicResource ShellFontSize9}"
+                            LineHeight="{DynamicResource ShellLineHeight9}"
+                            Text="{Binding DisplayTimestamp}" />
+                        <ItemsControl
+                            Grid.Column="1"
+                            ItemsSource="{Binding MessageSegments}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Classes="DockerLogMessageSegment" Classes.match="{Binding IsMatch}">
+                                <TextBlock
+                                    FontFamily="avares://Asura.App/Assets/Fonts/JetBrainsMono#JetBrains Mono"
+                                    FontSize="{DynamicResource ShellFontSize10}"
+                                    LineHeight="{DynamicResource ShellLineHeight10}"
+                                    Text="{Binding Text}" />
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </Grid>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <controls:StateOverlay
+                  Kind="Empty"
+                  Heading="No log rows"
+                  Body="This container has no logs for the current view."
+                  IsVisible="{Binding !HasLogs}" />
+            </Grid>
+
+            <Grid Grid.Row="2" MinHeight="28" Margin="{controls:Inset Horizontal=Md}" ColumnDefinitions="*,Auto">
+              <TextBlock Classes="Muted" VerticalAlignment="Center" Text="{Binding LogIssueMessage}" IsVisible="{Binding HasLogIssue}" TextTrimming="CharacterEllipsis" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}" VerticalAlignment="Center">
+                <TextBlock Classes="Muted" Text="Loading…" IsVisible="{Binding IsLoadingLogs}" />
+                <TextBlock Classes="Muted" Text="{Binding LogResultSummary}" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+
+          <ScrollViewer Margin="{controls:Inset Lg}" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding IsStatsDetail}">
+            <controls:CardGridPanel MinItemWidth="180" MaxColumns="2" Spacing="{DynamicResource ShellSpaceMd}">
+              <controls:SurfaceCard Padding="{controls:Inset Md}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock Classes="Eyebrow" Text="CPU" />
+                  <TextBlock FontSize="{DynamicResource ShellFontSize20}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight20}" Text="{Binding SelectedResource.Container.Cpu}" />
+                </StackPanel>
+              </controls:SurfaceCard>
+              <controls:SurfaceCard Padding="{controls:Inset Md}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock Classes="Eyebrow" Text="Memory" />
+                  <TextBlock FontSize="{DynamicResource ShellFontSize16}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight16}" Text="{Binding SelectedResource.Container.Memory}" TextWrapping="Wrap" />
+                </StackPanel>
+              </controls:SurfaceCard>
+              <controls:SurfaceCard Padding="{controls:Inset Md}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock Classes="Eyebrow" Text="Network I/O" />
+                  <TextBlock FontSize="{DynamicResource ShellFontSize16}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight16}" Text="{Binding SelectedResource.Container.NetworkIo}" TextWrapping="Wrap" />
+                </StackPanel>
+              </controls:SurfaceCard>
+              <controls:SurfaceCard Padding="{controls:Inset Md}">
+                <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                  <TextBlock Classes="Eyebrow" Text="Block I/O" />
+                  <TextBlock FontSize="{DynamicResource ShellFontSize16}" FontWeight="SemiBold" LineHeight="{DynamicResource ShellLineHeight16}" Text="{Binding SelectedResource.Container.BlockIo}" TextWrapping="Wrap" />
+                </StackPanel>
+              </controls:SurfaceCard>
+            </controls:CardGridPanel>
+          </ScrollViewer>
+
+          <Grid IsVisible="{Binding IsShellDetail}">
+            <ContentControl Content="{Binding InlineShell}" IsVisible="{Binding HasInlineShell}">
+              <ContentControl.ContentTemplate>
+                <DataTemplate>
+                  <components:EmbeddedTerminalSessionView TrustHostKeyRequested="OnInlineShellTrustHostKeyRequested" />
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+            <controls:StateOverlay
+                Kind="Retry"
+                Heading="{Binding ShellStateTitle}"
+                Body="{Binding ShellStateMessage}"
+                IsVisible="{Binding !HasInlineShell}">
+              <StackPanel HorizontalAlignment="Center" Spacing="{DynamicResource ShellSpaceSm}">
+                <ProgressBar Width="180" IsIndeterminate="True" IsVisible="{Binding IsResolvingShell}" />
+                <Button HorizontalAlignment="Center" Classes="SecondaryButton" Click="OnOpenInlineShellClick" Content="Retry" IsVisible="{Binding CanRetryShell}" />
+              </StackPanel>
+            </controls:StateOverlay>
+          </Grid>
+
+          <ContentControl Content="{Binding FileBrowser}" IsVisible="{Binding IsFilesDetail}">
+            <ContentControl.ContentTemplate>
+              <DataTemplate>
+                <panelViews:FileRuntimePanelView
+                    IsEmbedded="True"
+                    ActionRequested="OnEmbeddedFileActionRequested"
+                    DismissOperationIssueRequested="OnEmbeddedFileDismissOperationIssueRequested"
+                    EntryDoubleTapped="OnEmbeddedFileEntryDoubleTapped"
+                    EntrySelectionChanged="OnEmbeddedFileEntrySelectionChanged"
+                    LocationKeyDown="OnEmbeddedFileLocationKeyDown"
+                    NavigateUpRequested="OnEmbeddedFileNavigateUpRequested"
+                    RefreshRequested="OnEmbeddedFileRefreshRequested" />
+              </DataTemplate>
+            </ContentControl.ContentTemplate>
+          </ContentControl>
+
+          <components:CodePreviewView
+              Margin="{controls:Inset Md}"
+              FileName="inspection.json"
+              IsVisible="{Binding IsJsonDetail}"
+              Text="{Binding Inspection.Json}"
+              WordWrap="False" />
+
+          <controls:StateOverlay
+              Kind="Loading"
+              Heading="Reading Docker resources…"
+              Body="The same command boundary works locally and through saved SSH connections."
+              IsVisible="{Binding ShowLoading}" />
+
+          <controls:StateOverlay
+              Kind="Empty"
+              Heading="No resources in this section"
+              Body="Choose another resource type or refresh the engine."
+              IsVisible="{Binding ShowEmptyState}" />
+
+          <controls:StateOverlay
+              Kind="TerminalError"
+              Glyph="ErrorCircle"
+              Heading="{Binding IssueTitle}"
+              Body="{Binding IssueMessage}"
+              ActionLabel="Retry"
+              ActionCommand="{Binding RefreshCommand}"
+              IsVisible="{Binding HasIssue}"
+              AutomationProperties.LiveSetting="Assertive">
+            <Button
+                Name="DockerInstallGuideButton"
+                HorizontalAlignment="Left"
+                Classes="SecondaryButton"
+                Click="OnDockerInstallGuideClick"
+                Content="Install Docker"
+                IsVisible="{Binding ShowsDockerInstallHelp}"
+                AutomationProperties.Name="Open the Docker installation guide" />
+          </controls:StateOverlay>
+        </Grid>
+      </Grid>
+      </Border>
+    </Grid>
+  </controls:PanelChrome>
+</UserControl>

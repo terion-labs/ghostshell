@@ -242,82 +242,82 @@ dotnet_diagnostic.MA0143.severity = suggestion # Mutable primary-constructor sta
 
 # A zero value is deliberately invalid so default-constructed durable values
 # fail closed instead of silently becoming a real connection or panel kind.
-[src/GhostShell.Core/{ConnectionKind,DefinitionValidationCode,ScreenPanelKind}.cs]
+[src/Asura.Core/{ConnectionKind,DefinitionValidationCode,ScreenPanelKind}.cs]
 dotnet_diagnostic.CA1008.severity = none
 
 # Zero is deliberately not a valid durable value; default instances fail closed.
-[src/GhostShell.Application/{DiagnosticsArtifactKind,RecentSessionOutcome}.cs]
+[src/Asura.Application/{DiagnosticsArtifactKind,RecentSessionOutcome}.cs]
 dotnet_diagnostic.CA1008.severity = none
 
 # JsonConverterAttribute constructs this converter through reflection.
-[src/GhostShell.Core/AgentImageAttachment.cs]
+[src/Asura.Core/AgentImageAttachment.cs]
 dotnet_diagnostic.CA1812.severity = none
 
 # Provider/compaction tasks may outlive the caller by design. Dedicated
 # observer tasks retain and release their cancellation lifetimes.
-[src/GhostShell.Agent/NativeAgentSession.cs]
+[src/Asura.Agent/NativeAgentSession.cs]
 dotnet_diagnostic.CA2025.severity = none
 
 # Dispose(bool) and the finalizer are intentionally retained so sensitive
 # buffers are zeroed both deterministically and as a last-resort safeguard.
-[src/GhostShell.Application/SecretMaterial.cs]
+[src/Asura.Application/SecretMaterial.cs]
 dotnet_diagnostic.IDE0060.severity = none
 dotnet_diagnostic.MA0055.severity = none
 
 # These executables own their standard streams for the process lifetime.
-[tools/GhostShell.SqlLanguageTestWorker/Program.cs]
+[tools/Asura.SqlLanguageTestWorker/Program.cs]
 dotnet_diagnostic.CA2000.severity = none
 
 # These are deliberate process boundaries: failures are converted to stable
 # exit codes/evidence and cleanup is best-effort by contract.
-[tools/GhostShell.TerminalAcceptance/Program.cs]
+[tools/Asura.TerminalAcceptance/Program.cs]
 dotnet_diagnostic.CA1031.severity = none
 
 # These process-boundary tools convert unexpected platform failures into
 # bounded evidence and stable exit codes; sampling failures are retained.
-[tools/GhostShell.AccessibilityAcceptance/{Program,ProcessTreeTracker}.cs]
+[tools/Asura.AccessibilityAcceptance/{Program,ProcessTreeTracker}.cs]
 dotnet_diagnostic.CA1031.severity = none
 
-[tools/GhostShell.Packaging/Program.cs]
+[tools/Asura.Packaging/Program.cs]
 dotnet_diagnostic.CA1031.severity = none
 
 # The reader is already protected by a using declaration; the out parameter
 # prevents CA2000 from recognizing the lifetime. Build remains an instance API
 # because it is the packaging seam exercised by acceptance tests.
-[tools/GhostShell.Packaging/MacOsAppBundleBuilder.cs]
+[tools/Asura.Packaging/MacOsAppBundleBuilder.cs]
 dotnet_diagnostic.CA2000.severity = none
 dotnet_diagnostic.CA1822.severity = none
 
 # Unix path APIs consume UTF-8. Each string is explicitly marshalled with
 # LPUTF8Str; CA2101 only accepts the Windows-oriented Unicode recommendation.
-[tools/GhostShell.Packaging/{ExclusiveDirectoryMover,MacOsPackagePaths,RegularPackageFile}.cs]
+[tools/Asura.Packaging/{ExclusiveDirectoryMover,MacOsPackagePaths,RegularPackageFile}.cs]
 dotnet_diagnostic.CA2101.severity = none
 
-[tools/GhostShell.AccessibilityAcceptance/PackageFingerprint.cs]
+[tools/Asura.AccessibilityAcceptance/PackageFingerprint.cs]
 dotnet_diagnostic.CA2101.severity = none
 dotnet_diagnostic.VSTHRD002.severity = none # Pipe drains complete before their bounded process is inspected.
 
 # The dispatcher is an error-translation boundary. Unknown transport and
 # audit-store failures become explicit retry/audit results rather than escapes.
-[src/GhostShell.Application/TerminalStartupCommandDispatcher.cs]
+[src/Asura.Application/TerminalStartupCommandDispatcher.cs]
 dotnet_diagnostic.CA1031.severity = none
 
 # Linked cancellation ownership transfers immediately to ActiveAction and is
 # released by completion, cancellation, or broker disposal paths.
-[src/GhostShell.Application/AgentCapabilityBroker.cs]
+[src/Asura.Application/AgentCapabilityBroker.cs]
 dotnet_diagnostic.CA2000.severity = none
 
 # Avalonia controls and windows release these lifetimes from framework close,
 # detach, and unload callbacks rather than through IDisposable contracts.
-[src/GhostShell.App/**/*.cs]
+[src/Asura.App/**/*.cs]
 dotnet_diagnostic.CA1001.severity = suggestion
 
-[src/GhostShell.App/*.cs]
+[src/Asura.App/*.cs]
 dotnet_diagnostic.CA1001.severity = suggestion
 
 # Runtime panel view-model disposal is an existing framework hierarchy with
 # idempotent virtual cleanup; migrating its public shape is tracked separately.
-[src/GhostShell.App/ViewModels/*.cs]
+[src/Asura.App/ViewModels/*.cs]
 dotnet_diagnostic.CA1063.severity = suggestion
 dotnet_diagnostic.CA1816.severity = suggestion
 dotnet_diagnostic.CA2215.severity = suggestion
@@ -325,64 +325,64 @@ dotnet_diagnostic.CA2215.severity = suggestion
 # All SQL text in these reviewed boundaries is either a bundled migration,
 # trusted driver metadata, an explicitly user-authored query, or paired with
 # provider parameters/identifier quoting. CA2100 cannot distinguish those.
-[src/GhostShell.Databases/{DatabaseMetadataReader,DatabasePanelClient,DatabaseSessionProbes}.cs]
+[src/Asura.Databases/{DatabaseMetadataReader,DatabasePanelClient,DatabaseSessionProbes}.cs]
 dotnet_diagnostic.CA2100.severity = none
 
-[src/GhostShell.Infrastructure/{ApplicationEncryptionRuntime,GhostShellDatabase,SqliteAgentModelFavoriteStore,SqliteAgentSessionCheckpointStore,SqliteDefinitionBundleStore,SqliteRuntimeRecoveryStore}.cs]
+[src/Asura.Infrastructure/{ApplicationEncryptionRuntime,AsuraDatabase,SqliteAgentModelFavoriteStore,SqliteAgentSessionCheckpointStore,SqliteDefinitionBundleStore,SqliteRuntimeRecoveryStore}.cs]
 dotnet_diagnostic.CA2100.severity = none
 
 # These ABIs explicitly consume UTF-8 C strings or Objective-C selector/class
 # names; Windows-oriented Unicode marshaling would be incorrect.
-[src/GhostShell.App/Views/MacOs*.cs]
+[src/Asura.App/Views/MacOs*.cs]
 dotnet_diagnostic.CA2101.severity = none
 
-[src/GhostShell.Files/PosixLocalFileProvider.Mutations.cs]
+[src/Asura.Files/PosixLocalFileProvider.Mutations.cs]
 dotnet_diagnostic.CA2101.severity = none
 
-[src/GhostShell.Infrastructure/{Fido2SecurityKeyAuthenticator,MacOsBiometricAuthenticator,MacOsKeychainSecretVault,NativeFileKind}.cs]
+[src/Asura.Infrastructure/{Fido2SecurityKeyAuthenticator,MacOsBiometricAuthenticator,MacOsKeychainSecretVault,NativeFileKind}.cs]
 dotnet_diagnostic.CA2101.severity = none
 
-[src/GhostShell.Desktop/{LinuxX11*,X11*,MacOs*}.cs]
+[src/Asura.Desktop/{LinuxX11*,X11*,MacOs*}.cs]
 dotnet_diagnostic.CA2101.severity = none
 
 # These framework services release thread-affine native registrations during
 # deterministic host shutdown; finalizers cannot safely invoke those APIs.
-[src/GhostShell.Desktop/{X11HotkeyMessageLoop,MacOsHostAccessibilityPreferencesSource,MacOsUserNotificationCenter.Content}.cs]
+[src/Asura.Desktop/{X11HotkeyMessageLoop,MacOsHostAccessibilityPreferencesSource,MacOsUserNotificationCenter.Content}.cs]
 dotnet_diagnostic.CA2216.severity = none
 
 # OpenSSH hashed known-host entries are specified as HMAC-SHA1. The digest is
 # a keyed hostname lookup token, compared in constant time, not a signature.
-[src/GhostShell.Infrastructure/OpenSshKnownHostEntry.cs]
+[src/Asura.Infrastructure/OpenSshKnownHostEntry.cs]
 dotnet_diagnostic.CA5350.severity = none
 
-[tests/GhostShell.Infrastructure.Tests/OpenSshKnownHostTrustSourceTests.cs]
+[tests/Asura.Infrastructure.Tests/OpenSshKnownHostTrustSourceTests.cs]
 dotnet_diagnostic.CA5350.severity = none
 
 # Randomness humanizes non-security cursor and typing timing; it never creates
 # identifiers, secrets, authorization, or policy decisions.
-[src/GhostShell.Browser/CefHumanizedInput.cs]
+[src/Asura.Browser/CefHumanizedInput.cs]
 dotnet_diagnostic.CA5394.severity = none
 
 # libfido cleanup/cancel return codes cannot change the already-final cleanup
 # outcome and are intentionally best effort after primary errors are captured.
-[src/GhostShell.Infrastructure/Fido2SecurityKeyAuthenticator.cs]
+[src/Asura.Infrastructure/Fido2SecurityKeyAuthenticator.cs]
 dotnet_diagnostic.CA1806.severity = none
 
 # Detached operations are retained by explicit observer/lifetime objects that
 # dispose cancellation state only after completion.
-[src/GhostShell.Agent.Providers/AiProviderAuthenticationRuntime.cs]
+[src/Asura.Agent.Providers/AiProviderAuthenticationRuntime.cs]
 dotnet_diagnostic.CA2025.severity = none
 
-[src/GhostShell.Files/FilePanelClient.Transfers.cs]
+[src/Asura.Files/FilePanelClient.Transfers.cs]
 dotnet_diagnostic.CA2025.severity = none
 
 # Hosted-session authority tokens and gates deliberately remain valid for
 # operations already queued when shutdown begins; the host revokes them.
-[src/GhostShell.SessionHost/HostedSession.cs]
+[src/Asura.SessionHost/HostedSession.cs]
 dotnet_diagnostic.CA1001.severity = suggestion
 
 # Zero is deliberately not a redaction choice; default values fail closed.
-[src/GhostShell.App/DiagnosticsExportContracts.cs]
+[src/Asura.App/DiagnosticsExportContracts.cs]
 dotnet_diagnostic.CA1008.severity = none
 
 # Compiler- and source-generated files are reviewed at their generator boundary.

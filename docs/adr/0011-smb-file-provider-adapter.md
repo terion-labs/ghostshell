@@ -11,7 +11,7 @@ ADR 0008 requires an SMB adapter behind the same bounded `IFileProvider` contrac
 
 ### Library and platform policy
 
-The production transport uses `SMBLibrary` `1.5.7.1`, published 2026-07-13, through its .NET Standard 2.0 asset. The project is active, cross-platform, and implements SMB 1.0, 2.0, 2.1, and 3.0 clients and servers. GhostSHELL instantiates only `SMB2Client`, enables its SMB 3.1.1 negotiation path, and uses direct TCP hosting on port 445. It never offers SMB 1.0/CIFS and does not use NetBIOS port 139. The package remains a separate, unmodified managed assembly behind `SmbLibrarySessionFactory`; no SMBLibrary type appears in a public provider constructor or result.
+The production transport uses `SMBLibrary` `1.5.7.1`, published 2026-07-13, through its .NET Standard 2.0 asset. The project is active, cross-platform, and implements SMB 1.0, 2.0, 2.1, and 3.0 clients and servers. Asura instantiates only `SMB2Client`, enables its SMB 3.1.1 negotiation path, and uses direct TCP hosting on port 445. It never offers SMB 1.0/CIFS and does not use NetBIOS port 139. The package remains a separate, unmodified managed assembly behind `SmbLibrarySessionFactory`; no SMBLibrary type appears in a public provider constructor or result.
 
 As of ADR 0056, workspace-routed SMB runs in the owned connection backend and
 uses the guest default gateway. The old per-session loopback relay and private
@@ -21,15 +21,15 @@ it creates for DFS referrals inherit that same network boundary. Non-isolated
 Direct connections use an owned host child; a failed guest route never falls back
 to it. Authentication remains end-to-end between SMBLibrary and the server.
 
-SMBLibrary is licensed `LGPL-3.0-or-later`, not MIT. GhostSHELL remains MIT, while SMBLibrary keeps its own license. The macOS Native AOT distribution retains the applicable notices and publishes an exact source-and-rebuild path for the user's LGPL replacement rights. Organizations that cannot accept those obligations must obtain the vendor's commercial license or replace this private adapter. The project owner accepted the documented path for the exact macOS closure without an independent legal review; dependency drift requires a new decision.
+SMBLibrary is licensed `LGPL-3.0-or-later`, not MIT. Asura remains MIT, while SMBLibrary keeps its own license. The macOS Native AOT distribution retains the applicable notices and publishes an exact source-and-rebuild path for the user's LGPL replacement rights. Organizations that cannot accept those obligations must obtain the vendor's commercial license or replace this private adapter. The project owner accepted the documented path for the exact macOS closure without an independent legal review; dependency drift requires a new decision.
 
 ### Identity, authentication, and transport state
 
 An `SmbFileProviderOptions` stores a provider profile ID, opaque authority, bounded server and share names, remote root, response timeout, reconnect policy, and an `SmbAuthentication` choice. Password authentication stores only domain, username, and an opaque `SecretRef`. `SmbLibrarySessionFactory` resolves that reference with `FileProvider` scope and `FileProviderAuthentication` purpose only while opening a session. The copied UTF-8 byte buffer is zeroed immediately after decoding. Options and authentication objects have explicit safe formatting that omits the reference; diagnostics and mapped exceptions contain neither the password nor the reference.
 
-SMBLibrary's login API requires an immutable CLR password string and retains authentication state for the network session; .NET cannot deterministically zero that string. GhostSHELL limits exposure by creating a fresh session per provider operation and disconnecting it on completion or cancellation. Guest authentication is explicit and produces a visible warning. Integrated Windows authentication, Kerberos, credential prompting, and account discovery are not implemented in this adapter.
+SMBLibrary's login API requires an immutable CLR password string and retains authentication state for the network session; .NET cannot deterministically zero that string. Asura limits exposure by creating a fresh session per provider operation and disconnecting it on completion or cancellation. Guest authentication is explicit and produces a visible warning. Integrated Windows authentication, Kerberos, credential prompting, and account discovery are not implemented in this adapter.
 
-The library internally negotiates SMB 2.0.2 through 3.1.1, signing, maximum read/write sizes, and SMB 3 encryption when the server or share requires it. Its public client API does not expose the selected dialect, signing state, or encryption state. GhostSHELL therefore always emits `smb_transport_security_unverified` and cannot currently require or attest encryption. This is a deliberate visible limitation, not an assumption that direct TCP is encrypted.
+The library internally negotiates SMB 2.0.2 through 3.1.1, signing, maximum read/write sizes, and SMB 3 encryption when the server or share requires it. Its public client API does not expose the selected dialect, signing state, or encryption state. Asura therefore always emits `smb_transport_security_unverified` and cannot currently require or attest encryption. This is a deliberate visible limitation, not an assumption that direct TCP is encrypted.
 
 ### Paths, links, metadata, and mutations
 
@@ -41,7 +41,7 @@ File-name comparison is `ProviderDefined`: Windows shares are normally insensiti
 
 ### Streaming, cancellation, retry, and capability mapping
 
-Reads and writes stream sequentially in chunks no larger than the server-negotiated SMB maximum and the provider's 1 MiB buffer limit. A single read chunk is returned by SMBLibrary as a byte array and a single write chunk is copied into its request buffer; whole files are never buffered by GhostSHELL. Ranged reads open the file at the requested offset. There is no persisted checkpoint, identity revalidation across sessions, durable upload resume, or server-side copy, so `ResumableTransfer` and `ServerSideCopy` remain disabled.
+Reads and writes stream sequentially in chunks no larger than the server-negotiated SMB maximum and the provider's 1 MiB buffer limit. A single read chunk is returned by SMBLibrary as a byte array and a single write chunk is copied into its request buffer; whole files are never buffered by Asura. Ranged reads open the file at the requested offset. There is no persisted checkpoint, identity revalidation across sessions, durable upload resume, or server-side copy, so `ResumableTransfer` and `ServerSideCopy` remain disabled.
 
 SMBLibrary exposes synchronous command methods. The adapter runs each command off the UI thread, checks cancellation before and after every command and transfer chunk, and aborts the client socket when cancellation is requested. An in-flight library command has no per-command cancellation token; cancellation can therefore wait for socket teardown or the configured response timeout, and an operating-system TCP connect may outlive that response timeout. The default command response timeout is 15 seconds and profiles may choose one second through two minutes. Only list/stat may reconnect once with a fresh session after a classified transient failure. Streamed reads, writes, rename, transfer, and delete are never replayed.
 
@@ -63,7 +63,7 @@ The SMB provider runs the shared deterministic file-provider conformance suite o
 
 ## Consequences
 
-- macOS, Linux, and Windows can access SMB 2/3 shares without mounting them or installing a remote GhostSHELL agent.
+- macOS, Linux, and Windows can access SMB 2/3 shares without mounting them or installing a remote Asura agent.
 - Profiles retain structured server/share identity and opaque credential references; resolved passwords exist only inside the execution adapter.
 - Destructive operations use the same precondition and staging rules as other hierarchical remote providers.
 - Transport-encryption attestation, exact dialect reporting, ACL/attribute editing, integrated authentication, discovery, true server-side pagination, and resumable transfers remain explicit future work.

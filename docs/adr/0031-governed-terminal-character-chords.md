@@ -28,7 +28,7 @@ ownership and is outside the in-process desktop architecture.
 
 ## Decision
 
-GhostSHELL adds one closed governed tool, `terminal.send_chord`, backed by a
+Asura adds one closed governed tool, `terminal.send_chord`, backed by a
 typed `TerminalCharacterChord` application contract.
 
 ### Closed model input

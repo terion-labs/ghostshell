@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace GhostShell.PlatformVaultAcceptance;
+namespace Asura.PlatformVaultAcceptance;
 
 internal static class SelfTests
 {
@@ -80,9 +80,9 @@ internal static class SelfTests
         receipt["cleanup"]!["state"] = "RECOVERY_REQUIRED";
         receipt["cleanup"]!["recovery"] = JsonSerializer.SerializeToNode(
             new RecoveryReceipt(
-                "app.ghostshell.integration-tests.0123456789abcdef0123456789abcdef",
+                "sh.asura.integration-tests.0123456789abcdef0123456789abcdef",
                 "abcdef0123456789abcdef0123456789",
-                "/tmp/ghostshell-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
+                "/tmp/asura-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
             JsonOptions);
         Assert(ReceiptValidator.Validate(receipt.ToJsonString()).Count == 0);
     }
@@ -98,9 +98,9 @@ internal static class SelfTests
         receipt["cleanup"]!["state"] = "RECOVERY_REQUIRED";
         receipt["cleanup"]!["recovery"] = JsonSerializer.SerializeToNode(
             new RecoveryReceipt(
-                "app.ghostshell.integration-tests.0123456789abcdef0123456789abcdef",
+                "sh.asura.integration-tests.0123456789abcdef0123456789abcdef",
                 "abcdef0123456789abcdef0123456789",
-                "/tmp/ghostshell-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
+                "/tmp/asura-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
             JsonOptions);
         Assert(ReceiptValidator.Validate(receipt.ToJsonString()).Count == 0);
     }
@@ -142,9 +142,9 @@ internal static class SelfTests
         var receipt = JsonNode.Parse(ValidPassJson())!.AsObject();
         receipt["cleanup"]!["recovery"] = JsonSerializer.SerializeToNode(
             new RecoveryReceipt(
-                "app.ghostshell.integration-tests.0123456789abcdef0123456789abcdef",
+                "sh.asura.integration-tests.0123456789abcdef0123456789abcdef",
                 "abcdef0123456789abcdef0123456789",
-                "/tmp/ghostshell-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
+                "/tmp/asura-platform-vault-0123456789abcdef0123456789abcdef/metadata"),
             JsonOptions);
         Assert(ReceiptValidator.Validate(receipt.ToJsonString()).Count != 0);
     }
@@ -170,7 +170,7 @@ internal static class SelfTests
         receipt["cleanup"]!["state"] = "RECOVERY_REQUIRED";
         receipt["cleanup"]!["recovery"] = JsonSerializer.SerializeToNode(
             new RecoveryReceipt(
-                "app.ghostshell.integration-tests.0123456789abcdef0123456789abcdef",
+                "sh.asura.integration-tests.0123456789abcdef0123456789abcdef",
                 "abcdef0123456789abcdef0123456789",
                 "/tmp/not-the-isolated-run/metadata"),
             JsonOptions);
@@ -194,7 +194,7 @@ internal static class SelfTests
 
     private static AcceptanceRunner.TrxResult ReadTrx(string content)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"ghostshell-platform-vault-trx-{Guid.NewGuid():N}.trx");
+        var path = Path.Combine(Path.GetTempPath(), $"asura-platform-vault-trx-{Guid.NewGuid():N}.trx");
         try
         {
             File.WriteAllText(path, content);
@@ -251,10 +251,10 @@ internal static class SelfTests
     private static IsolatedVaultRun SyntheticRun() => new(
         "0123456789abcdef0123456789abcdef",
         "abcdef0123456789abcdef0123456789",
-        "/tmp/ghostshell-platform-vault-test",
-        "/tmp/ghostshell-platform-vault-test/metadata",
-        "/tmp/ghostshell-platform-vault-test/state.json",
-        "app.ghostshell.integration-tests.0123456789abcdef0123456789abcdef");
+        "/tmp/asura-platform-vault-test",
+        "/tmp/asura-platform-vault-test/metadata",
+        "/tmp/asura-platform-vault-test/state.json",
+        "sh.asura.integration-tests.0123456789abcdef0123456789abcdef");
 
     private static string ValidPassJson()
     {

@@ -2,7 +2,7 @@
 
 The optional visual review tool renders the real Avalonia views with deterministic,
 synthetic fixtures. It is offline, reads no user profile or secret store, opens
-no terminal or browser service, and labels its window `GhostSHELL · design QA`.
+no terminal or browser service, and labels its window `Asura · design QA`.
 `./scripts/check-design-qa.sh` compares the implementation with the committed
 reference at the identical route, content, interaction, viewport, and appearance.
 
@@ -66,7 +66,7 @@ against one packaged build:
 1. With a fresh profile and no workspace accent override, the current macOS
    accent appears in the main workspace, Quick Terminal, settings/dialogs, and
    newly opened sibling windows.
-2. Changing the macOS accent while GhostShell is running updates those surfaces
+2. Changing the macOS accent while Asura is running updates those surfaces
    without replacing terminal session identities or losing scrollback.
 3. An explicit saved application accent overrides macOS; selecting Follow host
    restores live macOS tracking.

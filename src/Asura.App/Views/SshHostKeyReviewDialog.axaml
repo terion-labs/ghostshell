@@ -1,0 +1,39 @@
+<Window
+    x:Class="Asura.App.Views.SshHostKeyReviewDialog"
+    x:DataType="views:SshHostKeyReviewPrompt"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:Asura.App.Views"
+    xmlns:controls="using:Asura.App.Controls"
+    Title="Review SSH host key"
+    Width="590"
+    SizeToContent="Height"
+    CanResize="False"
+    ShowInTaskbar="False"
+    WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,Auto" Margin="{controls:Inset Xl}" RowSpacing="{DynamicResource ShellSpaceLg}">
+    <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+      <TextBlock FontSize="{DynamicResource ShellFontSize17}" FontWeight="SemiBold" Text="{Binding Title}" />
+      <TextBlock Classes="Muted" Text="{Binding Explanation}" TextWrapping="Wrap" />
+      <controls:SurfaceCard>
+        <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
+          <TextBlock Classes="Eyebrow" Text="Endpoint" />
+          <TextBlock FontSize="{DynamicResource ShellFontSize11}" Text="{Binding Review.Endpoint}" />
+          <TextBlock Classes="Eyebrow" Text="Presented host key" />
+          <TextBlock FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Review.Presented.Algorithm}" />
+          <TextBlock FontSize="{DynamicResource ShellFontSize10}" Text="{Binding Review.Presented.Sha256Fingerprint}" TextWrapping="Wrap" />
+          <TextBlock Classes="Eyebrow" Text="Previously trusted" IsVisible="{Binding Review.RequiresExplicitReplacement}" />
+          <TextBlock FontSize="{DynamicResource ShellFontSize10}" Foreground="{DynamicResource ShellDangerBrush}" Text="{Binding Review.Trusted.Sha256Fingerprint}" TextWrapping="Wrap" IsVisible="{Binding Review.RequiresExplicitReplacement}" />
+        </StackPanel>
+      </controls:SurfaceCard>
+      <controls:Callout
+          Tone="Warning"
+          Glyph="Warning"
+          Text="Verify this fingerprint through a separate trusted channel before continuing. Asura will never replace a changed key automatically." />
+    </StackPanel>
+    <StackPanel Grid.Row="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+      <Button MinWidth="88" Classes="SecondaryButton" Click="OnCancelClick" Content="Cancel" IsCancel="True" />
+      <Button MinWidth="112" Classes="PrimaryButton" Click="OnConfirmClick" Content="{Binding ConfirmLabel}" IsDefault="True" />
+    </StackPanel>
+  </Grid>
+</Window>

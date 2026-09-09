@@ -8,14 +8,14 @@
   [ADR 0017](0017-native-dotnet-agent-runtime.md),
   [ADR 0020](0020-native-webview-wrapper-and-first-browser-capability-slice.md)
 - Tracks:
-  [UI Foundation and Design Coherence issue 1](https://github.com/terion-name/ghostshel/issues/1)
+  [UI Foundation and Design Coherence issue 1](https://github.com/terion-name/asura/issues/1)
 - Terminal-view update: [ADR 0040](0040-cross-platform-libghostty-vt-terminal.md)
   supersedes the native-terminal-child constraint in this record. The staged
   presentation ownership decision remains accepted.
 
 ## Context
 
-GhostSHELL has strong project boundaries and extensive behavioral coverage, but
+Asura has strong project boundaries and extensive behavioral coverage, but
 its Avalonia presentation has accumulated most desktop orchestration in three
 files:
 
@@ -32,7 +32,7 @@ recovery invariants. A replacement shell must preserve the working system and
 must not duplicate those invariants in presentation code. A big-bang rewrite
 would make behavior drift difficult to distinguish from structural movement.
 
-The existing project boundary remains correct: `GhostShell.App` may depend on
+The existing project boundary remains correct: `Asura.App` may depend on
 Core and Application contracts, and desktop composition owns concrete terminal,
 browser, vault, host, and platform implementations. The problem is ownership
 inside the presentation project, not a missing physical project.
@@ -44,7 +44,7 @@ mockup as permission to remove working behavior.
 
 ## Decision
 
-GhostSHELL will decompose the presentation incrementally. Every structural
+Asura will decompose the presentation incrementally. Every structural
 slice preserves behavior, keeps the full repository gate green, and lands
 independently before any behavior or design change that depends on it.
 
@@ -139,7 +139,7 @@ application command. Code-behind is acceptable for Avalonia event translation,
 native-view mechanics, and focus handoff; it is not an application use-case
 layer.
 
-`GhostShell.Desktop` remains the composition root. Quick Terminal remains a
+`Asura.Desktop` remains the composition root. Quick Terminal remains a
 sibling top-level with its independent graphless identity; its eventual
 decomposition consumes narrow runtime and navigation collaborators instead of
 sharing the full root view model.
@@ -181,7 +181,7 @@ state in the existing proven order.
 
 ### Dependency rules
 
-`GhostShell.App` continues to depend on Core values and Application ports or
+`Asura.App` continues to depend on Core values and Application ports or
 projections only. Vendor engines, provider SDKs, SQLite, OS vault
 implementations, and process transports remain private to their existing
 projects.

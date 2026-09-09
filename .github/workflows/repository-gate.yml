@@ -50,7 +50,7 @@ jobs:
         if: steps.terminal-cache.outputs.cache-hit != 'true'
         shell: bash
         run: >-
-          GHOSTSHELL_DOTNET="$(command -v dotnet)"
+          ASURA_DOTNET="$(command -v dotnet)"
           ./scripts/build-libghostty-vt.sh --rid osx-arm64
       - name: Upload terminal font assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -100,7 +100,7 @@ jobs:
           path: native/artifacts/osx-arm64
       - name: Restore the locked dependency graph
         shell: bash
-        run: dotnet restore GhostShell.slnx --locked-mode
+        run: dotnet restore Asura.slnx --locked-mode
       - name: Run test section
         shell: bash
         run: ./scripts/test-section.sh "${{ matrix.section }}" --no-restore
@@ -141,10 +141,10 @@ jobs:
           path: native/artifacts/osx-arm64
       - name: Restore the locked dependency graph
         shell: bash
-        run: dotnet restore GhostShell.slnx --locked-mode
+        run: dotnet restore Asura.slnx --locked-mode
       - name: Build the complete solution
         shell: bash
-        run: dotnet build GhostShell.slnx --configuration Release --no-restore --nologo
+        run: dotnet build Asura.slnx --configuration Release --no-restore --nologo
 
   format-and-boundaries:
     name: Format and architecture boundaries
@@ -195,12 +195,12 @@ jobs:
           mkdir -p .dotnet
           ln -s "$(command -v dotnet)" .dotnet/dotnet
       - name: Restore the locked dependency graph
-        run: dotnet restore GhostShell.slnx --locked-mode
+        run: dotnet restore Asura.slnx --locked-mode
       - name: Scan NuGet dependency graph
         run: |
           mkdir -p artifacts/dependency-scan
           dotnet package list \
-            --project GhostShell.slnx \
+            --project Asura.slnx \
             --vulnerable \
             --include-transitive \
             --format json \
@@ -208,9 +208,9 @@ jobs:
             --no-restore > artifacts/dependency-scan/nuget-audit.json
       - name: Scan Maven dependency graph
         run: |
-          scanner_directory="${RUNNER_TEMP}/ghostshell-grype"
+          scanner_directory="${RUNNER_TEMP}/asura-grype"
           scanner_archive="${scanner_directory}/grype_0.117.0_darwin_arm64.tar.gz"
-          locked_maven_repository="${RUNNER_TEMP}/ghostshell-locked-maven"
+          locked_maven_repository="${RUNNER_TEMP}/asura-locked-maven"
           mkdir -p "${scanner_directory}" artifacts/dependency-scan/grype-cache
           ./scripts/prepare-locked-maven-repository.py \
             native/sql-language-worker/maven-content-lock.json \
@@ -251,7 +251,7 @@ jobs:
       - name: Assemble closed dependency evidence
         run: >-
           ./.dotnet/dotnet run
-          --project tools/GhostShell.SecurityCampaign/GhostShell.SecurityCampaign.csproj
+          --project tools/Asura.SecurityCampaign/Asura.SecurityCampaign.csproj
           --configuration Release
           --
           assemble-dependency-evidence
@@ -289,24 +289,24 @@ jobs:
       - name: Seal exact tagged source before any release build
         shell: bash
         run: |
-          sealed_source="${RUNNER_TEMP}/ghostshell-sealed-source"
-          campaign_tool="${RUNNER_TEMP}/ghostshell-security-campaign-tool"
-          campaign_build="${RUNNER_TEMP}/ghostshell-security-campaign-build"
-          source_seal="${RUNNER_TEMP}/ghostshell-source-seal"
-          release_artifacts="${RUNNER_TEMP}/ghostshell-release-artifacts"
-          build_artifacts="${RUNNER_TEMP}/ghostshell-release-build"
-          nuget_packages="${RUNNER_TEMP}/ghostshell-release-nuget"
+          sealed_source="${RUNNER_TEMP}/asura-sealed-source"
+          campaign_tool="${RUNNER_TEMP}/asura-security-campaign-tool"
+          campaign_build="${RUNNER_TEMP}/asura-security-campaign-build"
+          source_seal="${RUNNER_TEMP}/asura-source-seal"
+          release_artifacts="${RUNNER_TEMP}/asura-release-artifacts"
+          build_artifacts="${RUNNER_TEMP}/asura-release-build"
+          nuget_packages="${RUNNER_TEMP}/asura-release-nuget"
           source_tree="$(git rev-parse "${GITHUB_SHA}^{tree}")"
           test ! -e "${sealed_source}"
           mkdir -p "${sealed_source}" "${campaign_tool}" "${release_artifacts}" \
             "${build_artifacts}" "${nuget_packages}"
           git archive --format=tar "${GITHUB_SHA}" | tar -xf - -C "${sealed_source}"
           NUGET_PACKAGES="${nuget_packages}" dotnet publish \
-            "${sealed_source}/tools/GhostShell.SecurityCampaign/GhostShell.SecurityCampaign.csproj" \
+            "${sealed_source}/tools/Asura.SecurityCampaign/Asura.SecurityCampaign.csproj" \
             --configuration Release \
             --artifacts-path "${campaign_build}" \
             --output "${campaign_tool}"
-          dotnet "${campaign_tool}/GhostShell.SecurityCampaign.dll" \
+          dotnet "${campaign_tool}/Asura.SecurityCampaign.dll" \
             seal-release-source \
             --repository "${GITHUB_WORKSPACE}" \
             --source-root "${sealed_source}" \
@@ -322,15 +322,15 @@ jobs:
             "${sealed_source}/.deps" \
             "${sealed_source}/native/artifacts"
           {
-            echo "GHOSTSHELL_RELEASE_SOURCE_ROOT=${sealed_source}"
-            echo "GHOSTSHELL_RELEASE_SOURCE_SEAL=${source_seal}"
-            echo "GHOSTSHELL_SECURITY_CAMPAIGN_TOOL=${campaign_tool}/GhostShell.SecurityCampaign.dll"
-            echo "GHOSTSHELL_RELEASE_ARTIFACTS=${release_artifacts}"
-            echo "GHOSTSHELL_BUILD_ARTIFACTS_ROOT=${build_artifacts}"
-            echo "GHOSTSHELL_DOTNET=$(command -v dotnet)"
-            echo "GHOSTSHELL_RELEASE_SOURCE_COMMIT=${GITHUB_SHA}"
-            echo "GHOSTSHELL_RELEASE_SOURCE_TREE=${source_tree}"
-            echo "GHOSTSHELL_RELEASE_SOURCE_TAG=${GITHUB_REF_NAME}"
+            echo "ASURA_RELEASE_SOURCE_ROOT=${sealed_source}"
+            echo "ASURA_RELEASE_SOURCE_SEAL=${source_seal}"
+            echo "ASURA_SECURITY_CAMPAIGN_TOOL=${campaign_tool}/Asura.SecurityCampaign.dll"
+            echo "ASURA_RELEASE_ARTIFACTS=${release_artifacts}"
+            echo "ASURA_BUILD_ARTIFACTS_ROOT=${build_artifacts}"
+            echo "ASURA_DOTNET=$(command -v dotnet)"
+            echo "ASURA_RELEASE_SOURCE_COMMIT=${GITHUB_SHA}"
+            echo "ASURA_RELEASE_SOURCE_TREE=${source_tree}"
+            echo "ASURA_RELEASE_SOURCE_TAG=${GITHUB_REF_NAME}"
             echo "NUGET_PACKAGES=${nuget_packages}"
           } >> "${GITHUB_ENV}"
       - name: Set up the pinned Native Image toolchain
@@ -343,7 +343,7 @@ jobs:
       - name: Set up the Native AOT linker
         run: |
           brew install lld@22
-          echo "GHOSTSHELL_NATIVE_AOT_LINKER=$(brew --prefix lld@22)/bin/ld64.lld" >> "${GITHUB_ENV}"
+          echo "ASURA_NATIVE_AOT_LINKER=$(brew --prefix lld@22)/bin/ld64.lld" >> "${GITHUB_ENV}"
       - name: Resolve release version
         id: release
         shell: bash
@@ -361,13 +361,13 @@ jobs:
       - name: Verify macOS legal publication clearance
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          cd "${GHOSTSHELL_RELEASE_SOURCE_ROOT}"
+          cd "${ASURA_RELEASE_SOURCE_ROOT}"
           python3 ./scripts/package-workspace-backend.py verify-release-clearance .
-          GHOSTSHELL_BACKEND_ARCH=x64 python3 ./scripts/package-workspace-backend.py verify-release-clearance .
+          ASURA_BACKEND_ARCH=x64 python3 ./scripts/package-workspace-backend.py verify-release-clearance .
           dotnet run \
-            --project tools/GhostShell.Packaging/GhostShell.Packaging.csproj \
+            --project tools/Asura.Packaging/Asura.Packaging.csproj \
             --configuration Release \
-            --artifacts-path "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT}/legal" \
+            --artifacts-path "${ASURA_BUILD_ARTIFACTS_ROOT}/legal" \
             -- \
             macos-release-legal \
             --record licenses/macos-release-legal.json \
@@ -400,27 +400,27 @@ jobs:
           echo "DEVELOPER_DIR=${developer_directory}" >> "${GITHUB_ENV}"
       - name: Build verified native payloads
         run: |
-          cd "${GHOSTSHELL_RELEASE_SOURCE_ROOT}"
+          cd "${ASURA_RELEASE_SOURCE_ROOT}"
           ./scripts/build-libghostty-vt.sh --rid osx-arm64
           ./scripts/build-workspace-network-gateway.sh --rid osx-arm64
           ./scripts/build-workspace-runtime.sh
           ./scripts/build-workspace-backend.sh
-          GHOSTSHELL_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh
+          ASURA_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh
           ./scripts/build-openvpn-engine.sh
           ./scripts/build-macos-connection-engines.sh
           ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
-          ./scripts/build-cef-runtime.sh --rid osx-arm64 --dotnet "${GHOSTSHELL_DOTNET}"
+          ./scripts/build-cef-runtime.sh --rid osx-arm64 --dotnet "${ASURA_DOTNET}"
       - name: Download campaign test results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: test-results-*
-          path: ${{ runner.temp }}/ghostshell-release-artifacts/campaign-test-results
+          path: ${{ runner.temp }}/asura-release-artifacts/campaign-test-results
           merge-multiple: true
       - name: Download dependency security evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dependency-security-evidence
-          path: ${{ runner.temp }}/ghostshell-release-artifacts/dependency-security-evidence
+          path: ${{ runner.temp }}/asura-release-artifacts/dependency-security-evidence
       - name: Configure Developer ID signing and notarization
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
@@ -443,12 +443,12 @@ jobs:
             fi
           done
 
-          signing_directory="${RUNNER_TEMP}/ghostshell-signing"
+          signing_directory="${RUNNER_TEMP}/asura-signing"
           signing_keychain="${signing_directory}/release.keychain-db"
           signing_password="$(uuidgen)"
           mkdir -p "${signing_directory}"
-          echo "GHOSTSHELL_SIGNING_DIRECTORY=${signing_directory}" >> "${GITHUB_ENV}"
-          echo "GHOSTSHELL_SIGNING_KEYCHAIN=${signing_keychain}" >> "${GITHUB_ENV}"
+          echo "ASURA_SIGNING_DIRECTORY=${signing_directory}" >> "${GITHUB_ENV}"
+          echo "ASURA_SIGNING_KEYCHAIN=${signing_keychain}" >> "${GITHUB_ENV}"
           printf '%s' "${APPLE_CERTIFICATE_P12_BASE64}" \
             | /usr/bin/base64 -D > "${signing_directory}/certificate.p12"
           printf '%s' "${APPLE_NOTARY_PRIVATE_KEY_BASE64}" \
@@ -471,107 +471,107 @@ jobs:
           security find-identity -v -p codesigning "${signing_keychain}" \
             | grep -Fq "${APPLE_DEVELOPER_ID_APPLICATION}"
 
-          xcrun notarytool store-credentials ghostshell-ci \
+          xcrun notarytool store-credentials asura-ci \
             --keychain "${signing_keychain}" \
             --key "${signing_directory}/AuthKey.p8" \
             --key-id "${APPLE_NOTARY_KEY_ID}" \
             --issuer "${APPLE_NOTARY_ISSUER_ID}"
-          echo "GHOSTSHELL_SIGNING_IDENTITY=${APPLE_DEVELOPER_ID_APPLICATION}" >> "${GITHUB_ENV}"
+          echo "ASURA_SIGNING_IDENTITY=${APPLE_DEVELOPER_ID_APPLICATION}" >> "${GITHUB_ENV}"
       - name: Assemble update-aware macOS release
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          cd "${GHOSTSHELL_RELEASE_SOURCE_ROOT}"
+          cd "${ASURA_RELEASE_SOURCE_ROOT}"
           ./scripts/package-macos-github-release.sh \
             --version "${RELEASE_VERSION}" \
             --build-version "${GITHUB_RUN_NUMBER}" \
-            --sign-identity "${GHOSTSHELL_SIGNING_IDENTITY}" \
-            --notary-profile ghostshell-ci \
-            --keychain "${GHOSTSHELL_SIGNING_KEYCHAIN}" \
-            --release-evidence-dir "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence" \
-            --source-seal "${GHOSTSHELL_RELEASE_SOURCE_SEAL}" \
-            --security-campaign-tool "${GHOSTSHELL_SECURITY_CAMPAIGN_TOOL}" \
-            --build-artifacts-root "${GHOSTSHELL_BUILD_ARTIFACTS_ROOT}/package" \
-            --output-dir "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution"
+            --sign-identity "${ASURA_SIGNING_IDENTITY}" \
+            --notary-profile asura-ci \
+            --keychain "${ASURA_SIGNING_KEYCHAIN}" \
+            --release-evidence-dir "${ASURA_RELEASE_ARTIFACTS}/release-evidence" \
+            --source-seal "${ASURA_RELEASE_SOURCE_SEAL}" \
+            --security-campaign-tool "${ASURA_SECURITY_CAMPAIGN_TOOL}" \
+            --build-artifacts-root "${ASURA_BUILD_ARTIFACTS_ROOT}/package" \
+            --output-dir "${ASURA_RELEASE_ARTIFACTS}/distribution"
       - name: Verify update-aware release candidate
         run: |
-          archive="GhostShell-macOS-arm64.zip"
-          distribution="${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution"
-          verification_directory="${RUNNER_TEMP}/ghostshell-archive"
+          archive="Asura-macOS-arm64.zip"
+          distribution="${ASURA_RELEASE_ARTIFACTS}/distribution"
+          verification_directory="${RUNNER_TEMP}/asura-archive"
           test ! -e "${verification_directory}"
           mkdir -p "${verification_directory}"
           ditto -x -k "${distribution}/${archive}" "${verification_directory}"
           codesign --verify --deep --strict --verbose=2 \
-            "${verification_directory}/GhostShell.app"
-          xcrun stapler validate "${verification_directory}/GhostShell.app"
+            "${verification_directory}/Asura.app"
+          xcrun stapler validate "${verification_directory}/Asura.app"
           spctl --assess --type execute --verbose=2 \
-            "${verification_directory}/GhostShell.app"
+            "${verification_directory}/Asura.app"
           test "$(plutil -extract CFBundleShortVersionString raw \
-            "${verification_directory}/GhostShell.app/Contents/Info.plist")" \
+            "${verification_directory}/Asura.app/Contents/Info.plist")" \
             = "${{ steps.release.outputs.version }}"
-          info_plist="${verification_directory}/GhostShell.app/Contents/Info.plist"
-          test "$(plutil -extract CFBundleDisplayName raw "${info_plist}")" = "GhostSHELL"
-          test "$(plutil -extract CFBundleExecutable raw "${info_plist}")" = "GhostShell"
-          test "$(plutil -extract CFBundleIdentifier raw "${info_plist}")" = "app.ghostshell"
-          test "$(plutil -extract CFBundleIconName raw "${info_plist}")" = "GhostShell"
-          assets_car="${verification_directory}/GhostShell.app/Contents/Resources/Assets.car"
+          info_plist="${verification_directory}/Asura.app/Contents/Info.plist"
+          test "$(plutil -extract CFBundleDisplayName raw "${info_plist}")" = "Asura"
+          test "$(plutil -extract CFBundleExecutable raw "${info_plist}")" = "Asura"
+          test "$(plutil -extract CFBundleIdentifier raw "${info_plist}")" = "sh.asura"
+          test "$(plutil -extract CFBundleIconName raw "${info_plist}")" = "Asura"
+          assets_car="${verification_directory}/Asura.app/Contents/Resources/Assets.car"
           test -f "${assets_car}"
           assetutil --info "${assets_car}" > "${verification_directory}/Assets.info.json"
           grep -Fq '"AssetType" : "Icon Image"' "${verification_directory}/Assets.info.json"
-          grep -Fq '"Name" : "GhostShell"' "${verification_directory}/Assets.info.json"
-          test -x "${verification_directory}/GhostShell.app/Contents/MacOS/UpdateMac"
-          test "$(readlink "${verification_directory}/GhostShell.app/Contents/MacOS/sq.version")" \
+          grep -Fq '"Name" : "Asura"' "${verification_directory}/Assets.info.json"
+          test -x "${verification_directory}/Asura.app/Contents/MacOS/UpdateMac"
+          test "$(readlink "${verification_directory}/Asura.app/Contents/MacOS/sq.version")" \
             = "../Resources/sq.version"
-          echo "GHOSTSHELL_EXTRACTED_APP=${verification_directory}/GhostShell.app" >> "${GITHUB_ENV}"
+          echo "ASURA_EXTRACTED_APP=${verification_directory}/Asura.app" >> "${GITHUB_ENV}"
       - name: Assemble exact release-candidate evidence
         run: |
-          dotnet "${GHOSTSHELL_SECURITY_CAMPAIGN_TOOL}" \
+          dotnet "${ASURA_SECURITY_CAMPAIGN_TOOL}" \
             assemble-release-evidence \
-            --repository "${GHOSTSHELL_RELEASE_SOURCE_ROOT}" \
+            --repository "${ASURA_RELEASE_SOURCE_ROOT}" \
             --source-commit "${GITHUB_SHA}" \
-            --source-tree "${GHOSTSHELL_RELEASE_SOURCE_TREE}" \
+            --source-tree "${ASURA_RELEASE_SOURCE_TREE}" \
             --tag "${GITHUB_REF_NAME}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --source-seal "${GHOSTSHELL_RELEASE_SOURCE_SEAL}" \
-            --build-identity "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
-            --archive "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip" \
-            --package "${GHOSTSHELL_EXTRACTED_APP}" \
-            --test-results "${GHOSTSHELL_RELEASE_ARTIFACTS}/campaign-test-results" \
-            --dependency-evidence "${GHOSTSHELL_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
-            --notarization-evidence "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence/notarization.json" \
-            --output "${GHOSTSHELL_RELEASE_ARTIFACTS}/security-campaign"
+            --source-seal "${ASURA_RELEASE_SOURCE_SEAL}" \
+            --build-identity "${ASURA_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
+            --archive "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-macOS-arm64.zip" \
+            --package "${ASURA_EXTRACTED_APP}" \
+            --test-results "${ASURA_RELEASE_ARTIFACTS}/campaign-test-results" \
+            --dependency-evidence "${ASURA_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
+            --notarization-evidence "${ASURA_RELEASE_ARTIFACTS}/release-evidence/notarization.json" \
+            --output "${ASURA_RELEASE_ARTIFACTS}/security-campaign"
       - name: Revalidate exact release-candidate evidence
         run: |
-          dotnet "${GHOSTSHELL_SECURITY_CAMPAIGN_TOOL}" \
+          dotnet "${ASURA_SECURITY_CAMPAIGN_TOOL}" \
             validate-release-evidence \
-            --repository "${GHOSTSHELL_RELEASE_SOURCE_ROOT}" \
+            --repository "${ASURA_RELEASE_SOURCE_ROOT}" \
             --source-commit "${GITHUB_SHA}" \
-            --source-tree "${GHOSTSHELL_RELEASE_SOURCE_TREE}" \
+            --source-tree "${ASURA_RELEASE_SOURCE_TREE}" \
             --tag "${GITHUB_REF_NAME}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --source-seal "${GHOSTSHELL_RELEASE_SOURCE_SEAL}" \
-            --build-identity "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
-            --archive "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip" \
-            --package "${GHOSTSHELL_EXTRACTED_APP}" \
-            --test-results "${GHOSTSHELL_RELEASE_ARTIFACTS}/campaign-test-results" \
-            --dependency-evidence "${GHOSTSHELL_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
-            --notarization-evidence "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence/notarization.json" \
-            --evidence "${GHOSTSHELL_RELEASE_ARTIFACTS}/security-campaign"
+            --source-seal "${ASURA_RELEASE_SOURCE_SEAL}" \
+            --build-identity "${ASURA_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
+            --archive "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-macOS-arm64.zip" \
+            --package "${ASURA_EXTRACTED_APP}" \
+            --test-results "${ASURA_RELEASE_ARTIFACTS}/campaign-test-results" \
+            --dependency-evidence "${ASURA_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
+            --notarization-evidence "${ASURA_RELEASE_ARTIFACTS}/release-evidence/notarization.json" \
+            --evidence "${ASURA_RELEASE_ARTIFACTS}/security-campaign"
       - name: Upload macOS release candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ghostshell-macos-arm64
+          name: asura-macos-arm64
           path: |
-            ${{ runner.temp }}/ghostshell-release-artifacts/distribution/*
-            ${{ runner.temp }}/ghostshell-release-artifacts/security-campaign/receipt.json
-            ${{ runner.temp }}/ghostshell-release-artifacts/security-campaign/receipt.json.sha256
-            ${{ runner.temp }}/ghostshell-release-artifacts/security-campaign/receipt.md
-            ${{ runner.temp }}/ghostshell-release-artifacts/dependency-security-evidence/evidence.json
-            ${{ runner.temp }}/ghostshell-release-artifacts/release-evidence/release-build-identity.json
-            ${{ runner.temp }}/ghostshell-source-seal/source-seal.json
-            ${{ runner.temp }}/ghostshell-source-seal/source-seal.json.sha256
+            ${{ runner.temp }}/asura-release-artifacts/distribution/*
+            ${{ runner.temp }}/asura-release-artifacts/security-campaign/receipt.json
+            ${{ runner.temp }}/asura-release-artifacts/security-campaign/receipt.json.sha256
+            ${{ runner.temp }}/asura-release-artifacts/security-campaign/receipt.md
+            ${{ runner.temp }}/asura-release-artifacts/dependency-security-evidence/evidence.json
+            ${{ runner.temp }}/asura-release-artifacts/release-evidence/release-build-identity.json
+            ${{ runner.temp }}/asura-source-seal/source-seal.json
+            ${{ runner.temp }}/asura-source-seal/source-seal.json.sha256
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -582,39 +582,39 @@ jobs:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-boot-arm64.zip.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-arm64.tar.gz" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-arm64.tar.gz.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-x64.tar.gz" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-workspace-backend-x64.tar.gz.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-networking-sources.zip.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/GhostShell-macOS-arm64.zip.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/app.ghostshell-${RELEASE_VERSION}-osx-arm64-stable-full.nupkg" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/app.ghostshell-${RELEASE_VERSION}-osx-arm64-stable-full.nupkg.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/releases.osx-arm64-stable.json" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/distribution/releases.osx-arm64-stable.json.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/security-campaign/receipt.json" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/security-campaign/receipt.json.sha256" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/security-campaign/receipt.md" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
-            "${GHOSTSHELL_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
-            "${GHOSTSHELL_RELEASE_SOURCE_SEAL}/source-seal.json" \
-            "${GHOSTSHELL_RELEASE_SOURCE_SEAL}/source-seal.json.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-boot-arm64.zip" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-boot-arm64.zip.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-backend-arm64.tar.gz" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-backend-arm64.tar.gz.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-backend-x64.tar.gz" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-workspace-backend-x64.tar.gz.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-networking-sources.zip" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-networking-sources.zip.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-macOS-arm64.zip" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/Asura-macOS-arm64.zip.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/sh.asura-${RELEASE_VERSION}-osx-arm64-stable-full.nupkg" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/sh.asura-${RELEASE_VERSION}-osx-arm64-stable-full.nupkg.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/releases.osx-arm64-stable.json" \
+            "${ASURA_RELEASE_ARTIFACTS}/distribution/releases.osx-arm64-stable.json.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/security-campaign/receipt.json" \
+            "${ASURA_RELEASE_ARTIFACTS}/security-campaign/receipt.json.sha256" \
+            "${ASURA_RELEASE_ARTIFACTS}/security-campaign/receipt.md" \
+            "${ASURA_RELEASE_ARTIFACTS}/dependency-security-evidence/evidence.json" \
+            "${ASURA_RELEASE_ARTIFACTS}/release-evidence/release-build-identity.json" \
+            "${ASURA_RELEASE_SOURCE_SEAL}/source-seal.json" \
+            "${ASURA_RELEASE_SOURCE_SEAL}/source-seal.json.sha256" \
             --fail-on-no-commits \
             --generate-notes \
             --latest \
             --notes "Developer ID signed and notarized Apple Silicon build. The portable archive and Velopack full package/feed contain the same verified app, including the signed updater metadata required for user-initiated in-app updates." \
-            --title "GhostShell ${RELEASE_VERSION} early macOS release" \
+            --title "Asura ${RELEASE_VERSION} early macOS release" \
             --verify-tag
       - name: Remove temporary signing credentials
         if: always()
         run: |
-          if [[ -n "${GHOSTSHELL_SIGNING_KEYCHAIN:-}" && -f "${GHOSTSHELL_SIGNING_KEYCHAIN}" ]]; then
-            security delete-keychain "${GHOSTSHELL_SIGNING_KEYCHAIN}"
+          if [[ -n "${ASURA_SIGNING_KEYCHAIN:-}" && -f "${ASURA_SIGNING_KEYCHAIN}" ]]; then
+            security delete-keychain "${ASURA_SIGNING_KEYCHAIN}"
           fi
-          if [[ -n "${GHOSTSHELL_SIGNING_DIRECTORY:-}" && -d "${GHOSTSHELL_SIGNING_DIRECTORY}" ]]; then
-            rm -rf -- "${GHOSTSHELL_SIGNING_DIRECTORY}"
+          if [[ -n "${ASURA_SIGNING_DIRECTORY:-}" && -d "${ASURA_SIGNING_DIRECTORY}" ]]; then
+            rm -rf -- "${ASURA_SIGNING_DIRECTORY}"
           fi

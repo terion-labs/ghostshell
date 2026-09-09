@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policyKind": "ghostshell-macos-arm64-soak-policy",
+  "policyKind": "asura-macos-arm64-soak-policy",
   "policyVersion": "release-v1",
   "referenceConfigurationId": "macos-arm64-reference-v1",
   "ratifiedAtUtc": "2026-08-25T00:00:00+00:00",

@@ -1,11 +1,11 @@
 # CEF runtime packaging
 
-GhostSHELL owns the bundled Chromium runtime as a native, security-sensitive
+Asura owns the bundled Chromium runtime as a native, security-sensitive
 dependency. It does not restore the missing `runtime.<rid>.Exclr8Cef` packages
 referenced by the upstream 0.8.0 NuGet package. A pinned Exclr8CEF source
-snapshot is built with the reviewed GhostSHELL patch-set manifest instead.
-`GHOSTSHELL-SOURCE-SNAPSHOT.sha256` binds every vendored source file and rejects
-missing, extra, linked, or changed paths; `GHOSTSHELL-PATCHSET.sha256`
+snapshot is built with the reviewed Asura patch-set manifest instead.
+`ASURA-SOURCE-SNAPSHOT.sha256` binds every vendored source file and rejects
+missing, extra, linked, or changed paths; `ASURA-PATCHSET.sha256`
 separately identifies the 19 reviewed differences from the pinned upstream
 commit. Both manifest digests are mandatory catalog and receipt identities.
 
@@ -17,11 +17,11 @@ The reviewed catalog covers exactly:
 |---|---|---|
 | `osx-arm64` | `macosarm64` | Framework and five helpers in `Contents/Frameworks` |
 | `osx-x64` | `macosx64` | Framework and five helpers in `Contents/Frameworks` |
-| `win-x64` | `windows64` | Flat beside `GhostShell.exe`, with `locales/` |
-| `linux-x64` | `linux64` | Flat beside `GhostShell`, with `locales/` |
-| `linux-arm64` | `linuxarm64` | Flat beside `GhostShell`, with `locales/` |
+| `win-x64` | `windows64` | Flat beside `Asura.exe`, with `locales/` |
+| `linux-x64` | `linux64` | Flat beside `Asura`, with `locales/` |
+| `linux-arm64` | `linuxarm64` | Flat beside `Asura`, with `locales/` |
 
-`win-arm64` is intentionally not in the GhostSHELL target matrix or the
+`win-arm64` is intentionally not in the Asura target matrix or the
 binding's runtime graph.
 
 The catalog's archive SHA-1 values and filenames are checked against CEF's
@@ -43,8 +43,8 @@ Every root retains:
 
 The receipt binds the reviewed catalog bytes, CEF version, RID/platform,
 official archive SHA-1, locally computed archive SHA-256, upstream binding
-commit, patched shim identity `0.8.0-ghostshell.6`, complete vendored-source
-snapshot SHA-256, GhostSHELL patch-set SHA-256, successful build result, and
+commit, patched shim identity `0.8.0-asura.6`, complete vendored-source
+snapshot SHA-256, Asura patch-set SHA-256, successful build result, and
 every staged regular file's normalized path, length, SHA-256, and Unix mode
 where applicable. Symlinks, special files,
 unknown RIDs, incomplete locale/resource sets, missing helpers, mismatched
@@ -54,7 +54,7 @@ byte fail closed.
 Create or validate a receipt directly with the packaging tool:
 
 ```sh
-dotnet run --project tools/GhostShell.Packaging -- \
+dotnet run --project tools/Asura.Packaging -- \
   cef-runtime-receipt \
   --runtime-root /tmp/staged-cef \
   --catalog licenses/cef-runtime-components.json \
@@ -65,7 +65,7 @@ dotnet run --project tools/GhostShell.Packaging -- \
   --source-snapshot-sha256 <64-lowercase-hex> \
   --output /tmp/staged-cef/cef-runtime-build-receipt.json
 
-dotnet run --project tools/GhostShell.Packaging -- \
+dotnet run --project tools/Asura.Packaging -- \
   cef-runtime-validate \
   --runtime-root native/artifacts/linux-x64/cef \
   --catalog licenses/cef-runtime-components.json \
@@ -92,11 +92,11 @@ sandbox is not an acceptable release fallback.
 macOS requires a materialized, link-free framework plus exactly these nested
 bundles:
 
-- `GhostSHELL Helper.app`;
-- `GhostSHELL Helper (Alerts).app`;
-- `GhostSHELL Helper (GPU).app`;
-- `GhostSHELL Helper (Plugin).app`;
-- `GhostSHELL Helper (Renderer).app`.
+- `Asura Helper.app`;
+- `Asura Helper (Alerts).app`;
+- `Asura Helper (GPU).app`;
+- `Asura Helper (Plugin).app`;
+- `Asura Helper (Renderer).app`.
 
 The main helper is passed to CEF as `browser_subprocess_path`; CEF derives the
 process-specific variants from that name. Their executable names and bundle

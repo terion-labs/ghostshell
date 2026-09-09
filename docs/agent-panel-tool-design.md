@@ -11,7 +11,7 @@
 
 ## Executive decision
 
-GhostSHELL exposes a capability-negotiated tool contribution for each
+Asura exposes a capability-negotiated tool contribution for each
 hosted panel session. Tools operate the panel's typed engine boundary, not its
 Avalonia view model and not the desktop's global pointer or keyboard.
 
@@ -63,7 +63,7 @@ and raw input are power features. See
 [`references/cmux/docs/agent-browser-port-spec.md`](../references/cmux/docs/agent-browser-port-spec.md).
 
 The useful lesson is the workflow and command coverage, not its trust model.
-GhostSHELL must continue to use exact hosted sessions, trusted risk labels,
+Asura must continue to use exact hosted sessions, trusted risk labels,
 one-action authorizations, origin containment, bounded results, and no
 transparent mutation retry.
 
@@ -356,8 +356,8 @@ justifies their privacy and destructive semantics.
   for example
   `{"sequence":7,"state":"streaming","ttl_ms":5000}`. A cooperating app
   refreshes the TTL while the state remains active. Local PTY processes receive
-  `GHOSTSHELL_INTERACTIVE_STATE_PROTOCOL=terminal.interactive-state.v1` so an
-  app-neutral launcher can discover support without identifying GhostSHELL or
+  `ASURA_INTERACTIVE_STATE_PROTOCOL=terminal.interactive-state.v1` so an
+  app-neutral launcher can discover support without identifying Asura or
   any particular interactive application.
 - App-specific adapters may translate a structured local event stream into
   that protocol. Without an explicit protocol, screen-text recognition can be
@@ -372,7 +372,7 @@ justifies their privacy and destructive semantics.
 The private CEF automation adapter sits behind `IEmbeddedBrowserView`. Public
 Application contracts remain typed and engine-neutral. The adapter uses CEF's
 CDP domain clients and OSR input APIs; it does not expose `CefBrowser`, backend
-node IDs, JavaScript object IDs, or raw JSON outside `GhostShell.Browser`.
+node IDs, JavaScript object IDs, or raw JSON outside `Asura.Browser`.
 
 The semantic snapshot is built primarily from Chromium's Accessibility tree.
 Interactive nodes receive random opaque refs. Internally a lease may contain
@@ -496,7 +496,7 @@ File Viewer is a separately authorized cross-panel file copy or move.
 - Input dispatch is the commit point. Post-dispatch ambiguity is never retried.
 - Popups map to a future graph-owned Browser panel creation request; they do
   not silently create an untracked CEF target.
-- GhostSHELL Browser panels are already the product's browser tabs. CEF target
+- Asura Browser panels are already the product's browser tabs. CEF target
   management must not invent a second hidden tab model. Use workspace/panel
   tools for tab topology.
 
@@ -675,8 +675,8 @@ until typed clients support them with bounded progress and exact receipts.
 
 An opt-in live-daemon integration test exercises the production command client
 and hosted session against one random disposable container. Set
-`GHOSTSHELL_RUN_DOCKER_LIFECYCLE_INTEGRATION=1` and
-`GHOSTSHELL_DOCKER_LIFECYCLE_IMAGE` to an already-present image with a
+`ASURA_RUN_DOCKER_LIFECYCLE_INTEGRATION=1` and
+`ASURA_DOCKER_LIFECYCLE_IMAGE` to an already-present image with a
 long-running default command. The test uses `--pull=never`, validates the exact
 full container ID, start/restart/pause/resume/stop/remove state transitions and
 governed receipts, and cleans only its generated container in `finally`.

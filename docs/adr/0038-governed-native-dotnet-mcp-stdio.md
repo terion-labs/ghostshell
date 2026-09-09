@@ -23,10 +23,10 @@ can expose changing tool names and schemas, emit hostile metadata and results,
 receive explicitly delegated secrets, and complete a side effect after its
 client loses the response. Passing SDK tool objects directly to the provider
 would bypass
-GhostSHELL's target, policy, approval, one-action authorization, cancellation,
+Asura's target, policy, approval, one-action authorization, cancellation,
 and audit boundaries.
 
-Pi remains a behavior reference only. GhostSHELL's provider loop and MCP
+Pi remains a behavior reference only. Asura's provider loop and MCP
 client stay native .NET; the application does not launch a Node.js process for
 its agent runtime. A user may separately configure any MCP server executable,
 including one implemented with Node.js, but that optional server is an
@@ -38,40 +38,40 @@ server-to-client feature, or draft revision.
 
 ## Decision
 
-GhostSHELL adds a native .NET MCP client boundary for stdio and Streamable HTTP
-in `GhostShell.Mcp`. It pins the official `ModelContextProtocol.Core` SDK at
+Asura adds a native .NET MCP client boundary for stdio and Streamable HTTP
+in `Asura.Mcp`. It pins the official `ModelContextProtocol.Core` SDK at
 `1.3.0`. The SDK's `McpClient`, initialization options, protocol DTOs, typed
 tool requests, JSON-RPC correlation, and lifecycle handling remain private to
-that project. Application and runtime callers receive only closed GhostSHELL
+that project. Application and runtime callers receive only closed Asura
 contracts. `AgentMcpSessionHost` is the only exported production type from the
 assembly; the low-level client, launch object, plaintext transport secrets,
 transport options, and result DTOs are internal and cannot form a second
 in-process execution path.
 
-GhostSHELL deliberately does not use the SDK's built-in
+Asura deliberately does not use the SDK's built-in
 `StdioClientTransport`. In `1.3.0` that transport starts from the complete
 ambient process environment and then augments it, and it does not expose the
 pre-deserialization message, JSON-shape, and retained-stderr bounds required by
-this boundary. `GhostShell.Mcp` instead supplies an internal bounded
+this boundary. `Asura.Mcp` instead supplies an internal bounded
 `IClientTransport`/`ITransport` implementation to the official `McpClient`.
 The stdio transport owns direct process launch, environment clearing, newline
 framing, strict UTF-8 and JSON-shape validation, bounded stderr draining, and
 bounded shutdown. This is a transport adapter, not a second MCP lifecycle or
 tools implementation.
 
-For remote servers, GhostSHELL wraps the SDK's `HttpClientTransport` in forced
+For remote servers, Asura wraps the SDK's `HttpClientTransport` in forced
 `StreamableHttp` mode. The wrapper rejects redirects, permits requests only to
 the configured endpoint's scheme/IDN-host/effective-port origin, disables
 ambient cookies, proxy use, and automatic decompression, bounds response
 headers and response-body bytes, and validates bounded printable
 `MCP-Session-Id` response headers before SDK parsing. The SDK owns the POST
 JSON/SSE exchange, `Accept: application/json, text/event-stream`,
-`MCP-Session-Id`, and `MCP-Protocol-Version` protocol behavior. GhostSHELL does
+`MCP-Session-Id`, and `MCP-Protocol-Version` protocol behavior. Asura does
 not support the separate SSE transport.
 
 The first slice supports the stable MCP `2025-11-25` lifecycle:
 
-- direct subprocess launch without a shell, through the GhostSHELL transport;
+- direct subprocess launch without a shell, through the Asura transport;
 - bounded newline-delimited UTF-8 JSON-RPC over stdin/stdout, parsed into the
   official SDK protocol types;
 - Streamable HTTP POST exchanges returning either JSON or SSE, with exact
@@ -112,7 +112,7 @@ bounded RFC 9110 tokens and cannot replace Host, content negotiation, framing,
 origin, session, protocol-version, or SSE-resume headers owned by the transport.
 Imported MCP profiles are always quarantined as disabled and require the same
 explicit trust review as a newly enabled profile. The child process starts
-with environment inheritance disabled. GhostSHELL supplies only the profile's
+with environment inheritance disabled. Asura supplies only the profile's
 explicitly configured, vault-resolved values; a server that needs `PATH`,
 `DOTNET_ROOT`, or another runtime variable must declare its corresponding
 secret reference. Each reference is resolved at process creation with
@@ -190,7 +190,7 @@ the configured exact allowlist, and freezes:
 - an exact bounded object input schema with annotation fields removed, plus its
   digest; and
 - a 64-character, provider-compatible, run-local opaque alias owned by
-  GhostSHELL.
+  Asura.
 
 Only the aliases and schemas in that frozen manifest enter the provider tool
 set. The raw protocol tool name exists only in the private session binding used
@@ -297,7 +297,7 @@ to, the remote machine behind a terminal.
 
 Remote sessions are not durably resumed. The SDK is configured for two bounded
 SSE reconnection attempts within a live Streamable HTTP session, but
-GhostSHELL never retries a dispatched `tools/call` and never treats a
+Asura never retries a dispatched `tools/call` and never treats a
 reconnection as proof that a failed call did not commit.
 
 Per-server scope selection, durable session resume, resources, prompts,
@@ -320,11 +320,11 @@ approval from the absence of the desktop UI.
   uncertain-session closure trade convenience for deterministic authority and
   no accidental replay.
 - The official SDK owns MCP initialization, JSON-RPC correlation, lifecycle,
-  and typed tool message semantics. GhostSHELL's SDK transport owns subprocess
+  and typed tool message semantics. Asura's SDK transport owns subprocess
   launch, framing bounds, environment isolation, stderr draining and cleanup;
   its HTTP boundary owns origin/redirect/header/response limits while the SDK
   owns Streamable HTTP message and SSE semantics;
-  the rest of GhostSHELL owns configuration trust, secret resolution, manifest
+  the rest of Asura owns configuration trust, secret resolution, manifest
   pinning, policy, authorization, audit, and result projection.
 
 ## Alternatives rejected

@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace ghostshell {
+namespace asura {
 
 // The builder only describes routes to the parent. Core reads and writes raw IP
 // datagrams on the supplied Unix socket; no OS TUN, route, or resolver is changed.

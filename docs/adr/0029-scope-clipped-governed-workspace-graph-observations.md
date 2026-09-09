@@ -27,7 +27,7 @@ reject legitimate Workspace evolution or accept unsafe action retargeting.
 
 ## Decision
 
-GhostSHELL exposes three closed read-only tools through the native governed
+Asura exposes three closed read-only tools through the native governed
 runtime:
 
 - `workspace.inspect`;

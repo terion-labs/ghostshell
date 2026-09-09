@@ -26,7 +26,7 @@ const panels = [
     label: 'Terminal',
     icon: 'terminal',
     shot: 'workspace.webp',
-    alt: 'GhostSHELL window with an SSH terminal running systemctl next to a browser panel',
+    alt: 'Asura window with an SSH terminal running systemctl next to a browser panel',
     text: 'The Ghostty engine, rendered natively. Inline images, clickable links, scrollback that knows where each command starts and ends. A local shell and a remote SSH session are the same panel with a different host.',
   },
   {
@@ -34,7 +34,7 @@ const panels = [
     label: 'Browser',
     icon: 'globe',
     shot: 'workspace-browser.webp',
-    alt: 'Embedded Chromium browser panel inside a GhostSHELL workspace',
+    alt: 'Embedded Chromium browser panel inside an Asura workspace',
     text: 'Embedded Chromium as an ordinary panel. Bind it to an SSH connection and it routes through that tunnel, so remote localhost ports and private subnet addresses load like local pages.',
   },
   {

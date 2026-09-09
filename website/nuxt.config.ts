@@ -1,6 +1,5 @@
-// GitHub Pages serves this repo under /ghostshel/. Set NUXT_APP_BASE_URL=/
-// when publishing to a custom domain or a user/org root site.
-const baseURL = process.env.NUXT_APP_BASE_URL ?? '/ghostshel/'
+// asura.sh serves the site at the domain root. Override for preview subpaths.
+const baseURL = process.env.NUXT_APP_BASE_URL ?? '/'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',

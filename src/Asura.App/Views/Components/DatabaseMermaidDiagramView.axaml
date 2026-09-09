@@ -1,0 +1,102 @@
+<UserControl
+    x:Class="Asura.App.Views.Components.DatabaseMermaidDiagramView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Asura.App.Controls"
+    xmlns:icons="using:FluentIcons.Avalonia"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Svg.Controls.Skia.Avalonia"
+    Focusable="True"
+    HorizontalContentAlignment="Stretch"
+    VerticalContentAlignment="Stretch"
+    AutomationProperties.Name="Rendered Mermaid ER diagram">
+  <Grid>
+    <Border
+        x:Name="Viewport"
+        Background="Transparent"
+        ClipToBounds="True"
+        Cursor="Hand">
+      <svg:Svg
+          x:Name="DiagramSurface"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          Stretch="Uniform"
+          StretchDirection="Both" />
+    </Border>
+
+    <!-- The header's blurred backdrop: whatever the compositor has already
+         painted beneath the band, blurred live each frame. This replaced a
+         hand-kept mirror of the diagram that had to follow every pan and
+         zoom; the live surface follows them for free because it samples the
+         drawn result rather than the source picture. -->
+    <controls:BlurBehindSurface
+        x:Name="HeaderBlurBand"
+        VerticalAlignment="Top"
+        BlurRadius="16"
+        IsHitTestVisible="False"
+        IsVisible="False" />
+
+    <Border
+        x:Name="Toolbar"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        Margin="{controls:Inset Md}"
+        Background="{DynamicResource ShellVeilBrush}"
+        BorderBrush="{DynamicResource ShellBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource ShellControlCornerRadius}"
+        ClipToBounds="True">
+      <StackPanel
+          Margin="{controls:Inset Horizontal=Xs, Vertical=Xs}"
+          Orientation="Horizontal"
+          Spacing="{DynamicResource ShellSpaceXs}">
+        <Button
+            Classes="IconButton"
+            Click="OnZoomOutClick"
+            ToolTip.Tip="Zoom out"
+            AutomationProperties.Name="Zoom out of the ER diagram">
+          <icons:SymbolIcon Symbol="ZoomOut" FontSize="12" />
+        </Button>
+        <Button
+            x:Name="ZoomLevelButton"
+            Classes="Subtle"
+            MinWidth="48"
+            Padding="{controls:Inset Horizontal=Xs, Vertical=None}"
+            Click="OnFitClick"
+            ToolTip.Tip="Fit the whole diagram"
+            AutomationProperties.Name="Fit the ER diagram">
+          <TextBlock
+              x:Name="ZoomLevelText"
+              Classes="Muted"
+              FontSize="{DynamicResource ShellFontSize10}"
+              Text="Fit" />
+        </Button>
+        <Button
+            Classes="IconButton"
+            Click="OnZoomInClick"
+            ToolTip.Tip="Zoom in"
+            AutomationProperties.Name="Zoom into the ER diagram">
+            <icons:SymbolIcon Symbol="ZoomIn" FontSize="12" />
+          </Button>
+      </StackPanel>
+    </Border>
+
+    <Border
+        x:Name="ErrorCard"
+        MaxWidth="620"
+        Margin="{controls:Inset Md}"
+        Padding="{controls:Inset Md}"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Background="{DynamicResource ShellDangerSoftBrush}"
+        BorderBrush="{DynamicResource ShellDangerBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="{DynamicResource ShellControlCornerRadius}"
+        IsVisible="False">
+      <controls:LiveRegionTextBlock
+          x:Name="ErrorText"
+          Foreground="{DynamicResource ShellDangerBrush}"
+          TextWrapping="Wrap"
+          AutomationProperties.LiveSetting="Assertive" />
+    </Border>
+  </Grid>
+</UserControl>

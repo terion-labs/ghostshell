@@ -3,10 +3,10 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repository_dir="$(cd -- "${script_dir}/.." && pwd -P)"
-dotnet="${GHOSTSHELL_DOTNET:-${repository_dir}/.dotnet/dotnet}"
+dotnet="${ASURA_DOTNET:-${repository_dir}/.dotnet/dotnet}"
 package_macos="${repository_dir}/scripts/package-macos.sh"
 record_signing_evidence="${repository_dir}/scripts/record-macos-signing-evidence.sh"
-entitlements="${repository_dir}/tools/GhostShell.Packaging/MacOS/Chromium.entitlements"
+entitlements="${repository_dir}/tools/Asura.Packaging/MacOS/Chromium.entitlements"
 version=""
 build_version=""
 output_dir=""
@@ -19,7 +19,7 @@ source_seal=""
 security_campaign_tool=""
 build_artifacts_root=""
 channel="osx-arm64-stable"
-package_id="app.ghostshell"
+package_id="sh.asura"
 
 usage() {
     cat >&2 <<'EOF'
@@ -37,7 +37,7 @@ Usage:
      --security-campaign-tool <outside-source-tool-dll> \
      --build-artifacts-root <outside-source-directory>]
 
-Builds the pre-signed GhostShell.app, lets pinned Velopack add its updater and
+Builds the pre-signed Asura.app, lets pinned Velopack add its updater and
 metadata before the final outer signature and notarization, and emits the
 portable ZIP, full update package, channel feed, and checksums. With no signing
 arguments it creates an ad-hoc signed local release for end-to-end validation.
@@ -134,7 +134,7 @@ if [[ -n "${sign_identity}" && -z "${notary_profile}" \
 fi
 if [[ -n "${notary_profile}" ]]; then
     python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
-    GHOSTSHELL_BACKEND_ARCH=x64 python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
+    ASURA_BACKEND_ARCH=x64 python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
 fi
 if [[ -n "${notary_profile}" \
     && ( -z "${release_evidence_dir}" \
@@ -171,7 +171,7 @@ if [[ ! -d "${output_parent}" || -L "${output_parent}" || -e "${output_dir}" ]];
 fi
 output_parent="$(cd -- "${output_parent}" && pwd -P)"
 output_dir="${output_parent}/$(basename "${output_dir}")"
-working_directory="$(mktemp -d "${output_parent}/.ghostshell-github-release.XXXXXX")"
+working_directory="$(mktemp -d "${output_parent}/.asura-github-release.XXXXXX")"
 private_app_parent="${working_directory}/pre-velopack"
 velopack_release="${working_directory}/release"
 verification_directory="${working_directory}/verification"
@@ -194,7 +194,7 @@ package_arguments=(
     --version "${version}"
     --build-version "${build_version}"
     --runtime-identifier osx-arm64
-    --output "${private_app_parent}/GhostShell.app"
+    --output "${private_app_parent}/Asura.app"
 )
 dotnet_artifacts_arguments=()
 if [[ -n "${cef_runtime_root}" ]]; then
@@ -222,10 +222,10 @@ vpk_arguments=(
     --runtime osx-arm64
     --packId "${package_id}"
     --packVersion "${version}"
-    --packDir "${private_app_parent}/GhostShell.app"
-    --packAuthors "GhostSHELL contributors"
-    --packTitle GhostShell
-    --mainExe GhostShell
+    --packDir "${private_app_parent}/Asura.app"
+    --packAuthors "Asura contributors"
+    --packTitle Asura
+    --mainExe Asura
     --delta None
     --noInst true
     --signAppIdentity "${vpk_identity}"
@@ -243,7 +243,7 @@ fi
 portable_name="${package_id}-${channel}-Portable.zip"
 package_name="${package_id}-${version}-${channel}-full.nupkg"
 feed_name="releases.${channel}.json"
-archive_name="GhostShell-macOS-arm64.zip"
+archive_name="Asura-macOS-arm64.zip"
 for expected in "${portable_name}" "${package_name}" "${feed_name}"; do
     if [[ ! -f "${velopack_release}/${expected}" || -L "${velopack_release}/${expected}" ]]; then
         echo "Velopack did not produce ${expected}." >&2
@@ -254,7 +254,7 @@ done
 /usr/bin/ditto -x -k \
     "${velopack_release}/${portable_name}" \
     "${verification_directory}"
-verified_app="${verification_directory}/GhostShell.app"
+verified_app="${verification_directory}/Asura.app"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "${verified_app}"
 if [[ -n "${notary_profile}" ]]; then
     /usr/bin/xcrun stapler validate "${verified_app}"
@@ -262,7 +262,7 @@ if [[ -n "${notary_profile}" ]]; then
 fi
 
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.Packaging/GhostShell.Packaging.csproj" \
+    --project "${repository_dir}/tools/Asura.Packaging/Asura.Packaging.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     --no-restore \
@@ -274,7 +274,7 @@ fi
     --version "${version}" \
     --channel "${channel}"
 "${dotnet}" run \
-    --project "${repository_dir}/tools/GhostShell.AccessibilityAcceptance/GhostShell.AccessibilityAcceptance.csproj" \
+    --project "${repository_dir}/tools/Asura.AccessibilityAcceptance/Asura.AccessibilityAcceptance.csproj" \
     --configuration Release \
     ${dotnet_artifacts_arguments[@]+"${dotnet_artifacts_arguments[@]}"} \
     --no-restore \

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Asura.Core\Asura.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Asura.Application.Tests" />
+    <InternalsVisibleTo Include="Asura.Infrastructure.Tests" />
+    <InternalsVisibleTo Include="Asura.SessionHost.Tests" />
+    <InternalsVisibleTo Include="Asura.Terminal" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>

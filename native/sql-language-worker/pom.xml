@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>dev.ghostshell</groupId>
-  <artifactId>ghostshell-sql-language-worker</artifactId>
+  <groupId>sh.asura</groupId>
+  <artifactId>asura-sql-language-worker</artifactId>
   <version>1.0.0</version>
-  <name>GhostShell SQL language worker</name>
+  <name>Asura SQL language worker</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <ghostshell.build.directory>${project.basedir}/target</ghostshell.build.directory>
+    <asura.build.directory>${project.basedir}/target</asura.build.directory>
     <maven.compiler.release>21</maven.compiler.release>
     <calcite.version>1.42.0</calcite.version>
     <jackson.version>2.18.9</jackson.version>
@@ -90,8 +90,8 @@
   </dependencies>
 
   <build>
-    <directory>${ghostshell.build.directory}</directory>
-    <finalName>ghostshell-sql-language-worker</finalName>
+    <directory>${asura.build.directory}</directory>
+    <finalName>asura-sql-language-worker</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -148,7 +148,7 @@
               </filters>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>dev.ghostshell.sql.Main</mainClass>
+                  <mainClass>sh.asura.sql.Main</mainClass>
                 </transformer>
               </transformers>
             </configuration>
