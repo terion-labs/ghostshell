@@ -66,7 +66,7 @@ const faqs = [
     a: 'macOS, Windows, and Linux from one codebase. The current early release ships a signed, notarized macOS Apple-silicon build; on other platforms you build from source.',
   },
   {
-    q: 'Does a workspace VPN affect the rest of my Mac?',
+    q: 'Does a workspace VPN affect the rest of my machine?',
     a: 'No. Each connection runs as a userspace tunnel inside GhostSHELL: no system VPN profile, no kernel extension, no change to your routing table. Only the workspaces that chose that connection send traffic through it, and different workspaces can be on different tunnels at the same time. Your browser, mail, and everything else on the machine keep using the network as before.',
   },
   {
@@ -182,7 +182,7 @@ const open = ref<number | null>(0)
                 network. Give it its own tunnel too: the corporate
                 AnyConnect, your homelab's Tailscale, a WireGuard peer.
                 Everything inside goes out that way and nothing else on
-                your Mac does. macOS today; Linux and Windows planned.
+                your machine does. macOS today; Linux and Windows planned.
               </p>
             </div>
           </div>
@@ -414,7 +414,7 @@ const open = ref<number | null>(0)
               The client workspace on the corporate AnyConnect. The homelab
               workspace on your Tailscale. The personal one wrapped in
               WireGuard. All at the same time, in one app, and none of it
-              touching the rest of your Mac.
+              touching the rest of your machine.
             </p>
             <ul class="checks">
               <li>
