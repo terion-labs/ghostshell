@@ -34,6 +34,7 @@ agent_projects=(
     "tests/GhostShell.Agent.Runtime.Tests/GhostShell.Agent.Runtime.Tests.csproj"
     "tests/GhostShell.Agent.Tests/GhostShell.Agent.Tests.csproj"
     "tests/GhostShell.Mcp.Tests/GhostShell.Mcp.Tests.csproj"
+    "tests/GhostShell.Mcp.Server.Tests/GhostShell.Mcp.Server.Tests.csproj"
 )
 app_projects=(
     "tests/GhostShell.App.Tests/GhostShell.App.Tests.csproj"

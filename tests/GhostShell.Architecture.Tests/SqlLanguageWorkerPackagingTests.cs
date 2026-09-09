@@ -696,20 +696,21 @@ public sealed class SqlLanguageWorkerPackagingTests
                 "/${productVersion}",
                 dependency.GetProperty("identity").GetString(),
                 StringComparison.Ordinal));
-        var runtimeEvidence = Assert.Single(
-            managedCatalog.RootElement.GetProperty("dependencies").EnumerateArray(),
-            dependency => string.Equals(
+        var runtimeEvidence = managedCatalog.RootElement.GetProperty("dependencies").EnumerateArray()
+            .Where(dependency => string.Equals(
                 dependency.GetProperty("depsType").GetString(),
                 "runtimepack",
-                StringComparison.Ordinal));
+                StringComparison.Ordinal)).ToArray();
         Assert.Equal(
-            "runtimepack.Microsoft.NETCore.App.Runtime.osx-arm64/10.0.11",
-            runtimeEvidence.GetProperty("identity").GetString());
-        Assert.Equal(
-            "Microsoft.NETCore.App.Runtime.osx-arm64",
-            runtimeEvidence.GetProperty("nuGetId").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(runtimeEvidence.GetProperty("contentHash").GetString()));
-        Assert.False(string.IsNullOrWhiteSpace(runtimeEvidence.GetProperty("nupkgSha512").GetString()));
+            ["runtimepack.Microsoft.AspNetCore.App.Runtime.osx-arm64/10.0.11", "runtimepack.Microsoft.NETCore.App.Runtime.osx-arm64/10.0.11"],
+            runtimeEvidence.Select(item => item.GetProperty("identity").GetString()).Order(StringComparer.Ordinal), StringComparer.Ordinal);
+        Assert.All(runtimeEvidence, item =>
+        {
+            Assert.Equal("runtimepack." + item.GetProperty("nuGetId").GetString() + "/10.0.11",
+                item.GetProperty("identity").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(item.GetProperty("contentHash").GetString()));
+            Assert.False(string.IsNullOrWhiteSpace(item.GetProperty("nupkgSha512").GetString()));
+        });
     }
 
     [Theory]

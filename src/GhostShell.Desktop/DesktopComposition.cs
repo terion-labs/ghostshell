@@ -320,6 +320,7 @@ public static class DesktopComposition
             provider.GetRequiredService<AiProviderAuthenticationRuntime>());
         services.AddSingleton<IAgentApprovalPrincipal, DesktopAgentApprovalPrincipal>();
         services.AddSingleton<IAgentProviderResolver, CatalogAgentProviderResolver>();
+        services.AddSingleton<GhostShell.Mcp.Server.WorkspaceMcpServer>();
         services.AddSingleton<IAgentSessionCheckpointStore, SqliteAgentSessionCheckpointStore>();
         services.AddSingleton<IAgentModelFavoriteStore, SqliteAgentModelFavoriteStore>();
         services.AddSingleton<IAgentPolicyPreferenceStore,

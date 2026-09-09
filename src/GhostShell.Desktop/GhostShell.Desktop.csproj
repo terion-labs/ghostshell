@@ -15,6 +15,7 @@
     <ProjectReference Include="..\GhostShell.Files\GhostShell.Files.csproj" />
     <ProjectReference Include="..\GhostShell.Infrastructure\GhostShell.Infrastructure.csproj" />
     <ProjectReference Include="..\GhostShell.Mcp\GhostShell.Mcp.csproj" />
+    <ProjectReference Include="..\GhostShell.Mcp.Server\GhostShell.Mcp.Server.csproj" />
     <ProjectReference Include="..\GhostShell.Monitoring\GhostShell.Monitoring.csproj" />
     <ProjectReference Include="..\GhostShell.SessionHost\GhostShell.SessionHost.csproj" />
     <ProjectReference Include="..\GhostShell.Terminal\GhostShell.Terminal.csproj" />
@@ -338,14 +339,14 @@
     <ItemGroup>
       <GhostShellSelectedRuntimePack
           Include="@(RuntimePack)"
-          Condition="'%(RuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+          Condition="'%(RuntimePack.FrameworkName)' == 'Microsoft.NETCore.App' or '%(RuntimePack.FrameworkName)' == 'Microsoft.AspNetCore.App'" />
     </ItemGroup>
     <Error
         Condition="'@(GhostShellSelectedRuntimePack)' == ''"
         Text="The self-contained package did not resolve a Microsoft.NETCore.App runtime pack for $(GhostShellEffectiveRuntimeIdentifier)." />
     <Error
         Condition="'%(GhostShellSelectedRuntimePack.NuGetPackageVersion)' != '$(GhostShellRuntimePackVersion)'"
-        Text="The self-contained package selected Microsoft.NETCore.App runtime %(GhostShellSelectedRuntimePack.NuGetPackageVersion) for $(GhostShellEffectiveRuntimeIdentifier), but release evidence is pinned to $(GhostShellRuntimePackVersion)." />
+        Text="The self-contained package selected %(GhostShellSelectedRuntimePack.FrameworkName) runtime %(GhostShellSelectedRuntimePack.NuGetPackageVersion) for $(GhostShellEffectiveRuntimeIdentifier), but release evidence is pinned to $(GhostShellRuntimePackVersion)." />
   </Target>
 
   <Target

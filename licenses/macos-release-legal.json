@@ -69,7 +69,7 @@
     },
     {
       "path": "licenses/THIRD-PARTY-NOTICES.md",
-      "sha256": "1d1d20a547c40c87dc85bc774ec5591bc540c1c466f9ca69110375c3e38e88f6"
+      "sha256": "4cc5d7a7779b8c1db65484a4fe5d1f8c4d1da34b252c149f0b8a9de9f11e8de2"
     },
     {
       "path": "licenses/cef-runtime-components.json",
@@ -77,7 +77,7 @@
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "6ca32ea27d0ff0f5e0b62b8db6e992a3c04621521ed920ffe983236b3dae4d00"
+      "sha256": "d536833dbd9eacef100a7b02d31377881dad796df97d3ec6089ddb00f37bb3cc"
     },
     {
       "path": "licenses/native-terminal-components.json",

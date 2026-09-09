@@ -362,8 +362,8 @@ public sealed partial class RepositoryConventionTests
             expectedRows,
             noticeLines[(tableStart + 2)..tableEnd],
             StringComparer.Ordinal);
-        Assert.Equal(132, expectedRows.Length);
-        Assert.Equal(130, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+        Assert.Equal(136, expectedRows.Length);
+        Assert.Equal(134, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => string.Equals(component.GetProperty("kind").GetString(), "nuget", StringComparison.Ordinal)));
         Assert.Equal(0, catalog.RootElement.GetProperty("dependencies").EnumerateArray()
             .Count(component => component.TryGetProperty("vendorSource", out _)));

@@ -6,6 +6,8 @@ GhostSHELL is free and open-source software under the [MIT license](./LICENSE).
 
 Website: [ghostshell.terion.name](https://ghostshell.terion.name). Early alpha. A macOS Apple-silicon build ships from [Releases](https://github.com/terion-labs/ghostshel/releases/latest); other platforms build from source.
 
+Agent tools support ordered sequences with optional delays. An opt-in authenticated localhost MCP server exposes native tools to external harnesses using MCP 2026-07-28, with legacy client support. See [tool sequences and MCP setup](./docs/agent-tool-sequences-and-mcp.md).
+
 ## How the agent is kept on a leash
 
 The agent core is provider-neutral. Profiles cover Anthropic, OpenAI, Google, xAI, DeepSeek, Moonshot AI, OpenRouter, GitHub Copilot, Amazon Bedrock, Ollama, and custom OpenAI-compatible endpoints. Credentials and OAuth sessions live in the OS vault; the app passes opaque references around. A protocol without a production adapter refuses to run rather than degrading quietly.

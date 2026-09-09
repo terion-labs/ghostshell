@@ -35,6 +35,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
         "GhostShell.Git",
         "GhostShell.Infrastructure",
         "GhostShell.Mcp",
+        "GhostShell.Mcp.Server",
         "GhostShell.Monitoring",
         "GhostShell.Previews",
         "GhostShell.Protocol",
@@ -303,7 +304,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 .GetProperty("packages")
                 .EnumerateArray()
                 .ToArray();
-            Assert.Equal(ProjectAssemblyNames.Length + 7, packages.Length);
+            Assert.Equal(ProjectAssemblyNames.Length + 8, packages.Length);
             AssertProjectPackage(
                 packages,
                 "Exclr8Cef",
@@ -371,7 +372,7 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                 "DESCRIBES",
                 StringComparison.Ordinal));
             Assert.Equal(
-                ProjectAssemblyNames.Length + 6,
+                ProjectAssemblyNames.Length + 7,
                 relationships.Count(relationship =>
                     string.Equals(
                         relationship.GetProperty("relationshipType").GetString(),
@@ -1944,6 +1945,25 @@ public sealed partial class MacOsAppBundleBuilderTests : IDisposable
                     },
                 },
             });
+        var aspNetRuntime = CreateNuGetPackage(packageRoot,
+            "Microsoft.AspNetCore.App.Runtime.osx-arm64", "10.0.11", includeNotices: false);
+        const string aspNetRuntimeIdentity = "runtimepack.Microsoft.AspNetCore.App.Runtime.osx-arm64/10.0.11";
+        libraries.Add(aspNetRuntimeIdentity, new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["type"] = "runtimepack",
+            ["serviceable"] = false,
+            ["sha512"] = string.Empty,
+        });
+        var aspNetCatalog = CatalogPackage(aspNetRuntime, kind: "runtime", depsType: "runtimepack", licenseDeclared: "NOASSERTION");
+        aspNetCatalog["identity"] = aspNetRuntimeIdentity;
+        catalogDependencies.Add(aspNetCatalog);
+        selectedTarget.Add(aspNetRuntimeIdentity, new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["runtime"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["Microsoft.AspNetCore.Http.Abstractions.dll"] = new Dictionary<string, object?>(StringComparer.Ordinal),
+            },
+        });
         var rootTarget = (Dictionary<string, object?>)selectedTarget[
             "GhostShell/1.2.3"]!;
         rootTarget["dependencies"] = libraries.Keys

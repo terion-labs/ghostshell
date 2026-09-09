@@ -11,4 +11,6 @@ public static class IntrinsicAgentTools
     public const string RequestCapability = "agent.request_capability";
 
     public const string ReportProgress = "agent.report_progress";
+
+    public const string RunSequence = "agent.run_sequence";
 }

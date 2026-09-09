@@ -36,6 +36,9 @@ public sealed partial class GovernedAgentRuntime :
         """
         You are GhostSHELL's operator for the user's current workspace.
         Use only the supplied tools and only when they are needed to satisfy the user's request.
+        Use agent.run_sequence for a predictable sequence of tool calls with known arguments,
+        optionally delaying before steps, to avoid a model round trip between every action.
+        Inspect its receipts before continuing; never replay completed mutations after a partial failure.
         The supplied built-in tool manifest is fixed for this conversation and describes every
         supported panel family, including families with no panel currently open. Tool presence
         does not prove that a compatible live panel exists. Resolve availability from fresh
@@ -523,6 +526,10 @@ public sealed partial class GovernedAgentRuntime :
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_externalRun && _session is not null)
+            {
+                return Failure("agent_run_requires_clear", "Clear the external MCP run before starting the internal agent.");
+            }
         }
 
         if (_workspaceId is { } workspaceId
@@ -595,6 +602,7 @@ public sealed partial class GovernedAgentRuntime :
                 _restoredSession = stoppedSession.CreateReadyContinuation(
                     AgentRunId.New());
                 _session = null;
+                _externalRun = false;
                 _agent = null;
                 _runRegistered = false;
                 _pinnedScopeBindings = [];
@@ -1424,6 +1432,7 @@ public sealed partial class GovernedAgentRuntime :
             {
                 _session = null;
                 _restoredSession = null;
+                _externalRun = false;
                 _providerBinding = null;
                 _steeringLease = null;
                 _agent = null;
@@ -2323,6 +2332,12 @@ public sealed partial class GovernedAgentRuntime :
         ImmutableArray<AgentToolDefinition> advertisedTools,
         CancellationToken cancellationToken)
     {
+        if (string.Equals(proposal.ToolName, IntrinsicAgentTools.RunSequence, StringComparison.Ordinal))
+        {
+            return await ExecuteSequenceAsync(proposal, advertisedTools, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         if (string.Equals(
                 proposal.ToolName,
                 IntrinsicAgentTools.RequestCapability,
@@ -3123,6 +3138,7 @@ public sealed partial class GovernedAgentRuntime :
             tools.AddRange(contribution.BuildTools(contributionContext));
         }
 
+        tools.Add(AgentSequenceIntrinsic.Build(tools.ToImmutable()));
         return RefreshCapabilityRequestTool(tools.ToImmutable());
     }
 

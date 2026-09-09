@@ -847,6 +847,7 @@ first_party_assemblies=(
     "GhostShell.Git.dll"
     "GhostShell.Infrastructure.dll"
     "GhostShell.Mcp.dll"
+    "GhostShell.Mcp.Server.dll"
     "GhostShell.Monitoring.dll"
     "GhostShell.Previews.dll"
     "GhostShell.Protocol.dll"

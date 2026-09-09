@@ -17,6 +17,7 @@
     <Project Path="src/GhostShell.Git/GhostShell.Git.csproj" />
     <Project Path="src/GhostShell.Infrastructure/GhostShell.Infrastructure.csproj" />
     <Project Path="src/GhostShell.Mcp/GhostShell.Mcp.csproj" />
+    <Project Path="src/GhostShell.Mcp.Server/GhostShell.Mcp.Server.csproj" />
     <Project Path="src/GhostShell.Monitoring/GhostShell.Monitoring.csproj" />
     <Project Path="src/GhostShell.Previews/GhostShell.Previews.csproj" />
     <Project Path="src/GhostShell.Protocol/GhostShell.Protocol.csproj" />
@@ -26,6 +27,7 @@
     <Project Path="src/GhostShell.Updates/GhostShell.Updates.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GhostShell.Mcp.Server.Tests/GhostShell.Mcp.Server.Tests.csproj" />
     <Project Path="tests/GhostShell.App.Tests/GhostShell.App.Tests.csproj" />
     <Project Path="tests/GhostShell.Agent.Tests/GhostShell.Agent.Tests.csproj" />
     <Project Path="tests/GhostShell.Agent.Providers.Tests/GhostShell.Agent.Providers.Tests.csproj" />

@@ -61,6 +61,17 @@
       "nuspecLicense": "Apache-2.0"
     },
     {
+      "identity": "Avalonia/12.0.5",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Avalonia",
+      "contentHash": "eGDbwos1AMlOaXnGN5IQ+JGG3RViFFuyN3GP70irOSbqZt4H9A6quIP6uVFVni/bBczmt5ELGuHzN+lkLQSD1A==",
+      "nupkgSha512": "F+1am8bhdIMU3HAnF0gb4znEU/jOqkKensD/p9s7REVAbmjHFVmFpJm71k49CPQB5FMeHj0D0OMnwQYf+7tWbw==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
       "identity": "Avalonia.AvaloniaEdit/12.0.0",
       "kind": "nuget",
       "depsType": "package",
@@ -116,17 +127,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Avalonia.FreeDesktop.AtSpi/12.0.5",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Avalonia.FreeDesktop.AtSpi",
-      "contentHash": "IrsjB1QpzXwgdnkpG6ejGxSaHp0sRrq3rZlrzRyhwEGllAxcOeUuQpq8/OrO3OUJLxXtxlsM4ku17v+7q7xGKQ==",
-      "nupkgSha512": "i9+oxgDSTMmJlncyEOjOGIS8Y2Y32Q0FQKi03BcLVA8VFCUIXyEgpd0afr1GZpy6D+ObpUZ5M3jIyd/ZMuRZWQ==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Avalonia.FreeDesktop/12.0.5",
       "kind": "nuget",
       "depsType": "package",
@@ -134,6 +134,17 @@
       "nuGetId": "Avalonia.FreeDesktop",
       "contentHash": "51IiLrfyJdMtmVTiXiEi1q1nXS5KAMYvFNeovlwKSuTgY/agBevnfBTY+DnKnIjZMdXWWKVGJJh7MldMkPc14w==",
       "nupkgSha512": "T8V5nUiR/GrcI1amxxcIxuKMiE5UFtoGGhfHXsRqxUDowO4/+20Mjpgqi0CgsEt4kcp9vfV9/JeBUsuTkngolw==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Avalonia.FreeDesktop.AtSpi/12.0.5",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Avalonia.FreeDesktop.AtSpi",
+      "contentHash": "IrsjB1QpzXwgdnkpG6ejGxSaHp0sRrq3rZlrzRyhwEGllAxcOeUuQpq8/OrO3OUJLxXtxlsM4ku17v+7q7xGKQ==",
+      "nupkgSha512": "i9+oxgDSTMmJlncyEOjOGIS8Y2Y32Q0FQKi03BcLVA8VFCUIXyEgpd0afr1GZpy6D+ObpUZ5M3jIyd/ZMuRZWQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -215,17 +226,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Avalonia/12.0.5",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Avalonia",
-      "contentHash": "eGDbwos1AMlOaXnGN5IQ+JGG3RViFFuyN3GP70irOSbqZt4H9A6quIP6uVFVni/bBczmt5ELGuHzN+lkLQSD1A==",
-      "nupkgSha512": "F+1am8bhdIMU3HAnF0gb4znEU/jOqkKensD/p9s7REVAbmjHFVmFpJm71k49CPQB5FMeHj0D0OMnwQYf+7tWbw==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "AvaloniaEdit.TextMate/12.0.0",
       "kind": "nuget",
       "depsType": "package",
@@ -281,17 +281,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Dock.Avalonia.Themes.Fluent/12.0.0.2",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Dock.Avalonia.Themes.Fluent",
-      "contentHash": "DhCyhsM7eMfWmmNUknlDwFVD4JN0+A/GwtDGtWhfPF8VraC1lYaXY7QfUPtjRrLOu2DlP8AlNaMXlHvZzi74bQ==",
-      "nupkgSha512": "Ar5Sl4cAPMn7D3PGu7NhsJLbhSOrjWHYIYD+aXeQqcjE7NbFQqopmi7VmK/zZuQy764RpkTODPEErQ1ab9cM1g==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Dock.Avalonia/12.0.0.2",
       "kind": "nuget",
       "depsType": "package",
@@ -299,6 +288,17 @@
       "nuGetId": "Dock.Avalonia",
       "contentHash": "ET8Fr9bUi81ifs7LOWcD99jLOZChdp3yCjebja4qnFguy0KURMFPuBj0RXnd76SZRp5LFjBXaXb348KtZLPemQ==",
       "nupkgSha512": "Z8fzgCXU7WcvMeL7y7meiCdrkCApVy6aELck1gMFZEoKojYIur1DLzzuyecBzvkzamH7GMkJaRE+nzdbKkLOFg==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Dock.Avalonia.Themes.Fluent/12.0.0.2",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Dock.Avalonia.Themes.Fluent",
+      "contentHash": "DhCyhsM7eMfWmmNUknlDwFVD4JN0+A/GwtDGtWhfPF8VraC1lYaXY7QfUPtjRrLOu2DlP8AlNaMXlHvZzi74bQ==",
+      "nupkgSha512": "Ar5Sl4cAPMn7D3PGu7NhsJLbhSOrjWHYIYD+aXeQqcjE7NbFQqopmi7VmK/zZuQy764RpkTODPEErQ1ab9cM1g==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -325,17 +325,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Dock.Controls.Recycling.Model/12.0.0.2",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Dock.Controls.Recycling.Model",
-      "contentHash": "klVsAStNW7SyvIvV6060o3Rx0Rgzo2Dus3MPJD7Td87FJyK0X7djki8m/EOtD6qi3RyZaRZTLOEjskNk12Q/3Q==",
-      "nupkgSha512": "5T4KMevapDWyDG0GqDNQn3dd3ZFGNZBgK+qGwSmsXdFmzw3oeNv1EClkgVE1HXB7YXFHIskAPVXzBihn2yoGuQ==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Dock.Controls.Recycling/12.0.0.2",
       "kind": "nuget",
       "depsType": "package",
@@ -343,6 +332,17 @@
       "nuGetId": "Dock.Controls.Recycling",
       "contentHash": "nEo0p/CtWjzM0Ayt1wtw4w11oheyd/2epJXw+WzwW8xMJvk2r7LFEexbgFXhYodvylQUtxQHCh41mLXURC9aCQ==",
       "nupkgSha512": "CHMJ8ujoXfhx/BgxfMEmuSph2Mc0Ou/gNCHmzHSz2B3mOSdRF0Ms5zgA+bKjb9ODcv362W5oolqpHWnV9CdQ8w==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Dock.Controls.Recycling.Model/12.0.0.2",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Dock.Controls.Recycling.Model",
+      "contentHash": "klVsAStNW7SyvIvV6060o3Rx0Rgzo2Dus3MPJD7Td87FJyK0X7djki8m/EOtD6qi3RyZaRZTLOEjskNk12Q/3Q==",
+      "nupkgSha512": "5T4KMevapDWyDG0GqDNQn3dd3ZFGNZBgK+qGwSmsXdFmzw3oeNv1EClkgVE1HXB7YXFHIskAPVXzBihn2yoGuQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -358,17 +358,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Dock.Model.Inpc/12.0.0.2",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Dock.Model.Inpc",
-      "contentHash": "ObZcu0Gmp8vkunBrvISvsWsCuODnjYsA5hrb6Examey621SjwLjDwYLswZmzNZfw/a0FxyF56Q1PXf3uxq1wiQ==",
-      "nupkgSha512": "TqpJP/IdgneC3V9j84u0GmyBDeCW4gkGaBgy4lNk7YMZdE5sH0byHL/Z5YXp5aJK+O9Tw4n0U/7vmXYKLzfTeA==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Dock.Model/12.0.0.2",
       "kind": "nuget",
       "depsType": "package",
@@ -376,6 +365,17 @@
       "nuGetId": "Dock.Model",
       "contentHash": "yLD28SMkaGMVdv/kVkO1t+GkBbFWRPKlNoXh+KZ/lPjwCJKg8vm0xmdqdgszMZGbpcWPT7T2LZk/JuwECndftA==",
       "nupkgSha512": "gLdhrl+JXaPpRyH6G/Wrnb/xc/x8QIljn3QS6SOGOpICPpTAPFWwxT007m/KhTMaaYHUcZBMtt+a0nsr5pugcQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Dock.Model.Inpc/12.0.0.2",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Dock.Model.Inpc",
+      "contentHash": "ObZcu0Gmp8vkunBrvISvsWsCuODnjYsA5hrb6Examey621SjwLjDwYLswZmzNZfw/a0FxyF56Q1PXf3uxq1wiQ==",
+      "nupkgSha512": "TqpJP/IdgneC3V9j84u0GmyBDeCW4gkGaBgy4lNk7YMZdE5sH0byHL/Z5YXp5aJK+O9Tw4n0U/7vmXYKLzfTeA==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -452,18 +452,18 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Exclr8Cef.WebView/0.8.0",
-      "kind": "project",
-      "depsType": "project",
-      "licenseDeclared": "NOASSERTION",
-      "file": "Exclr8Cef.WebView.dll"
-    },
-    {
       "identity": "Exclr8Cef/0.8.0",
       "kind": "project",
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
       "file": "Exclr8Cef.dll"
+    },
+    {
+      "identity": "Exclr8Cef.WebView/0.8.0",
+      "kind": "project",
+      "depsType": "project",
+      "licenseDeclared": "NOASSERTION",
+      "file": "Exclr8Cef.WebView.dll"
     },
     {
       "identity": "FirebirdSql.Data.FirebirdClient/10.3.1",
@@ -529,6 +529,20 @@
       "nuspecLicense": "MIT"
     },
     {
+      "identity": "GhostShell/${productVersion}",
+      "kind": "project",
+      "depsType": "project",
+      "licenseDeclared": "NOASSERTION",
+      "file": "GhostShell.dll"
+    },
+    {
+      "identity": "GhostShell.Agent/${productVersion}",
+      "kind": "project",
+      "depsType": "project",
+      "licenseDeclared": "NOASSERTION",
+      "file": "GhostShell.Agent.dll"
+    },
+    {
       "identity": "GhostShell.Agent.Providers/${productVersion}",
       "kind": "project",
       "depsType": "project",
@@ -541,13 +555,6 @@
       "depsType": "project",
       "licenseDeclared": "NOASSERTION",
       "file": "GhostShell.Agent.Runtime.dll"
-    },
-    {
-      "identity": "GhostShell.Agent/${productVersion}",
-      "kind": "project",
-      "depsType": "project",
-      "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.Agent.dll"
     },
     {
       "identity": "GhostShell.App/${productVersion}",
@@ -634,6 +641,13 @@
       "file": "GhostShell.Mcp.dll"
     },
     {
+      "identity": "GhostShell.Mcp.Server/${productVersion}",
+      "kind": "project",
+      "depsType": "project",
+      "licenseDeclared": "NOASSERTION",
+      "file": "GhostShell.Mcp.Server.dll"
+    },
+    {
       "identity": "GhostShell.Monitoring/${productVersion}",
       "kind": "project",
       "depsType": "project",
@@ -683,11 +697,15 @@
       "file": "GhostShell.Updates.dll"
     },
     {
-      "identity": "GhostShell/${productVersion}",
-      "kind": "project",
-      "depsType": "project",
-      "licenseDeclared": "NOASSERTION",
-      "file": "GhostShell.dll"
+      "identity": "HarfBuzzSharp/8.3.1.3",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "HarfBuzzSharp",
+      "contentHash": "NGZ2+ZVNPM+NdHB/asW0/ykWngyHWwcqjrbN2nDeH1B/aptPGlCUl8wkQ2cSJxw5fdWgdmIPmNuTPWpLwNVXWg==",
+      "nupkgSha512": "hJOzboi+7fyA4S8T47mG+x5VYMTI34bmcsHK0kpiP6Nq3JoagvVm/aN4T3otWJddECc+plt7yxGa/BJrEaRSyA==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
     },
     {
       "identity": "HarfBuzzSharp.NativeAssets.macOS/8.3.1.3",
@@ -713,17 +731,6 @@
           "minimumBytes": 100000
         }
       ]
-    },
-    {
-      "identity": "HarfBuzzSharp/8.3.1.3",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "HarfBuzzSharp",
-      "contentHash": "NGZ2+ZVNPM+NdHB/asW0/ykWngyHWwcqjrbN2nDeH1B/aptPGlCUl8wkQ2cSJxw5fdWgdmIPmNuTPWpLwNVXWg==",
-      "nupkgSha512": "hJOzboi+7fyA4S8T47mG+x5VYMTI34bmcsHK0kpiP6Nq3JoagvVm/aN4T3otWJddECc+plt7yxGa/BJrEaRSyA==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
     },
     {
       "identity": "LiteDB/5.0.21",
@@ -844,24 +851,24 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.AI.Abstractions/10.5.2",
+      "identity": "Microsoft.Extensions.AI.Abstractions/10.8.3",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "MIT",
       "nuGetId": "Microsoft.Extensions.AI.Abstractions",
-      "contentHash": "Ei+YWV9Ybnps7pR1dgjlG29gelXEwZkhLVAcWmKe6HvXS6LNBYgSdWiY3Hk9OZXYtK34rv/NtLWBQYQGOBQYPQ==",
-      "nupkgSha512": "o/SrmdCdkTQXE74zl1oTvMov9IRIxC04H/B3SoAN08+ipkzqpMjOTXCaDKEfyzQIUyzs7j6fzV5N//G1otN3zg==",
+      "contentHash": "K0B05oApxmviWalNHPMBBcRC7erKiDATz3ENNR/jqTR9JwIwLRefgDhj2jCRwL1aca99pXUe0qyQC73/xIuZig==",
+      "nupkgSha512": "uUAdAW+S2azZc2ev8ZkngeauRhlsKX6b4TQE7uaeAJUpb2XoASEwkBt2ZpeDU68loScgmGCR2bm1OfgsaZQwxQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.Caching.Abstractions/9.0.4",
+      "identity": "Microsoft.Extensions.Caching.Abstractions/10.0.10",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "MIT",
       "nuGetId": "Microsoft.Extensions.Caching.Abstractions",
-      "contentHash": "imcZ5BGhBw5mNsWLepBbqqumWaFe0GtvyCvne2/2wsDIBRa2+Lhx4cU/pKt/4BwOizzUEOls2k1eOJQXHGMalg==",
-      "nupkgSha512": "NIRx24Fv/hNuw1OVJEoTaCNNHHT29npTbe0WNC0m5CJCkwVUGyHfmDa7buwbVt9kHEkH0MNcaW6b52yOmQ3oMg==",
+      "contentHash": "4ZFBNE+jzR+CrWWlhOesnmywCW7pYKT0dxyAQRdL11yJwxe4jvcAu31eorFtEkoFeCDcUTeNssgPv2yaRRptaQ==",
+      "nupkgSha512": "AoWKbx6BTS/LpVBqHl4bwSUYb+duiSNdBzsNyoTGKALmaA5sE62KwHrFtjWKBpHPRzyAEiwGKnrIrlV9elp6Ww==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -877,13 +884,24 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.Configuration.Abstractions/8.0.0",
+      "identity": "Microsoft.Extensions.Configuration/8.0.0",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.Configuration",
+      "contentHash": "0J/9YNXTMWSZP2p2+nvl8p71zpSwokZXZuJW+VjdErkegAnFdO1XlqtA62SJtgVYHdKu3uPxJHcMR/r35HwFBA==",
+      "nupkgSha512": "2kio7ztM0qa+t4AIOC2fzNzdQv86cdnvxaxp1AIEISlKyVsHzxFSA0GmnuJBklzQQNSaOC3yQ+L6GU9olu+XNA==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Microsoft.Extensions.Configuration.Abstractions/10.0.10",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "MIT",
       "nuGetId": "Microsoft.Extensions.Configuration.Abstractions",
-      "contentHash": "3lE/iLSutpgX1CC0NOW70FJoGARRHbyKmG7dc0klnUZ9Dd9hS6N/POPWhKhMLCEuNN5nXEY5agmlFtH562vqhQ==",
-      "nupkgSha512": "MxYXCRCpQpDI30/tJvqISkfdm/l063rSI2jVpjMIZgoB0tq0pEZiBh2srsz0ugnNq/zNRjb3arMXi+zsWtMaLw==",
+      "contentHash": "5Vnd2I75DmZCVEjSynIdJ/0EGafgnLQwgR3t2C2/fkjx/nRG+cLwxLLdInoHeCEpkD5K4Ov/g9ZCRYrl4TRsaA==",
+      "nupkgSha512": "e/TNbyXX4DDjZsyctZO3mokPNH31mAYsDSAwzbYtI/Rl9pzN/H6D0+cJ/L4S7cS9SvaCKcLYiSFqqE69Q6axYg==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -899,13 +917,13 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.Configuration/8.0.0",
+      "identity": "Microsoft.Extensions.DependencyInjection/10.0.10",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Extensions.Configuration",
-      "contentHash": "0J/9YNXTMWSZP2p2+nvl8p71zpSwokZXZuJW+VjdErkegAnFdO1XlqtA62SJtgVYHdKu3uPxJHcMR/r35HwFBA==",
-      "nupkgSha512": "2kio7ztM0qa+t4AIOC2fzNzdQv86cdnvxaxp1AIEISlKyVsHzxFSA0GmnuJBklzQQNSaOC3yQ+L6GU9olu+XNA==",
+      "nuGetId": "Microsoft.Extensions.DependencyInjection",
+      "contentHash": "ANyvsgkNBRvcJh2XLgn8veGmajf+8m0AbKK+HPWdRL1yraSNVVSmQhFntLtdz/C795jxqqup+k05cs/3jZQPOA==",
+      "nupkgSha512": "hijuwcJvJ6eVbuzz0EaP3YZQOYJncPJn+aTuvo15SeN9HCmLhbinOoc9mgT99eUOWTDgKJ88SCQTewVD/g57DQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -921,28 +939,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.DependencyInjection/10.0.10",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Extensions.DependencyInjection",
-      "contentHash": "ANyvsgkNBRvcJh2XLgn8veGmajf+8m0AbKK+HPWdRL1yraSNVVSmQhFntLtdz/C795jxqqup+k05cs/3jZQPOA==",
-      "nupkgSha512": "hijuwcJvJ6eVbuzz0EaP3YZQOYJncPJn+aTuvo15SeN9HCmLhbinOoc9mgT99eUOWTDgKJ88SCQTewVD/g57DQ==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
-      "identity": "Microsoft.Extensions.Diagnostics.Abstractions/8.0.1",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Extensions.Diagnostics.Abstractions",
-      "contentHash": "elH2vmwNmsXuKmUeMQ4YW9ldXiF+gSGDgg1vORksob5POnpaI6caj1Hu8zaYbEuibhqCoWg0YRWDazBY3zjBfg==",
-      "nupkgSha512": "JnwYzoBLVysX2SVrQcVEQoxVhsFEpoFfhkQI8IraeG7I7CObt6idmFVxrT6WL9xKBZURQ520k2wL29ZgvwAvRg==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Microsoft.Extensions.Diagnostics/8.0.1",
       "kind": "nuget",
       "depsType": "package",
@@ -950,6 +946,39 @@
       "nuGetId": "Microsoft.Extensions.Diagnostics",
       "contentHash": "doVPCUUCY7c6LhBsEfiy3W1bvS7Mi6LkfQMS8nlC22jZWNxBv8VO8bdfeyvpYFst6Kxqk7HBC6lytmEoBssvSQ==",
       "nupkgSha512": "pmjH3jLDk4Sg3PhauxJWCy4oZEGuJps57+pxSbsuSpColJ1vlBueJLizZC8V+GuKlo82GD2XaVAZvSPw6nviNw==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Microsoft.Extensions.Diagnostics.Abstractions/10.0.10",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.Diagnostics.Abstractions",
+      "contentHash": "9uWiKpeOVac355STyChWR/pliFX/5CeLqChW9kKsaxyDH4EUTZxMkT4Jwp/J/peLm0GBFmSX5c0WCse3yCnq1Q==",
+      "nupkgSha512": "sWPhHd1eEM601Akc++NaJKYcpwop1I2Yjpykj16aeZtA4cd1JwH39406WGsXh1B1gTV+SigTqPVhvpy4Cju0rw==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.FileProviders.Abstractions",
+      "identity": "Microsoft.Extensions.FileProviders.Abstractions/10.0.10",
+      "contentHash": "c5zqFCY9DiIpMovLd7/d/CTiEtrMOuQ639dhv3PABtKQIKNQikSHwQt8+N679uii9q+B55lgK28Uv64FOwEu8w==",
+      "nupkgSha512": "bzg2PR7uwwNMG8/5BYspXxnE8m6c7arsZxrz+iLSEuZx24yrBojdsBYJyFCgbQwsWxAxdvhi9/fcq6FkgdUcUQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.Hosting.Abstractions",
+      "identity": "Microsoft.Extensions.Hosting.Abstractions/10.0.10",
+      "contentHash": "5LugpYGHk+mkn0a8IZgcyfBca8PCTAU9RQFoMrTdtOOidq88M2SI5f3px6ugnzgxC+eTkvYYJi8pzlUnG5xdAQ==",
+      "nupkgSha512": "Aps7givpQKaZSzpzMwRuZMdeRxx/MiXGkMDLPOxsGdIFlKrate/ChgLC+jfuO810XtJmMrf3pFgM0ClNO5ZtyQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -965,17 +994,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.Logging.Abstractions/10.0.7",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Extensions.Logging.Abstractions",
-      "contentHash": "tIEcQ2gvERrH2KiCjdsVcHGhXt9lIsuDStfOIeZWr7/fP8IXhGiYfx0/80PNI7WPO2IYuFtlZLSlnTS8+/Mchw==",
-      "nupkgSha512": "Q/Bg0nT4qNXqSmTbdH7Ovoj2TRSCPE61RGBBPnETSJMCRdVJ9ObR1GlYUeGLoaLRXj2FQQ9h78pFS/xccRNDKQ==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Microsoft.Extensions.Logging/8.0.1",
       "kind": "nuget",
       "depsType": "package",
@@ -983,6 +1001,17 @@
       "nuGetId": "Microsoft.Extensions.Logging",
       "contentHash": "4x+pzsQEbqxhNf1QYRr5TDkLP9UsLT3A6MdRKDDEgrW7h1ljiEPgTNhKYUhNCCAaVpQECVQ+onA91PTPnIp6Lw==",
       "nupkgSha512": "qzNjxOEDlj7lATraVf3c13GWHkjlEk9B5wWJ5YnazyfSDP9+BL/CFNt5/ZN8utgOmc71ZfcuDMELhNmzrAYZ/Q==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Microsoft.Extensions.Logging.Abstractions/10.0.10",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.Logging.Abstractions",
+      "contentHash": "zkFxGYUvdxAvIKTyXHrmW+Sux53D4SezD9dMyZ6hrwwzPQJNuwCRy1f5W7AvYTqacEGhWF2XderRQG1OvbV8og==",
+      "nupkgSha512": "b8xabNM7zKc7R8B3G9GtnMBE6sU9OvQ8AXzGhJMvHxB5gcegMSkiwU5uKqm43x06cGVd0Kzc+bl9POl1/CHViA==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1006,6 +1035,17 @@
       ]
     },
     {
+      "identity": "Microsoft.Extensions.Options/10.0.10",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Extensions.Options",
+      "contentHash": "srnhnk7nE8krBiIXp71LvBmKBtraBONWSRzdjJgRv1Ko9Mp8IVNqv4vIS9hGeVteBig8aQkva9ZG+sC+o5sVcA==",
+      "nupkgSha512": "U4Mion/ZuwBMTD/CH8WE7Ajt6IdAtU3JXLwkG1UzOWM1lNFnoO8NAuQtZILNpkKyGEFP9t7FvQakgHnMCUjZKQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
       "identity": "Microsoft.Extensions.Options.ConfigurationExtensions/8.0.0",
       "kind": "nuget",
       "depsType": "package",
@@ -1017,24 +1057,13 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Extensions.Options/9.0.4",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Extensions.Options",
-      "contentHash": "fiFI2+58kicqVZyt/6obqoFwHiab7LC4FkQ3mmiBJ28Yy4fAvy2+v9MRnSvvlOO8chTOjKsdafFl/K9veCPo5g==",
-      "nupkgSha512": "5erk3hQsT/uOl7TJrAKQdtf5uoHn5DNeb9rV2FLKAVfxcUBgg5xhXJsRXs2XIJ+K7Ynai/bnDNnXTGGnR1svFA==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
-      "identity": "Microsoft.Extensions.Primitives/9.0.4",
+      "identity": "Microsoft.Extensions.Primitives/10.0.10",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "MIT",
       "nuGetId": "Microsoft.Extensions.Primitives",
-      "contentHash": "SPFyMjyku1nqTFFJ928JAMd0QnRe4xjE7KeKnZMWXf3xk+6e0WiOZAluYtLdbJUXtsl2cCRSi8cBquJ408k8RA==",
-      "nupkgSha512": "HNbyuV90vxHsQBxjQ7bjkwW1+XTJ1FSu7unDu5NTq8HHRH3+s67A1tZRqOJ+vkwgRxhMH26BBBn9xUzWXFnUVA==",
+      "contentHash": "5wu/GrYVd8mG2DVUw3vFJzF+O336TyTGg/Kmcgw9bfwYhCoFiV5lR5QeEmKecJyrW4W54nMfD3p3589E8a7czQ==",
+      "nupkgSha512": "s/d40kr99HEb66EN5nP56zq67BCLhoYv3x3mT1VLVDpQP7O7sKvDjgr4uADvOdNmD8ZglDI1xzR4b66xHU+tZA==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1050,17 +1079,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.Identity.Client.Extensions.Msal/4.61.3",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.Identity.Client.Extensions.Msal",
-      "contentHash": "PWnJcznrSGr25MN8ajlc2XIDW4zCFu0U6FkpaNLEWLgd1NgFCp5uDY3mqLDgM8zCN8hqj8yo5wHYfLB2HjcdGw==",
-      "nupkgSha512": "3StApQEoHVupRSzHLz1YgaK03+L0QFPMeDj6FJTazfuIshog74sYg+pAUQRWxIOJpFVI2fMCOOhlhxmEcPOb0A==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Microsoft.Identity.Client/4.61.3",
       "kind": "nuget",
       "depsType": "package",
@@ -1068,6 +1086,17 @@
       "nuGetId": "Microsoft.Identity.Client",
       "contentHash": "naJo/Qm35Caaoxp5utcw+R8eU8ZtLz2ALh8S+gkekOYQ1oazfCQMWVT4NJ/FnHzdIJlm8dMz0oMpMGCabx5odA==",
       "nupkgSha512": "gLYldEzeZ1s5826tEXHZ7m/ifmNuQpEnsIwy9TrFLv9bK4GVRCS7wJwfk4h3SKpStAUwSF81CUxnQFcgF4X7HQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Microsoft.Identity.Client.Extensions.Msal/4.61.3",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.Identity.Client.Extensions.Msal",
+      "contentHash": "PWnJcznrSGr25MN8ajlc2XIDW4zCFu0U6FkpaNLEWLgd1NgFCp5uDY3mqLDgM8zCN8hqj8yo5wHYfLB2HjcdGw==",
+      "nupkgSha512": "3StApQEoHVupRSzHLz1YgaK03+L0QFPMeDj6FJTazfuIshog74sYg+pAUQRWxIOJpFVI2fMCOOhlhxmEcPOb0A==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1105,17 +1134,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "Microsoft.IdentityModel.Protocols.OpenIdConnect/7.5.0",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
-      "contentHash": "/U3I/8uutTqZr2n/zt0q08bluYklq+5VWP7ZuOGpTUR1ln5bSbrexAzdSGzrhxTxNNbHMCU8Mn2bNQvcmehAxg==",
-      "nupkgSha512": "T+4+IZ77Vkd+GYZF+gorKQnnBap6ft85KaHeThk9i+fmQU1+MjN+3FpBwCnCTmP0N1LBZIyiBHHja1kxEJ4XCA==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "Microsoft.IdentityModel.Protocols/7.5.0",
       "kind": "nuget",
       "depsType": "package",
@@ -1123,6 +1141,17 @@
       "nuGetId": "Microsoft.IdentityModel.Protocols",
       "contentHash": "ugyb0Nm+I+UrHGYg28mL8oCV31xZrOEbs8fQkcShUoKvgk22HroD2odCnqEf56CoAFYTwoDExz8deXzrFC+TyA==",
       "nupkgSha512": "sWD0v65nwdv3I1NFetuqNyqVA01RZoFdrN8lT4Cu5nkVtQ2mQY5b+DbjwMHEKSmsYlDQPA5quc2gvUgjQdFNtQ==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "Microsoft.IdentityModel.Protocols.OpenIdConnect/7.5.0",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
+      "contentHash": "/U3I/8uutTqZr2n/zt0q08bluYklq+5VWP7ZuOGpTUR1ln5bSbrexAzdSGzrhxTxNNbHMCU8Mn2bNQvcmehAxg==",
+      "nupkgSha512": "T+4+IZ77Vkd+GYZF+gorKQnnBap6ft85KaHeThk9i+fmQU1+MjN+3FpBwCnCTmP0N1LBZIyiBHHja1kxEJ4XCA==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1149,13 +1178,35 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "ModelContextProtocol.Core/1.3.0",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "Apache-2.0",
+      "nuGetId": "ModelContextProtocol",
+      "identity": "ModelContextProtocol/2.2.0",
+      "contentHash": "4Pb9u02Nwsp0poueDsqNdyGRojFxOYpljB7zDBsq+aHL+Afou3OgxlBc3GWFVnsRMRJrUtWqDh3s6k2JgPzmrQ==",
+      "nupkgSha512": "gpbmIn/FEP7cb0saSox9dwWu9avJJgGv5jVOedgykpGQsSSP1U9Y0PQq2PyuynMNh9qBty/finIPXhNBu/vvew==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "Apache-2.0"
+    },
+    {
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "Apache-2.0",
+      "nuGetId": "ModelContextProtocol.AspNetCore",
+      "identity": "ModelContextProtocol.AspNetCore/2.2.0",
+      "contentHash": "3JelDMuFIwFzXybsh6K30G6wXu5gmqKnuRnieqgBMuR0FkqqXRv4B+NYZuPgthSyNq5UwRyvv2U2VJBE3RD3PQ==",
+      "nupkgSha512": "C2Ah/CzTUI/W9BU+jiQPDIFDl5QFX3iNxyuXzfTSLS0qsxVVlZGYhoiVITkJklqITcOv/Bp5VSY+er4QRevL2Q==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "Apache-2.0"
+    },
+    {
+      "identity": "ModelContextProtocol.Core/2.2.0",
       "kind": "nuget",
       "depsType": "package",
       "licenseDeclared": "Apache-2.0",
       "nuGetId": "ModelContextProtocol.Core",
-      "contentHash": "OWmdxDSwA7K9pNNg4t98MXNIssHG/wOQEr/G8pG5B7synDdw4MnmZ/IIVeb3yUdeznPqnDHvd3FBCK0jRk4IZQ==",
-      "nupkgSha512": "FXblQhIzpiSjr53w7Uc9ObY9qIM1cqilQKJlQ5KH7OamZqr8zAbeed8AKUeH48iKyqXMZoIdSWUQJNud9cKi1g==",
+      "contentHash": "FeBfXU6T8k+jw4afg4sfxdEX2rL/e5oKOk9ROOGztu9k47+7Bz08sdaToYt2XvMY1opNbwxYQOFMj6wH9TInhA==",
+      "nupkgSha512": "UwRRGhtrn6UM3X8Is5iT30Ag1SCUmz0lqQfRNmldkIf54mhpyULGVowL2cTNjc1MPh1S91AeltsmZcFqw6rIKQ==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "Apache-2.0"
     },
@@ -1363,6 +1414,17 @@
       "nuspecLicense": "MIT"
     },
     {
+      "identity": "SkiaSharp/4.150.1",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "SkiaSharp",
+      "contentHash": "5v3T8X1N62Dp+AkPO70GNBNS/NRBPGMOTiN+Prg33sZAcm/Ug3YOAH+3RTj/jxJV8NGTJs2idGpC2Qdae2mGLQ==",
+      "nupkgSha512": "7DRqkmsU+ChkQYxHlIZJScJyHOhmfJZZ9eHn0T4XmNvJi/XZuMnH5rtluS6nWU6+H0mkrRrJYnklEbxRngrsHA==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
       "identity": "SkiaSharp.NativeAssets.macOS/4.150.1",
       "kind": "nuget",
       "depsType": "package",
@@ -1386,17 +1448,6 @@
           "minimumBytes": 100000
         }
       ]
-    },
-    {
-      "identity": "SkiaSharp/4.150.1",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "SkiaSharp",
-      "contentHash": "5v3T8X1N62Dp+AkPO70GNBNS/NRBPGMOTiN+Prg33sZAcm/Ug3YOAH+3RTj/jxJV8NGTJs2idGpC2Qdae2mGLQ==",
-      "nupkgSha512": "7DRqkmsU+ChkQYxHlIZJScJyHOhmfJZZ9eHn0T4XmNvJi/XZuMnH5rtluS6nWU6+H0mkrRrJYnklEbxRngrsHA==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
     },
     {
       "identity": "SshNet.Agent/2026.0.0",
@@ -1564,17 +1615,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "System.IdentityModel.Tokens.Jwt/7.5.0",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "System.IdentityModel.Tokens.Jwt",
-      "contentHash": "D0TtrWOfoPdyYSlvOGaU9F1QR+qrbgJ/4eiEsQkIz7YQKIKkGXQldXukn6cYG9OahSq5UVMvyAIObECpH6Wglg==",
-      "nupkgSha512": "1jhH5/jR7JYI4YEECKe7oMcweLeNPkATLd1wNx5EFEdxY9iNN2H2c9hZZeGcWFa/sHSFCEqcFn0LgIJ9NKhRUg==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "System.IO.Hashing/10.0.5",
       "kind": "nuget",
       "depsType": "package",
@@ -1582,6 +1622,17 @@
       "nuGetId": "System.IO.Hashing",
       "contentHash": "8IBJWcCT9+e4Bmevm4T7+fQEiAh133KGiz4oiVTgJckd3Q76OFdR1falgn9lpz7+C4HJvogCDJeAa2QmvbeVtg==",
       "nupkgSha512": "Nd5PpLgyvzGZzGAEdJta8tN5EC3h6C2OYx96vEeU/hZ23VQQI9+r86wAjag/m36Q0m3owYeidxPHH39nV0bQxw==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "System.IdentityModel.Tokens.Jwt/7.5.0",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "System.IdentityModel.Tokens.Jwt",
+      "contentHash": "D0TtrWOfoPdyYSlvOGaU9F1QR+qrbgJ/4eiEsQkIz7YQKIKkGXQldXukn6cYG9OahSq5UVMvyAIObECpH6Wglg==",
+      "nupkgSha512": "1jhH5/jR7JYI4YEECKe7oMcweLeNPkATLd1wNx5EFEdxY9iNN2H2c9hZZeGcWFa/sHSFCEqcFn0LgIJ9NKhRUg==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1619,17 +1670,6 @@
       "nuspecLicense": "MIT"
     },
     {
-      "identity": "TextMateSharp.Grammars/2.0.4",
-      "kind": "nuget",
-      "depsType": "package",
-      "licenseDeclared": "MIT",
-      "nuGetId": "TextMateSharp.Grammars",
-      "contentHash": "jzOY00q5u5Vs4L9n2m2PnRZDGwWt2uwkOLh7qlVdCx1kkGSn5eaW5XgnYCyTzEbsCwLV2xlEolnNkr/wuIMAbA==",
-      "nupkgSha512": "BDPO2ktQK38m/myCs4ptXrTnL7QrDnirN9hFIfwXGGJXz6qAZvnvUmn/bgqNjtNgizGb/QMSgCbeE5sYdV3Kzg==",
-      "nuspecLicenseType": "expression",
-      "nuspecLicense": "MIT"
-    },
-    {
       "identity": "TextMateSharp/2.0.4",
       "kind": "nuget",
       "depsType": "package",
@@ -1637,6 +1677,17 @@
       "nuGetId": "TextMateSharp",
       "contentHash": "5Pvn+A4zb1IF+ACAVhgw1aGf9kTyx6j7v5hdup7nCS89Nzby8KQAlCfQ54VC/GAsEoQwh4zKa5MKlAaql8nkPg==",
       "nupkgSha512": "gLB9ZiPJHKapB+YPVkNRDNGzg9itn9ReWuDS+vLioY3cSio1WaFgwzwZqTIKASC55yqInIs/Z7xB4/t886TP6w==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT"
+    },
+    {
+      "identity": "TextMateSharp.Grammars/2.0.4",
+      "kind": "nuget",
+      "depsType": "package",
+      "licenseDeclared": "MIT",
+      "nuGetId": "TextMateSharp.Grammars",
+      "contentHash": "jzOY00q5u5Vs4L9n2m2PnRZDGwWt2uwkOLh7qlVdCx1kkGSn5eaW5XgnYCyTzEbsCwLV2xlEolnNkr/wuIMAbA==",
+      "nupkgSha512": "BDPO2ktQK38m/myCs4ptXrTnL7QrDnirN9hFIfwXGGJXz6qAZvnvUmn/bgqNjtNgizGb/QMSgCbeE5sYdV3Kzg==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "MIT"
     },
@@ -1705,6 +1756,31 @@
       "nupkgSha512": "o84By5TiSCLoPb6Mr/veMqkJDWCS0keu3Rrp+OpWBKLNOVy/alHUIdNKZhyd9H4PbbFACtBGagRryWNnYUdD7Q==",
       "nuspecLicenseType": "expression",
       "nuspecLicense": "Apache-2.0"
+    },
+    {
+      "identity": "runtimepack.Microsoft.AspNetCore.App.Runtime.osx-arm64/10.0.11",
+      "kind": "runtime",
+      "depsType": "runtimepack",
+      "licenseDeclared": "NOASSERTION",
+      "nuGetId": "Microsoft.AspNetCore.App.Runtime.osx-arm64",
+      "contentHash": "JnlrGXHx2XqDHf8SX5rclpBOhB9fyOvcjgRmYV1P4g+bqmBP2ELulaXC6VZ4eZA3Yk/281EUNTtm5JRafvfmrA==",
+      "nupkgSha512": "JnlrGXHx2XqDHf8SX5rclpBOhB9fyOvcjgRmYV1P4g+bqmBP2ELulaXC6VZ4eZA3Yk/281EUNTtm5JRafvfmrA==",
+      "nuspecLicenseType": "expression",
+      "nuspecLicense": "MIT",
+      "notices": [
+        {
+          "archivePath": "THIRD-PARTY-NOTICES.TXT",
+          "outputPath": "Microsoft.AspNetCore.App.Runtime.osx-arm64-10.0.11/THIRD-PARTY-NOTICES.TXT",
+          "sha256": "52af3d603b6d069e635f8afd08ec44ec01559255b5f3afd161ae9e6fe7e7aa54",
+          "minimumBytes": 100
+        },
+        {
+          "archivePath": "LICENSE.txt",
+          "outputPath": "Microsoft.AspNetCore.App.Runtime.osx-arm64-10.0.11/LICENSE.txt",
+          "sha256": "cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310",
+          "minimumBytes": 100
+        }
+      ]
     },
     {
       "identity": "runtimepack.Microsoft.NETCore.App.Runtime.osx-arm64/10.0.11",

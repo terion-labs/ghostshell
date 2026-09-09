@@ -69,6 +69,7 @@ internal static partial class ManagedComponentEvidenceBuilder
         "GhostShell.Git.dll",
         "GhostShell.Infrastructure.dll",
         "GhostShell.Mcp.dll",
+        "GhostShell.Mcp.Server.dll",
         "GhostShell.Monitoring.dll",
         "GhostShell.Previews.dll",
         "GhostShell.Protocol.dll",
@@ -1770,12 +1771,22 @@ string.Equals(component.Kind, "runtime"
         var runtimeComponents = dependencies
             .Where(component => string.Equals(component.Kind, "runtime", StringComparison.Ordinal))
             .ToArray();
-        if (runtimeComponents.Length != 1
-            || !string.Equals(runtimeComponents[0].NuGetId
-, "Microsoft.NETCore.App.Runtime." + profile.Rid, StringComparison.Ordinal))
+        // Desktop hosting now includes the optional ASP.NET Core MCP transport.
+        // Backend packages still contain exactly the .NET runtime, with no HTTP host.
+        var expectedRuntimes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Microsoft.NETCore.App.Runtime." + profile.Rid,
+        };
+        if (string.Equals(profile.Root, "GhostShell", StringComparison.Ordinal))
+        {
+            expectedRuntimes.Add("Microsoft.AspNetCore.App.Runtime." + profile.Rid);
+        }
+
+        if (runtimeComponents.Length != expectedRuntimes.Count
+            || !expectedRuntimes.SetEquals(runtimeComponents.Select(component => component.NuGetId!)))
         {
             throw CatalogError(
-                "dependencies must model the exact macOS arm64 .NET runtime package");
+                "dependencies must model the exact runtime packages for this product");
         }
     }
 

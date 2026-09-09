@@ -47,8 +47,10 @@ internal sealed class DesktopAgentWorkspaceRuntimeFactory(
                     services.GetRequiredService<CatalogAiProviderRuntime>(),
                     networkProxy),
             ];
-        return ActivatorUtilities.CreateInstance<GovernedAgentRuntime>(
+        var runtime = ActivatorUtilities.CreateInstance<GovernedAgentRuntime>(
             services,
             explicitArguments);
+        services.GetRequiredService<GhostShell.Mcp.Server.WorkspaceMcpServer>().Register(runtime);
+        return runtime;
     }
 }
