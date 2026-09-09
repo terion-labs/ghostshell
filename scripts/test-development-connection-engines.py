@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 SCRIPT = Path(__file__).resolve().with_name("build-macos-connection-engines.sh")
@@ -65,7 +66,7 @@ class DevelopmentEngineTests(unittest.TestCase):
         )
 
     def test_stages_complete_payload_into_empty_managed_output_without_sources(self):
-        result = self.run_script("--stage", self.destination)
+        result = self.run_script("--stage", self.destination, "--rid", "osx-arm64")
         self.assertEqual(0, result.returncode, result.stderr)
         for name in CODE:
             copied = self.destination / "runtimes/osx-arm64/connection-engines" / name
@@ -73,6 +74,39 @@ class DevelopmentEngineTests(unittest.TestCase):
             self.assertTrue(os.access(copied, os.X_OK))
         self.assertTrue((self.destination / "connection-engine-legal/THIRD-PARTY-NOTICES.md").is_file())
         self.assertFalse((self.destination / "connection-engine-legal/sources").exists())
+
+    def test_intel_target_skips_arm_cache_even_on_arm_host(self):
+        for cache in ("present", "missing"):
+            with self.subTest(cache=cache):
+                if cache == "missing":
+                    shutil.rmtree(self.payload)
+                result = self.run_script("--stage", self.destination, "--rid", "osx-x64")
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("Skipping unsupported", result.stderr)
+                self.assertEqual([], list(self.destination.iterdir()))
+
+    def test_unknown_target_is_rejected_without_staging(self):
+        result = self.run_script("--stage", self.destination, "--rid", "linux-x64")
+        self.assertEqual(64, result.returncode)
+        self.assertEqual([], list(self.destination.iterdir()))
+
+    def test_intel_host_with_no_cache_does_not_invoke_arm_builder(self):
+        shutil.rmtree(self.payload)
+        self.write_executable(self.root / "commands/uname",
+                              'case "$1" in -s) echo Darwin;; -m) echo x86_64;; esac')
+        result = self.run_script("--stage", self.destination, "--rid", "osx-x64")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("Restoring", result.stderr)
+        self.assertFalse(self.payload.exists())
+
+    def test_msbuild_passes_effective_target_through_runner_to_staging(self):
+        root = SCRIPT.parent.parent
+        project = ET.parse(root / "src/GhostShell.Desktop/GhostShell.Desktop.csproj")
+        arguments = project.find(".//Target[@Name='ConfigureMacOsDevelopmentRun']/PropertyGroup/RunArguments").text
+        self.assertIn('--runtime-identifier "$(GhostShellEffectiveRuntimeIdentifier)"', arguments)
+        runner = (SCRIPT.parent / "run-macos-development.sh").read_text()
+        self.assertIn('runtime_identifier="$2"', runner)
+        self.assertIn('--stage "${macos_directory}" --rid "${runtime_identifier}"', runner)
 
     def test_missing_cache_and_failed_rebuild_leave_destination_untouched(self):
         shutil.rmtree(self.payload)

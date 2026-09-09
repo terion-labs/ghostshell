@@ -46,13 +46,14 @@ verify_payload() (
 
 usage() {
     cat >&2 <<'EOF'
-Usage: ./scripts/build-macos-connection-engines.sh [--verify | --stage <MacOS-directory>]
+Usage: ./scripts/build-macos-connection-engines.sh [--verify | --stage <MacOS-directory> [--rid <osx-arm64|osx-x64>]]
 
 Builds the reviewed self-contained macOS arm64 connection engines and writes a
 deterministic checksum manifest plus the complete linked-module license notice.
 --verify checks the cached payload without downloading or building anything.
 --stage repairs the cache if needed, then copies verified engines and notices
 into development build output. Source archives remain outside the app.
+Staging defaults to osx-arm64; osx-x64 skips these unsupported engines.
 EOF
 }
 
@@ -61,8 +62,15 @@ if [[ $# -gt 0 ]]; then
         verify_payload
         exit
     fi
-    if [[ $# -eq 2 && "$1" == "--stage" ]]; then
+    if [[ "$1" == "--stage" && ( $# -eq 2 || ( $# -eq 4 && "$3" == "--rid" ) ) ]]; then
         [[ -d "$2" && ! -L "$2" ]] || { echo "Engine staging destination must be a real directory." >&2; exit 1; }
+        # Development supports both Mac RIDs, but these engines currently ship
+        # only for ARM64. Decide from the target, not the host running MSBuild.
+        case "${4-osx-arm64}" in
+            osx-arm64) ;;
+            osx-x64) echo "Skipping unsupported connection engines for osx-x64 development." >&2; exit 0 ;;
+            *) echo "Unsupported connection-engine target runtime: $4" >&2; exit 64 ;;
+        esac
         if ! verify_payload >/dev/null 2>&1; then
             echo "Restoring missing or invalid development connection engines..." >&2
             "${BASH_SOURCE[0]}"

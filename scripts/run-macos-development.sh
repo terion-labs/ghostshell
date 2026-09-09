@@ -11,6 +11,7 @@ info_plist_template=""
 app_icon="${repository_dir}/assets/macos/GhostShell.icns"
 application_arguments=()
 assemble_only=false
+runtime_identifier=""
 
 usage() {
     cat >&2 <<'EOF'
@@ -19,6 +20,7 @@ Usage: run-macos-development.sh \
   --cef-runtime-root <cef-runtime> \
   --app <obj-path/GhostShell.dev.app> \
   --info-plist-template <template> \
+  --runtime-identifier <osx-arm64|osx-x64> \
   [--assemble-only] \
   [-- <GhostSHELL arguments>]
 
@@ -29,6 +31,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --runtime-identifier)
+            [[ $# -ge 2 ]] || { usage; exit 64; }
+            runtime_identifier="$2"
+            shift 2
+            ;;
         --target-directory)
             [[ $# -ge 2 ]] || { usage; exit 64; }
             target_directory="$2"
@@ -65,6 +72,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+case "${runtime_identifier}" in
+    osx-arm64|osx-x64) ;;
+    *) echo "A macOS target runtime identifier is required." >&2; usage; exit 64 ;;
+esac
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
     echo "The macOS development-bundle runner requires macOS." >&2
@@ -161,7 +173,7 @@ fi
 /usr/bin/ditto --clone --noqtn "${target_directory}" "${macos_directory}"
 # MSBuild evaluates optional Content before provisioning. Copy from the verified
 # cache explicitly, including on the first run with an empty managed output.
-"${repository_dir}/scripts/build-macos-connection-engines.sh" --stage "${macos_directory}"
+"${repository_dir}/scripts/build-macos-connection-engines.sh" --stage "${macos_directory}" --rid "${runtime_identifier}"
 backend_resources="${resources_directory}/runtimes/linux-arm64/workspace-backend"
 mkdir -p "${backend_resources}"
 cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/backend-assets.json" "${backend_resources}/"

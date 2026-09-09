@@ -377,7 +377,7 @@
       <GhostShellForwardedRunArguments>$(RunArguments)</GhostShellForwardedRunArguments>
       <GhostShellMacDevelopmentApp>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)macos-run/GhostShell.dev.app</GhostShellMacDevelopmentApp>
       <RunCommand>$(GhostShellRepositoryRoot)scripts/run-macos-development.sh</RunCommand>
-      <RunArguments>--target-directory &quot;$(TargetDir)&quot; --cef-runtime-root &quot;$(GhostShellCefRuntimeArtifactDirectory)&quot; --app &quot;$(GhostShellMacDevelopmentApp)&quot; --info-plist-template &quot;$(GhostShellRepositoryRoot)tools/GhostShell.Packaging/MacOS/Info.plist.template&quot; -- $(GhostShellForwardedRunArguments)</RunArguments>
+      <RunArguments>--target-directory &quot;$(TargetDir)&quot; --cef-runtime-root &quot;$(GhostShellCefRuntimeArtifactDirectory)&quot; --app &quot;$(GhostShellMacDevelopmentApp)&quot; --info-plist-template &quot;$(GhostShellRepositoryRoot)tools/GhostShell.Packaging/MacOS/Info.plist.template&quot; --runtime-identifier &quot;$(GhostShellEffectiveRuntimeIdentifier)&quot; -- $(GhostShellForwardedRunArguments)</RunArguments>
     </PropertyGroup>
   </Target>
 
