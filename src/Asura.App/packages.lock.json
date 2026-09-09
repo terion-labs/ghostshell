@@ -139,12 +139,12 @@
       },
       "Mermaider": {
         "type": "Direct",
-        "requested": "[0.12.1, )",
-        "resolved": "0.12.1",
-        "contentHash": "n/xnYTU+Kg8kJMzNaNwB+3UL1QMbrLIq4hPnjy7f7BiCcLhCuSSj2uokBaOp+M7KgFZzie3SqfW5zV1cWRZOvQ==",
+        "requested": "[0.12.2, )",
+        "resolved": "0.12.2",
+        "contentHash": "GGTKdAUc22Sus45Rkf0oPQjrQq5yOTIaFjXZoo3IBY0HB7Nbn6MyXXrknmdy5YADZBRNK3awV6sw9QY1KXfpfQ==",
         "dependencies": {
           "Microsoft.Extensions.ObjectPool": "10.0.3",
-          "Sugiyama": "0.12.1"
+          "Sugiyama": "0.12.2"
         }
       },
       "Meziantou.Analyzer": {
@@ -363,8 +363,8 @@
       },
       "Sugiyama": {
         "type": "Transitive",
-        "resolved": "0.12.1",
-        "contentHash": "Coed3BSgRgSPrwv/FYtnnWCma3UCGpsBssSqKtS1EJ8YrYzZJWY/Kjs0iY047uxF3ZWKvxZtzRASow6k5LqkvA=="
+        "resolved": "0.12.2",
+        "contentHash": "zctOh0QNzLLzrkaV9WJO15bLCQ2Fvl4Lf/zEoFaMeoD244B9pTXiHEikM3PXkj+CniiOwJg6uYNL/ZDaNWAJ0w=="
       },
       "Svg.Animation": {
         "type": "Transitive",
