@@ -106,6 +106,8 @@
           EnableStartupProtectionRequested="OnEnableStartupProtectionClick"
           FilesSettingsRequested="OnFilesSettingsClick"
           BrowserSettingsRequested="OnBrowserSettingsClick"
+          BrowserProfileEnabledChangedRequested="OnBrowserProfileEnabledChanged"
+          DeleteBrowserProfileRequested="OnDeleteBrowserProfileClick"
           LockNowRequested="OnLockNowClick"
           ImportDefinitionsRequested="OnImportDefinitionsClick"
           InstallWorkspaceIsolationRuntimeRequested="OnInstallWorkspaceIsolationRuntimeClick"

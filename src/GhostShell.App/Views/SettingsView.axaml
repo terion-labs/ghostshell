@@ -141,7 +141,7 @@
           </Grid>
         </Border>
 
-        <ScrollViewer Grid.Column="1">
+        <ScrollViewer x:Name="SettingsPageScroll" Grid.Column="1">
           <!-- The top inset matches the sidebar's, so both columns start at the
                same height. A page inset on top of the chrome band above it put
                the first heading a section's worth below everything beside it,
@@ -604,56 +604,72 @@
                   </ComboBox>
                 </controls:SettingRow>
               </controls:SettingsGroup>
-              <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}">
-                <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
-                  <TextBlock Classes="SectionHeading" Text="Named profiles" />
-                  <TextBlock
-                      Classes="Muted"
-                      Text="Durable profiles are sealed into encrypted application storage when GhostSHELL closes and restored on the next run. Private profiles are discarded when their panel closes."
-                      TextWrapping="Wrap" />
+              <!-- The selection is the context for the two cards below, so
+                   the list stays a list; each row carries its own switch and
+                   delete rather than a "selected" button pair under it. -->
+              <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+                <components:SectionHeader
+                    Heading="Named profiles"
+                    Description="Durable profiles are sealed into encrypted application storage when GhostSHELL closes and restored on the next run. Private profiles are discarded when their panel closes. Select a profile to manage its authentication and stored data below." />
+                <controls:SurfaceCard Padding="0" ClipsContent="True">
                   <ListBox
+                      Classes="Rows"
+                      MaxHeight="280"
                       ItemsSource="{Binding BrowserProfileSettingsEditor.Profiles}"
                       SelectedItem="{Binding BrowserProfileSettingsEditor.SelectedProfile, Mode=TwoWay}"
-                      AutomationProperties.Name="Named browser profiles"
-                      MaxHeight="220">
+                      AutomationProperties.Name="Named browser profiles">
                     <ListBox.ItemTemplate>
-                      <DataTemplate>
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
-                          <StackPanel>
-                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
-                            <TextBlock Classes="Muted" Text="{Binding PersistenceLabel}" />
-                          </StackPanel>
-                          <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="Muted" Text="{Binding StateLabel}" />
-                        </Grid>
+                      <DataTemplate x:DataType="vm:BrowserProfileItemViewModel">
+                        <controls:ListItem
+                            ContentPadding="{DynamicResource ShellListRowPadding}"
+                            Title="{Binding Name}"
+                            Detail="{Binding PersistenceLabel}">
+                          <controls:ListItem.Leading>
+                            <controls:IdentityTile
+                                TileSize="Small"
+                                Tint="{DynamicResource ShellAccentSoftBrush}"
+                                Foreground="{DynamicResource ShellTextBrush}"
+                                Symbol="Globe" />
+                          </controls:ListItem.Leading>
+                          <controls:ListItem.Trailing>
+                            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource ShellSpaceSm}">
+                              <controls:StatusChip
+                                  Classes.Neutral="{Binding !IsEnabled}"
+                                  Content="{Binding StateLabel}" />
+                              <ToggleSwitch
+                                  IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                  IsCheckedChanged="OnBrowserProfileEnabledChanged"
+                                  AutomationProperties.Name="{Binding Name, StringFormat=Enable browser profile {0}}" />
+                              <Button
+                                  Classes="IconButton Danger"
+                                  Click="OnDeleteBrowserProfileClick"
+                                  IsVisible="{Binding !IsBuiltIn}"
+                                  ToolTip.Tip="Delete profile metadata"
+                                  AutomationProperties.Name="{Binding Name, StringFormat=Delete browser profile {0}}">
+                                <icons:SymbolIcon Symbol="Delete" FontSize="13" />
+                              </Button>
+                            </StackPanel>
+                          </controls:ListItem.Trailing>
+                        </controls:ListItem>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
-                    <TextBox
-                        Text="{Binding BrowserProfileSettingsEditor.NewProfileName, Mode=TwoWay}"
-                        PlaceholderText="Profile name"
-                        AutomationProperties.Name="New browser profile name" />
-                    <Button Grid.Column="1" Classes="SecondaryButton"
-                        Command="{Binding BrowserProfileSettingsEditor.CreateDurableCommand}"
-                        Content="Add shared profile"
-                        AutomationProperties.Name="Add durable-settings browser profile" />
-                    <Button Grid.Column="2" Classes="SecondaryButton"
-                        Command="{Binding BrowserProfileSettingsEditor.CreatePrivateCommand}"
-                        Content="Add private profile"
-                        AutomationProperties.Name="Add private-session browser profile" />
-                  </Grid>
-                  <WrapPanel Orientation="Horizontal" ItemSpacing="{DynamicResource ShellSpaceSm}" LineSpacing="{DynamicResource ShellSpaceSm}">
-                    <Button Classes="SecondaryButton"
-                        Command="{Binding BrowserProfileSettingsEditor.ToggleEnabledCommand}"
-                        Content="Enable or disable selected"
-                        AutomationProperties.Name="Enable or disable selected browser profile" />
-                    <Button Classes="DestructiveButton"
-                        Command="{Binding BrowserProfileSettingsEditor.DeleteCommand}"
-                        Content="Delete selected metadata"
-                        AutomationProperties.Name="Delete selected browser profile metadata" />
-                  </WrapPanel>
-                </StackPanel>
-              </controls:SurfaceCard>
+                </controls:SurfaceCard>
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <TextBox
+                      Text="{Binding BrowserProfileSettingsEditor.NewProfileName, Mode=TwoWay}"
+                      PlaceholderText="New profile name"
+                      AutomationProperties.Name="New browser profile name" />
+                  <Button Grid.Column="1" Classes="SecondaryButton"
+                      Command="{Binding BrowserProfileSettingsEditor.CreateDurableCommand}"
+                      Content="Add shared profile"
+                      AutomationProperties.Name="Add durable-settings browser profile" />
+                  <Button Grid.Column="2" Classes="SecondaryButton"
+                      Command="{Binding BrowserProfileSettingsEditor.CreatePrivateCommand}"
+                      Content="Add private profile"
+                      AutomationProperties.Name="Add private-session browser profile" />
+                </Grid>
+              </StackPanel>
               <controls:SurfaceCard Padding="{DynamicResource ShellCardPaddingCompact}">
                 <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
                   <TextBlock Classes="SectionHeading" Text="HTTP authentication" />
@@ -946,21 +962,16 @@
                     </StackPanel>
                   </controls:SettingsGroup.Footer>
                 </controls:SettingsGroup>
-                <controls:SurfaceCard>
-                  <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
-                    <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
-                      <TextBlock FontWeight="SemiBold" Text="Protect startup" />
-                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="Asks for a PIN when the app starts and whenever the lock timeout elapses. The PIN is never stored: what is on disk is a verifier derived from the PIN together with a random pepper held only in the OS keystore — the file alone verifies nothing — and wrong guesses wait out a doubling delay that survives restarts. This gates the window; the data itself is protected by app encryption above." />
-                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="This build has no startup-protection support."
-                          IsVisible="{Binding !ApplicationSecurityEditor.IsProtectionAvailable}" />
-                      <TextBlock Foreground="{DynamicResource ShellWarningBrush}" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="{Binding ApplicationSecurityEditor.ProtectionStatus}"
-                          IsVisible="{Binding ApplicationSecurityEditor.HasProtectionStatus}" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}"
-                        IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionSetup}">
+                <controls:SettingsGroup
+                    Heading="Startup protection"
+                    Description="Asks for a PIN when the app starts and whenever the lock timeout elapses. The PIN is never stored: the disk holds a verifier derived from it with a random pepper kept only in the OS keystore, and wrong guesses wait out a doubling delay that survives restarts. This gates the window; the data itself is protected by app encryption above."
+                    ControlWidth="300">
+                  <controls:SettingRow
+                      Label="Choose a PIN"
+                      Description="Enter it twice to turn startup protection on."
+                      IsStacked="True"
+                      IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionSetup}">
+                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
                       <TextBox PasswordChar="●" PlaceholderText="Choose a PIN"
                           Text="{Binding ApplicationSecurityEditor.NewPin}"
                           AutomationProperties.Name="New startup PIN" />
@@ -971,67 +982,72 @@
                           Click="OnEnableStartupProtectionClick"
                           AutomationProperties.Name="Turn on startup protection" />
                     </Grid>
-                    <StackPanel Spacing="{DynamicResource ShellSpaceSm}"
-                        IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionControls}">
-                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceLg}">
-                        <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
-                          <TextBlock FontWeight="SemiBold" FontSize="{DynamicResource ShellFontSize11}" Text="Lock timeout" />
-                          <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                              Text="How long the app may sit idle before it locks itself. Any key or pointer input counts as activity." />
-                        </StackPanel>
-                        <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="160"
-                            ItemsSource="{Binding ApplicationSecurityEditor.LockTimeoutOptions}"
-                            SelectedItem="{Binding ApplicationSecurityEditor.SelectedLockTimeout}"
-                            AutomationProperties.Name="Lock timeout" />
-                      </Grid>
-                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
-                        <TextBox PasswordChar="●" PlaceholderText="Current PIN"
-                            Text="{Binding ApplicationSecurityEditor.CurrentPin}"
-                            AutomationProperties.Name="Current startup PIN" />
-                        <Button Grid.Column="1" Classes="SecondaryButton" Content="Lock now"
-                            Click="OnLockNowClick"
-                            AutomationProperties.Name="Lock GhostSHELL now" />
-                        <Button Grid.Column="2" Classes="SecondaryButton" Content="Turn off"
-                            Click="OnDisableStartupProtectionClick"
-                            AutomationProperties.Name="Turn off startup protection" />
-                      </Grid>
+                  </controls:SettingRow>
+                  <controls:SettingRow
+                      Label="Lock timeout"
+                      Description="How long the app may sit idle before it locks itself. Any key or pointer input counts as activity."
+                      IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionControls}">
+                    <ComboBox HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding ApplicationSecurityEditor.LockTimeoutOptions}"
+                        SelectedItem="{Binding ApplicationSecurityEditor.SelectedLockTimeout}"
+                        AutomationProperties.Name="Lock timeout" />
+                  </controls:SettingRow>
+                  <controls:SettingRow
+                      Label="Current PIN"
+                      Description="Confirm it to lock the app now or to turn protection off."
+                      IsStacked="True"
+                      IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionControls}">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                      <TextBox PasswordChar="●" PlaceholderText="Current PIN"
+                          Text="{Binding ApplicationSecurityEditor.CurrentPin}"
+                          AutomationProperties.Name="Current startup PIN" />
+                      <Button Grid.Column="1" Classes="SecondaryButton" Content="Lock now"
+                          Click="OnLockNowClick"
+                          AutomationProperties.Name="Lock GhostSHELL now" />
+                      <Button Grid.Column="2" Classes="SecondaryButton" Content="Turn off"
+                          Click="OnDisableStartupProtectionClick"
+                          AutomationProperties.Name="Turn off startup protection" />
+                    </Grid>
+                  </controls:SettingRow>
+                  <controls:SettingsGroup.Footer>
+                    <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
+                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                          Text="This build has no startup-protection support."
+                          IsVisible="{Binding !ApplicationSecurityEditor.IsProtectionAvailable}" />
+                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                          Text="Startup protection is on."
+                          IsVisible="{Binding ApplicationSecurityEditor.ShowProtectionControls}" />
+                      <TextBlock Foreground="{DynamicResource ShellWarningBrush}" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                          Text="{Binding ApplicationSecurityEditor.ProtectionStatus}"
+                          IsVisible="{Binding ApplicationSecurityEditor.HasProtectionStatus}" />
                     </StackPanel>
-                  </StackPanel>
-                </controls:SurfaceCard>
+                  </controls:SettingsGroup.Footer>
+                </controls:SettingsGroup>
               </StackPanel>
               <!-- Kept here rather than beside the history it governs: whether
                    a record of every session is written down at all is a
                    question about this machine, not about the list. -->
-              <StackPanel Spacing="{DynamicResource ShellSpaceSm}">
-                <TextBlock Classes="SectionHeading" Text="Session history" />
-                <controls:SurfaceCard>
-                  <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
-                    <StackPanel Spacing="{DynamicResource ShellSpaceXs}">
-                      <TextBlock FontWeight="SemiBold" Text="Retain session metadata" />
-                      <TextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="Off unless you ask for it. When on, the launcher remembers what was opened — definition metadata only, never commands, output, environment values, or credentials." />
-                      <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="{Binding HistoryRetentionStatus}"
-                          AutomationProperties.LiveSetting="Polite"
-                          AutomationProperties.Name="History retention status" />
-                      <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
-                          Text="{Binding HistoryExportStatus}"
-                          AutomationProperties.LiveSetting="Polite"
-                          AutomationProperties.Name="History export status" />
-                    </StackPanel>
-                    <controls:StateOverlay
-                        Kind="Loading"
-                        Heading="Loading session history…"
-                        Body="Retention controls remain unavailable until the saved policy is known."
-                        IsVisible="{Binding IsHistoryLoading}" />
-                    <controls:StateOverlay
-                        Kind="Retry"
-                        Heading="Session history unavailable"
-                        Body="{Binding RecentSessionStatus}"
-                        ActionLabel="Retry"
-                        ActionRequested="OnRetryRecentSessionHistoryClick"
-                        FocusTarget="PrimaryAction"
-                        IsVisible="{Binding HasRecentSessionFailure}" />
+              <StackPanel Spacing="{DynamicResource ShellSpaceMd}">
+                <controls:StateOverlay
+                    Kind="Loading"
+                    Heading="Loading session history…"
+                    Body="Retention controls remain unavailable until the saved policy is known."
+                    IsVisible="{Binding IsHistoryLoading}" />
+                <controls:StateOverlay
+                    Kind="Retry"
+                    Heading="Session history unavailable"
+                    Body="{Binding RecentSessionStatus}"
+                    ActionLabel="Retry"
+                    ActionRequested="OnRetryRecentSessionHistoryClick"
+                    FocusTarget="PrimaryAction"
+                    IsVisible="{Binding HasRecentSessionFailure}" />
+                <controls:SettingsGroup
+                    Heading="Session history"
+                    Description="Off unless you ask for it. When on, the launcher remembers what was opened — definition metadata only, never commands, output, environment values, or credentials."
+                    ControlWidth="380">
+                  <controls:SettingRow
+                      Label="Retain session metadata"
+                      Description="How long the launcher keeps a record of what was opened.">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceSm}">
                       <ComboBox
                           x:Name="HistoryRetentionPicker"
@@ -1044,15 +1060,29 @@
                       </ComboBox>
                       <Button Grid.Column="1" Classes="SecondaryButton" Click="OnSaveHistoryRetentionClick" Content="Apply" IsEnabled="{Binding CanApplyHistoryRetention}" AutomationProperties.Name="Apply history retention" />
                     </Grid>
-                    <WrapPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                      <Button Margin="{controls:Inset Right=Xs, Bottom=Xs}" Classes="SecondaryButton" Click="OnReviewHistoryPrivacyClick" Content="Review privacy" AutomationProperties.Name="Review session history privacy" />
-                      <Button Margin="{controls:Inset Right=Xs, Bottom=Xs}" Classes="SecondaryButton" Click="OnExportAllHistoryClick" Content="Export all" IsEnabled="{Binding CanExportAllHistory}" AutomationProperties.Name="Export all retained history metadata" />
-                      <Button Margin="{controls:Inset Right=Xs, Bottom=Xs}" Classes="SecondaryButton" Click="OnCancelHistoryExportClick" Content="Cancel export" IsVisible="{Binding IsHistoryExporting}" AutomationProperties.Name="Cancel session history export" />
-                      <Button Margin="{controls:Inset Right=Xs, Bottom=Xs}" Classes="DestructiveButton" Click="OnClearRecentSessionsClick" Content="Clear" IsEnabled="{Binding CanClearRecentSessionHistory}" AutomationProperties.Name="Clear retained session history" />
-                      <Button Margin="{controls:Inset Bottom=Xs}" Classes="DestructiveButton" Click="OnResetRecentSessionHistoryClick" Content="Reset unreadable history" IsEnabled="{Binding CanResetRecentSessionHistory}" IsVisible="{Binding HasUnreadableRecentSessionHistory}" AutomationProperties.Name="Reset unreadable session history" />
-                    </WrapPanel>
-                  </StackPanel>
-                </controls:SurfaceCard>
+                  </controls:SettingRow>
+                  <controls:SettingsGroup.Footer>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
+                      <StackPanel VerticalAlignment="Center" Spacing="{DynamicResource ShellSpaceXs}">
+                        <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                            Text="{Binding HistoryRetentionStatus}"
+                            AutomationProperties.LiveSetting="Polite"
+                            AutomationProperties.Name="History retention status" />
+                        <controls:LiveRegionTextBlock Classes="Muted" FontSize="{DynamicResource ShellFontSize10}" TextWrapping="Wrap"
+                            Text="{Binding HistoryExportStatus}"
+                            AutomationProperties.LiveSetting="Polite"
+                            AutomationProperties.Name="History export status" />
+                      </StackPanel>
+                      <WrapPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" ItemSpacing="{DynamicResource ShellSpaceXs}" LineSpacing="{DynamicResource ShellSpaceXs}">
+                        <Button Classes="SecondaryButton" Click="OnReviewHistoryPrivacyClick" Content="Review privacy" AutomationProperties.Name="Review session history privacy" />
+                        <Button Classes="SecondaryButton" Click="OnExportAllHistoryClick" Content="Export all" IsEnabled="{Binding CanExportAllHistory}" AutomationProperties.Name="Export all retained history metadata" />
+                        <Button Classes="SecondaryButton" Click="OnCancelHistoryExportClick" Content="Cancel export" IsVisible="{Binding IsHistoryExporting}" AutomationProperties.Name="Cancel session history export" />
+                        <Button Classes="DestructiveButton" Click="OnClearRecentSessionsClick" Content="Clear" IsEnabled="{Binding CanClearRecentSessionHistory}" AutomationProperties.Name="Clear retained session history" />
+                        <Button Classes="DestructiveButton" Click="OnResetRecentSessionHistoryClick" Content="Reset unreadable history" IsEnabled="{Binding CanResetRecentSessionHistory}" IsVisible="{Binding HasUnreadableRecentSessionHistory}" AutomationProperties.Name="Reset unreadable session history" />
+                      </WrapPanel>
+                    </Grid>
+                  </controls:SettingsGroup.Footer>
+                </controls:SettingsGroup>
               </StackPanel>
               <controls:Callout Glyph="Shield" Text="{Binding SecretVaultStatus}" />
               <controls:SettingsGroup Heading="New connection credential">
@@ -1183,7 +1213,11 @@
                   Heading="Default agent configuration"
                   Description="Used by the floating agent unless the current workspace or saved screen supplies an override.">
                 <StackPanel Margin="{controls:Inset Lg}" Spacing="{DynamicResource ShellSpaceMd}">
-                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <controls:Callout
+                      Glyph="Bot"
+                      Text="Add a provider below, then choose the default provider and model here."
+                      IsVisible="{Binding HasNoAiProviders}" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}" IsVisible="{Binding HasAiProviders}">
                     <controls:LabeledField Label="Provider profile">
                       <Grid MinHeight="{DynamicResource ShellControlMinHeight}">
                         <ComboBox
@@ -1221,7 +1255,7 @@
                       </Grid>
                     </controls:LabeledField>
                   </Grid>
-                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}">
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource ShellSpaceSm}" IsVisible="{Binding HasAiProviders}">
                     <controls:LabeledField Label="Compaction model">
                       <ComboBox
                           ItemsSource="{Binding DefaultAgentPolicy.AgentTaskModelOptions}"
@@ -1380,31 +1414,34 @@
               </StackPanel>
 
               <StackPanel x:Name="McpSettingsSection" Spacing="{DynamicResource ShellSpaceLg}">
+              <components:SettingsPageHeader
+                  Heading="MCP"
+                  Description="Connect local or remote MCP servers and choose which tools they provide, or let another agent on this computer use GhostSHELL's tools." />
+
               <settingsPages:LocalMcpServerSettingsView DataContext="{Binding LocalMcpServerSettings}" />
+
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource ShellSpaceMd}">
-                <components:SettingsPageHeader
-                    Heading="MCP servers"
-                    Description="Connect local or remote MCP servers and choose which tools they provide." />
+                <components:SectionHeader
+                    Heading="Connected servers"
+                    Description="Servers the agent can call. Each one lists the tools it offers; enable only the ones you want." />
                 <StackPanel
                     Grid.Column="1"
                     Orientation="Horizontal"
+                    VerticalAlignment="Center"
                     Spacing="{DynamicResource ShellSpaceSm}">
                   <Button
-                      VerticalAlignment="Center"
                       Classes="SecondaryButton"
                       Click="OnClearMcpServerDiagnosticHistoryClick"
                       Content="Clear history"
                       IsVisible="{Binding HasMcpDiagnosticHistory}"
                       AutomationProperties.Name="Clear MCP diagnostic history" />
                   <Button
-                      VerticalAlignment="Center"
                       Classes="PrimaryButton"
                       Click="OnAddMcpServerClick"
                       Content="Add server"
                       AutomationProperties.Name="Add MCP server" />
                 </StackPanel>
               </Grid>
-
               <ItemsControl ItemsSource="{Binding McpServerDefinitions}" IsVisible="{Binding HasMcpServers}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>

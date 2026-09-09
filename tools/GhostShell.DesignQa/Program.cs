@@ -329,7 +329,10 @@ internal sealed class QaApplication : Avalonia.Application
         new("settings-files", vm => vm.ShowSettings(SettingsPage.Files)),
         new("settings-browser", vm => vm.ShowSettings(SettingsPage.Browser)),
         new("settings-agent", vm => vm.ShowSettings(SettingsPage.Agent)),
-        new("settings-mcp", vm => vm.ShowSettings(SettingsPage.Mcp)),
+        new(
+            "settings-mcp",
+            vm => vm.ShowSettings(SettingsPage.Mcp),
+            PrepareCapture: ScrollSettingsToMcp),
         new("settings-secrets", vm => vm.ShowSettings(SettingsPage.Secrets)),
         new("settings-diagnostics", vm => vm.ShowSettings(SettingsPage.Diagnostics)),
         new("settings-about", vm => vm.ShowSettings(SettingsPage.About)),
@@ -798,6 +801,15 @@ internal sealed class QaApplication : Avalonia.Application
     /// The dialog the tab list opens, built from the same options the editor
     /// hands it.
     /// </summary>
+    private static void ScrollSettingsToMcp(MainWindow window)
+    {
+        var section = window.GetVisualDescendants()
+            .OfType<Control>()
+            .First(control => string.Equals(control.Name, "McpSettingsSection", StringComparison.Ordinal));
+        var scroll = section.GetVisualAncestors().OfType<ScrollViewer>().First();
+        scroll.Offset = new Vector(0, section.TranslatePoint(new Point(0, 0), scroll)!.Value.Y + scroll.Offset.Y);
+    }
+
     private static void ScrollWorkspaceEditorToEnd(MainWindow window)
     {
         var editor = window.GetVisualDescendants()

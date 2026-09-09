@@ -203,6 +203,50 @@ public sealed partial class MainWindow
     private void OnBrowserSettingsClick(object? sender, RoutedEventArgs e) =>
         SetSettingsPage(SettingsPage.Browser);
 
+    // The profile editor's commands act on its selected profile. A row's own
+    // switch and delete select that row first, so the command reads the row
+    // it sits in rather than whichever one was clicked last.
+    private void OnBrowserProfileEnabledChanged(object? sender, RoutedEventArgs e)
+    {
+        _ = e;
+        if (sender is not ToggleSwitch { DataContext: BrowserProfileItemViewModel profile } toggle
+            || (toggle.IsChecked == true) == profile.IsEnabled)
+        {
+            return;
+        }
+
+        var editor = ViewModel.BrowserProfileSettingsEditor;
+        editor.SelectedProfile = profile;
+        if (editor.ToggleEnabledCommand.CanExecute(null))
+        {
+            editor.ToggleEnabledCommand.Execute(null);
+        }
+        else
+        {
+            toggle.IsChecked = profile.IsEnabled;
+        }
+    }
+
+    private async void OnDeleteBrowserProfileClick(object? sender, RoutedEventArgs e)
+    {
+        _ = e;
+        if (sender is not Control { DataContext: BrowserProfileItemViewModel profile })
+        {
+            return;
+        }
+
+        var editor = ViewModel.BrowserProfileSettingsEditor;
+        editor.SelectedProfile = profile;
+        if (!editor.DeleteCommand.CanExecute(null)
+            || !await Confirmations.DefinitionDelete("browser profile", profile.Name)
+                .ShowDialog<bool>(this))
+        {
+            return;
+        }
+
+        editor.DeleteCommand.Execute(null);
+    }
+
     private async void OnCheckForUpdatesClick(object? sender, RoutedEventArgs e)
     {
         _ = sender;

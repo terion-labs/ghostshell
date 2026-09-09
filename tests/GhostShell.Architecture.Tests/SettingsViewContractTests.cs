@@ -18,6 +18,8 @@ public sealed class SettingsViewContractTests
             ["AgentSettingsRequested"] = "OnAgentSettingsClick",
             ["AppearanceSettingsRequested"] = "OnAppearanceSettingsClick",
             ["BrowserSettingsRequested"] = "OnBrowserSettingsClick",
+            ["BrowserProfileEnabledChangedRequested"] = "OnBrowserProfileEnabledChanged",
+            ["DeleteBrowserProfileRequested"] = "OnDeleteBrowserProfileClick",
             ["ClearKeybindingPrefixRequested"] = "OnClearKeybindingPrefixClick",
             ["CheckForUpdatesRequested"] = "OnCheckForUpdatesClick",
             ["CloneKeybindingPresetRequested"] = "OnCloneKeybindingPresetClick",

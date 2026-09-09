@@ -479,6 +479,16 @@ public sealed partial class SettingsView : UserControl
     private void OnBrowserSettingsClick(object? sender, RoutedEventArgs e) =>
         BrowserSettingsRequested?.Invoke(sender, e);
 
+    public event EventHandler<RoutedEventArgs>? BrowserProfileEnabledChangedRequested;
+
+    public event EventHandler<RoutedEventArgs>? DeleteBrowserProfileRequested;
+
+    private void OnBrowserProfileEnabledChanged(object? sender, RoutedEventArgs e) =>
+        BrowserProfileEnabledChangedRequested?.Invoke(sender, e);
+
+    private void OnDeleteBrowserProfileClick(object? sender, RoutedEventArgs e) =>
+        DeleteBrowserProfileRequested?.Invoke(sender, e);
+
     private void OnCheckForUpdatesClick(object? sender, RoutedEventArgs e) =>
         CheckForUpdatesRequested?.Invoke(sender, e);
 

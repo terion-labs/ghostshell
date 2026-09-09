@@ -39,10 +39,44 @@ public sealed class LocalMcpServerSettingsViewModel : ObservableObject, IDisposa
         : _isBusy ? "Applying MCP settings…"
         : _state.Error ?? (_state.IsRunning ? "Running · accepts connections on this computer" : "Off");
 
+    /// <summary>The state as one word, for the chip beside the switch.</summary>
+    public string StatusLabel => _control is null
+        ? "Unavailable"
+        : _isBusy ? "Applying"
+        : _state.Error is not null ? "Error"
+        : _state.IsRunning ? "Running" : "Off";
+
+    /// <summary>The sentence under the switch: what the state means, or what went wrong.</summary>
+    public string StatusDetail => _control is null
+        ? "The MCP server is unavailable in this host."
+        : _isBusy ? "Applying the settings…"
+        : _state.Error ?? (_state.IsRunning
+            ? "Accepting connections from agents on this computer."
+            : "Not listening. Turn it on to let an agent on this computer call GhostSHELL's tools.");
+
+    public bool IsRunning => _control is not null && !_isBusy && _state.Error is null && _state.IsRunning;
+
+    public bool IsOff => _control is null || (!_isBusy && _state.Error is null && !_state.IsRunning);
+
+    public bool HasError => _control is not null && !_isBusy && _state.Error is not null;
+
+    public bool IsBusy => _isBusy;
+
+    /// <summary>Apply a new port, or retry the current one after it failed to bind.</summary>
+    public string ApplyLabel => _state.Error is not null ? "Retry" : "Apply";
+
+    public bool HasMessage => !string.IsNullOrEmpty(Message);
+
     public string? Message
     {
         get => _message;
-        private set => SetProperty(ref _message, value);
+        private set
+        {
+            if (SetProperty(ref _message, value))
+            {
+                OnPropertyChanged(nameof(HasMessage));
+            }
+        }
     }
 
     public Task SetEnabledAsync(bool enabled) => ConfigureAsync(enabled, disabling: !enabled);
@@ -163,6 +197,13 @@ public sealed class LocalMcpServerSettingsViewModel : ObservableObject, IDisposa
         OnPropertyChanged(nameof(Enabled));
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(StatusLabel));
+        OnPropertyChanged(nameof(StatusDetail));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(IsOff));
+        OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(ApplyLabel));
         OnPropertyChanged(nameof(Endpoint));
     }
 }
