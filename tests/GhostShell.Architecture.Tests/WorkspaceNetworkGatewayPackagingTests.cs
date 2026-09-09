@@ -7,7 +7,7 @@ public sealed class WorkspaceNetworkGatewayPackagingTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
-    public void BuildProducesBothArm64GatewayArtifactsDeterministically()
+    public void BuildProducesArm64AndX64GatewayArtifactsDeterministically()
     {
         var script = File.ReadAllText(Path.Combine(
             RepositoryRoot,
@@ -16,13 +16,15 @@ public sealed class WorkspaceNetworkGatewayPackagingTests
 
         Assert.Contains("expected_go_version=\"go1.26.3\"", script, StringComparison.Ordinal);
         Assert.Contains("CGO_ENABLED=0", script, StringComparison.Ordinal);
-        Assert.Contains("GOOS=\"${goos}\" GOARCH=arm64 go build", script, StringComparison.Ordinal);
+        Assert.Contains("GOOS=\"${goos}\" GOARCH=\"${goarch}\" go build", script, StringComparison.Ordinal);
         Assert.Contains("-trimpath", script, StringComparison.Ordinal);
         Assert.Contains("-buildvcs=false", script, StringComparison.Ordinal);
         Assert.Contains("-ldflags=-buildid=", script, StringComparison.Ordinal);
         Assert.Contains("./cmd/workspace-network-gateway", script, StringComparison.Ordinal);
         Assert.Contains("ghostshell-workspace-gateway-darwin-arm64", script, StringComparison.Ordinal);
         Assert.Contains("ghostshell-workspace-gateway-linux-arm64", script, StringComparison.Ordinal);
+        Assert.Contains("ghostshell-workspace-gateway-darwin-amd64", script, StringComparison.Ordinal);
+        Assert.Contains("ghostshell-workspace-gateway-linux-amd64", script, StringComparison.Ordinal);
         Assert.Contains("workspace-network-gateway-MANIFEST.sha256", script, StringComparison.Ordinal);
         Assert.Contains("workspace-network-gateway-THIRD-PARTY-NOTICES.md", script, StringComparison.Ordinal);
         Assert.Contains("workspace-network-gateway-GO-LICENSE.txt", script, StringComparison.Ordinal);
@@ -45,7 +47,7 @@ public sealed class WorkspaceNetworkGatewayPackagingTests
             .ToArray();
 
         Assert.Contains(
-            "runtimes/osx-arm64/native/$(GhostShellWorkspaceGatewayHostName)",
+            "runtimes/$(GhostShellEffectiveRuntimeIdentifier)/native/$(GhostShellWorkspaceGatewayHostName)",
             links,
             StringComparer.Ordinal);
         Assert.Contains("runtimes/osx-arm64/workspace-runtime/%(RecursiveDir)%(Filename)%(Extension)", links, StringComparer.Ordinal);

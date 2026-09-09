@@ -89,6 +89,7 @@ public sealed class PathConnectionExecutableLocator : IConnectionExecutableLocat
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/opt/local/bin",
+            "/opt/podman/bin",
             "/Applications/Docker.app/Contents/Resources/bin",
             "/Applications/OrbStack.app/Contents/MacOS/xbin",
             "/Applications/Rancher Desktop.app/Contents/Resources/resources/darwin/bin",

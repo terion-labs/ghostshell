@@ -14,7 +14,7 @@ namespace GhostShell.Infrastructure;
 /// guest command: the only virtual NIC terminates at the native host runtime.
 /// Runtime state is outside the replaceable bundle. CLI workspace disks are not used.
 /// </summary>
-public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceIsolationProvider
+public sealed partial class WorkspaceSdkIsolationProvider : IWorkspaceConnectionServiceProvider
 {
     public static WorkspaceIsolationProviderDescriptor ProviderDescriptor { get; } = new(
         new WorkspaceIsolationProviderId("apple-containerization"),

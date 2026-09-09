@@ -14,6 +14,7 @@ import (
 	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/ethernet"
 	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/guest"
 	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/host"
+	"github.com/terion-labs/ghostshell/native/workspace-network-gateway/internal/relay"
 )
 
 func main() {
@@ -28,6 +29,22 @@ func run() error {
 		return usageError()
 	}
 	switch os.Args[1] {
+	case "relay-nic":
+		flags := flag.NewFlagSet("relay-nic", flag.ContinueOnError)
+		socket := flags.String("socket", "", "private host packet socket")
+		if err := flags.Parse(os.Args[2:]); err != nil {
+			return err
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		defer stop()
+		return relay.RunHost(ctx, *socket, flags.Args(), os.Stdin, os.Stdout)
+	case "relay-tap":
+		if len(os.Args) != 2 {
+			return errors.New("relay-tap accepts no arguments")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		defer stop()
+		return relay.RunTap(ctx)
 	case "ethernet":
 		return runEthernet(os.Args[2:])
 	case "guest":

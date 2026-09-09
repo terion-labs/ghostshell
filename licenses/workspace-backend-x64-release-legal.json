@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "format": "ghostshell-workspace-backend-release-legal-v1",
+  "platform": "linux-x64",
+  "runtime": "10.0.11",
+  "legalClearance": false,
+  "releaseBlockers": [
+    "ghostshell-90w9: Review the Linux backend runtime and managed closure; existing macOS approval does not cover this distribution."
+  ],
+  "review": {
+    "status": "pending-project-owner-decision",
+    "basis": null,
+    "reviewedBy": null,
+    "reviewedAtUtc": null
+  },
+  "reviewedInputs": {
+    "src/GhostShell.Backend/packages.linux-x64.lock.json": "6cd3f04b4bbdb4b14382246ea25f1e1fd2b98b1529a3d2b62ea4c0474c567d75",
+    "licenses/workspace-backend-x64-managed-components.json": "6e70eb01270b5a93ff396ac3c0ae524985e20e98e410cfd6f7136a2899ad9b16",
+    "licenses/SMBLIBRARY-SOURCE.json": "808c6618b7bf37420456bc4d310ce70601016053e326d5d01a0088027f2571b4"
+  }
+}

@@ -9,7 +9,10 @@ import stat
 import sys
 import tarfile
 
-ARCHIVE = "GhostShell-workspace-backend-arm64.tar.gz"
+ARCHITECTURE = os.environ.get("GHOSTSHELL_BACKEND_ARCH", "arm64")
+if ARCHITECTURE not in ("arm64", "x64"):
+    raise ValueError("Unsupported backend architecture")
+ARCHIVE = f"GhostShell-workspace-backend-{ARCHITECTURE}.tar.gz"
 EXECUTABLE = "GhostShell.Backend"
 RUNTIME = "10.0.11"
 FORBIDDEN = ("avalonia", "exclr8", "libcef", "chromium", "ghostshell.app.", "ghostshell.browser.", "ghostshell.desktop.")
@@ -33,9 +36,10 @@ def source_digest(repository):
         "scripts/package-workspace-backend.py", "licenses/SMBLIBRARY-LGPL-3.0.txt",
         "licenses/GPL-3.0.txt", "licenses/SMBLIBRARY-SOURCE.json", "licenses/SQLCLIENT-MIT.txt",
         "licenses/SMBLIBRARY-SOURCE-AND-RELINKING.md", "licenses/THIRD-PARTY-NOTICES.md",
-        "licenses/workspace-backend-managed-components.json"))
+        "licenses/workspace-backend-managed-components.json", "licenses/workspace-backend-x64-managed-components.json"))
     excluded = {"bin", "obj", ".git", ".build", "node_modules", "artifacts", "__pycache__"}
-    for source in (repository / "src", repository / "vendor", repository / "tools" / "GhostShell.Packaging"):
+    inputs.append(repository / "scripts/build-workspace-network-gateway.sh")
+    for source in (repository / "src", repository / "vendor", repository / "tools" / "GhostShell.Packaging", repository / "native/workspace-network-gateway"):
         for directory, children, filenames in os.walk(source):
             children[:] = sorted(child for child in children if child not in excluded)
             if any((pathlib.Path(directory) / child).is_symlink() for child in children):
@@ -64,8 +68,9 @@ def validate_name(name):
 
 
 def validate_elf(header, name):
-    if header[:4] != b"\x7fELF" or header[4:6] != b"\x02\x01" or header[18:20] != b"\xb7\x00":
-        raise ValueError(f"Backend executable must be a Linux ARM64 ELF: {name}")
+    machine = b"\xb7\x00" if ARCHITECTURE == "arm64" else b"\x3e\x00"
+    if header[:4] != b"\x7fELF" or header[4:6] != b"\x02\x01" or header[18:20] != machine:
+        raise ValueError(f"Backend executable must be a Linux {ARCHITECTURE} ELF: {name}")
 
 
 def build(repository, destination, payload, expected_source, sdk):
@@ -118,7 +123,7 @@ def build(repository, destination, payload, expected_source, sdk):
     descriptor = {"sha256": digest(archive), "size": archive.stat().st_size, "executable": EXECUTABLE}
     (destination / "backend-assets.json").write_text(json.dumps(descriptor, indent=2) + "\n")
     (destination / (ARCHIVE + ".sha256")).write_text(f"{descriptor['sha256']}  {ARCHIVE}\n")
-    receipt = {"sourceSha256": expected_source, "sdk": sdk, "runtime": RUNTIME, "rid": "linux-arm64", "files": len(files)}
+    receipt = {"sourceSha256": expected_source, "sdk": sdk, "runtime": RUNTIME, "rid": f"linux-{ARCHITECTURE}", "files": len(files)}
     (destination / "build-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
 
 
@@ -128,7 +133,7 @@ def verify(repository, destination):
     if descriptor != {"sha256": digest(archive), "size": archive.stat().st_size, "executable": EXECUTABLE}:
         raise ValueError("Backend archive differs from its descriptor")
     receipt = json.loads((destination / "build-receipt.json").read_text())
-    if receipt["sourceSha256"] != source_digest(repository) or receipt["runtime"] != RUNTIME or receipt["rid"] != "linux-arm64":
+    if receipt["sourceSha256"] != source_digest(repository) or receipt["runtime"] != RUNTIME or receipt["rid"] != f"linux-{ARCHITECTURE}":
         raise ValueError("Backend payload is stale or has a different runtime")
     names = set()
     checksums = {}
@@ -163,10 +168,11 @@ def verify(repository, destination):
 
 
 def verify_release_clearance(repository):
-    record = json.loads((repository / "licenses/workspace-backend-release-legal.json").read_text())
+    prefix = "workspace-backend" if ARCHITECTURE == "arm64" else "workspace-backend-x64"
+    record = json.loads((repository / f"licenses/{prefix}-release-legal.json").read_text())
     if (record.get("schemaVersion") != 1
             or record.get("format") != "ghostshell-workspace-backend-release-legal-v1"
-            or record.get("platform") != "linux-arm64" or record.get("runtime") != RUNTIME):
+            or record.get("platform") != f"linux-{ARCHITECTURE}" or record.get("runtime") != RUNTIME):
         raise ValueError("Invalid Linux workspace backend legal record")
     review = record.get("review", {})
     if (record.get("legalClearance") is not True or record.get("releaseBlockers") != []
@@ -174,8 +180,8 @@ def verify_release_clearance(repository):
             or any(not isinstance(review.get(key), str) or not review[key].strip()
                    for key in ("basis", "reviewedBy", "reviewedAtUtc"))):
         raise ValueError("Linux workspace backend publication is blocked pending its recorded project-owner review (ghostshell-90w9)")
-    required = {"src/GhostShell.Backend/packages.linux-arm64.lock.json",
-                "licenses/workspace-backend-managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"}
+    required = {f"src/GhostShell.Backend/packages.linux-{ARCHITECTURE}.lock.json",
+                f"licenses/{prefix}-managed-components.json", "licenses/SMBLIBRARY-SOURCE.json"}
     inputs = record.get("reviewedInputs", {})
     if set(inputs) != required or any(digest(repository / name) != inputs[name] for name in required):
         raise ValueError("Linux workspace backend legal evidence changed after review")

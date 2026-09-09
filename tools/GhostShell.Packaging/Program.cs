@@ -49,8 +49,10 @@ internal static class Program
         {
             throw new PackagingUsageException("workspace-backend-evidence requires publish directory, license directory, catalog path, NuGet root, and product version.");
         }
+        var profile = Environment.GetEnvironmentVariable("GHOSTSHELL_BACKEND_ARCH") is "x64"
+            ? ManagedEvidenceProfile.LinuxX64Backend : ManagedEvidenceProfile.LinuxBackend;
         var result = ManagedComponentEvidenceBuilder.Build(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
-            new(1024, 100000, 64L * 1024 * 1024, 16), ManagedEvidenceProfile.LinuxBackend);
+            new(1024, 100000, 64L * 1024 * 1024, 16), profile);
         // The caller chooses the parent location, but payload-controlled links
         // must never redirect generated legal evidence outside that payload.
         RequireUnlinkedEvidenceDirectory(arguments[0]);

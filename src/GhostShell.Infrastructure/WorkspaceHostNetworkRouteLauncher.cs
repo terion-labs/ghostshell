@@ -8,7 +8,8 @@ namespace GhostShell.Infrastructure;
 /// </summary>
 internal sealed class WorkspaceHostNetworkRouteLauncher(
     string? runtimeExecutable,
-    IWorkspaceGatewayProcessRunner processes) : IWorkspaceGuestPacketRouterLauncher
+    IWorkspaceGatewayProcessRunner processes,
+    string? relayGatewayExecutable = null) : IWorkspaceGuestPacketRouterLauncher
 {
     public async ValueTask<IWorkspaceGatewayProcess> StartAsync(
         WorkspaceIsolationBinding binding,
@@ -16,6 +17,21 @@ internal sealed class WorkspaceHostNetworkRouteLauncher(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(binding);
+        if (binding.Network?.RelayAttachment is { } relay)
+        {
+            var hostGateway = relayGatewayExecutable ?? BundledWorkspacePacketGatewayBackend.ResolveHostHelperExecutable(new PathConnectionExecutableLocator())
+                ?? throw new FileNotFoundException("The host packet gateway is unavailable.");
+            var bridge = await processes.StartAsync(new WorkspaceGatewayProcessRequest(hostGateway,
+                ["relay-nic", "--socket", binding.Network.PacketSocketPath!, "--",
+                    relay.PacketLaunch.Executable, .. relay.PacketLaunch.Arguments], authenticationKey),
+                TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            if (bridge.ReadinessLine is not "READY v1")
+            {
+                await bridge.Process.DisposeAsync().ConfigureAwait(false);
+                throw new IOException("The container relay returned invalid readiness.");
+            }
+            return bridge.Process;
+        }
         if (binding.Network?.HostAttachment is not { } attachment)
         {
             throw new InvalidOperationException("The workspace does not have a host-owned NIC attachment.");

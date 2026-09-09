@@ -23,7 +23,7 @@ internal sealed record ManagedComponentEvidenceLimits(
     long MaximumBytes,
     int MaximumRelativePathDepth);
 
-internal enum ManagedEvidenceProfile { MacOsDesktop, LinuxBackend }
+internal enum ManagedEvidenceProfile { MacOsDesktop, LinuxBackend, LinuxX64Backend }
 
 internal static partial class ManagedComponentEvidenceBuilder
 {
@@ -103,6 +103,11 @@ internal static partial class ManagedComponentEvidenceBuilder
                     "GhostShell.Core.dll", "GhostShell.Databases.dll", "GhostShell.Files.dll",
                     "GhostShell.Infrastructure.dll", "GhostShell.Redis.dll"],
                 ["linux", "unix-arm64", "unix", "any", "base"], [], []),
+            ManagedEvidenceProfile.LinuxX64Backend => new("GhostShell.Backend", "linux-x64",
+                ["GhostShell.Backend.dll", "GhostShell.ConnectionBackend.dll", "GhostShell.Application.dll",
+                    "GhostShell.Core.dll", "GhostShell.Databases.dll", "GhostShell.Files.dll",
+                    "GhostShell.Infrastructure.dll", "GhostShell.Redis.dll"],
+                ["linux", "unix-x64", "unix", "any", "base"], [], []),
             _ => throw new ArgumentOutOfRangeException(nameof(profile)),
         };
     }
@@ -836,8 +841,12 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
     {
         if (!root.TryGetProperty("runtimes", out var runtimes)
             || runtimes.ValueKind != JsonValueKind.Object
-            || !HasExactJsonProperties(runtimes, string.Equals(profile.Rid, "linux-arm64", StringComparison.Ordinal)
-                ? ["android-arm64", "linux-arm64", "linux-bionic-arm64", "linux-musl-arm64"] : [profile.Rid])
+            || !HasExactJsonProperties(runtimes, profile.Rid switch
+            {
+                "linux-arm64" => ["android-arm64", "linux-arm64", "linux-bionic-arm64", "linux-musl-arm64"],
+                "linux-x64" => ["android-x64", "linux-x64", "linux-bionic-x64", "linux-musl-x64"],
+                _ => [profile.Rid],
+            })
             || runtimes.GetProperty(profile.Rid).ValueKind != JsonValueKind.Array)
         {
             throw new InvalidDataException(
@@ -869,6 +878,12 @@ string.Equals(component.Kind, "runtime", StringComparison.Ordinal) ? "runtimepac
             ValidateFallback("android-arm64", ["android", "linux-bionic-arm64", "linux-bionic", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
             ValidateFallback("linux-bionic-arm64", ["linux-bionic", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
             ValidateFallback("linux-musl-arm64", ["linux-musl", "linux-arm64", "linux", "unix-arm64", "unix", "any", "base"]);
+        }
+        if (string.Equals(profile.Rid, "linux-x64", StringComparison.Ordinal))
+        {
+            ValidateFallback("android-x64", ["android", "linux-bionic-x64", "linux-bionic", "linux-x64", "linux", "unix-x64", "unix", "any", "base"]);
+            ValidateFallback("linux-bionic-x64", ["linux-bionic", "linux-x64", "linux", "unix-x64", "unix", "any", "base"]);
+            ValidateFallback("linux-musl-x64", ["linux-musl", "linux-x64", "linux", "unix-x64", "unix", "any", "base"]);
         }
 
         void ValidateFallback(string rid, string[] expected)

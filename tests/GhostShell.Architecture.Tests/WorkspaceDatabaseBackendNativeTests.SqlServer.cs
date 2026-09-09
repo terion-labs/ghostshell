@@ -18,15 +18,27 @@ namespace GhostShell.Architecture.Tests;
 public sealed partial class WorkspaceDatabaseBackendNativeTests
 {
     [WorkspaceBackendFact]
-    public async Task Service_guest_SQL_Server_redirects_retries_and_failover_keep_remote_resolution()
+    public Task Service_guest_SQL_Server_redirects_retries_and_failover_keep_remote_resolution() => VerifySqlServiceAsync(false);
+
+    [ContainerBackendFact]
+    public Task Container_relay_SQL_Server_redirects_retries_TLS_and_failover_keep_remote_resolution() => VerifySqlServiceAsync(true);
+
+    private async Task VerifySqlServiceAsync(bool containerRelay)
     {
-        var assets = Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_SDK_RUNTIME_ROOT")!;
+        var assets = Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_SDK_RUNTIME_ROOT") ?? string.Empty;
         var archive = Environment.GetEnvironmentVariable("GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE")!;
         var directory = Directory.CreateTempSubdirectory("ghostshell-service-tds-");
         var executable = Path.Combine(assets, "workspace-runtime");
-        var provider = WorkspaceSdkIsolationProvider.CreateServiceProvider(executable, Path.Combine(directory.FullName, "state"));
-        var gateway = Path.Combine(Path.GetDirectoryName(assets)!, "ghostshell-workspace-gateway-darwin-arm64");
-        var processes = new WorkspaceGatewayProcessRunner();
+        IWorkspaceConnectionServiceProvider provider = containerRelay
+            ? new ContainerRelayIsolationProvider(async token =>
+            {
+                var engine = await RelayContainerEngine.DiscoverAsync(new ContainerTestLocator(), new WorkspaceIsolationCommandRunner(), token);
+                return Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ARCHITECTURE") is { } architecture ? engine with { Architecture = architecture } : engine;
+            }, (_, _) => Task.FromResult(archive))
+            : WorkspaceSdkIsolationProvider.CreateServiceProvider(executable, Path.Combine(directory.FullName, "state"));
+        var gateway = containerRelay ? Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_GATEWAY")!
+            : Path.Combine(Path.GetDirectoryName(assets)!, "ghostshell-workspace-gateway-darwin-arm64");
+        var processes = new ContainerDiagnosticRunner(output);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(25));
         using var authority = new CancellationTokenSource();
         using var canceledLogin = new CancellationTokenSource();
@@ -55,17 +67,18 @@ public sealed partial class WorkspaceDatabaseBackendNativeTests
         try
         {
             binding = Prepared(await provider.PrepareAsync(new WorkspaceIsolationPrepareRequest(
-                new WorkspaceId($"tds-{Guid.NewGuid():N}")), deadline.Token));
-            await provider.ConfigureServiceNetworkingAsync(binding, deadline.Token);
+                new WorkspaceId($"service-tds-{Guid.NewGuid():N}")), deadline.Token));
             var runtime = new HostWorkspacePacketGatewayRuntime(new BundledWorkspacePacketGatewayBackend([],
-                new WorkspaceHostNetworkRouteLauncher(executable, processes), processes, gateway));
+                new WorkspaceHostNetworkRouteLauncher(executable, processes, gateway), processes, gateway));
             var opened = await runtime.OpenAsync(new WorkspacePacketGatewayOpenRequest(new WorkspaceInstanceId("service-tds"),
                 binding, serviceProxy: new WorkspacePacketGatewayServiceProxy(socks.Start(), socks.Credentials)), null, deadline.Token);
             Assert.True(opened is NetworkConnectionResult<IWorkspacePacketGatewaySession>.Success,
                 opened is NetworkConnectionResult<IWorkspacePacketGatewaySession>.Failure failure ? failure.Error.Message : "No gateway returned.");
             session = ((NetworkConnectionResult<IWorkspacePacketGatewaySession>.Success)opened).Value;
+            await provider.ConfigureServiceNetworkingAsync(binding, deadline.Token);
             await using var backend = new WorkspaceDatabaseBackend(new GuestCommands(provider, binding),
-                Path.Combine(Path.GetDirectoryName(archive)!, "backend-assets.json"), Path.Combine(directory.FullName, "cache"));
+                Path.Combine(Path.GetDirectoryName(archive)!, "backend-assets.json"), Path.Combine(directory.FullName, "cache"),
+                binding.Network?.RelayAttachment?.Architecture ?? "arm64");
             using var worker = new DatabaseOperationWorker(() => new DatabaseResultContentStore(Path.Combine(directory.FullName, "results")),
                 workspaceLaunch: async token => (await backend.PlanAsync(token)) with { Lifetime = authority.Token },
                 importHostConnectionFiles: true);
@@ -121,6 +134,37 @@ public sealed partial class WorkspaceDatabaseBackendNativeTests
             if (binding is not null) { _ = Prepared(await provider.StopAsync(binding, CancellationToken.None)); }
             directory.Delete(recursive: true);
         }
+    }
+
+    private sealed class ContainerTestLocator : IConnectionExecutableLocator
+    {
+        public string? Find(string executable) => Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ENGINE") is { } selected
+            && !string.Equals(selected, executable, StringComparison.Ordinal) ? null : new PathConnectionExecutableLocator().Find(executable);
+    }
+
+    private sealed class ContainerBackendFactAttribute : FactAttribute
+    {
+        public ContainerBackendFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_GATEWAY") is null
+                || Environment.GetEnvironmentVariable("GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE") is null)
+            {
+                Skip = "Requires explicit disposable-container backend integration assets.";
+            }
+        }
+    }
+
+    private sealed class ContainerDiagnosticRunner(Xunit.Abstractions.ITestOutputHelper output) : IWorkspaceGatewayProcessRunner
+    {
+        private readonly WorkspaceGatewayProcessRunner _runner = new();
+        public async ValueTask<WorkspaceGatewayProcessStart> StartAsync(WorkspaceGatewayProcessRequest request, TimeSpan timeout, CancellationToken token)
+        {
+            var started = await _runner.StartAsync(request, timeout, token);
+            started.Process.Exited += (_, _) => output.WriteLine("Relay test process exit: " + started.Process.Diagnostic);
+            return started;
+        }
+        public ValueTask<WorkspaceGatewayCommandResult> RunAsync(WorkspaceGatewayProcessRequest request, TimeSpan timeout, CancellationToken token) =>
+            _runner.RunAsync(request, timeout, token);
     }
 
     private static async Task VerifyServiceTlsAsync(DatabaseOperationWorker worker, DatabaseServiceTlsFixture server,

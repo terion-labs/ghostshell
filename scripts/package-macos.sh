@@ -437,6 +437,7 @@ for required in "${required_native[@]}"; do
 done
 "${repository_dir}/scripts/build-workspace-runtime.sh" --verify
 "${repository_dir}/scripts/build-workspace-backend.sh" --verify
+GHOSTSHELL_BACKEND_ARCH=x64 "${repository_dir}/scripts/build-workspace-backend.sh" --verify
 for required in \
     "${connection_engine_code_files[@]}" \
     "${connection_engine_legal_files[@]}" \

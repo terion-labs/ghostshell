@@ -157,6 +157,11 @@ backend_resources="${resources_directory}/runtimes/linux-arm64/workspace-backend
 mkdir -p "${backend_resources}"
 cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/backend-assets.json" "${backend_resources}/"
 rm -f -- "${macos_directory}/runtimes/linux-arm64/workspace-backend/backend-assets.json"
+if [[ -f "${repository_dir}/native/artifacts/workspace-backend-build/distribution/x64/backend-assets.json" ]]; then
+    mkdir -p "${resources_directory}/runtimes/linux-x64/workspace-backend"
+    cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/x64/backend-assets.json" "${resources_directory}/runtimes/linux-x64/workspace-backend/"
+    rm -f -- "${macos_directory}/runtimes/linux-x64/workspace-backend/backend-assets.json"
+fi
 # Incremental managed output may still contain the retired in-guest helper.
 # The SDK runtime never mounts application code into the guest.
 rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
@@ -230,6 +235,7 @@ echo "Launching ${app_bundle}" >&2
 # unpublished app version from GitHub. Do not copy the sidecar into the bundle.
 export GHOSTSHELL_WORKSPACE_BOOT_ARCHIVE="${repository_dir}/native/artifacts/workspace-runtime-build/distribution/GhostShell-workspace-boot-arm64.zip"
 export GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE="${repository_dir}/native/artifacts/workspace-backend-build/distribution/GhostShell-workspace-backend-arm64.tar.gz"
+export GHOSTSHELL_WORKSPACE_BACKEND_X64_ARCHIVE="${repository_dir}/native/artifacts/workspace-backend-build/distribution/x64/GhostShell-workspace-backend-x64.tar.gz"
 if [[ ${#application_arguments[@]} -eq 0 ]]; then
     exec "${app_bundle}/Contents/MacOS/GhostShell"
 fi

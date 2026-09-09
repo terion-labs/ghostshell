@@ -11,23 +11,28 @@ public sealed class WorkspaceBackendPackagingTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "ghostshell-backend-package-" + Guid.NewGuid().ToString("N"));
 
-    [Fact]
-    public async Task BackendArchiveIsDeterministicAndContainsAnIntegrityManifest()
+    [Theory]
+    [InlineData("arm64")]
+    [InlineData("x64")]
+    public async Task BackendArchiveIsDeterministicAndContainsAnIntegrityManifest(string architecture)
     {
         if (OperatingSystem.IsWindows())
         {
             return;
         }
-        var payload = CreatePayload();
-        var sourceDigest = await RunAsync("source-digest", _directory);
+        var payload = CreatePayload(architecture);
+        Task<string> Package(params string[] arguments) => RunForArchitectureAsync(architecture, arguments);
+        var sourceDigest = await Package("source-digest", _directory);
         var distribution = Path.Combine(_directory, "distribution");
-        _ = await RunAsync("build", _directory, distribution, payload, sourceDigest, "10.0.111");
-        _ = await RunAsync("verify", _directory, distribution);
-        var archive = Path.Combine(distribution, "GhostShell-workspace-backend-arm64.tar.gz");
+        _ = await Package("build", _directory, distribution, payload, sourceDigest, "10.0.111");
+        _ = await Package("verify", _directory, distribution);
+        var archive = Path.Combine(distribution, $"GhostShell-workspace-backend-{architecture}.tar.gz");
+        using var receipt = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(distribution, "build-receipt.json")));
+        Assert.Equal($"linux-{architecture}", receipt.RootElement.GetProperty("rid").GetString());
         var first = await File.ReadAllBytesAsync(archive);
         File.Delete(Path.Combine(payload, "MANIFEST.sha256"));
         File.SetLastWriteTimeUtc(Path.Combine(payload, "GhostShell.Backend"), DateTime.UtcNow.AddDays(-30));
-        _ = await RunAsync("build", _directory, distribution, payload, sourceDigest, "10.0.111");
+        _ = await Package("build", _directory, distribution, payload, sourceDigest, "10.0.111");
         Assert.Equal(first, await File.ReadAllBytesAsync(archive));
         using var file = File.OpenRead(archive);
         using var compressed = new GZipStream(file, CompressionMode.Decompress);
@@ -47,7 +52,7 @@ public sealed class WorkspaceBackendPackagingTests : IDisposable
         Assert.Contains("  GhostShell.Backend.runtimeconfig.json\n", manifest, StringComparison.Ordinal);
         Assert.DoesNotContain("MANIFEST.sha256", manifest, StringComparison.Ordinal);
         await File.AppendAllTextAsync(Path.Combine(_directory, "src", "input.cs"), "changed");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync("verify", _directory, distribution));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Package("verify", _directory, distribution));
     }
 
     [Theory]
@@ -176,22 +181,30 @@ public sealed class WorkspaceBackendPackagingTests : IDisposable
     {
         var root = FindRepositoryRoot();
         var project = XDocument.Load(Path.Combine(root, "src", "GhostShell.Desktop", "GhostShell.Desktop.csproj"));
-        var backend = Assert.Single(project.Descendants("Content"), item =>
-            ((string?)item.Attribute("Include"))?.Contains("GhostShellWorkspaceBackendDirectory", StringComparison.Ordinal) == true);
-        Assert.Equal("$(GhostShellWorkspaceBackendDirectory)/backend-assets.json", (string?)backend.Attribute("Include"));
-        Assert.Equal("runtimes/linux-arm64/workspace-backend/backend-assets.json", (string?)backend.Attribute("Link"));
+        var backends = project.Descendants("Content").Where(item =>
+            ((string?)item.Attribute("Include"))?.Contains("GhostShellWorkspaceBackendDirectory", StringComparison.Ordinal) == true).ToArray();
+        Assert.Equal(2, backends.Length);
+        foreach (var architecture in new[] { "arm64", "x64" })
+        {
+            var backend = Assert.Single(backends, item => (string?)item.Attribute("Link") == $"runtimes/linux-{architecture}/workspace-backend/backend-assets.json");
+            Assert.Equal(architecture is "arm64" ? "$(GhostShellWorkspaceBackendDirectory)/backend-assets.json"
+                : "$(GhostShellWorkspaceBackendDirectory)/x64/backend-assets.json", (string?)backend.Attribute("Include"));
+        }
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "repository-gate.yml"));
         Assert.Contains("./scripts/build-workspace-backend.sh", workflow, StringComparison.Ordinal);
         Assert.Contains("/distribution/GhostShell-workspace-backend-arm64.tar.gz", workflow, StringComparison.Ordinal);
+        Assert.Contains("GHOSTSHELL_BACKEND_ARCH=x64 ./scripts/build-workspace-backend.sh", workflow, StringComparison.Ordinal);
+        Assert.Contains("/distribution/GhostShell-workspace-backend-x64.tar.gz", workflow, StringComparison.Ordinal);
     }
 
-    private string CreatePayload()
+    private string CreatePayload(string architecture = "arm64")
     {
         Directory.CreateDirectory(Path.Combine(_directory, "src"));
         File.WriteAllText(Path.Combine(_directory, "src", "input.cs"), "source");
         var payload = Path.Combine(_directory, "payload");
         Directory.CreateDirectory(payload);
         byte[] header = [0x7f, 0x45, 0x4c, 0x46, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xb7, 0];
+        if (architecture is "x64") { header[18] = 0x3e; }
         File.WriteAllBytes(Path.Combine(payload, "GhostShell.Backend"), header);
         File.WriteAllText(Path.Combine(payload, "GhostShell.Backend.runtimeconfig.json"),
             """{"runtimeOptions":{"includedFrameworks":[{"name":"Microsoft.NETCore.App","version":"10.0.11"}]}}""");
@@ -200,6 +213,10 @@ public sealed class WorkspaceBackendPackagingTests : IDisposable
 
     private static Task<string> RunAsync(params string[] arguments) =>
         RunPythonAsync([Path.Combine(FindRepositoryRoot(), "scripts", "package-workspace-backend.py"), .. arguments]);
+
+    private static Task<string> RunForArchitectureAsync(string architecture, params string[] arguments) =>
+        RunPythonAsync(["-c", "import os,runpy,sys; os.environ['GHOSTSHELL_BACKEND_ARCH']=sys.argv.pop(1); sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')",
+            architecture, Path.Combine(FindRepositoryRoot(), "scripts", "package-workspace-backend.py"), .. arguments]);
 
     private static async Task<string> RunPythonAsync(params string[] arguments)
     {

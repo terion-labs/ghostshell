@@ -189,10 +189,13 @@ public static class DesktopComposition
         services.AddSingleton<IConnectionRuntime, ConnectionRuntime>();
         services.AddSingleton<IConnectionCommandExecutor, ConnectionCommandExecutor>();
         services.AddSingleton(provider => new WorkspaceConnectionBackendFactory(
-            () => WorkspaceSdkIsolationProvider.FindBundledRuntime() is { } executable
+            () => OperatingSystem.IsMacOSVersionAtLeast(26)
+                && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64
+                && WorkspaceSdkIsolationProvider.FindBundledRuntime() is { } executable
                 ? WorkspaceSdkIsolationProvider.CreateServiceProvider(executable,
                     Path.Combine(profile.Data.DataDirectory, "connection-services"))
-                : null,
+                : new ContainerRelayIsolationProvider(provider.GetRequiredService<IConnectionExecutableLocator>(),
+                    async (architecture, token) => (await WorkspaceDatabaseBackend.EnsureDefaultArchiveAsync(architecture, token).ConfigureAwait(false)).Path),
             provider.GetRequiredService<IWorkspacePacketGatewayRuntime>(),
             provider.GetRequiredService<ISecretVault>(),
             provider.GetRequiredService<ISshHostKeyTrustStore>(),

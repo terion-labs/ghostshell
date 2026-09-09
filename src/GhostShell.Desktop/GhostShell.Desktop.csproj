@@ -84,10 +84,11 @@
     <GhostShellSqlLanguageArtifactDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(GhostShellEffectiveRuntimeIdentifier)</GhostShellSqlLanguageArtifactDirectory>
     <GhostShellSqlLanguageWorkerPath>$(GhostShellSqlLanguageArtifactDirectory)/$(GhostShellSqlLanguageWorkerName)</GhostShellSqlLanguageWorkerPath>
     <GhostShellSqlLanguagePayloadAvailable Condition="'$(GhostShellSqlLanguageSupported)' == 'true' and Exists('$(GhostShellSqlLanguageWorkerPath)') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/runtime-dependencies.txt') and Exists('$(GhostShellSqlLanguageArtifactDirectory)/build-receipt.json')">true</GhostShellSqlLanguagePayloadAvailable>
-    <GhostShellWorkspaceGatewaySupported Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64'">true</GhostShellWorkspaceGatewaySupported>
+    <GhostShellWorkspaceGatewaySupported Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' or '$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-x64'">true</GhostShellWorkspaceGatewaySupported>
     <GhostShellWorkspaceGatewayRequired Condition="'$(GhostShellWorkspaceGatewayRequired)' == ''">false</GhostShellWorkspaceGatewayRequired>
-    <GhostShellWorkspaceGatewayHostDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/osx-arm64</GhostShellWorkspaceGatewayHostDirectory>
+    <GhostShellWorkspaceGatewayHostDirectory>$(MSBuildThisFileDirectory)../../native/artifacts/$(GhostShellEffectiveRuntimeIdentifier)</GhostShellWorkspaceGatewayHostDirectory>
     <GhostShellWorkspaceGatewayHostName>ghostshell-workspace-gateway-darwin-arm64</GhostShellWorkspaceGatewayHostName>
+    <GhostShellWorkspaceGatewayHostName Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-x64'">ghostshell-workspace-gateway-darwin-amd64</GhostShellWorkspaceGatewayHostName>
     <GhostShellWorkspaceGatewayPayloadAvailable Condition="'$(GhostShellWorkspaceGatewaySupported)' == 'true' and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md') and Exists('$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt')">true</GhostShellWorkspaceGatewayPayloadAvailable>
     <GhostShellConnectionEnginesSupported Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64'">true</GhostShellConnectionEnginesSupported>
     <GhostShellConnectionEnginesRequired Condition="'$(GhostShellConnectionEnginesRequired)' == ''">false</GhostShellConnectionEnginesRequired>
@@ -151,10 +152,10 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(GhostShellWorkspaceGatewayPayloadAvailable)' == 'true'">
-    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)" Link="runtimes/osx-arm64/native/$(GhostShellWorkspaceGatewayHostName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" Link="runtimes/osx-arm64/native/workspace-network-gateway-MANIFEST.sha256" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" Link="runtimes/osx-arm64/native/workspace-network-gateway-THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" Link="runtimes/osx-arm64/native/workspace-network-gateway-GO-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/$(GhostShellWorkspaceGatewayHostName)" Link="runtimes/$(GhostShellEffectiveRuntimeIdentifier)/native/$(GhostShellWorkspaceGatewayHostName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-MANIFEST.sha256" Link="runtimes/$(GhostShellEffectiveRuntimeIdentifier)/native/workspace-network-gateway-MANIFEST.sha256" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-THIRD-PARTY-NOTICES.md" Link="runtimes/$(GhostShellEffectiveRuntimeIdentifier)/native/workspace-network-gateway-THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(GhostShellWorkspaceGatewayHostDirectory)/workspace-network-gateway-GO-LICENSE.txt" Link="runtimes/$(GhostShellEffectiveRuntimeIdentifier)/native/workspace-network-gateway-GO-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(GhostShellWorkspaceGatewayRequired)' == 'true' and '$(GhostShellWorkspaceGatewaySupported)' == 'true'">
@@ -306,9 +307,13 @@
         Text="The bundled connection engine payload is incomplete; missing %(GhostShellConnectionEnginesRequiredFile.Identity). Run ./scripts/build-macos-connection-engines.sh." />
   </Target>
 
-  <ItemGroup Condition="'$(GhostShellEffectiveRuntimeIdentifier)' == 'osx-arm64' and Exists('$(GhostShellWorkspaceBackendDirectory)/backend-assets.json')">
+  <ItemGroup Condition="Exists('$(GhostShellWorkspaceBackendDirectory)/backend-assets.json')">
     <!-- Only the signed pin ships in the app; Linux code is provisioned on demand. -->
     <Content Include="$(GhostShellWorkspaceBackendDirectory)/backend-assets.json" Link="runtimes/linux-arm64/workspace-backend/backend-assets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(GhostShellWorkspaceBackendDirectory)/x64/backend-assets.json')">
+    <Content Include="$(GhostShellWorkspaceBackendDirectory)/x64/backend-assets.json" Link="runtimes/linux-x64/workspace-backend/backend-assets.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="ValidateWorkspaceRuntimePayload" BeforeTargets="PrepareForBuild;Publish" Condition="'$(GhostShellWorkspaceRuntimeRequired)' == 'true' and '$(DesignTimeBuild)' != 'true'">

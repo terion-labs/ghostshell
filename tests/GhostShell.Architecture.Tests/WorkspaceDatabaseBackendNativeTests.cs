@@ -277,7 +277,7 @@ public sealed partial class WorkspaceDatabaseBackendNativeTests(ITestOutputHelpe
         return ((WorkspaceIsolationResult<WorkspaceIsolationBinding>.Success)result).Value;
     }
 
-    private sealed class GuestCommands(WorkspaceSdkIsolationProvider provider, WorkspaceIsolationBinding binding) : IConnectionCommandRuntime
+    private sealed class GuestCommands(IWorkspaceIsolationProvider provider, WorkspaceIsolationBinding binding) : IConnectionCommandRuntime
     {
         public int DuplexCalls { get; private set; }
         public string? LastBackendExecutable { get; private set; }

@@ -16,7 +16,8 @@ public sealed record WorkspaceIsolationNetworkBinding
         string? packetSocketPath = null,
         string? guestSocketPath = null,
         string? guestHelperPath = null,
-        WorkspaceHostNetworkAttachment? hostAttachment = null)
+        WorkspaceHostNetworkAttachment? hostAttachment = null,
+        WorkspaceRelayNetworkAttachment? relayAttachment = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
         if (resourceName.Contains('\0', StringComparison.Ordinal))
@@ -55,13 +56,19 @@ public sealed record WorkspaceIsolationNetworkBinding
             guestSocketPath,
             guestHelperPath,
         };
+        if (relayAttachment is not null && (hostAttachment is not null || packetSocketPath is null
+            || !Path.IsPathFullyQualified(packetSocketPath) || packetSocketPath.Contains('\0', StringComparison.Ordinal)
+            || guestSocketPath is not null || guestHelperPath is not null))
+        {
+            throw new ArgumentException("Relay networking requires only a private host packet socket and exec attachment.", nameof(relayAttachment));
+        }
         if (hostAttachment is not null && transportValues.Any(static value => value is not null))
         {
             throw new ArgumentException(
                 "Choose a host NIC attachment or a legacy guest packet transport, not both.",
                 nameof(hostAttachment));
         }
-        if (transportValues.Any(static value => value is not null)
+        if (relayAttachment is null && transportValues.Any(static value => value is not null)
             && transportValues.Any(string.IsNullOrWhiteSpace))
         {
             throw new ArgumentException(
@@ -69,7 +76,7 @@ public sealed record WorkspaceIsolationNetworkBinding
                 nameof(packetSocketPath));
         }
 
-        if (packetSocketPath is not null
+        if (relayAttachment is null && packetSocketPath is not null
             && (!Path.IsPathFullyQualified(packetSocketPath)
                 || !Path.IsPathFullyQualified(guestSocketPath!)
                 || !Path.IsPathFullyQualified(guestHelperPath!)
@@ -87,6 +94,7 @@ public sealed record WorkspaceIsolationNetworkBinding
         GuestSocketPath = guestSocketPath;
         GuestHelperPath = guestHelperPath;
         HostAttachment = hostAttachment;
+        RelayAttachment = relayAttachment;
     }
 
     public string ResourceName { get; }
@@ -106,4 +114,6 @@ public sealed record WorkspaceIsolationNetworkBinding
 
     /// <summary>A host-owned virtual NIC; no GhostShell networking process runs in the guest.</summary>
     public WorkspaceHostNetworkAttachment? HostAttachment { get; }
+
+    public WorkspaceRelayNetworkAttachment? RelayAttachment { get; }
 }

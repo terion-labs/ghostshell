@@ -12,6 +12,63 @@ namespace GhostShell.Infrastructure.Tests;
 
 public sealed class WorkspaceServiceNetworkingNativeTests(ITestOutputHelper output)
 {
+    [ContainerRelayFact]
+    public async Task Container_relay_preserves_remote_names_and_loopback_and_blocks_after_channel_loss()
+    {
+        var archive = Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ARCHIVE")!;
+        var gateway = Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_GATEWAY")!;
+        var provider = new ContainerRelayIsolationProvider(async token =>
+        {
+            var engine = await RelayContainerEngine.DiscoverAsync(new RelayTestLocator(), new WorkspaceIsolationCommandRunner(), token);
+            return Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ARCHITECTURE") is { } architecture ? engine with { Architecture = architecture } : engine;
+        }, (_, _) => Task.FromResult(archive));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(20));
+        await using var socks = new RecordingSocksEndpoint();
+        WorkspaceIsolationBinding? binding = null;
+        IWorkspacePacketGatewaySession? session = null;
+        try
+        {
+            binding = Prepared(await provider.PrepareAsync(new(new WorkspaceId($"service-{Guid.NewGuid():N}")), deadline.Token));
+            Assert.Empty(binding.Mounts);
+            Assert.Equal("blocked", await ExecuteAsync(provider, binding,
+                "if curl --noproxy '*' -s --max-time 2 http://198.51.100.20:18080/; then exit 1; fi; printf blocked", deadline.Token));
+            var processes = new RelayDiagnosticRunner(output);
+            var runtime = new HostWorkspacePacketGatewayRuntime(new BundledWorkspacePacketGatewayBackend([], new WorkspaceHostNetworkRouteLauncher(null, processes, gateway), processes, gateway));
+            var opened = await runtime.OpenAsync(new(new WorkspaceInstanceId("container-relay-test"), binding,
+                serviceProxy: new(socks.Endpoint, new("test-user", "test-password"))), null, deadline.Token);
+            Assert.True(opened is NetworkConnectionResult<IWorkspacePacketGatewaySession>.Success,
+                opened is NetworkConnectionResult<IWorkspacePacketGatewaySession>.Failure failure ? failure.Error.Message : "No gateway.");
+            session = ((NetworkConnectionResult<IWorkspacePacketGatewaySession>.Success)opened).Value;
+            await provider.ConfigureServiceNetworkingAsync(binding, deadline.Token);
+            await provider.ConfigureServiceNetworkingAsync(binding, deadline.Token);
+            foreach (var host in new[] { "127.0.0.1", "127.12.34.56", "::1", "private-database.invalid", "2001:db8::20", "198.51.100.20" })
+            {
+                var urlHost = host.Contains(':', StringComparison.Ordinal) ? $"[{host}]" : host;
+                var response = await ExecuteAsync(provider, binding, $"curl --noproxy '*' -fsS --max-time 10 'http://{urlHost}:18080/'", deadline.Token);
+                Assert.Equal(host, await socks.Targets.Reader.ReadAsync(deadline.Token));
+                Assert.Equal("remote:" + host, response);
+                output.WriteLine($"Container relay reached {host} through authenticated host SOCKS.");
+            }
+            var privileges = await ExecuteAsync(provider, binding, "id -u; grep -E 'CapEff|NoNewPrivs' /proc/self/status; ip -o link show", deadline.Token);
+            Assert.Contains("1000", privileges, StringComparison.Ordinal);
+            Assert.Contains("0000000000000000", privileges, StringComparison.Ordinal);
+            Assert.DoesNotContain("eth0", privileges, StringComparison.Ordinal);
+            await session.DisposeAsync();
+            session = null;
+            foreach (var host in new[] { "198.51.100.20", "[2001:db8::20]", "127.0.0.1" })
+            {
+                Assert.Equal("blocked", await ExecuteAsync(provider, binding,
+                    $"if curl --noproxy '*' -s --max-time 2 'http://{host}:18080/'; then exit 1; fi; printf blocked", deadline.Token));
+            }
+            output.WriteLine("No direct NIC, no worker capabilities, IPv4/IPv6 fail closed before startup and after route disposal.");
+        }
+        finally
+        {
+            if (session is not null) { await session.DisposeAsync(); }
+            if (binding is not null) { await provider.StopAsync(binding, CancellationToken.None); }
+        }
+    }
+
     [ServiceRuntimeFact]
     public async Task Service_guest_preserves_remote_loopback_and_private_names_through_host_SOCKS_gateway()
     {
@@ -109,7 +166,7 @@ public sealed class WorkspaceServiceNetworkingNativeTests(ITestOutputHelper outp
         return ((WorkspaceIsolationResult<WorkspaceIsolationBinding>.Success)result).Value;
     }
 
-    private static async Task<string> ExecuteAsync(WorkspaceSdkIsolationProvider provider, WorkspaceIsolationBinding binding,
+    private static async Task<string> ExecuteAsync(IWorkspaceIsolationProvider provider, WorkspaceIsolationBinding binding,
         string script, CancellationToken cancellationToken)
     {
         var launch = Assert.IsType<WorkspaceIsolationResult<WorkspaceProcessLaunch>.Success>(provider.CreateExecLaunch(binding,
@@ -117,6 +174,37 @@ public sealed class WorkspaceServiceNetworkingNativeTests(ITestOutputHelper outp
         var result = await new WorkspaceIsolationCommandRunner().RunAsync(launch, ReadOnlyMemory<byte>.Empty, cancellationToken);
         Assert.True(result.ExitCode == 0, $"Guest command failed ({result.ExitCode}): {result.StandardError}");
         return result.StandardOutput;
+    }
+
+    private sealed class ContainerRelayFactAttribute : FactAttribute
+    {
+        public ContainerRelayFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ARCHIVE") is null
+                || Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_GATEWAY") is null)
+            {
+                Skip = "Requires explicit disposable-container relay integration assets.";
+            }
+        }
+    }
+
+    private sealed class RelayTestLocator : IConnectionExecutableLocator
+    {
+        public string? Find(string executable) => Environment.GetEnvironmentVariable("GHOSTSHELL_TEST_RELAY_ENGINE") is { } selected
+            && !string.Equals(selected, executable, StringComparison.Ordinal) ? null : new PathConnectionExecutableLocator().Find(executable);
+    }
+
+    private sealed class RelayDiagnosticRunner(ITestOutputHelper output) : IWorkspaceGatewayProcessRunner
+    {
+        private readonly WorkspaceGatewayProcessRunner _runner = new();
+        public async ValueTask<WorkspaceGatewayProcessStart> StartAsync(WorkspaceGatewayProcessRequest request, TimeSpan timeout, CancellationToken token)
+        {
+            var started = await _runner.StartAsync(request, timeout, token);
+            started.Process.Exited += (_, _) => output.WriteLine("Relay test process exit: " + started.Process.Diagnostic);
+            return started;
+        }
+        public ValueTask<WorkspaceGatewayCommandResult> RunAsync(WorkspaceGatewayProcessRequest request, TimeSpan timeout, CancellationToken token) =>
+            _runner.RunAsync(request, timeout, token);
     }
 
     private sealed class RecordingSocksEndpoint : IAsyncDisposable

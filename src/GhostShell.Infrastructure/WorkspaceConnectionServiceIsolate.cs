@@ -69,7 +69,7 @@ public sealed class WorkspaceConnectionServiceIsolate : IAsyncDisposable, IConne
         try
         {
             if (binding.WorkspaceId != request.WorkspaceId || binding.Mounts.Count != 0
-                || binding.Network?.HostAttachment is null)
+                || (binding.Network?.HostAttachment is null && binding.Network?.RelayAttachment is null))
             {
                 throw new IOException("The connection service did not receive a private host-attached VM.");
             }

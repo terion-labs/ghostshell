@@ -134,6 +134,7 @@ if [[ -n "${sign_identity}" && -z "${notary_profile}" \
 fi
 if [[ -n "${notary_profile}" ]]; then
     python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
+    GHOSTSHELL_BACKEND_ARCH=x64 python3 "${script_dir}/package-workspace-backend.py" verify-release-clearance "${repository_dir}"
 fi
 if [[ -n "${notary_profile}" \
     && ( -z "${release_evidence_dir}" \

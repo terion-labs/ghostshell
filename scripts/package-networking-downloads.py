@@ -52,13 +52,16 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     copy_pinned_archive(boot, output / boot.name, pin)
     copy_pinned_archive(backend, output / backend.name, backend_pin)
+    x64_backend = repository / "native/artifacts/workspace-backend-build/distribution/x64/GhostShell-workspace-backend-x64.tar.gz"
+    x64_pin = json.loads((app / "Contents/Resources/runtimes/linux-x64/workspace-backend/backend-assets.json").read_text())
+    copy_pinned_archive(x64_backend, output / x64_backend.name, x64_pin)
     sources = output / "GhostShell-networking-sources.zip"
     with zipfile.ZipFile(sources, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for root, prefix in ((runtime / "legal", "workspace-runtime"), (engines, "connection-engines")):
             for path in sorted(root.rglob("*")):
                 if path.is_file() and (root != engines or path.suffix in (".txt", ".md", ".sha256", ".gz")):
                     archive.write(path, f"{prefix}/{path.relative_to(root)}")
-    for path in (output / boot.name, output / backend.name, sources):
+    for path in (output / boot.name, output / backend.name, output / x64_backend.name, sources):
         path.with_name(path.name + ".sha256").write_text(f"{digest(path)}  {path.name}\n")
 
 

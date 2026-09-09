@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --all)
-            rids=(osx-arm64 linux-arm64)
+            rids=(osx-arm64 linux-arm64 osx-x64 linux-x64)
             shift
             ;;
         --help|-h)
@@ -72,6 +72,7 @@ export TZ=UTC
 )
 
 for rid in "${rids[@]}"; do
+    goarch=arm64
     case "${rid}" in
         osx-arm64)
             goos=darwin
@@ -82,6 +83,18 @@ for rid in "${rids[@]}"; do
             goos=linux
             artifact="ghostshell-workspace-gateway-linux-arm64"
             expected_file_description="ELF 64-bit LSB executable, ARM aarch64"
+            ;;
+        osx-x64)
+            goos=darwin
+            goarch=amd64
+            artifact="ghostshell-workspace-gateway-darwin-amd64"
+            expected_file_description="Mach-O 64-bit executable x86_64"
+            ;;
+        linux-x64)
+            goos=linux
+            goarch=amd64
+            artifact="ghostshell-workspace-gateway-linux-amd64"
+            expected_file_description="ELF 64-bit LSB executable, x86-64"
             ;;
         *)
             echo "Unsupported workspace network gateway RID: ${rid}" >&2
@@ -99,7 +112,7 @@ for rid in "${rids[@]}"; do
     staged_artifact="${staging_directory}/${artifact}"
     (
         cd "${module_dir}"
-        GOOS="${goos}" GOARCH=arm64 go build \
+        GOOS="${goos}" GOARCH="${goarch}" go build \
             -trimpath \
             -buildvcs=false \
             -ldflags=-buildid= \

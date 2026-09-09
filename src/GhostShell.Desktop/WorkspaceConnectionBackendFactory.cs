@@ -12,7 +12,7 @@ namespace GhostShell.Desktop;
 /// Host-local files/terminals are deliberately outside this connection service.
 /// </summary>
 internal sealed class WorkspaceConnectionBackendFactory(
-    Func<WorkspaceSdkIsolationProvider?> serviceProvider,
+    Func<IWorkspaceConnectionServiceProvider?> serviceProvider,
     IWorkspacePacketGatewayRuntime gateways,
     ISecretVault vault,
     ISshHostKeyTrustStore knownHosts,
@@ -20,7 +20,7 @@ internal sealed class WorkspaceConnectionBackendFactory(
     IDatabaseOperationExecutor hostDatabaseOperations,
     SelfReentryLaunch? hostDirectLaunch = null)
 {
-    private readonly Func<WorkspaceSdkIsolationProvider?> _serviceProvider = serviceProvider;
+    private readonly Func<IWorkspaceConnectionServiceProvider?> _serviceProvider = serviceProvider;
     private readonly IWorkspacePacketGatewayRuntime _gateways = gateways;
     private readonly ISecretVault _vault = vault;
     private readonly ISshHostKeyTrustStore _knownHosts = knownHosts;
@@ -344,7 +344,7 @@ internal sealed class WorkspaceConnectionBackendFactory(
                 Func<DatabaseValueContentStore> stores)
             {
                 Hop = hop; Route = route; _isolate = isolate; _tunnel = tunnel; _authority = authority;
-                _backend = new(isolate.Commands);
+                _backend = new(isolate.Commands, architecture: isolate.Binding.Network?.RelayAttachment?.Architecture ?? "arm64");
                 Databases = new(stores, workspaceLaunch: token => PlanAsync("database", token), importHostConnectionFiles: true);
             }
 

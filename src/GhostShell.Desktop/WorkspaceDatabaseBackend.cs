@@ -12,7 +12,7 @@ namespace GhostShell.Desktop;
 
 /// <summary>Installs a pinned, UI-free Linux payload and plans private SDK exec, never a guest TCP listener.</summary>
 internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime commands,
-    string? descriptorPath = null, string? cacheRoot = null) : IAsyncDisposable
+    string? descriptorPath = null, string? cacheRoot = null, string architecture = "arm64") : IAsyncDisposable
 {
     internal const string ArchiveName = "GhostShell-workspace-backend-arm64.tar.gz";
     private readonly SemaphoreSlim _installation = new(1, 1);
@@ -86,18 +86,7 @@ internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime command
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_executable is null)
             {
-                var descriptor = Path.Combine(AppContext.BaseDirectory, "runtimes", "linux-arm64", "workspace-backend", "backend-assets.json");
-                var baseDirectory = new DirectoryInfo(AppContext.BaseDirectory);
-                if (baseDirectory.Parent is { } contents && string.Equals(baseDirectory.Name, "MacOS", StringComparison.Ordinal)
-                    && string.Equals(contents.Name, "Contents", StringComparison.Ordinal))
-                {
-                    descriptor = Path.Combine(contents.FullName, "Resources", "runtimes", "linux-arm64", "workspace-backend", "backend-assets.json");
-                }
-                var version = typeof(WorkspaceDatabaseBackend).Assembly.GetName().Version!.ToString(3);
-                var archive = await EnsureArchiveAsync(descriptorPath ?? descriptor,
-                    cacheRoot ?? Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "workspace-backends"),
-                    new Uri($"https://github.com/terion-labs/ghostshell/releases/download/v{version}/{ArchiveName}"),
-                    Environment.GetEnvironmentVariable("GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE"), cancellationToken).ConfigureAwait(false);
+                var archive = await EnsureDefaultArchiveAsync(architecture, cancellationToken, descriptorPath, cacheRoot).ConfigureAwait(false);
                 var installationId = Guid.NewGuid().ToString("N");
                 var start = await PlanCommandAsync("/bin/sh", ["-c", InstallScript, "ghostshell-backend-install", archive.Hash, installationId], cancellationToken).ConfigureAwait(false);
                 using var process = Process.Start(start) ?? throw new IOException("The workspace backend installer could not start.");
@@ -231,6 +220,24 @@ internal sealed class WorkspaceDatabaseBackend(IConnectionCommandRuntime command
         foreach (var argument in success.Value.Arguments) { start.ArgumentList.Add(argument); }
         foreach (var (name, value) in success.Value.Environment) { start.Environment[name] = value; }
         return start;
+    }
+
+    internal static Task<(string Path, string Hash)> EnsureDefaultArchiveAsync(string architecture, CancellationToken token,
+        string? descriptorPath = null, string? cacheRoot = null)
+    {
+        if (architecture is not ("arm64" or "x64")) { throw new ArgumentException("Unsupported backend architecture.", nameof(architecture)); }
+        var root = AppContext.BaseDirectory;
+        var baseDirectory = new DirectoryInfo(root);
+        if (baseDirectory.Parent is { } contents && baseDirectory.Name is "MacOS" && contents.Name is "Contents")
+        {
+            root = Path.Combine(contents.FullName, "Resources");
+        }
+        var descriptor = Path.Combine(root, "runtimes", "linux-" + architecture, "workspace-backend", "backend-assets.json");
+        var version = typeof(WorkspaceDatabaseBackend).Assembly.GetName().Version!.ToString(3);
+        return EnsureArchiveAsync(descriptorPath ?? descriptor,
+            cacheRoot ?? Path.Combine(GhostShellDataPaths.CreateDefault().DataDirectory, "workspace-backends"),
+            new Uri($"https://github.com/terion-labs/ghostshell/releases/download/v{version}/GhostShell-workspace-backend-{architecture}.tar.gz"),
+            Environment.GetEnvironmentVariable(architecture is "arm64" ? "GHOSTSHELL_WORKSPACE_BACKEND_ARCHIVE" : "GHOSTSHELL_WORKSPACE_BACKEND_X64_ARCHIVE"), token);
     }
 
     internal static async Task<(string Path, string Hash)> EnsureArchiveAsync(string descriptorPath, string cacheRoot,

@@ -15,7 +15,7 @@ public sealed partial class WorkspaceSdkIsolationProvider
     internal const string ServiceNetworkingScript = """
         set -eu
         test -x /usr/sbin/nft
-        /usr/sbin/sysctl -q -w net.ipv4.conf.all.route_localnet=1
+        test "$(/usr/sbin/sysctl -n net.ipv4.conf.all.route_localnet)" = 1 || /usr/sbin/sysctl -q -w net.ipv4.conf.all.route_localnet=1
         /usr/sbin/ip -6 route flush table local exact ::1
         /usr/sbin/ip -6 route add local ::1 dev lo table local metric 1 src fd00:4753:4e57::2
         /usr/sbin/nft add table inet ghostshell_service
