@@ -4,7 +4,7 @@ using GhostShell.Core;
 
 namespace GhostShell.Infrastructure.Tests;
 
-public sealed class WorkspaceNetworkRuntimeTests
+public sealed partial class WorkspaceNetworkRuntimeTests
 {
     private static readonly NetworkConnectionId ConnectionId = new("test-proxy");
 
@@ -178,7 +178,7 @@ public sealed class WorkspaceNetworkRuntimeTests
 
         Assert.Equal(WorkspaceNetworkState.Blocked, session.Snapshot.State);
         Assert.Equal(WorkspaceNetworkEgress.Blocked, session.Snapshot.Egress);
-        Assert.Equal("Proxy stopped.", session.Snapshot.Error?.Message);
+        Assert.Equal("Proxy stopped. Reconnecting automatically.", session.Snapshot.Error?.Message);
     }
 
     [Fact]
@@ -285,6 +285,10 @@ public sealed class WorkspaceNetworkRuntimeTests
 
         public List<byte[]?> Passwords { get; } = [];
 
+        public Queue<NetworkConnectionError> ReconnectErrors { get; } = new();
+
+        public bool ThrowOnReconnect { get; init; }
+
         public ValueTask<NetworkConnectionResult<INetworkConnectionSession>> ConnectAsync(
             NetworkConnectionStartRequest request,
             IProgress<NetworkConnectionProgress>? progress,
@@ -293,6 +297,20 @@ public sealed class WorkspaceNetworkRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             ConnectCount++;
             LastRequest = request;
+            if (ConnectCount > 1)
+            {
+                if (ThrowOnReconnect)
+                {
+                    throw new InvalidOperationException("Test reconnect failure.");
+                }
+
+                if (ReconnectErrors.TryDequeue(out var error))
+                {
+                    return ValueTask.FromResult(
+                        NetworkConnectionResult<INetworkConnectionSession>.Fail(error));
+                }
+            }
+
             if (request.TransientPassword is { } transientPassword)
             {
                 var bytes = new byte[transientPassword.Length];

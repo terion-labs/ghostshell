@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -1259,16 +1260,25 @@ internal sealed class HostUserspaceVpnTransport : IHostUserspaceVpnTransport
                 var monitors = _processes
                     .Select(process => process.WaitForExitAsync(_lifetime.Token))
                     .ToArray();
-                await Task.WhenAny(monitors).ConfigureAwait(false);
+                var stopped = await Task.WhenAny(monitors).ConfigureAwait(false);
+                await stopped.ConfigureAwait(false);
                 if (_lifetime.IsCancellationRequested)
                 {
                     return;
                 }
 
+                var process = _processes[Array.IndexOf(monitors, stopped)];
+                var exitCode = process.ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "unknown";
+                // Never forward process output: it can contain passwords, cookies and gateway URLs.
+                var rejected = VpnAuthenticationRejection.IsReported(process.Diagnostic);
+                SecretSafeDiagnosticProjection.WriteStandardError(
+                    $"workspace.host-vpn.exited.exit-{exitCode}.{(rejected ? "authentication-rejected" : "unknown")}",
+                    SecretSafeDiagnosticKind.Unexpected);
                 Publish(new NetworkConnectionSnapshot(
                     Snapshot.ConnectionId,
                     NetworkConnectionState.Failed,
-                    "The app-scoped VPN process stopped unexpectedly."));
+                    $"The app-scoped VPN process stopped unexpectedly. Exit code: {exitCode}."
+                    + (rejected ? " The VPN server rejected authentication." : string.Empty)));
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
             {

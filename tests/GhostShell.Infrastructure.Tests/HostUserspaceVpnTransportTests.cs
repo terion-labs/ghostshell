@@ -528,14 +528,17 @@ public sealed class HostUserspaceVpnTransportTests
         Assert.True(Assert.Single(processes.Processes).HasExited);
     }
 
-    [Fact]
-    public async Task Unexpected_process_exit_marks_the_session_failed()
+    [Theory]
+    [InlineData("secret-cookie=private; https://private-gateway.test/path", false)]
+    [InlineData("Login failed. password=private", true)]
+    public async Task Unexpected_process_exit_marks_the_session_failed_without_exposing_output(
+        string diagnostic, bool authenticationRejected)
     {
         using var state = new TemporaryDirectory();
         using var vault = new InMemorySecretVault();
         var configuration = new SecretRef("wireguard-health-configuration");
         await StoreSecretAsync(vault, configuration, "[Interface]\nPrivateKey = secret");
-        var processes = new RecordingHostVpnProcessRunner();
+        var processes = new RecordingHostVpnProcessRunner { ExitDiagnostic = diagnostic };
         var transport = Create(
             NetworkConnectionKind.WireGuard,
             vault,
@@ -561,6 +564,9 @@ public sealed class HostUserspaceVpnTransportTests
 
         Assert.Equal(NetworkConnectionState.Failed, snapshot.State);
         Assert.Contains("stopped", snapshot.Status, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Exit code: 1.", snapshot.Status, StringComparison.Ordinal);
+        Assert.DoesNotContain("private", snapshot.Status, StringComparison.Ordinal);
+        Assert.Equal(authenticationRejected, snapshot.Status!.Contains("rejected authentication", StringComparison.Ordinal));
     }
 
     [Fact]

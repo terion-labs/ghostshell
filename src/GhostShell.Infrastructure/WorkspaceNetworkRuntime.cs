@@ -974,12 +974,26 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
         {
             EventHandler<WorkspaceNetworkSnapshot>? changed;
             WorkspaceNetworkSnapshot snapshot;
+            WorkspaceNetworkPolicyUpdate? reconnectUpdate = null;
             lock (_stateGate)
             {
                 var connection = _connection;
                 if (_disposed || connection is null || !ReferenceEquals(sender, connection))
                 {
                     return;
+                }
+
+                NetworkConnectionError? error = null;
+                if (providerSnapshot.State is NetworkConnectionState.Disconnecting
+                    or NetworkConnectionState.Disconnected or NetworkConnectionState.Failed)
+                {
+                    error = LostConnectionError(providerSnapshot);
+                    reconnectUpdate = CanAutomaticallyReconnect(_appliedUpdate)
+                        ? _appliedUpdate
+                        : null;
+                    error = reconnectUpdate is not null
+                        ? RetryScheduled(error)
+                        : ManualReconnectRequired(error);
                 }
 
                 snapshot = providerSnapshot.State switch
@@ -1003,12 +1017,12 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
                             WorkspaceNetworkState.Blocked,
                             WorkspaceNetworkEgress.Blocked,
                             providerSnapshot.ConnectionId,
-                            LostConnectionError(providerSnapshot))
+                            error)
                         : new WorkspaceNetworkSnapshot(
                             WorkspaceNetworkState.Failed,
                             connection.Egress,
                             providerSnapshot.ConnectionId,
-                            LostConnectionError(providerSnapshot)),
+                            error),
                     _ => throw new ArgumentOutOfRangeException(
                         nameof(providerSnapshot),
                         providerSnapshot.State,
@@ -1019,6 +1033,10 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
             }
 
             changed?.Invoke(this, snapshot);
+            if (reconnectUpdate is not null)
+            {
+                StartAutomaticReconnect(reconnectUpdate);
+            }
         }
 
         private void OnPacketGatewayChanged(
@@ -1097,8 +1115,7 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
                     await _changeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
                     try
                     {
-                        if (!IsCurrentReconnect(update, cancellationToken)
-                            || _placement is not WorkspaceNetworkPlacement.IsolatedPlacement)
+                        if (!IsCurrentReconnect(update, cancellationToken))
                         {
                             return;
                         }
@@ -1174,7 +1191,11 @@ public sealed partial class WorkspaceNetworkRuntime : IWorkspaceNetworkRuntime
                         // cannot start a second loop until this one relinquishes ownership.
                         retryReplacement = reconnected
                             && ReferenceEquals(_appliedUpdate, update)
-                            && _snapshot is { State: WorkspaceNetworkState.Blocked, Error.Retryable: true };
+                            && _snapshot is
+                            {
+                                State: WorkspaceNetworkState.Blocked or WorkspaceNetworkState.Failed,
+                                Error.Retryable: true,
+                            };
                     }
                 }
 
