@@ -491,18 +491,25 @@ public sealed partial class RepositoryConventionTests
     }
 
     [Fact]
-    public void Macos_packaging_path_leak_checks_cover_merged_first_party_assemblies()
+    public void Macos_packaging_path_leak_checks_cover_all_catalogued_first_party_assemblies()
     {
         var packageScript = File.ReadAllText(
             Path.Combine(RepositoryRoot, "scripts", "package-macos.sh"));
 
-        Assert.Contains("\"GhostShell.Databases.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Docker.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Docking.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Git.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Previews.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Redis.dll\"", packageScript, StringComparison.Ordinal);
-        Assert.Contains("\"GhostShell.Updates.dll\"", packageScript, StringComparison.Ordinal);
+        using var catalog = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(RepositoryRoot, "licenses", "managed-components.json")));
+        var expected = catalog.RootElement.GetProperty("dependencies").EnumerateArray()
+            .Where(item => item.GetProperty("kind").GetString() == "project")
+            .Select(item => item.GetProperty("file").GetString()!)
+            .Where(file => file.StartsWith("GhostShell", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal).ToArray();
+        var assemblyArray = packageScript.Split("first_party_assemblies=(", StringSplitOptions.None)[1]
+            .Split(')')[0];
+        var actual = assemblyArray.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Trim('"')).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, actual);
     }
 
     [Fact]

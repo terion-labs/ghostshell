@@ -838,6 +838,7 @@ first_party_assemblies=(
     "GhostShell.App.dll"
     "GhostShell.Application.dll"
     "GhostShell.Browser.dll"
+    "GhostShell.ConnectionBackend.dll"
     "GhostShell.Core.dll"
     "GhostShell.Databases.dll"
     "GhostShell.Docker.dll"

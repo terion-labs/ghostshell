@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
 using GhostShell.Application;
 using GhostShell.Core;
 
@@ -15,17 +13,18 @@ public sealed class ContainerRelayIsolationProvider : IWorkspaceConnectionServic
     private readonly Func<CancellationToken, Task<RelayContainerEngine>> _discoverEngine;
     private readonly Func<string, CancellationToken, Task<string>> _prepareArchive;
     private readonly ConcurrentDictionary<Guid, OwnedRelay> _relays = new();
-    private readonly IWorkspaceIsolationCommandRunner _runner = new WorkspaceIsolationCommandRunner();
+    private readonly IWorkspaceIsolationCommandRunner _runner;
     private const string Helper = "/opt/ghostshell/ghostshell-relay-gateway";
 
     public ContainerRelayIsolationProvider(IConnectionExecutableLocator locator, Func<string, CancellationToken, Task<string>> prepareArchive)
         : this(token => RelayContainerEngine.DiscoverAsync(locator, new WorkspaceIsolationCommandRunner(), token), prepareArchive) { }
 
     internal ContainerRelayIsolationProvider(Func<CancellationToken, Task<RelayContainerEngine>> discoverEngine,
-        Func<string, CancellationToken, Task<string>> prepareArchive)
+        Func<string, CancellationToken, Task<string>> prepareArchive, IWorkspaceIsolationCommandRunner? runner = null)
     {
         _discoverEngine = discoverEngine;
         _prepareArchive = prepareArchive;
+        _runner = runner ?? new WorkspaceIsolationCommandRunner();
     }
     internal const string ImageRecipe = """
         FROM docker.io/library/ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
@@ -101,22 +100,22 @@ public sealed class ContainerRelayIsolationProvider : IWorkspaceConnectionServic
 
     private async Task<string> PrepareImageAsync(RelayContainerEngine engine, string archive, string directory, CancellationToken token)
     {
-        await using var file = File.OpenRead(archive);
-        var hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(file, token).ConfigureAwait(false));
-        var recipeHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(ImageRecipe)))[..12];
-        var tag = $"localhost/ghostshell-relay:{engine.Architecture}-{hash[..24]}-{recipeHash}";
-        using var inspection = CancellationTokenSource.CreateLinkedTokenSource(token);
-        inspection.CancelAfter(TimeSpan.FromSeconds(30));
-        var found = await _runner.RunAsync(engine.Launch(["image", "inspect", "--format", "{{.Id}}", tag]), ReadOnlyMemory<byte>.Empty, inspection.Token).ConfigureAwait(false);
-        if (found.ExitCode == 0) { return ValidateImageId(found.StandardOutput); }
+        var imageIdFile = Path.Combine(directory, "image.id");
         // Provisioning has no user secrets and precedes the network-disabled
         // execution container. Only verified app payload bytes enter the build.
         await File.WriteAllTextAsync(Path.Combine(directory, "Dockerfile"), ImageRecipe, token).ConfigureAwait(false);
         await File.WriteAllTextAsync(Path.Combine(directory, "resolver.conf"), "nameserver 198.18.0.0\n", token).ConfigureAwait(false);
         File.Copy(archive, Path.Combine(directory, "payload.tar.gz"));
-        try { await CheckedAsync(engine, ["build", "--platform", engine.Architecture is "x64" ? "linux/amd64" : "linux/arm64", "--tag", tag, directory], token).ConfigureAwait(false); }
-        finally { File.Delete(Path.Combine(directory, "payload.tar.gz")); File.Delete(Path.Combine(directory, "Dockerfile")); File.Delete(Path.Combine(directory, "resolver.conf")); }
-        return ValidateImageId(await CheckedAsync(engine, ["image", "inspect", "--format", "{{.Id}}", tag], token).ConfigureAwait(false));
+        try
+        {
+            // The selected daemon/builder is trusted, but public image tags are
+            // mutable, not provenance. Use its build cache only through a build
+            // of our inputs, then consume that build's ID from our private directory.
+            await CheckedAsync(engine, ["build", "--platform", engine.Architecture is "x64" ? "linux/amd64" : "linux/arm64", "--iidfile", imageIdFile,
+                .. (engine.Kind is "docker" ? new[] { "--load" } : []), directory], token).ConfigureAwait(false);
+            return ValidateImageId(await File.ReadAllTextAsync(imageIdFile, token).ConfigureAwait(false));
+        }
+        finally { File.Delete(imageIdFile); File.Delete(Path.Combine(directory, "payload.tar.gz")); File.Delete(Path.Combine(directory, "Dockerfile")); File.Delete(Path.Combine(directory, "resolver.conf")); }
     }
 
     public WorkspaceIsolationResult<WorkspaceProcessLaunch> CreateExecLaunch(WorkspaceIsolationBinding binding, WorkspaceIsolationProcessRequest request)

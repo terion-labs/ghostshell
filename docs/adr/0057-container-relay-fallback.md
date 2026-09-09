@@ -54,9 +54,17 @@ installer location](https://github.com/podman-container-tools/podman/blob/main/d
 
 Relay images are built on demand from a digest-pinned Ubuntu base and a verified
 backend archive. OS packages are obtained before the relay sees any connection
-secrets. Images are reused by payload/recipe hash and executed by immutable image
-ID. Provisioning uses the engine's ordinary download connectivity; connection
+secrets. Each preparation builds those inputs, allowing the trusted builder to
+reuse its layer cache, and executes the immutable image ID returned directly in
+an owner-private `--iidfile`. It never adopts a pre-tagged image or resolves a
+mutable tag after building. Docker explicitly loads the result into the engine.
+Missing or invalid build IDs fail closed. Provisioning uses the engine's ordinary download connectivity; connection
 traffic does not. Rootfs provisioning never contains a password or vault key.
+
+The selected daemon and its builder remain trusted. Other clients authorized to
+control that daemon can inspect or exec into its containers; this fallback does
+not protect connection secrets from those clients. Preventing tag substitution
+does not turn a shared daemon into a private security boundary.
 
 ARM64 and x64 backend archives contain the UI-free .NET worker and Linux packet
 transport, with integrity manifests and license evidence. Only their descriptors
@@ -99,3 +107,9 @@ tests also ran under x64 emulation, including idle-I/O cancellation. The x64 run
 exposed a TUN/Go epoll incompatibility, fixed by nonblocking Linux poll for the
 transport and bounded cancellation of both frame pumps. Docker Desktop itself,
 an older macOS host and physical Intel hardware were not available for this run.
+
+The subsequent image-provenance fix was retested with the real OrbStack routing
+fixture on ARM64 and x64 emulation. Unit tests cover direct build-ID selection
+for Docker and Podman, reject mutable tag lookups, and check missing/invalid IDs,
+failed builds, repeated preparations and cancellation cleanup. Podman was not
+installed for this retest; its live result above predates the provenance fix.
