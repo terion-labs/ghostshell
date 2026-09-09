@@ -6,7 +6,7 @@ const siteUrl = 'https://ghostshell.terion.name'
 useSeoMeta({
   title: 'GhostSHELL — a ghost in your shell',
   description:
-    'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH. Terminal, browser, files, databases, Docker, Git, and monitoring in one window. Nothing to install on your servers.',
+    'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH. Terminal, browser, files, databases, Docker, Git, and monitoring in one window, each workspace in its own VM and on its own VPN. Nothing to install on your servers.',
   ogTitle: 'GhostSHELL — a ghost in your shell',
   ogDescription:
     'A native terminal workspace with an AI agent that operates local and remote machines over plain SSH. Nothing to install on your servers.',
@@ -66,6 +66,14 @@ const faqs = [
     a: 'macOS, Windows, and Linux from one codebase. The current early release ships a signed, notarized macOS Apple-silicon build; on other platforms you build from source.',
   },
   {
+    q: 'Does a workspace VPN affect the rest of my Mac?',
+    a: 'No. Each connection runs as a userspace tunnel inside GhostSHELL: no system VPN profile, no kernel extension, no change to your routing table. Only the workspaces that chose that connection send traffic through it, and different workspaces can be on different tunnels at the same time. Your browser, mail, and everything else on the machine keep using the network as before.',
+  },
+  {
+    q: 'What happens when a VPN drops?',
+    a: 'That is what the kill switch is for. With it on, a workspace whose route fails stops sending traffic until the route is back or you turn networking off for that workspace. It never quietly falls back to your direct connection. Inside an isolated workspace this is enforced by the VM itself, which has no other way out; in a non-isolated workspace it covers everything GhostSHELL routes, while a stray program that ignores proxy settings could still reach the network directly.',
+  },
+  {
     q: 'What does workspace isolation actually isolate?',
     a: 'Each isolated workspace is a persistent Linux container with its own kernel, root filesystem, and network namespace. On macOS it runs on Apple Containerization, where every container is its own lightweight VM. Local terminals, the file panel, and browser traffic run inside it, and you can run the agent there too. The host stays invisible except for the folders you explicitly mount. It needs Apple silicon, macOS 26, and Apple\'s container runtime, which the app offers to install for you.',
   },
@@ -114,6 +122,7 @@ const open = ref<number | null>(0)
               <li>Ghostty terminal engine</li>
               <li>Embedded browser and dev tools</li>
               <li>Fully AI-agent controlled</li>
+              <li>A VPN per workspace</li>
               <li>Encrypted and secure</li>
             </ul>
           </div>
@@ -166,13 +175,14 @@ const open = ref<number | null>(0)
               </p>
             </div>
             <div class="card" data-reveal>
-              <h3>A workspace in its own VM</h3>
+              <h3>A workspace in its own VM, on its own VPN</h3>
               <p>
                 Flip a switch and the whole workspace runs in a persistent,
                 lightweight Linux VM: own kernel, own filesystem, own
-                network. Install anything, break anything, the host never
-                notices. Close it, and the packages are still there
-                tomorrow. macOS today; Linux and Windows planned.
+                network. Give it its own tunnel too: the corporate
+                AnyConnect, your homelab's Tailscale, a WireGuard peer.
+                Everything inside goes out that way and nothing else on
+                your Mac does. macOS today; Linux and Windows planned.
               </p>
             </div>
           </div>
@@ -369,6 +379,13 @@ const open = ref<number | null>(0)
                 the workspace can reach.
               </li>
               <li>
+                Give it a network of its own. Pair isolation with a
+                <a href="#networking">per-workspace VPN or proxy</a> and the
+                VM's only way out is the route you chose, so every process
+                inside obeys it, not only the ones that honour proxy
+                settings.
+              </li>
+              <li>
                 macOS on Apple silicon today, on Apple's container runtime
                 (every container is its own lightweight VM). Linux and
                 Windows backends are planned.
@@ -387,8 +404,71 @@ const open = ref<number | null>(0)
         </div>
       </section>
 
+      <!-- Per-workspace networking -->
+      <section id="networking" class="section section--alt">
+        <div class="wrap split">
+          <div class="split__text" data-reveal>
+            <p class="eyebrow">Per-workspace networking</p>
+            <h2 data-reveal class="section-title">Every workspace on its own VPN</h2>
+            <p data-reveal style="--rd: 1" class="section-lede">
+              The client workspace on the corporate AnyConnect. The homelab
+              workspace on your Tailscale. The personal one wrapped in
+              WireGuard. All at the same time, in one app, and none of it
+              touching the rest of your Mac.
+            </p>
+            <ul class="checks">
+              <li>
+                Five kinds of route: SOCKS5, HTTP, or HTTPS proxy,
+                WireGuard, OpenVPN, Cisco AnyConnect, and a Tailscale exit
+                node. The engines ship inside the app. No VPN client to
+                install, no kernel extension, no admin prompt.
+              </li>
+              <li>
+                Nothing system-wide. Each connection is a userspace tunnel
+                the app owns: no system VPN, no change to your routing
+                table, no other program's traffic dragged along with it.
+              </li>
+              <li>
+                The whole workspace goes through it. Terminals and SSH,
+                browser panels, files, databases, Docker, Git, MCP servers,
+                and the agent if you run it in there. DNS too, so names
+                resolve inside the tunnel instead of at your ISP.
+              </li>
+              <li>
+                One switch in the title bar. Set an app-wide default, give a
+                workspace its own list of allowed connections, then swap or
+                pause the route from the window without editing anything.
+              </li>
+              <li>
+                A kill switch. If the tunnel drops, the workspace's traffic
+                stops rather than sliding back onto your direct connection.
+              </li>
+              <li>
+                Made for isolation. An isolated workspace's VM has exactly
+                one way out, the route you picked, so every process in it
+                obeys, not only the ones that honour proxy settings.
+              </li>
+              <li>
+                Configs, keys, and passwords live in the OS vault, never in
+                the connection definition. A password you would rather not
+                store is asked for at connect time and forgotten afterwards.
+              </li>
+            </ul>
+          </div>
+          <div class="shot split__shot" data-reveal style="--rd: 1">
+            <img
+              :src="`${base}shots/settings-networking.webp`"
+              alt="Networking settings: the application default route and a list of saved AnyConnect, proxy, Tailscale, WireGuard, and OpenVPN connections"
+              width="2880"
+              height="1800"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
+
       <!-- Security -->
-      <section id="security" class="section section--alt">
+      <section id="security" class="section">
         <div class="wrap">
           <p class="eyebrow">Security</p>
           <h2 data-reveal class="section-title">Built like it expects to be audited</h2>

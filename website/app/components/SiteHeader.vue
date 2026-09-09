@@ -14,6 +14,7 @@ const base = useRuntimeConfig().app.baseURL
         <a href="#panels">Panels</a>
         <a href="#workspaces">Workspaces</a>
         <a href="#isolation">Isolation</a>
+        <a href="#networking">Networking</a>
         <a href="#security">Security</a>
         <a href="#faq">FAQ</a>
       </nav>

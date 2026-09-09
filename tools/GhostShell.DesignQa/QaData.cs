@@ -198,11 +198,15 @@ internal static class QaData
 
     // Declared before the workspaces that reference them: static initializers
     // run in textual order, and a policy built from an unset ID throws.
-    private static readonly NetworkConnectionId OfficeVpnId = new("office-vpn");
+    private static readonly NetworkConnectionId CorporateAnyConnectId = new("corporate-anyconnect");
 
     private static readonly NetworkConnectionId CorpProxyId = new("corp-proxy");
 
-    private static readonly NetworkConnectionId FieldTailnetId = new("field-tailnet");
+    private static readonly NetworkConnectionId HomelabTailnetId = new("homelab-tailnet");
+
+    private static readonly NetworkConnectionId PersonalWireGuardId = new("personal-wireguard");
+
+    private static readonly NetworkConnectionId ProtonOpenVpnId = new("proton-openvpn");
 
     public static IReadOnlyList<StoredDefinition<WorkspaceDefinition>> Workspaces { get; } =
     [
@@ -274,7 +278,7 @@ internal static class QaData
             new WorkspaceId("field"),
             WorkspaceDefinition.CurrentSchemaVersion,
             "Field",
-            "Customer site work over the office VPN",
+            "Customer site work over the corporate VPN",
             "#7A6BD1",
             [
                 new WorkspaceEntry.ConnectionReference(
@@ -290,24 +294,29 @@ internal static class QaData
                 new WorkspaceIsolationMountDefinition("/Users/me/.ssh", "/home/me/.ssh", true),
             ],
             networkOverride: new NetworkPolicy(
-                [OfficeVpnId, CorpProxyId],
-                OfficeVpnId,
+                [CorporateAnyConnectId, CorpProxyId],
+                CorporateAnyConnectId,
                 isEnabled: true,
                 killSwitchEnabled: true))),
     ];
 
     /// <summary>
-    /// One of each shape the connection list distinguishes: a VPN whose whole
-    /// configuration is a vault document, a proxy with an endpoint and an
-    /// account, and a tailnet exit node.
+    /// Every connection kind the list distinguishes, named the way the feature
+    /// is meant to be used: the corporate VPN for client work, the homelab's
+    /// tailnet, a personal WireGuard tunnel, a commercial OpenVPN, and a proxy
+    /// with an endpoint and an account.
     /// </summary>
     public static IReadOnlyList<StoredDefinition<NetworkConnectionProfile>> NetworkConnections { get; } =
     [
         Stored(new NetworkConnectionProfile(
-            OfficeVpnId,
+            CorporateAnyConnectId,
             NetworkConnectionProfile.CurrentSchemaVersion,
-            "Office VPN",
-            new NetworkConnectionConfiguration.WireGuard(new SecretRef("qa-office-vpn-config")))),
+            "Corporate AnyConnect",
+            new NetworkConnectionConfiguration.AnyConnect(
+                new Uri("https://vpn.corp.example"),
+                "terion",
+                new SecretRef("qa-corporate-anyconnect-password"),
+                "employees"))),
         Stored(new NetworkConnectionProfile(
             CorpProxyId,
             NetworkConnectionProfile.CurrentSchemaVersion,
@@ -319,21 +328,34 @@ internal static class QaData
                 "terion",
                 new SecretRef("qa-corp-proxy-password")))),
         Stored(new NetworkConnectionProfile(
-            FieldTailnetId,
+            HomelabTailnetId,
             NetworkConnectionProfile.CurrentSchemaVersion,
-            "Field tailnet",
-            new NetworkConnectionConfiguration.Tailscale("field-exit-1"))),
+            "Homelab tailnet",
+            new NetworkConnectionConfiguration.Tailscale("homelab-gateway"))),
+        Stored(new NetworkConnectionProfile(
+            PersonalWireGuardId,
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Personal WireGuard",
+            new NetworkConnectionConfiguration.WireGuard(new SecretRef("qa-personal-wireguard-config")))),
+        Stored(new NetworkConnectionProfile(
+            ProtonOpenVpnId,
+            NetworkConnectionProfile.CurrentSchemaVersion,
+            "Proton OpenVPN",
+            new NetworkConnectionConfiguration.OpenVpn(
+                new SecretRef("qa-proton-openvpn-profile"),
+                "proton-user",
+                new SecretRef("qa-proton-openvpn-password")))),
     ];
 
-    /// <summary>The application default: routed through the office VPN, kill switch on.</summary>
+    /// <summary>The application default: the personal WireGuard tunnel, kill switch on.</summary>
     public static StoredDefinition<ApplicationNetworkSettings> ApplicationNetworkSettings { get; } =
         Stored(new ApplicationNetworkSettings(
             GhostShell.Core.ApplicationNetworkSettings.DefaultId,
             GhostShell.Core.ApplicationNetworkSettings.CurrentSchemaVersion,
             "Application networking",
             new NetworkPolicy(
-                [OfficeVpnId, CorpProxyId, FieldTailnetId],
-                OfficeVpnId,
+                [CorporateAnyConnectId, CorpProxyId, HomelabTailnetId, PersonalWireGuardId, ProtonOpenVpnId],
+                PersonalWireGuardId,
                 isEnabled: true,
                 killSwitchEnabled: true)));
 
