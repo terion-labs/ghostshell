@@ -12,17 +12,82 @@ openconnect_version="9.21"
 openconnect_sha256="5b32369467db6e5f317aa1ed12cfcbb81ed00bdbc765450b6bfcbdc300944a58"
 openssl_version="3.6.4"
 openssl_sha256="9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef"
+code_payload=(ghostshell-openvpn-engine tailscale tailscaled openconnect libopenconnect.5.dylib)
+legal_payload=(GO-LICENSE.txt OPENCONNECT-LGPL-2.1.txt OPENCONNECT-SOURCE-AND-RELINKING.md
+    OPENSSL-LICENSE.txt OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md ASIO-LICENSE.txt
+    LZ4-LICENSE.txt OPENVPN-VERSIONS.txt OPENVPN-THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.md)
+
+verify_payload() (
+    cd "${artifact_directory}" || exit 1
+    [[ ! -L "${artifact_directory}" && -f MANIFEST.sha256 && ! -L MANIFEST.sha256 ]] || exit 1
+    for payload in "${code_payload[@]}" "${legal_payload[@]}" "sources/openconnect-${openconnect_version}.tar.gz"; do
+        [[ -f "${payload}" && ! -L "${payload}" ]] || { echo "Missing engine payload: ${payload}" >&2; exit 1; }
+        # Require every expected file to be covered, not merely the files left in a partial manifest.
+        expected_hash="$(awk -v name="${payload}" '$2 == name { print $1 }' MANIFEST.sha256)"
+        actual_hash="$(shasum -a 256 "${payload}" | awk '{print $1}')"
+        [[ "${expected_hash}" == "${actual_hash}" ]] || { echo "Invalid engine checksum: ${payload}" >&2; exit 1; }
+    done
+    for payload in "${code_payload[@]}"; do
+        [[ -x "${payload}" ]] || { echo "Engine is not executable: ${payload}" >&2; exit 1; }
+        [[ "$(file -b "${payload}")" == *"Mach-O 64-bit "*"arm64"* ]] || exit 1
+        dependency_output="$(otool -L "${payload}")" || exit 1
+        dependencies="$(printf '%s\n' "${dependency_output}" | tail -n +2 | awk '{print $1}' \
+            | grep -Ev '^(@loader_path/libopenconnect\.5\.dylib|/usr/lib/|/System/Library/)' || true)"
+        [[ -z "${dependencies}" ]] || { echo "Unbundled engine dependency: ${dependencies}" >&2; exit 1; }
+    done
+    ./openconnect --version >/dev/null || exit 1
+    # The packet engine has no version command; its argument error proves dyld loaded it.
+    engine_status=0
+    ./ghostshell-openvpn-engine </dev/null >/dev/null 2>&1 || engine_status=$?
+    [[ "${engine_status}" == 64 ]] || exit 1
+    ./tailscale --version >/dev/null || exit 1
+    ./tailscaled --version >/dev/null || exit 1
+)
 
 usage() {
     cat >&2 <<'EOF'
-Usage: ./scripts/build-macos-connection-engines.sh
+Usage: ./scripts/build-macos-connection-engines.sh [--verify | --stage <MacOS-directory>]
 
 Builds the reviewed self-contained macOS arm64 connection engines and writes a
 deterministic checksum manifest plus the complete linked-module license notice.
+--verify checks the cached payload without downloading or building anything.
+--stage repairs the cache if needed, then copies verified engines and notices
+into development build output. Source archives remain outside the app.
 EOF
 }
 
 if [[ $# -gt 0 ]]; then
+    if [[ $# -eq 1 && "$1" == "--verify" ]]; then
+        verify_payload
+        exit
+    fi
+    if [[ $# -eq 2 && "$1" == "--stage" ]]; then
+        [[ -d "$2" && ! -L "$2" ]] || { echo "Engine staging destination must be a real directory." >&2; exit 1; }
+        if ! verify_payload >/dev/null 2>&1; then
+            echo "Restoring missing or invalid development connection engines..." >&2
+            "${BASH_SOURCE[0]}"
+        fi
+        verify_payload
+        code_destination="$2/runtimes/osx-arm64/connection-engines"
+        legal_destination="$2/connection-engine-legal"
+        mkdir -p "${code_destination}" "${legal_destination}"
+        for payload in "${code_payload[@]}"; do
+            cp -p "${artifact_directory}/${payload}" "${code_destination}/${payload}"
+            cmp "${artifact_directory}/${payload}" "${code_destination}/${payload}"
+            [[ -x "${code_destination}/${payload}" ]]
+        done
+        for payload in "${legal_payload[@]}" MANIFEST.sha256; do
+            cp "${artifact_directory}/${payload}" "${legal_destination}/${payload}"
+            cmp "${artifact_directory}/${payload}" "${legal_destination}/${payload}"
+        done
+        "${code_destination}/openconnect" --version >/dev/null
+        engine_status=0
+        "${code_destination}/ghostshell-openvpn-engine" </dev/null >/dev/null 2>&1 || engine_status=$?
+        [[ "${engine_status}" == 64 ]]
+        "${code_destination}/tailscale" --version >/dev/null
+        "${code_destination}/tailscaled" --version >/dev/null
+        exit
+    fi
     if [[ $# -eq 1 && ("$1" == "--help" || "$1" == "-h") ]]; then
         usage
         exit 0
@@ -193,6 +258,9 @@ install_name_tool \
     "${staging_directory}/libopenconnect.5.dylib"
 
 openvpn_directory="${repository_dir}/native/artifacts/osx-arm64/openvpn-engine"
+if ! "${script_dir}/build-openvpn-engine.sh" --verify >/dev/null 2>&1; then
+    "${script_dir}/build-openvpn-engine.sh"
+fi
 "${script_dir}/build-openvpn-engine.sh" --verify
 for payload in ghostshell-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
     ASIO-LICENSE.txt LZ4-LICENSE.txt OPENVPN-VERSIONS.txt; do

@@ -8,6 +8,40 @@ public sealed class ConnectionEnginePackagingTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
+    public async Task DevelopmentEngineStagingRepairsEmptyOutputAndRejectsBrokenPayloads()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var runner = Read("scripts", "run-macos-development.sh");
+        var stage = runner.IndexOf("build-macos-connection-engines.sh\" --stage", StringComparison.Ordinal);
+        Assert.True(stage > runner.IndexOf("/usr/bin/ditto --clone --noqtn \"${target_directory}\"", StringComparison.Ordinal));
+        Assert.True(stage < runner.IndexOf("rm -rf -- \"${app_bundle}\"", StringComparison.Ordinal));
+        var start = new ProcessStartInfo("python3")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add(Path.Combine(RepositoryRoot, "scripts", "test-development-connection-engines.py"));
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start engine staging tests.");
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
+        var error = process.StandardError.ReadToEndAsync(timeout.Token);
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
+        Assert.True(process.ExitCode == 0, await output + await error);
+    }
+
+    [Fact]
     public void App_excludes_boot_images_and_source_archives_and_release_publishes_sidecars()
     {
         var project = XDocument.Load(Path.Combine(RepositoryRoot, "src", "GhostShell.Desktop", "GhostShell.Desktop.csproj"));

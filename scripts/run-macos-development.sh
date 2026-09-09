@@ -10,6 +10,7 @@ app_bundle=""
 info_plist_template=""
 app_icon="${repository_dir}/assets/macos/GhostShell.icns"
 application_arguments=()
+assemble_only=false
 
 usage() {
     cat >&2 <<'EOF'
@@ -18,6 +19,7 @@ Usage: run-macos-development.sh \
   --cef-runtime-root <cef-runtime> \
   --app <obj-path/GhostShell.dev.app> \
   --info-plist-template <template> \
+  [--assemble-only] \
   [-- <GhostSHELL arguments>]
 
 Assembles the framework-dependent build output into the macOS bundle layout
@@ -46,6 +48,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { usage; exit 64; }
             info_plist_template="$2"
             shift 2
+            ;;
+        --assemble-only)
+            assemble_only=true
+            shift
             ;;
         --)
             shift
@@ -153,6 +159,9 @@ if ! "${repository_dir}/scripts/build-workspace-backend.sh" --verify >/dev/null 
     "${repository_dir}/scripts/build-workspace-backend.sh"
 fi
 /usr/bin/ditto --clone --noqtn "${target_directory}" "${macos_directory}"
+# MSBuild evaluates optional Content before provisioning. Copy from the verified
+# cache explicitly, including on the first run with an empty managed output.
+"${repository_dir}/scripts/build-macos-connection-engines.sh" --stage "${macos_directory}"
 backend_resources="${resources_directory}/runtimes/linux-arm64/workspace-backend"
 mkdir -p "${backend_resources}"
 cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/backend-assets.json" "${backend_resources}/"
@@ -230,6 +239,10 @@ mv -- "${candidate}" "${app_bundle}"
 rmdir -- "${candidate_parent}"
 trap - EXIT
 
+if [[ "${assemble_only}" == true ]]; then
+    echo "Assembled ${app_bundle}" >&2
+    exit 0
+fi
 echo "Launching ${app_bundle}" >&2
 # Development uses the same verified provisioning path without fetching an
 # unpublished app version from GitHub. Do not copy the sidecar into the bundle.
