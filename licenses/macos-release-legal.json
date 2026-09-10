@@ -75,7 +75,7 @@
     },
     {
       "path": "licenses/managed-components.json",
-      "sha256": "844d21b0df724e3b6fd366c039ac0fe3f6a1f055b72e7fc85d0456a7f00ffb4b"
+      "sha256": "fdd2f3f7b19d9499ae7a295a619bb768b175b52ad9812eaca384efb4e5e8c046"
     },
     {
       "path": "licenses/native-terminal-components.json",

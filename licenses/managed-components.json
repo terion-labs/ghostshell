@@ -1772,13 +1772,13 @@
           "archivePath": "THIRD-PARTY-NOTICES.TXT",
           "outputPath": "Microsoft.AspNetCore.App.Runtime.osx-arm64-10.0.11/THIRD-PARTY-NOTICES.TXT",
           "sha256": "52af3d603b6d069e635f8afd08ec44ec01559255b5f3afd161ae9e6fe7e7aa54",
-          "minimumBytes": 100
+          "minimumBytes": 50000
         },
         {
           "archivePath": "LICENSE.txt",
           "outputPath": "Microsoft.AspNetCore.App.Runtime.osx-arm64-10.0.11/LICENSE.txt",
           "sha256": "cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310",
-          "minimumBytes": 100
+          "minimumBytes": 1024
         }
       ]
     },

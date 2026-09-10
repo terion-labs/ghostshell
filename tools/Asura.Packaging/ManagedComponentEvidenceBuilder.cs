@@ -132,6 +132,13 @@ internal static partial class ManagedComponentEvidenceBuilder
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
+    internal static void ValidateCatalogFile(string catalogPath)
+    {
+        var bytes = ReadRegularFile(catalogPath, MaximumCatalogBytes, "managed-component catalog");
+        // Schema validation needs a concrete version only to resolve catalog placeholders.
+        _ = ParseCatalog(bytes, "0.0.0");
+    }
+
     public static ManagedComponentEvidence Build(
         string publishDirectory,
         string licenseDirectory,

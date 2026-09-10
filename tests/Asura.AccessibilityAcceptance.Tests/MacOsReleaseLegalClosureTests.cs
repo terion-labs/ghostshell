@@ -66,6 +66,37 @@ public sealed class MacOsReleaseLegalClosureTests : IDisposable
         MacOsReleaseLegalClosure.RequirePublicationClearance(inspection);
     }
 
+    [Theory]
+    [InlineData("managed-components.json")]
+    [InlineData("workspace-backend-managed-components.json")]
+    [InlineData("workspace-backend-x64-managed-components.json")]
+    public void Checked_in_component_catalogs_pass_release_schema_validation(string catalogName)
+    {
+        ManagedComponentEvidenceBuilder.ValidateCatalogFile(
+            Path.Combine(FindRepositoryRoot(), "licenses", catalogName));
+    }
+
+    [Theory]
+    [InlineData("LICENSE.txt")]
+    [InlineData("THIRD-PARTY-NOTICES.TXT")]
+    public void Catalog_preflight_rejects_trivial_ASP_NET_notice_bounds(string noticeName)
+    {
+        var source = Path.Combine(FindRepositoryRoot(), "licenses", "managed-components.json");
+        var catalog = JsonNode.Parse(File.ReadAllText(source))!;
+        var runtime = catalog["dependencies"]!.AsArray().Single(component =>
+            component!["identity"]!.GetValue<string>()
+                == "runtimepack.Microsoft.AspNetCore.App.Runtime.osx-arm64/10.0.11")!;
+        var notice = runtime["notices"]!.AsArray().Single(item =>
+            item!["archivePath"]!.GetValue<string>() == noticeName)!;
+        notice["minimumBytes"] = 100;
+        var path = Path.Combine(_temporaryDirectory, "invalid-catalog.json");
+        File.WriteAllText(path, catalog.ToJsonString());
+
+        var error = Assert.Throws<InvalidDataException>(() =>
+            ManagedComponentEvidenceBuilder.ValidateCatalogFile(path));
+        Assert.Contains("notice minimumBytes is outside the allowed range", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Owner_accepted_record_with_no_blockers_can_cross_publication_boundary()
     {

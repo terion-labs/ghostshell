@@ -138,6 +138,8 @@ internal static class Program
             arguments[1],
             arguments[3]);
         MacOsReleaseLegalClosure.RequirePublicationClearance(inspection);
+        ManagedComponentEvidenceBuilder.ValidateCatalogFile(
+            Path.Combine(arguments[3], "licenses", "managed-components.json"));
         Console.WriteLine("Validated macOS release legal clearance.");
         return 0;
     }
