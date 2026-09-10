@@ -1,7 +1,7 @@
 # Asura third-party notices
 
-This file records the managed packages resolved for the Asura desktop
-project and indexes the runtime notices currently bundled with the application.
+This file records the managed packages included in the Asura desktop
+publish and indexes the runtime notices currently bundled with the application.
 Package authors retain all rights granted by their respective licenses.
 Asura does not claim ownership of these components.
 
@@ -12,6 +12,9 @@ The application bundle also includes:
   Native AOT replacement instructions for SMBLibrary 1.5.7.1;
 - `DOTNET-LICENSE.txt` and `DOTNET-THIRD-PARTY-NOTICES.txt` for the
   self-contained .NET runtime;
+- the ASP.NET Core runtime pack's `LICENSE.txt` and `THIRD-PARTY-NOTICES.TXT`
+  in the managed evidence directory, including assemblies supplied by that
+  runtime instead of separate NuGet packages;
 - `GHOSTTY-LICENSE` for the pinned libghostty-vt source snapshot (commit
   `08f039fbb3dea9c6b1cdb5ff4550666598122346`);
 - `JetBrainsMono-OFL.txt` for the embedded JetBrains Mono 2.304 regular,
@@ -148,24 +151,6 @@ its own .NET runtime and dependency notices beside its verified Linux payload.
 | `Microsoft.Data.SqlClient` | `6.0.2` | MIT |
 | `Microsoft.Data.Sqlite.Core` | `10.0.10` | MIT |
 | `Microsoft.Extensions.AI.Abstractions` | `10.8.3` | MIT |
-| `Microsoft.Extensions.Caching.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Caching.Memory` | `9.0.4` | MIT |
-| `Microsoft.Extensions.Configuration` | `8.0.0` | MIT |
-| `Microsoft.Extensions.Configuration.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Configuration.Binder` | `8.0.0` | MIT |
-| `Microsoft.Extensions.DependencyInjection` | `10.0.10` | MIT |
-| `Microsoft.Extensions.DependencyInjection.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Diagnostics` | `8.0.1` | MIT |
-| `Microsoft.Extensions.Diagnostics.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.FileProviders.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Hosting.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Http` | `8.0.1` | MIT |
-| `Microsoft.Extensions.Logging` | `8.0.1` | MIT |
-| `Microsoft.Extensions.Logging.Abstractions` | `10.0.10` | MIT |
-| `Microsoft.Extensions.ObjectPool` | `10.0.3` | MIT |
-| `Microsoft.Extensions.Options` | `10.0.10` | MIT |
-| `Microsoft.Extensions.Options.ConfigurationExtensions` | `8.0.0` | MIT |
-| `Microsoft.Extensions.Primitives` | `10.0.10` | MIT |
 | `Microsoft.IO.RecyclableMemoryStream` | `3.0.1` | MIT |
 | `Microsoft.Identity.Client` | `4.61.3` | MIT |
 | `Microsoft.Identity.Client.Extensions.Msal` | `4.61.3` | MIT |
@@ -210,13 +195,11 @@ its own .NET runtime and dependency notices beside its verified Linux payload.
 | `Sylinko.CSharpMath.Avalonia` | `12.0.0` | MIT |
 | `System.ClientModel` | `1.0.0` | MIT |
 | `System.Configuration.ConfigurationManager` | `9.0.4` | MIT |
-| `System.Diagnostics.EventLog` | `9.0.4` | MIT |
 | `System.Diagnostics.PerformanceCounter` | `8.0.0` | MIT |
 | `System.DirectoryServices.Protocols` | `8.0.0` | MIT |
 | `System.IO.Hashing` | `10.0.5` | MIT |
 | `System.IdentityModel.Tokens.Jwt` | `7.5.0` | MIT |
 | `System.Memory.Data` | `1.0.2` | MIT |
-| `System.Security.Cryptography.Pkcs` | `9.0.4` | MIT |
 | `System.Security.Cryptography.ProtectedData` | `10.0.10` | MIT |
 | `TextMateSharp` | `2.0.4` | MIT |
 | `TextMateSharp.Grammars` | `2.0.4` | MIT |
