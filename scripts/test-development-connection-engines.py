@@ -152,5 +152,76 @@ class DevelopmentEngineTests(unittest.TestCase):
                 self.assertNotEqual(0, self.run_script("--verify").returncode)
 
 
+OPENVPN_SCRIPT = SCRIPT.with_name("build-openvpn-engine.sh")
+OPENVPN_PAYLOAD = (
+    "asura-openvpn-engine", "OPENVPN-MPL-2.0.txt", "OPENVPN-LICENSE.md",
+    "OPENSSL-LICENSE.txt", "ASIO-LICENSE.txt", "LZ4-LICENSE.txt",
+    "THIRD-PARTY-NOTICES.txt", "OPENVPN-VERSIONS.txt",
+)
+
+
+class OpenVpnCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="asura-openvpn-cache-tests-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        scripts = self.root / "scripts"
+        scripts.mkdir()
+        self.script = scripts / "build-openvpn-engine.sh"
+        shutil.copy2(OPENVPN_SCRIPT, self.script)
+        self.payload = self.root / "native/artifacts/osx-arm64/openvpn-engine"
+        self.payload.mkdir(parents=True)
+        for name in OPENVPN_PAYLOAD:
+            (self.payload / name).write_text(name)
+        (self.payload / OPENVPN_PAYLOAD[0]).chmod(0o755)
+        source = self.root / "native/openvpn-engine"
+        source.mkdir(parents=True)
+        shutil.copy2(self.payload / "THIRD-PARTY-NOTICES.txt", source / "THIRD-PARTY-NOTICES.txt")
+        shutil.copy2(self.payload / "OPENVPN-VERSIONS.txt", source / "VERSIONS.txt")
+        self.manifest()
+
+    def manifest(self, names=OPENVPN_PAYLOAD):
+        (self.payload / "SHA256SUMS").write_text("".join(
+            f"{hashlib.sha256((self.payload / name).read_bytes()).hexdigest()}  {name}\n"
+            for name in names
+        ))
+
+    def verify(self):
+        return subprocess.run(
+            ["/bin/bash", str(self.script), "--verify"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+
+    def test_accepts_complete_current_payload(self):
+        result = self.verify()
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_rejects_obsolete_executable_even_with_valid_checksums(self):
+        retired = "previous-openvpn-engine"
+        (self.payload / OPENVPN_PAYLOAD[0]).rename(self.payload / retired)
+        self.manifest((retired, *OPENVPN_PAYLOAD[1:]))
+        self.assertNotEqual(0, self.verify().returncode)
+
+    def test_rejects_manifest_that_omits_the_current_executable(self):
+        self.manifest(OPENVPN_PAYLOAD[1:])
+        self.assertNotEqual(0, self.verify().returncode)
+
+    def test_rejects_stale_notices_even_with_valid_checksums(self):
+        (self.payload / "THIRD-PARTY-NOTICES.txt").write_text("outdated product notices")
+        self.manifest()
+        self.assertNotEqual(0, self.verify().returncode)
+
+    def test_rejects_nonexecutable_engine(self):
+        (self.payload / OPENVPN_PAYLOAD[0]).chmod(0o644)
+        self.assertNotEqual(0, self.verify().returncode)
+
+    def test_rejects_linked_engine(self):
+        engine = self.payload / OPENVPN_PAYLOAD[0]
+        external = self.root / "external-engine"
+        engine.rename(external)
+        engine.symlink_to(external)
+        self.assertNotEqual(0, self.verify().returncode)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,7 +53,8 @@ in `VERSIONS.txt` and `THIRD-PARTY-NOTICES.txt`.
 runs CTest against the retained dependency cache without downloading anything.
 Both build modes regenerate CMake configuration from the current checkout path,
 so renaming or moving the checkout does not require downloading dependencies again.
-`--verify` checks the staged artifact manifest. `--config FILE --validate`
+`--verify` requires the current executable and legal-file layout, checks the exact
+checksum manifest, and compares notices and versions with the checked-in sources. `--config FILE --validate`
 evaluates a profile without connecting and emits only `VALID v1` or a fixed error.
 
 The Go host tests exercise bounded readiness parsing, route semantics, forced

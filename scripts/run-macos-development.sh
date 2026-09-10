@@ -174,6 +174,29 @@ fi
 # MSBuild evaluates optional Content before provisioning. Copy from the verified
 # cache explicitly, including on the first run with an empty managed output.
 "${repository_dir}/scripts/build-macos-connection-engines.sh" --stage "${macos_directory}" --rid "${runtime_identifier}"
+# Optional MSBuild content can be absent or stale before native provisioning.
+# Stage the verified current runtime explicitly, just like the connection engines.
+workspace_runtime="${macos_directory}/runtimes/osx-arm64/workspace-runtime/workspace-runtime"
+if [[ "${runtime_identifier}" == osx-arm64 ]]; then
+    runtime_cache="${repository_dir}/native/artifacts/osx-arm64/workspace-runtime"
+    if ! "${repository_dir}/scripts/build-workspace-runtime.sh" --verify >/dev/null 2>&1; then
+        echo "Restoring missing or invalid development workspace runtime..." >&2
+        "${repository_dir}/scripts/build-workspace-runtime.sh"
+    fi
+    "${repository_dir}/scripts/build-workspace-runtime.sh" --verify >/dev/null
+    runtime_destination="${workspace_runtime%/*}"
+    legal_destination="${macos_directory}/workspace-runtime-legal"
+    rm -rf -- "${runtime_destination}" "${legal_destination}"
+    mkdir -p "${runtime_destination}" "${legal_destination}"
+    for runtime_asset in "${runtime_cache}/"*; do
+        case "${runtime_asset##*/}" in legal|kernel.bin|initfs.ext4) continue ;; esac
+        /usr/bin/ditto --clone --noqtn "${runtime_asset}" "${runtime_destination}/${runtime_asset##*/}"
+    done
+    for legal_asset in "${runtime_cache}/legal/"*; do
+        [[ "${legal_asset##*/}" == sources ]] && continue
+        /usr/bin/ditto --clone --noqtn "${legal_asset}" "${legal_destination}/${legal_asset##*/}"
+    done
+fi
 backend_resources="${resources_directory}/runtimes/linux-arm64/workspace-backend"
 mkdir -p "${backend_resources}"
 cp "${repository_dir}/native/artifacts/workspace-backend-build/distribution/backend-assets.json" "${backend_resources}/"
@@ -186,7 +209,6 @@ fi
 # Incremental managed output may still contain the retired in-guest helper.
 # The SDK runtime never mounts application code into the guest.
 rm -rf -- "${macos_directory}/runtimes/linux-arm64/guest"
-workspace_runtime="${macos_directory}/runtimes/osx-arm64/workspace-runtime/workspace-runtime"
 # Incremental dotnet output can still contain files copied by older versions.
 # These are disposable staging copies, never the shared provisioning cache.
 rm -f -- "${workspace_runtime%/*}/kernel.bin" "${workspace_runtime%/*}/initfs.ext4"

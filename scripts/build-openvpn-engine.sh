@@ -5,6 +5,8 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_directory="${repository_root}/native/artifacts/osx-arm64/openvpn-engine"
 # RID directories contain distributable payloads only, never compiler outputs.
 build_directory="${repository_root}/native/artifacts/openvpn-engine-build"
+payload_files=(asura-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md
+    OPENSSL-LICENSE.txt ASIO-LICENSE.txt LZ4-LICENSE.txt THIRD-PARTY-NOTICES.txt OPENVPN-VERSIONS.txt)
 core="${build_directory}/openvpn3-18edfae7e7fd8051c93bd4746ec69be91eb02dbb"
 openssl="${build_directory}/openssl-3.6.4"
 lz4="${build_directory}/lz4-1.10.0"
@@ -32,8 +34,16 @@ if [[ "${1:-}" == --test ]]; then
     exit 0
 fi
 if [[ "${1:-}" == --verify ]]; then
+    [[ -d "${output_directory}" && ! -L "${output_directory}" ]] || exit 1
     cd "${output_directory}"
-    shasum -a 256 --check SHA256SUMS
+    for payload in "${payload_files[@]}" SHA256SUMS; do
+        [[ -f "${payload}" && ! -L "${payload}" ]] || { echo "Missing OpenVPN payload: ${payload}" >&2; exit 1; }
+    done
+    [[ -x asura-openvpn-engine ]] || { echo "The OpenVPN engine is not executable." >&2; exit 1; }
+    # A valid checksum for an obsolete package does not validate today's layout.
+    shasum -a 256 "${payload_files[@]}" | diff -u SHA256SUMS -
+    cmp THIRD-PARTY-NOTICES.txt "${repository_root}/native/openvpn-engine/THIRD-PARTY-NOTICES.txt"
+    cmp OPENVPN-VERSIONS.txt "${repository_root}/native/openvpn-engine/VERSIONS.txt"
     exit 0
 fi
 if [[ $# -ne 0 || "$(uname -s):$(uname -m)" != Darwin:arm64 ]]; then
@@ -95,7 +105,6 @@ cp "${repository_root}/native/openvpn-engine/THIRD-PARTY-NOTICES.txt" "${output_
 cp "${repository_root}/native/openvpn-engine/VERSIONS.txt" "${output_directory}/OPENVPN-VERSIONS.txt"
 (
     cd "${output_directory}"
-    shasum -a 256 asura-openvpn-engine OPENVPN-MPL-2.0.txt OPENVPN-LICENSE.md \
-        OPENSSL-LICENSE.txt ASIO-LICENSE.txt LZ4-LICENSE.txt THIRD-PARTY-NOTICES.txt OPENVPN-VERSIONS.txt > SHA256SUMS
+    shasum -a 256 "${payload_files[@]}" > SHA256SUMS
 )
 echo "Built and tested ${output_directory}/asura-openvpn-engine"
