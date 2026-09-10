@@ -155,16 +155,17 @@ it beside the boot archive. Development uses the same descriptor and sets
 `ASURA_WORKSPACE_BACKEND_ARCHIVE` to the local sidecar. The development
 launcher rebuilds a stale backend before starting the app.
 
-Linux backend publication is currently blocked by `asura-90w9` and
-`licenses/workspace-backend-release-legal.json`. The existing macOS owner
-decision is not reused as Linux approval. Local backend builds and tests remain
-available; signed release assembly, rehearsal, and the tag lane require the
-backend's own recorded decision before expensive packaging or publication.
-The sidecar retains runtime, application, managed-package and SqlClient notices,
-plus SMBLibrary license/source/replacement records. Its `.deps.json` identifies
-the actual backend subset; inherited desktop notices also describe components
-that are not in this headless payload. The pending review must reconcile the
-precise Linux closure and separately replaceable managed libraries.
+The project owner approved the recorded macOS dependencies and Linux ARM64/x64
+backend distributions for Asura 0.1.41 in `asura-90w9`. Each platform retains
+its own decision and exact input hashes in the matching
+`licenses/*release-legal.json` record. Signed release assembly, rehearsal, and
+the tag lane verify those records before publication; changes to the reviewed
+inputs require a renewed decision.
+The backends retain runtime, application, managed-package and SqlClient notices,
+plus SMBLibrary license/source/replacement records. Their `.deps.json` files
+identify the actual backend subsets; inherited desktop notices also describe
+components that are not in these headless payloads. Owner acceptance is based
+on the documented engineering evidence without independent legal review.
 
 The temporary Native AOT executable's `LC_BUILD_VERSION` SDK field is updated to macOS 26.0
 before package fingerprinting and is ad-hoc signed so the candidate remains

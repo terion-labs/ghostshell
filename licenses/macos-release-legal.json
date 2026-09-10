@@ -2,25 +2,23 @@
   "schemaVersion": 1,
   "format": "asura-macos-release-legal-closure-v1",
   "platform": "macos-arm64",
-  "legalClearance": false,
-  "releaseBlockers": [
-    "asura-90w9: Renew the managed-closure approval for stock SqlClient and the shared connection backend before publication."
-  ],
+  "legalClearance": true,
+  "releaseBlockers": [],
   "excludedPlatforms": [
     "windows",
     "linux"
   ],
   "review": {
-    "status": "pending-project-owner-decision",
-    "basis": null,
-    "reviewedBy": null,
-    "reviewedAtUtc": null
+    "status": "accepted-by-project-owner",
+    "basis": "documented-engineering-evidence-without-independent-legal-review",
+    "reviewedBy": "terion",
+    "reviewedAtUtc": "2026-09-10T22:53:14Z"
   },
   "dispositions": {
     "managedComponents": {
-      "status": "pending-project-owner-decision",
+      "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The previous owner decision accepted the documented SMBLibrary Native AOT replacement path, remaining Inter provenance exception, SSH.NET 2026.0.0 and SharpCompress 0.50.3 without independent legal review. Those exceptions are retained. This revised closure replaces the SqlClient source fork with official Microsoft.Data.SqlClient 6.0.2 MIT NuGet provenance and adds the first-party connection backend; renewed owner acceptance is pending. The Linux sidecar has a separate exact catalog and approval record."
+      "comment": "The project owner explicitly approved publication of the current macOS dependency closure for Asura 0.1.41, including official Microsoft.Data.SqlClient 6.0.2 MIT provenance, the first-party connection backend and authenticated MCP server, ModelContextProtocol 2.2.0 packages, and the ASP.NET Core runtime. The documented SMBLibrary Native AOT replacement path, remaining Inter provenance exception, SSH.NET 2026.0.0 and SharpCompress 0.50.3 exceptions remain accepted without independent legal review. Linux ARM64 and x64 backends have separate owner-accepted records."
     },
     "nativeTerminalAndShell": {
       "status": "accepted-by-owner-for-macos",

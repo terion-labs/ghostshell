@@ -3,15 +3,13 @@
   "format": "asura-workspace-backend-release-legal-v1",
   "platform": "linux-arm64",
   "runtime": "10.0.11",
-  "legalClearance": false,
-  "releaseBlockers": [
-    "asura-90w9: Review the Linux backend runtime and managed closure; existing macOS approval does not cover this distribution."
-  ],
+  "legalClearance": true,
+  "releaseBlockers": [],
   "review": {
-    "status": "pending-project-owner-decision",
-    "basis": null,
-    "reviewedBy": null,
-    "reviewedAtUtc": null
+    "status": "accepted-by-project-owner",
+    "basis": "documented-engineering-evidence-without-independent-legal-review",
+    "reviewedBy": "terion",
+    "reviewedAtUtc": "2026-09-10T22:53:14Z"
   },
   "reviewedInputs": {
     "src/Asura.Backend/packages.linux-arm64.lock.json": "319da826821e50c39a9eb4e0c418a95d837b0be28dd9417531deab67b161dcd7",
