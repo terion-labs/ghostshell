@@ -53,7 +53,7 @@ public sealed class MacOsReleaseLegalClosureTests : IDisposable
     }
 
     [Fact]
-    public void Checked_in_macos_record_binds_the_current_repository_evidence()
+    public void Owner_approved_checked_in_macos_record_binds_the_current_repository_evidence()
     {
         var repositoryRoot = FindRepositoryRoot();
 
@@ -61,9 +61,9 @@ public sealed class MacOsReleaseLegalClosureTests : IDisposable
             Path.Combine(repositoryRoot, "licenses", "macos-release-legal.json"),
             repositoryRoot);
 
-        Assert.False(inspection.LegalClearance);
-        Assert.NotEmpty(inspection.ReleaseBlockers);
-        Assert.Throws<InvalidDataException>(() => MacOsReleaseLegalClosure.RequirePublicationClearance(inspection));
+        Assert.True(inspection.LegalClearance);
+        Assert.Empty(inspection.ReleaseBlockers);
+        MacOsReleaseLegalClosure.RequirePublicationClearance(inspection);
     }
 
     [Fact]
