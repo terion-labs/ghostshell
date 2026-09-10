@@ -36,6 +36,18 @@ source_manifest() {
     )
 }
 
+# Swift's precompiled modules also embed absolute checkout paths. Clean only
+# when the checkout moves (or when adopting a cache without a location receipt),
+# retaining the locked dependency checkouts and ordinary incremental builds.
+if [[ $# -eq 0 || "${1:-}" == --test ]]; then
+    location_receipt="${swift_scratch_dir}/asura-build-location"
+    if [[ ! -f "${location_receipt}" || "$(cat "${location_receipt}")" != "${package_dir}" ]]; then
+        xcrun swift package --package-path "${package_dir}" --scratch-path "${swift_scratch_dir}" clean
+        mkdir -p "${swift_scratch_dir}"
+        printf '%s\n' "${package_dir}" > "${location_receipt}"
+    fi
+fi
+
 case "${1:-}" in
     --help|-h)
         echo "Usage: ./scripts/build-workspace-runtime.sh [--test|--verify]"

@@ -51,6 +51,8 @@ in `VERSIONS.txt` and `THIRD-PARTY-NOTICES.txt`.
 
 `./scripts/build-openvpn-engine.sh --test` rebuilds current first-party C++ and
 runs CTest against the retained dependency cache without downloading anything.
+Both build modes regenerate CMake configuration from the current checkout path,
+so renaming or moving the checkout does not require downloading dependencies again.
 `--verify` checks the staged artifact manifest. `--config FILE --validate`
 evaluates a profile without connecting and emits only `VALID v1` or a fixed error.
 

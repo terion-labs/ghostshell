@@ -112,7 +112,7 @@ public sealed class ConnectionEnginePackagingTests
         var swiftCommands = script.Split('\n')
             .Where(line => line.Contains("xcrun swift ", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(3, swiftCommands.Length);
+        Assert.Equal(4, swiftCommands.Length);
         Assert.All(swiftCommands, line => Assert.Contains("--scratch-path \"${swift_scratch_dir}\"", line, StringComparison.Ordinal));
         Assert.Contains("\"${swift_scratch_dir}/checkouts/\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("${package_dir}/.build", script, StringComparison.Ordinal);

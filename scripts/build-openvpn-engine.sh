@@ -5,6 +5,17 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_directory="${repository_root}/native/artifacts/osx-arm64/openvpn-engine"
 # RID directories contain distributable payloads only, never compiler outputs.
 build_directory="${repository_root}/native/artifacts/openvpn-engine-build"
+core="${build_directory}/openvpn3-18edfae7e7fd8051c93bd4746ec69be91eb02dbb"
+openssl="${build_directory}/openssl-3.6.4"
+lz4="${build_directory}/lz4-1.10.0"
+# CMake caches absolute source, build, and dependency paths. Regenerate its
+# configuration for both builds and tests so a relocated checkout stays usable.
+cmake_configuration=(
+    -S "${repository_root}/native/openvpn-engine" -B "${build_directory}/build"
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+    -DOPENVPN_SOURCE="${core}" -DASIO_SOURCE="${build_directory}/asio-asio-1-32-0"
+    -DOPENSSL_SOURCE="${openssl}" -DLZ4_SOURCE="${lz4}"
+)
 if [[ "${1:-}" == --help ]]; then
     echo "Usage: scripts/build-openvpn-engine.sh [--verify|--test]"
     exit 0
@@ -14,6 +25,8 @@ if [[ "${1:-}" == --test ]]; then
         echo "Build the pinned engine dependencies with scripts/build-openvpn-engine.sh first." >&2
         exit 1
     fi
+    rm -rf -- "${build_directory}/build/CMakeCache.txt" "${build_directory}/build/CMakeFiles"
+    cmake "${cmake_configuration[@]}"
     cmake --build "${build_directory}/build" --parallel 4
     ctest --test-dir "${build_directory}/build" --output-on-failure
     exit 0
@@ -55,9 +68,6 @@ download https://github.com/openssl/openssl/releases/download/openssl-3.6.4/open
     9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef openssl.tar.gz
 download https://codeload.github.com/lz4/lz4/tar.gz/refs/tags/v1.10.0 \
     537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b lz4.tar.gz
-core="${staging_directory}/openvpn3-18edfae7e7fd8051c93bd4746ec69be91eb02dbb"
-openssl="${staging_directory}/openssl-3.6.4"
-lz4="${staging_directory}/lz4-1.10.0"
 (
     cd "${openssl}"
     ./Configure darwin64-arm64-cc no-shared no-tests no-module no-legacy \
@@ -65,10 +75,8 @@ lz4="${staging_directory}/lz4-1.10.0"
     make -j8 build_libs >> "${staging_directory}/openssl.log" 2>&1
 ) || { tail -60 "${staging_directory}/openssl.log" >&2; exit 1; }
 make -C "${lz4}/lib" -j8 liblz4.a CFLAGS='-O2 -mmacosx-version-min=13.0'
-cmake -S "${repository_root}/native/openvpn-engine" -B "${staging_directory}/build" \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-    -DOPENVPN_SOURCE="${core}" -DASIO_SOURCE="${staging_directory}/asio-asio-1-32-0" \
-    -DOPENSSL_SOURCE="${openssl}" -DLZ4_SOURCE="${lz4}"
+rm -rf -- "${build_directory}/build/CMakeCache.txt" "${build_directory}/build/CMakeFiles"
+cmake "${cmake_configuration[@]}"
 cmake --build "${staging_directory}/build" --parallel 4
 ctest --test-dir "${staging_directory}/build" --output-on-failure
 binary="${staging_directory}/build/asura-openvpn-engine"

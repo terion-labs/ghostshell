@@ -44,6 +44,11 @@ Build: `swift build -c release --package-path native/workspace-runtime`.
 Tests: `swift test --package-path native/workspace-runtime`.
 VM execution requires `com.apple.security.virtualization` signing entitlement.
 
+The repository gate uses `./scripts/build-workspace-runtime.sh --test` and keeps
+Swift build products under `native/artifacts/workspace-runtime-build/swift`.
+The script cleans compiled products when the checkout location changes while
+retaining locked dependency checkouts. Subsequent runs build incrementally.
+
 Full Xcode is needed for Swift Testing on this machine. Run tests with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test --package-path native/workspace-runtime`.
 Set `ASURA_RUNTIME_TEST_ASSETS` to the signed runtime payload directory and
