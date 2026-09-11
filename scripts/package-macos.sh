@@ -597,6 +597,8 @@ trap cleanup EXIT
 
 publish_dir="${working_dir}/publish"
 managed_evidence_dir="${working_dir}/managed-evidence"
+ASURA_DOTNET="${dotnet}" ASURA_NATIVE_AOT_LINKER="${native_aot_linker}" \
+    "${script_dir}/check-browser-storage-aot.sh" "${working_dir}/browser-storage-acceptance"
 aot_publish_log="${working_dir}/native-aot-publish.log"
 compiled_icon_directory="${working_dir}/compiled-app-icon"
 mkdir "${compiled_icon_directory}"

@@ -339,6 +339,9 @@ public sealed class CefBrowserProfileStore : IBrowserProfileDataControl, IDispos
                     or UnauthorizedAccessException
                     or InvalidOperationException)
             {
+                SecretSafeDiagnosticProjection.WriteStandardError(
+                    "browser.startup.recovery.failed",
+                    exception);
                 return false;
             }
         }

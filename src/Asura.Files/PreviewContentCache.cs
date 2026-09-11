@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Asura.Application;
 using LiteDB;
@@ -45,6 +46,8 @@ public sealed class PreviewContentCache : IPreviewCacheControl, IDisposable
     private LiteDatabase? _persistent;
     private bool _disposed;
 
+    // LiteDB maps this internal storage model through reflection, including its setters.
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LiteDB.LiteFileInfo<string>))]
     public PreviewContentCache(
         IFilePreviewPreferences? preferences = null,
         string? directory = null,

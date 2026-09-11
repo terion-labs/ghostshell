@@ -113,6 +113,18 @@ public sealed class ShellLockViewContractTests
             .Where(path =>
             {
                 var source = File.ReadAllText(path);
+                var relative = Path.GetRelativePath(sourceRoot, path).Replace(Path.DirectorySeparatorChar, '/');
+                if (relative is "Asura.Files/EncryptedBrowserProfileStateStore.cs"
+                    or "Asura.Files/PreviewContentCache.cs")
+                {
+                    // LiteDB's file model lacks trimming annotations. Without this
+                    // precise third-party root, Native AOT writes empty blob metadata.
+                    // check-browser-storage-aot.sh exercises the resulting native binary.
+                    source = source.Replace(
+                        "[DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LiteDB.LiteFileInfo<string>))]",
+                        string.Empty,
+                        StringComparison.Ordinal);
+                }
                 return source.Contains("DynamicallyAccessedMembers", StringComparison.Ordinal)
                     || source.Contains("DynamicDependency", StringComparison.Ordinal)
                     || source.Contains("UnconditionalSuppressMessage", StringComparison.Ordinal)

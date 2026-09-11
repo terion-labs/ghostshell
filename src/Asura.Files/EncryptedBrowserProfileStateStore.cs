@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,6 +29,8 @@ public sealed class EncryptedBrowserProfileStateStore :
     private readonly IApplicationEncryption _encryption;
     private bool _disposed;
 
+    // LiteDB maps this internal storage model through reflection, including its setters.
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(LiteDB.LiteFileInfo<string>))]
     public EncryptedBrowserProfileStateStore(
         string directory,
         IApplicationEncryption encryption)
@@ -173,6 +176,7 @@ public sealed class EncryptedBrowserProfileStateStore :
                 var blobId = $"browser-state/{storageId}/{Guid.NewGuid():n}";
                 var storage = database.GetStorage<string>();
                 long contentBytes;
+                var manifestCommitted = false;
                 try
                 {
                     stage = "open-archive";
@@ -209,6 +213,7 @@ public sealed class EncryptedBrowserProfileStateStore :
                         ["partitionIdentity"] = key.Selection.Partition.Identity,
                         ["route"] = key.Route,
                     });
+                    manifestCommitted = true;
                     if (previous is not null)
                     {
                         stage = "delete-previous";
@@ -224,7 +229,12 @@ public sealed class EncryptedBrowserProfileStateStore :
                 }
                 catch
                 {
-                    storage.Delete(blobId);
+                    // Once the manifest points at this blob, cleanup failures must
+                    // never remove the only committed copy of the browser session.
+                    if (!manifestCommitted)
+                    {
+                        storage.Delete(blobId);
+                    }
                     throw;
                 }
             }
@@ -313,8 +323,103 @@ public sealed class EncryptedBrowserProfileStateStore :
             Password = _encryption.PersistentCachePassword,
             Connection = ConnectionType.Direct,
         });
-        HardenGeneratedFiles();
-        return database;
+        try
+        {
+            RepairTrimmedFileMetadata(database);
+            HardenGeneratedFiles();
+            return database;
+        }
+        catch
+        {
+            database.Dispose();
+            throw;
+        }
+    }
+
+    // Earlier Native AOT builds stripped LiteFileInfo's reflected properties.
+    // The ZIP chunks and our manifest survived, but _files contained only an
+    // auto-generated ObjectId. Rebuild that metadata without replacing any key
+    // or archive bytes. Only this exact known corruption authorizes repair.
+    private static void RepairTrimmedFileMetadata(LiteDatabase database)
+    {
+        var files = database.GetCollection<BsonDocument>("_files");
+        var stripped = files.FindAll()
+            .Where(document => document.Count == 1 && document["_id"].IsObjectId)
+            .Select(document => document["_id"])
+            .ToArray();
+        if (stripped.Length == 0)
+        {
+            return;
+        }
+
+        database.BeginTrans();
+        try
+        {
+            foreach (var manifest in database.GetCollection<BsonDocument>(ManifestCollection).FindAll())
+            {
+                var blobId = manifest["blobId"].AsString;
+                if (files.FindById(blobId) is not null)
+                {
+                    continue;
+                }
+
+                long length = 0;
+                var count = 0;
+                var chunks = database.GetCollection<BsonDocument>("_chunks")
+                    .Find(Query.EQ("_id.f", blobId))
+                    .Select(chunk => (
+                        Index: chunk["_id"]["n"].AsInt32,
+                        Length: chunk["data"].IsBinary ? chunk["data"].AsBinary.LongLength : -1))
+                    .OrderBy(chunk => chunk.Index);
+                foreach (var chunk in chunks)
+                {
+                    if (chunk.Index != count || chunk.Length <= 0)
+                    {
+                        throw new InvalidDataException("The saved browser archive has missing chunks.");
+                    }
+
+                    length = checked(length + chunk.Length);
+                    count++;
+                    if (length > MaximumExpandedBytes)
+                    {
+                        throw new InvalidDataException("The saved browser archive is too large.");
+                    }
+                }
+
+                if (count == 0)
+                {
+                    throw new InvalidDataException("The saved browser archive has no chunks.");
+                }
+
+                files.Insert(new BsonDocument
+                {
+                    ["_id"] = blobId,
+                    ["filename"] = blobId,
+                    ["mimeType"] = "application/zip",
+                    ["length"] = length,
+                    ["chunks"] = count,
+                    ["uploadDate"] = DateTime.UtcNow,
+                    ["metadata"] = new BsonDocument
+                    {
+                        ["schema"] = ArchiveSchemaVersion,
+                        ["contentBytes"] = manifest["contentBytes"],
+                        ["complete"] = true,
+                    },
+                });
+            }
+
+            foreach (var id in stripped)
+            {
+                files.Delete(id);
+            }
+
+            database.Commit();
+        }
+        catch
+        {
+            database.Rollback();
+            throw;
+        }
     }
 
     private void RequireAvailable()

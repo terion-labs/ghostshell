@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <PublishAot>true</PublishAot>
+    <IlcGenerateCompleteTypeMetadata>false</IlcGenerateCompleteTypeMetadata>
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+    <TrimmerSingleWarn>true</TrimmerSingleWarn>
+    <LinkerFlavor Condition="'$(AsuraNativeAotLinker)' != ''">$(AsuraNativeAotLinker)</LinkerFlavor>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Asura.Files/Asura.Files.csproj" />
+  </ItemGroup>
+</Project>

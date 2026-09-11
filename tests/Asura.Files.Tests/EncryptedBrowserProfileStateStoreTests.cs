@@ -1,6 +1,7 @@
 using System.Text;
 using Asura.Application;
 using Asura.Core;
+using LiteDB;
 
 namespace Asura.Files.Tests;
 
@@ -134,6 +135,105 @@ public sealed class EncryptedBrowserProfileStateStoreTests : IDisposable
             reader.Restore(key, destination));
 
         Assert.Contains("different key", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RepairsMetadataStrippedByEarlierNativeAotBuildsWithoutLosingArchiveBytes()
+    {
+        var encryption = new TestApplicationEncryption();
+        var directory = Path.Combine(_root, "trimmed-store");
+        var source = Path.Combine(_root, "trimmed-source");
+        CreatePrivateDirectory(source);
+        var content = new byte[700_000];
+        new Random(42).NextBytes(content);
+        File.WriteAllBytes(Path.Combine(source, "Cookies"), content);
+        var key = StateKey("profile.trimmed", "local");
+        using (var writer = new EncryptedBrowserProfileStateStore(directory, encryption))
+        {
+            writer.Seal(key, source);
+        }
+
+        using (var database = new LiteDatabase(new ConnectionString
+        {
+            Filename = Path.Combine(directory, "browser-profiles.db"),
+            Password = encryption.PersistentCachePassword,
+        }))
+        {
+            var files = database.GetCollection<BsonDocument>("_files");
+            files.DeleteAll();
+            files.Insert(new BsonDocument { ["_id"] = ObjectId.NewObjectId() });
+        }
+
+        using var repaired = new EncryptedBrowserProfileStateStore(directory, encryption);
+        var restored = Path.Combine(_root, "trimmed-restored");
+        repaired.Restore(key, restored);
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(restored, "Cookies")));
+        Assert.Contains(key, repaired.ListKeys(key.Selection));
+        repaired.Seal(key, restored);
+        var reopened = Path.Combine(_root, "trimmed-reopened");
+        repaired.Restore(key, reopened);
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(reopened, "Cookies")));
+    }
+
+    [Fact]
+    public void IncompleteLegacyArchiveIsPreservedWhenRepairCannotFinish()
+    {
+        var encryption = new TestApplicationEncryption();
+        var directory = Path.Combine(_root, "incomplete-trimmed-store");
+        var key = StateKey("profile.incomplete", "local");
+        using (var writer = new EncryptedBrowserProfileStateStore(directory, encryption))
+        {
+            SealMarker(writer, key, "saved-session");
+        }
+
+        var connection = new ConnectionString
+        {
+            Filename = Path.Combine(directory, "browser-profiles.db"),
+            Password = encryption.PersistentCachePassword,
+        };
+        var legacyId = ObjectId.NewObjectId();
+        using (var database = new LiteDatabase(connection))
+        {
+            var files = database.GetCollection<BsonDocument>("_files");
+            files.DeleteAll();
+            files.Insert(new BsonDocument { ["_id"] = legacyId });
+            database.GetCollection<BsonDocument>("_chunks").DeleteAll();
+        }
+
+        using var reader = new EncryptedBrowserProfileStateStore(directory, encryption);
+        Assert.Throws<InvalidDataException>(() => reader.Restore(key, Path.Combine(_root, "incomplete-restore")));
+        using var preserved = new LiteDatabase(connection);
+        var retained = Assert.Single(preserved.GetCollection<BsonDocument>("_files").FindAll());
+        Assert.Equal(legacyId, retained["_id"].AsObjectId);
+        Assert.Single(preserved.GetCollection<BsonDocument>("browser_profile_state").FindAll());
+    }
+
+    [Fact]
+    public void CleanupFailureDoesNotDeleteTheNewlyCommittedArchive()
+    {
+        var encryption = new TestApplicationEncryption();
+        var directory = Path.Combine(_root, "cleanup-failure-store");
+        var key = StateKey("profile.cleanup", "local");
+        using var store = new EncryptedBrowserProfileStateStore(directory, encryption);
+        SealMarker(store, key, "previous");
+        using (var database = new LiteDatabase(new ConnectionString
+        {
+            Filename = Path.Combine(directory, "browser-profiles.db"),
+            Password = encryption.PersistentCachePassword,
+        }))
+        {
+            // An unrelated malformed blob fails typed enumeration during cleanup.
+            database.GetCollection<BsonDocument>("_files").Insert(new BsonDocument
+            {
+                ["_id"] = ObjectId.NewObjectId(),
+                ["unexpected"] = true,
+            });
+        }
+
+        Assert.Throws<InvalidCastException>(() => SealMarker(store, key, "newly-committed"));
+        var restored = Path.Combine(_root, "committed-after-cleanup-failure");
+        store.Restore(key, restored);
+        Assert.Equal("newly-committed", File.ReadAllText(Path.Combine(restored, "marker")));
     }
 
     public void Dispose()
