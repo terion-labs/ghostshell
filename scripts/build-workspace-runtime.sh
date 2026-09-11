@@ -119,6 +119,17 @@ install -m 755 "${binary_dir}/workspace-runtime" "${staging_dir}/workspace-runti
 # even when the linker did not emit an absolute toolchain search path.
 xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "${staging_dir}/workspace-runtime" \
     --destination "${staging_dir}" --sign -
+# Some Xcode 26 stdlib tools omit the versioned Span back-deployment library.
+# Copy it from the selected compiler's toolchain when the binary imports it.
+span_library="libswiftCompatibilitySpan.dylib"
+if otool -L "${staging_dir}/workspace-runtime" | awk '{print $1}' | grep -Fxq "@rpath/${span_library}" \
+    && [[ ! -f "${staging_dir}/${span_library}" ]]; then
+    swift_toolchain_bin="$(dirname "$(xcrun --find swiftc)")"
+    span_source="${swift_toolchain_bin}/../lib/swift-6.2/macosx/${span_library}"
+    [[ -f "${span_source}" ]] || { echo "Selected Swift toolchain lacks ${span_library}." >&2; exit 1; }
+    install -m 755 "${span_source}" "${staging_dir}/${span_library}"
+    codesign --force --sign - "${staging_dir}/${span_library}"
+fi
 # Remove host-only search paths after copying the required library closure.
 while IFS= read -r runtime_path; do
     [[ "${runtime_path}" == /* && "${runtime_path}" != /usr/lib/* ]] || continue
