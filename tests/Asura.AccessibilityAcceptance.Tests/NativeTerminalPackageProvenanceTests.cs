@@ -213,6 +213,52 @@ public sealed class NativeTerminalPackageProvenanceTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Signature_normalization_handles_signing_growth_in_a_new_dylib()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        var source = Path.Combine(_temporaryDirectory, "fixture.c");
+        var library = Path.Combine(_temporaryDirectory, "fixture.dylib");
+        File.WriteAllText(source, "int fixture(void) { return 42; }\n");
+        var compile = new ProcessStartInfo("/usr/bin/clang")
+        {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            ArgumentList = { "-dynamiclib", "-Wl,-no_adhoc_codesign", source, "-o", library },
+        };
+        using (var process = Process.Start(compile)!)
+        {
+            var error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            Assert.True(process.ExitCode == 0, error);
+        }
+        var original = Sha256(library);
+        var expected = NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(library);
+        Assert.Equal(original, Sha256(library));
+
+        var sign = new ProcessStartInfo("/usr/bin/codesign")
+        {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            ArgumentList = { "--force", "--sign", "-", "--identifier", "sh.asura.fixture",
+                "--options", "runtime", "--timestamp=none", library },
+        };
+        using (var process = Process.Start(sign)!)
+        {
+            var error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            Assert.True(process.ExitCode == 0, error);
+        }
+        var signed = Sha256(library);
+        Assert.NotEqual(original, signed, StringComparer.Ordinal);
+        Assert.Equal(expected, NativeTerminalPackageProvenance.ComputeSignatureRemovedSha256(library));
+        Assert.Equal(signed, Sha256(library));
+    }
+
     private static void UpdateLibraryEvidence(Fixture fixture, string libraryPath)
     {
         var receipt = JsonNode.Parse(File.ReadAllText(fixture.ReceiptPath))!.AsObject();

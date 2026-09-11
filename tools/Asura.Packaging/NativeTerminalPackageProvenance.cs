@@ -297,8 +297,9 @@ internal static class NativeTerminalPackageProvenance
     }
 
     /// <summary>
-    /// Hashes a private copy after Apple's codesign removes its signature.
-    /// Never mutates the build input or signed package. macOS-only by design.
+    /// Hashes a private copy after canonical ad-hoc signing and signature removal.
+    /// This normalizes signing-dependent Mach-O allocation sizes as well as the
+    /// signature bytes. Never mutates the build input or signed package.
     /// </summary>
     public static string ComputeSignatureRemovedSha256(string path)
     {
@@ -318,29 +319,42 @@ internal static class NativeTerminalPackageProvenance
         {
             var copy = Path.Combine(temporary.FullName, "native-library");
             File.Copy(source.FullName, copy);
-            var start = new ProcessStartInfo("/usr/bin/codesign")
+            // Removing a signature retains __LINKEDIT's signing-sized vmsize.
+            // Re-sign the copy consistently first so receipt and release hashes
+            // agree even when a Developer ID signature grew that allocation.
+            string[][] commands =
+            [
+                ["--force", "--sign", "-", "--identifier", "sh.asura.native-content", "--timestamp=none", copy],
+                ["--remove-signature", copy],
+            ];
+            foreach (var arguments in commands)
             {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            start.ArgumentList.Add("--remove-signature");
-            start.ArgumentList.Add(copy);
-            using var process = Process.Start(start)
-                ?? throw new InvalidOperationException("Could not start Mach-O signature normalization.");
-            var output = process.StandardOutput.ReadToEndAsync();
-            var error = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(30_000))
-            {
-                process.Kill(entireProcessTree: true);
-                process.WaitForExit();
-                throw new InvalidDataException("Mach-O signature normalization timed out.");
-            }
-            _ = output.GetAwaiter().GetResult();
-            _ = error.GetAwaiter().GetResult();
-            if (process.ExitCode != 0)
-            {
-                throw new InvalidDataException("Apple codesign rejected Mach-O signature normalization.");
+                var start = new ProcessStartInfo("/usr/bin/codesign")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                foreach (var argument in arguments)
+                {
+                    start.ArgumentList.Add(argument);
+                }
+                using var process = Process.Start(start)
+                    ?? throw new InvalidOperationException("Could not start Mach-O signature normalization.");
+                var output = process.StandardOutput.ReadToEndAsync();
+                var error = process.StandardError.ReadToEndAsync();
+                if (!process.WaitForExit(30_000))
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit();
+                    throw new InvalidDataException("Mach-O signature normalization timed out.");
+                }
+                _ = output.GetAwaiter().GetResult();
+                _ = error.GetAwaiter().GetResult();
+                if (process.ExitCode != 0)
+                {
+                    throw new InvalidDataException("Apple codesign rejected Mach-O signature normalization.");
+                }
             }
 
             using var stream = File.OpenRead(copy);
