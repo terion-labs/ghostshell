@@ -409,6 +409,15 @@ jobs:
           ./scripts/build-openvpn-engine.sh
           ./scripts/build-macos-connection-engines.sh
           ./scripts/build-sql-language-worker.sh --local --rid osx-arm64
+          # The browser probes exercise real first-use Keychain encryption.
+          # Give this disposable CI runner an empty, unlocked test keychain.
+          test_keychain="${RUNNER_TEMP}/asura-browser-tests.keychain-db"
+          test_keychain_password="$(uuidgen)"
+          security create-keychain -p "${test_keychain_password}" "${test_keychain}"
+          security set-keychain-settings -lut 21600 "${test_keychain}"
+          security unlock-keychain -p "${test_keychain_password}" "${test_keychain}"
+          security list-keychains -d user -s "${test_keychain}"
+          security default-keychain -d user -s "${test_keychain}"
           ./scripts/build-cef-runtime.sh --rid osx-arm64 --dotnet "${ASURA_DOTNET}"
       - name: Download campaign test results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -612,6 +621,9 @@ jobs:
       - name: Remove temporary signing credentials
         if: always()
         run: |
+          if [[ -f "${RUNNER_TEMP}/asura-browser-tests.keychain-db" ]]; then
+            security delete-keychain "${RUNNER_TEMP}/asura-browser-tests.keychain-db"
+          fi
           if [[ -n "${ASURA_SIGNING_KEYCHAIN:-}" && -f "${ASURA_SIGNING_KEYCHAIN}" ]]; then
             security delete-keychain "${ASURA_SIGNING_KEYCHAIN}"
           fi
