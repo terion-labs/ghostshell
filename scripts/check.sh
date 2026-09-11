@@ -44,6 +44,7 @@ export NUGET_PACKAGES="${repository_dir}/.nuget/packages"
 cd "${repository_dir}"
 
 python3 "${script_dir}/check-product-name.py"
+python3 "${script_dir}/test-cef-keychain-scope.py"
 "${script_dir}/check-network-native.sh" "${mode}"
 "${dotnet}" tool restore
 "${dotnet}" restore Asura.slnx --locked-mode

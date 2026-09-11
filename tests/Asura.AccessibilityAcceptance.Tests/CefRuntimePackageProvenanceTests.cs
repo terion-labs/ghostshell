@@ -62,7 +62,7 @@ public sealed class CefRuntimePackageProvenanceTests : IDisposable
         Assert.Equal(
             "7751a0b76cbabaf1fa81ef2b71b694a44c87f77e",
             catalog.BindingCommit);
-        Assert.Equal("0.8.0-asura.10", catalog.BindingVersion);
+        Assert.Equal("0.8.0-asura.11", catalog.BindingVersion);
         Assert.Equal(
             Hash(Path.Combine(
                 repositoryRoot,
@@ -206,7 +206,7 @@ public sealed class CefRuntimePackageProvenanceTests : IDisposable
             .ToArray();
         Assert.Equal(2, packages.Length);
         Assert.Equal(
-            "0.8.0-asura.10",
+            "0.8.0-asura.11",
             packages[1].GetProperty("versionInfo").GetString());
         Assert.All(
             packages,
@@ -452,7 +452,7 @@ public sealed class CefRuntimePackageProvenanceTests : IDisposable
                     ["cefVersion"] = "150.0.9+test",
                     ["bindingRepository"] = "https://example.test/exclr8cef",
                     ["bindingCommit"] = new string('c', 40),
-                    ["bindingVersion"] = "0.8.0-asura.10",
+                    ["bindingVersion"] = "0.8.0-asura.11",
                     ["bindingPatchSetSha256"] = PatchSetSha256,
                     ["bindingSourceSnapshotSha256"] = SourceSnapshotSha256,
                     ["bindingLicenseSha256"] = Hash(Path.Combine(

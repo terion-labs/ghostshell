@@ -38,9 +38,12 @@ excessive expanded size.
 
 CEF's runtime-global `Local State` is sealed separately in the same encrypted
 store because Chromium needs its OS-crypt metadata to reopen cookies and other
-protected context databases. On macOS the private runtime uses Chromium's mock
-Safe Storage key, while Asura's application encryption protects the full
-archive at rest. This avoids a second, Chromium-owned login-keychain prompt.
+protected context databases. On macOS, Chromium uses a random Keychain key under the app-owned
+`Asura Browser Storage` service. Development bundles use the separate
+`Asura Dev CEF Storage` service. No shared Chromium key or public mock key
+is read. Asura's application encryption also protects the full archive at rest.
+The native browser host and platform vault disable interactive Keychain access;
+a locked or inaccessible key must produce an error instead of a system prompt.
 CEF initialization waits for startup unlock and both global and per-context
 recovery.
 
@@ -75,9 +78,14 @@ bundles strip credential references. OAuth remains an explicit user-initiated
   mounted volume, and is removed after a successful encrypted seal.
 - A crash can leave that private directory until next-start recovery; failure
   to recover is visible and fails closed.
-- The macOS runtime uses `use-mock-keychain`; Asura's encrypted archive,
-  rather than Chromium's separate login-keychain item, protects durable state
-  at rest.
+- The macOS runtime retains real cookie encryption with an app-owned Keychain
+  item. The complete profile archive has separate application encryption.
+- CEF 150 hardcodes its Keychain service. Packaging replaces that single
+  equal-length service literal before signing, with exact input checks and
+  output receipts. This temporary compatibility patch can be removed when a
+  pinned CEF distribution exposes `keychain_service_name` (cef#4247).
+- Browser cookies previously encrypted with the shared Chromium key may require
+  signing in again. Startup never reads that shared key to migrate them.
 - The UI describes durable profiles as encrypted sessions restored between
   runs and private profiles as discarded when their panel closes.
 - Cookie deletion is acknowledged by CEF and its cookie store is flushed before

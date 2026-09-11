@@ -30,6 +30,11 @@ public sealed class MacOsKeychainSecretVault : ISecretVault
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
         _serviceName = serviceName;
         _accessPolicy = accessPolicy ?? SecretScopeAccessPolicy.Default;
+        if (OperatingSystem.IsMacOS()
+            && MacNative.SecKeychainSetUserInteractionAllowed(false) != Success)
+        {
+            throw new InvalidOperationException("Keychain could not disable interactive authentication.");
+        }
         Availability = OperatingSystem.IsMacOS()
             ? new SecretVaultAvailability(
                 SecretVaultAvailabilityState.Available,
@@ -614,6 +619,12 @@ public sealed class MacOsKeychainSecretVault : ISecretVault
         public const string CoreFoundationFramework =
             "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
         public const uint Utf8Encoding = 0x08000100;
+
+        // File-based Keychain authorization must fail instead of showing a
+        // system password dialog. This is process-local, not a Keychain ACL change.
+        [DllImport(SecurityFramework)]
+        public static extern int SecKeychainSetUserInteractionAllowed(
+            [MarshalAs(UnmanagedType.U1)] bool allowed);
 
         [DllImport(SecurityFramework)]
         public static extern int SecItemAdd(nint attributes, out nint result);

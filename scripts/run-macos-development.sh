@@ -245,6 +245,11 @@ fi
 /usr/bin/ditto --clone --noqtn \
     "${cef_runtime_root}/Chromium Embedded Framework.framework" \
     "${frameworks_directory}/Chromium Embedded Framework.framework"
+python3 "${repository_dir}/scripts/scope-cef-keychain.py" \
+    "${frameworks_directory}/Chromium Embedded Framework.framework/Chromium Embedded Framework" \
+    --source release --target development
+/usr/bin/codesign --force --sign - \
+    "${frameworks_directory}/Chromium Embedded Framework.framework"
 for helper_name in \
     "Asura Helper" \
     "Asura Helper (Alerts)" \

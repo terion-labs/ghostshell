@@ -7,6 +7,7 @@
 #import <CoreVideo/CoreVideo.h>
 #import <IOSurface/IOSurface.h>
 #import <Metal/Metal.h>
+#import <Security/Security.h>
 
 #include <algorithm>
 #include <atomic>
@@ -40,6 +41,17 @@
 
 namespace {
 std::unique_ptr<CefScopedLibraryLoader> g_library_loader;
+
+// CEF 150 uses the legacy file-based Keychain. Its process-local interaction
+// switch is required even for helpers: locked or inaccessible keys must never
+// summon a password dialog. Scoped service names are applied before signing.
+// The API is deprecated together with that legacy Keychain, which CEF still uses.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+bool DisableKeychainInteraction() {
+    return SecKeychainSetUserInteractionAllowed(false) == errSecSuccess;
+}
+#pragma clang diagnostic pop
 
 std::once_flag g_accelerated_copy_once;
 id<MTLDevice> g_accelerated_copy_device;
@@ -449,6 +461,7 @@ extern "C" void excef_stop_external_begin_frame_clock(int browser_id) {
 
 extern "C" int excef_execute_process(int argc, char** argv) {
     @autoreleasepool {
+        if (!DisableKeychainInteraction()) return 1;
 #if defined(CEF_USE_SANDBOX)
         // Must initialize the helper sandbox before loading the CEF framework.
         CefScopedSandboxContext sandbox_context;
@@ -468,6 +481,7 @@ extern "C" int excef_execute_process(int argc, char** argv) {
 extern "C" int excef_initialize(int argc, char** argv,
                                 const char* subprocess_path) {
     @autoreleasepool {
+        if (!DisableKeychainInteraction()) return 1;
         g_library_loader = std::make_unique<CefScopedLibraryLoader>();
         if (!g_library_loader->LoadInMain()) return 1;
 
@@ -684,6 +698,7 @@ static int initialize_with_pump_impl(int argc, char** argv,
                                      excef_schedule_pump_work_t cb,
                                      bool enable_osr) {
     @autoreleasepool {
+        if (!DisableKeychainInteraction()) return 1;
         g_library_loader = std::make_unique<CefScopedLibraryLoader>();
         if (!g_library_loader->LoadInMain()) return 1;
 
@@ -718,6 +733,7 @@ extern "C" int excef_initialize_external_pump(int argc, char** argv,
                                               const char* subprocess_path,
                                               excef_schedule_pump_work_t cb) {
     @autoreleasepool {
+        if (!DisableKeychainInteraction()) return 1;
         g_library_loader = std::make_unique<CefScopedLibraryLoader>();
         if (!g_library_loader->LoadInMain()) return 1;
 

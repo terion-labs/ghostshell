@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <Security/Security.h>
 
 static atomic_int completed;
 static atomic_int cookies;
@@ -89,10 +90,21 @@ int main(int argc, char** argv) {
     excef_set_init_settings(&settings);
     // Explicit test-only mode lets noninteractive build hosts validate CEF's
     // persistence ABI without accessing a user's Keychain. The native mode is
-    // the production behavior and must be exercised interactively on macOS.
+    // production behavior against a unique disposable Keychain service. The
+    // native host disables authorization UI, so a prompt is never a test step.
     if (strcmp(argv[4], "mock") == 0)
         excef_add_command_line_switch("use-mock-keychain", NULL);
     if (excef_initialize_offscreen(1, argv, argv[3], NULL) != 0) return 2;
+    // Verify the actual process policy, not just a source-code switch.
+    Boolean interaction_allowed = true;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    OSStatus interaction_status = SecKeychainGetUserInteractionAllowed(&interaction_allowed);
+#pragma clang diagnostic pop
+    if (interaction_status != errSecSuccess || interaction_allowed) {
+        fprintf(stderr, "Native host allows Keychain password dialogs\n");
+        return 3;
+    }
     excef_set_cookie_visit_callback(visit);
     excef_set_request_context_completion_callback(flushed);
     int durable = excef_create_request_context(cache);

@@ -410,6 +410,9 @@ if [[ "${target_os}" == "Darwin" ]]; then
     framework_name="Chromium Embedded Framework.framework"
     cp -RL "${cef_root}/Release/${framework_name}" \
         "${cef_artifact_dir}/${framework_name}"
+    python3 "${repository_dir}/scripts/scope-cef-keychain.py" \
+        "${cef_artifact_dir}/${framework_name}/Chromium Embedded Framework"
+    codesign --force --sign - "${cef_artifact_dir}/${framework_name}"
 
     helper_suffixes=("" " (Alerts)" " (GPU)" " (Plugin)" " (Renderer)")
     helper_identifiers=("" ".alerts" ".gpu" ".plugin" ".renderer")
@@ -573,6 +576,7 @@ fi
 
 if [[ "${target_rid}" == osx-arm64 && "${host_rid}" == osx-arm64 ]]; then
     bash "${script_dir}/test-browser-session-cookies.sh" "${cef_artifact_dir}"
+    bash "${script_dir}/test-browser-session-cookies.sh" "${cef_artifact_dir}" denied
     bash "${script_dir}/test-browser-authentication-origin.sh" "${cef_artifact_dir}"
     bash "${script_dir}/test-browser-hosted-popups.sh" "${cef_artifact_dir}"
 fi

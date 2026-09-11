@@ -13,7 +13,7 @@ public static class BrowserEngineRuntime
 {
     private const string ExpectedCefVersion = "150.0.9";
     private const string ExpectedChromiumVersion = "150.0.7871.46";
-    private const string ExpectedShimVersion = "0.8.0-asura.10";
+    private const string ExpectedShimVersion = "0.8.0-asura.11";
     internal const string DisabledChromiumFeatures =
         "OptimizationGuideOnDeviceModel,LogOnDeviceMetricsOnStartup";
     internal const string DisableChromeLoginPromptSwitch =
@@ -89,10 +89,10 @@ public static class BrowserEngineRuntime
             // proxy at the exact configured loopback endpoint.
             Cef.AddCommandLineSwitch(DisableChromeLoginPromptSwitch);
             // Use Chromium's real platform cookie encryption. The stock macOS
-            // framework uses its shared Chromium Safe Storage Keychain item;
-            // our separately keyed encrypted profile snapshot still protects
-            // browser storage that OSCrypt does not encrypt. Never substitute
-            // Chromium's public test key to suppress a Keychain prompt.
+            // framework is packaged with an Asura-owned Keychain service name.
+            // Development bundles have a separate service so ad-hoc builds never
+            // request access to release keys. The native host disables Keychain
+            // interaction; our encrypted snapshot also protects non-cookie state.
 
             Cef.SetInitSettings(settings);
 

@@ -28,7 +28,7 @@
     "cefMacos": {
       "status": "accepted-by-owner-for-macos",
       "scope": "macos-arm64",
-      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits, including CEF 150.0.9+g81b0088+chromium-150.0.7871.46 and the 0.8.0-asura.10 binding source and patch evidence, and owns the security-update decision."
+      "comment": "The project owner accepts the exact macOS CEF license and Chromium credits, including CEF 150.0.9+g81b0088+chromium-150.0.7871.46 and the 0.8.0-asura.11 binding source and patch evidence, and owns the security-update decision."
     },
     "sqlLanguageWorker": {
       "status": "accepted-by-owner-for-macos",
@@ -71,7 +71,7 @@
     },
     {
       "path": "licenses/cef-runtime-components.json",
-      "sha256": "7ac1d9ad7c402b0a123296dbba8e94a5689a39dc5bd4b44eb5783531b4db551e"
+      "sha256": "58e83f9fa486cce73d750124cefe472cbefc7b7a3a89b8ad46264231163f8ed6"
     },
     {
       "path": "licenses/managed-components.json",

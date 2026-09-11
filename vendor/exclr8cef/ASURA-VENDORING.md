@@ -3,7 +3,7 @@
 This directory vendors Exclr8CEF commit
 `7751a0b76cbabaf1fa81ef2b71b694a44c87f77e` and applies the reviewed
 Asura hardening needed for a production off-screen browser host. The
-resulting native binding version is `0.8.0-asura.10`.
+resulting native binding version is `0.8.0-asura.11`.
 
 `ASURA-PATCHSET.sha256` is the canonical, path-sorted manifest of every
 file that differs from that upstream commit. Its own SHA-256 is recorded in
@@ -43,3 +43,8 @@ shim: CEF requires its native bootstrap executable and client DLL to own the
 process entry point before the CLR starts. Windows production artifacts remain
 blocked until that launcher exists. An explicit sandbox-off build is permitted
 only for local development.
+
+The macOS host disables interactive file-Keychain access before loading CEF
+in every browser/helper entry point. Asura packaging scopes the pinned CEF
+framework service literal with `scripts/scope-cef-keychain.py` before signing;
+it preserves real random-key cookie encryption and separates development keys.

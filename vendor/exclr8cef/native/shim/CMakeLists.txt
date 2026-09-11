@@ -95,6 +95,7 @@ if(OS_MAC)
         "-framework CoreVideo"
         "-framework IOSurface"
         "-framework Metal"
+        "-framework Security"
     )
 else()
     target_link_libraries(${SHIM_LIB} PRIVATE
