@@ -154,8 +154,8 @@
       },
       "Dock.Controls.Recycling.Model": {
         "type": "Transitive",
-        "resolved": "12.0.0.2",
-        "contentHash": "klVsAStNW7SyvIvV6060o3Rx0Rgzo2Dus3MPJD7Td87FJyK0X7djki8m/EOtD6qi3RyZaRZTLOEjskNk12Q/3Q=="
+        "resolved": "12.1.0.6",
+        "contentHash": "aUSZtGzyhR8LQFBnZkwvzy8MCt2KGcntR6ei0Gn1e4b38NRAxkbyI9GasGOPsv0H1CJJRSmDCuqjQ1bGjdYNqg=="
       },
       "Dock.MarkupExtension": {
         "type": "Transitive",
@@ -167,10 +167,10 @@
       },
       "Dock.Model": {
         "type": "Transitive",
-        "resolved": "12.0.0.2",
-        "contentHash": "yLD28SMkaGMVdv/kVkO1t+GkBbFWRPKlNoXh+KZ/lPjwCJKg8vm0xmdqdgszMZGbpcWPT7T2LZk/JuwECndftA==",
+        "resolved": "12.1.0.6",
+        "contentHash": "eyptYTadJbhdGnT/9qkbTquFZpPBiRcr6yJvzMv5tLQB56JgbUlVAR1816ILuSeyN8wGPPW3im8g3gdGCp0lIA==",
         "dependencies": {
-          "Dock.Controls.Recycling.Model": "12.0.0.2"
+          "Dock.Controls.Recycling.Model": "12.1.0.6"
         }
       },
       "Dock.Settings": {
@@ -714,6 +714,9 @@
       "asura.app": {
         "type": "Project",
         "dependencies": {
+          "Asura.Application": "[1.0.0, )",
+          "Asura.Core": "[1.0.0, )",
+          "Asura.Docking": "[1.0.0, )",
           "Avalonia": "[12.0.5, )",
           "Avalonia.AvaloniaEdit": "[12.0.0, )",
           "Avalonia.Controls.ColorPicker": "[12.0.5, )",
@@ -724,11 +727,8 @@
           "AvaloniaEdit.TextMate": "[12.0.0, )",
           "Dock.Avalonia": "[12.0.0.2, )",
           "Dock.Avalonia.Themes.Fluent": "[12.0.0.2, )",
-          "Dock.Model.Inpc": "[12.0.0.2, )",
+          "Dock.Model.Inpc": "[12.1.0.6, )",
           "FluentIcons.Avalonia": "[2.1.333, )",
-          "Asura.Application": "[1.0.0, )",
-          "Asura.Core": "[1.0.0, )",
-          "Asura.Docking": "[1.0.0, )",
           "Markdig": "[1.3.2, )",
           "Mermaider": "[0.12.1, )",
           "Svg.Controls.Skia.Avalonia": "[12.0.0.13, )",
@@ -748,11 +748,11 @@
       "asura.databases": {
         "type": "Project",
         "dependencies": {
+          "Asura.Application": "[1.0.0, )",
+          "Asura.Core": "[1.0.0, )",
           "ClickHouse.Client": "[7.14.0, )",
           "DuckDB.NET.Data.Full": "[1.5.5, )",
           "FirebirdSql.Data.FirebirdClient": "[10.3.1, )",
-          "Asura.Application": "[1.0.0, )",
-          "Asura.Core": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[6.0.2, )",
           "Microsoft.Data.Sqlite.Core": "[10.0.10, )",
           "MySqlConnector": "[2.4.0, )",
@@ -764,7 +764,7 @@
       "asura.docking": {
         "type": "Project",
         "dependencies": {
-          "Dock.Model.Inpc": "[12.0.0.2, )"
+          "Dock.Model.Inpc": "[12.1.0.6, )"
         }
       },
       "asura.infrastructure": {
@@ -927,11 +927,11 @@
       },
       "Dock.Model.Inpc": {
         "type": "CentralTransitive",
-        "requested": "[12.0.0.2, )",
-        "resolved": "12.0.0.2",
-        "contentHash": "ObZcu0Gmp8vkunBrvISvsWsCuODnjYsA5hrb6Examey621SjwLjDwYLswZmzNZfw/a0FxyF56Q1PXf3uxq1wiQ==",
+        "requested": "[12.1.0.6, )",
+        "resolved": "12.1.0.6",
+        "contentHash": "lXc+ihqvdmfqj6Nvi9vGEVKAZSMLgqeF3cv1LGZetx5IPJ8KurgrFGt3/krWsc1jIx3DyY05aPcRqptgXPK9RQ==",
         "dependencies": {
-          "Dock.Model": "12.0.0.2"
+          "Dock.Model": "12.1.0.6"
         }
       },
       "DuckDB.NET.Data.Full": {
